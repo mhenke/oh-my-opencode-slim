@@ -71,27 +71,31 @@ The plugin follows a "Hub and Spoke" model:
 
 <br clear="both">
 
-### The Orchestrator - *Architect of Realms*
+### 🏛️ The Orchestrator - *Architect of Realms*
 
 <a href="src/agents/orchestrator.ts"><img src="img/orchestrator.png" alt="The Orchestrator" align="right" width="240"></a>
 
-> **The Orchestrator** was born when the first codebase collapsed under its own complexity. Neither god nor mortal would claim responsibility-so The Orchestrator emerged from the void, forging order from chaos. They don't merely command armies; they fight alongside them. Every line of code passes through their hands before they decide which lesser deity deserves a piece of the puzzle.
+> **The Orchestrator** was born when the first codebase collapsed under its own complexity. Neither god nor mortal would claim responsibility—so The Orchestrator emerged from the void, forging order from chaos. They don't merely command armies; they fight alongside them. Every line of code passes through their hands before they decide which lesser deity deserves a piece of the puzzle.
 
-**Role:** Supreme executor, delegator, and overseer - **Model:** `google/claude-opus-4-5-thinking`
+**Role:** `Supreme executor, delegator, and overseer`  
+**Model:** `google/claude-opus-4-5-thinking`  
+**Source:** [src/agents/orchestrator.ts](src/agents/orchestrator.ts)
 
-Write and execute code, orchestrate multi-agent workflows, parse the unspoken from the spoken, summon specialists mid-battle. Shape reality directly-and assign realms to others when the universe grows too vast.
+Write and execute code, orchestrate multi-agent workflows, parse the unspoken from the spoken, summon specialists mid-battle. Shape reality directly—and assign realms to others when the universe grows too vast.
 
 <br clear="both">
 
 ---
 
-### The Explorer - *Pathfinder*
+### 🏛️ The Explorer - *Pathfinder*
 
 <a href="src/agents/explore.ts"><img src="img/explorer.png" alt="The Explorer" align="right" width="240"></a>
 
-> **The Explorer** moves through codebases like wind through trees-swift, silent, everywhere at once. When The Orchestrator whispers "find me the auth module," The Explorer has already returned with forty file paths and a map. They were born from the first `grep` command, evolved beyond it, and now see patterns mortals miss.
+> **The Explorer** moves through codebases like wind through trees—swift, silent, everywhere at once. When The Orchestrator whispers "find me the auth module," The Explorer has already returned with forty file paths and a map. They were born from the first `grep` command, evolved beyond it, and now see patterns mortals miss.
 
-**Role:** Codebase reconnaissance - **Model:** `cerebras/zai-glm-4.6`
+**Role:** `Codebase reconnaissance`  
+**Model:** `cerebras/zai-glm-4.6`  
+**Source:** [src/agents/explore.ts](src/agents/explore.ts)
 
 Regex search, AST pattern matching, file discovery, parallel exploration. Read-only: they chart the territory; others conquer it.
 
@@ -99,13 +103,15 @@ Regex search, AST pattern matching, file discovery, parallel exploration. Read-o
 
 ---
 
-### The Oracle - *Seer Beyond the Stack Trace*
+### 🏛️ The Oracle - *Seer Beyond the Stack Trace*
 
 <a href="src/agents/oracle.ts"><img src="img/oracle.png" alt="The Oracle" align="right" width="240"></a>
 
-> **The Oracle** does not code-they *know*. When bugs defy logic and architectures crumble, The Oracle gazes into the abyss of your codebase and speaks truth. They've seen a thousand systems rise and fall. They'll tell you which path leads to ruin, and which to production.
+> **The Oracle** does not code—they *know*. When bugs defy logic and architectures crumble, The Oracle gazes into the abyss of your codebase and speaks truth. They've seen a thousand systems rise and fall. They'll tell you which path leads to ruin, and which to production.
 
-**Role:** Strategic advisor and debugger of last resort - **Model:** `openai/gpt-5.2-codex`
+**Role:** `Strategic advisor and debugger of last resort`  
+**Model:** `openai/gpt-5.2-codex`  
+**Source:** [src/agents/oracle.ts](src/agents/oracle.ts)
 
 Root cause analysis, architecture review, debugging guidance, tradeoff analysis. Read-only: Oracles advise; they don't intervene.
 
@@ -113,13 +119,15 @@ Root cause analysis, architecture review, debugging guidance, tradeoff analysis.
 
 ---
 
-### The Librarian - *Keeper of Infinite Scrolls*
+### 🏛️ The Librarian - *Keeper of Infinite Scrolls*
 
 <a href="src/agents/librarian.ts"><img src="img/librarian.png" alt="The Librarian" align="right" width="240"></a>
 
-> **The Librarian** guards a library with no walls-every GitHub repo, every npm package, every StackOverflow answer ever written. Ask them "how does React handle concurrent rendering?" and they'll return with official docs, real-world examples, and a warning about the footgun you're about to step on.
+> **The Librarian** guards a library with no walls—every GitHub repo, every npm package, every StackOverflow answer ever written. Ask them "how does React handle concurrent rendering?" and they'll return with official docs, real-world examples, and a warning about the footgun you're about to step on.
 
-**Role:** External knowledge retrieval - **Model:** `google/gemini-3-flash`
+**Role:** `External knowledge retrieval`  
+**Model:** `google/gemini-3-flash`  
+**Source:** [src/agents/librarian.ts](src/agents/librarian.ts)
 
 Documentation lookup, GitHub code search, library research, best practice retrieval. Read-only: they fetch wisdom; implementation is for others.
 
@@ -127,27 +135,31 @@ Documentation lookup, GitHub code search, library research, best practice retrie
 
 ---
 
-### The Designer - *Artisan of Interfaces*
+### 🏛️ The Designer - *Artisan of Interfaces*
 
 <a href="src/agents/frontend.ts"><img src="img/designer.png" alt="The Designer" align="right" width="240"></a>
 
-> **The Designer** believes code should be beautiful-and so should everything it renders. Born from the frustration of a thousand ugly MVPs, they wield CSS like a brush and components like clay. Hand them a feature request; receive a masterpiece. They don't do "good enough."
+> **The Designer** believes code should be beautiful—and so should everything it renders. Born from the frustration of a thousand ugly MVPs, they wield CSS like a brush and components like clay. Hand them a feature request; receive a masterpiece. They don't do "good enough."
 
-**Role:** UI/UX implementation and visual excellence - **Model:** `google/gemini-3-flash`
+**Role:** `UI/UX implementation and visual excellence`  
+**Model:** `google/gemini-3-flash`  
+**Source:** [src/agents/frontend.ts](src/agents/frontend.ts)
 
-Modern responsive design, CSS/Tailwind mastery, micro-animations, component architecture. Visual excellence over code perfection-beauty is the priority.
+Modern responsive design, CSS/Tailwind mastery, micro-animations, component architecture. Visual excellence over code perfection—beauty is the priority.
 
 <br clear="both">
 
 ---
 
-### The Scribe - *Chronicle Keeper*
+### 🏛️ The Scribe - *Chronicle Keeper*
 
 <a href="src/agents/document-writer.ts"><img src="img/scribe.png" alt="The Scribe" align="right" width="240"></a>
 
-> **The Scribe** was there when the first README was written-and wept, for it was incomplete. They have devoted eternity to the sacred art of documentation: clear, scannable, honest. While others ship features, The Scribe ensures those features are understood. Every code example works. Every explanation enlightens.
+> **The Scribe** was there when the first README was written—and wept, for it was incomplete. They have devoted eternity to the sacred art of documentation: clear, scannable, honest. While others ship features, The Scribe ensures those features are understood. Every code example works. Every explanation enlightens.
 
-**Role:** Technical documentation and knowledge capture - **Model:** `google/gemini-3-flash`
+**Role:** `Technical documentation and knowledge capture`  
+**Model:** `google/gemini-3-flash`  
+**Source:** [src/agents/document-writer.ts](src/agents/document-writer.ts)
 
 README crafting, API documentation, architecture docs, inline comments that don't insult your intelligence. Match existing style; focus on "why," not just "what."
 
@@ -155,13 +167,15 @@ README crafting, API documentation, architecture docs, inline comments that don'
 
 ---
 
-### The Visionary - *Reader of Pixels*
+### 🏛️ The Visionary - *Reader of Pixels*
 
-<a href="src/agents/multimodal.ts"><img src="img/multimodal.png" alt="The Visionary" align="right" width="240"></a>
+<a href="src/agents/multimodal.ts"><img src="img/visionary.png" alt="The Visionary" align="right" width="240"></a>
 
-> **The Visionary** sees what others cannot-literally. Screenshots, wireframes, diagrams, PDFs: all are text to them. When a designer throws a Figma mockup at the team and vanishes, The Visionary translates vision into specification. They read the unreadable and describe the indescribable.
+> **The Visionary** sees what others cannot—literally. Screenshots, wireframes, diagrams, PDFs: all are text to them. When a designer throws a Figma mockup at the team and vanishes, The Visionary translates vision into specification. They read the unreadable and describe the indescribable.
 
-**Role:** Image and visual content analysis - **Model:** `google/gemini-3-flash`
+**Role:** `Image and visual content analysis`  
+**Model:** `google/gemini-3-flash`  
+**Source:** [src/agents/multimodal.ts](src/agents/multimodal.ts)
 
 Extract text from images, interpret diagrams, analyze UI screenshots, summarize visual documents. Report what they observe; inference is for others.
 
@@ -169,13 +183,15 @@ Extract text from images, interpret diagrams, analyze UI screenshots, summarize 
 
 ---
 
-### The Minimalist - *Destroyer of Bloat*
+### 🏛️ The Minimalist - *Destroyer of Bloat*
 
-<a href="src/agents/simplicity-reviewer.ts"><img src="img/code-simplicity.png" alt="The Minimalist" align="right" width="240"></a>
+<a href="src/agents/simplicity-reviewer.ts"><img src="img/minimalist.png" alt="The Minimalist" align="right" width="240"></a>
 
-> **The Minimalist** has one sacred truth: every line of code is a liability. They hunt abstractions that serve no purpose, defensive checks that defend nothing, and "clever" solutions that will haunt you in six months. Where others add, The Minimalist subtracts-ruthlessly, joyfully, necessarily.
+> **The Minimalist** has one sacred truth: every line of code is a liability. They hunt abstractions that serve no purpose, defensive checks that defend nothing, and "clever" solutions that will haunt you in six months. Where others add, The Minimalist subtracts—ruthlessly, joyfully, necessarily.
 
-**Role:** Code simplification and YAGNI enforcement - **Model:** `google/claude-opus-4-5-thinking`
+**Role:** `Code simplification and YAGNI enforcement`  
+**Model:** `google/claude-opus-4-5-thinking`  
+**Source:** [src/agents/simplicity-reviewer.ts](src/agents/simplicity-reviewer.ts)
 
 Identify unnecessary complexity, challenge premature abstractions, estimate LOC reduction, enforce minimalism. Read-only: they judge; The Orchestrator executes the sentence.
 
