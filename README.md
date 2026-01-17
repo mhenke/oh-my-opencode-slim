@@ -36,12 +36,139 @@
   - [Quota Tool](#quota-tool)
   - [Background Tasks](#background-tasks)
   - [LSP Tools](#lsp-tools)
-- [Code Search Tools](#code-search-tools)
+  - [Code Search Tools](#code-search-tools)
 - [🧩 **Skills**](#-skills)
   - [Playwright Integration](#playwright-integration)
 - [🔌 **MCP Servers**](#mcp-servers)
 - [⚙️ **Configuration**](#configuration)
 - [🗑️ **Uninstallation**](#uninstallation)
+
+---
+
+## Installation
+
+### For Humans
+
+Run the interactive installer:
+
+```bash
+bunx oh-my-opencode-slim install
+```
+
+Or use non-interactive mode:
+
+```bash
+bunx oh-my-opencode-slim install --no-tui --antigravity=yes --openai=yes --cerebras=no
+```
+
+**Alternative: Ask any coding agent**
+
+Paste this into Claude Code, AmpCode, Cursor, or any coding agent:
+
+```
+Install and configure by following the instructions here:
+https://raw.githubusercontent.com/alvinunreal/oh-my-opencode-slim/refs/heads/master/README.md
+```
+
+### For LLM Agents
+
+<details>
+<summary>Instructions for LLM Agents (click to expand)</summary>
+
+If you're an LLM Agent helping set up oh-my-opencode-slim, follow these steps.
+
+---
+
+#### Step 1: Check OpenCode Installation
+
+```bash
+opencode --version
+```
+
+If not installed, direct the user to https://opencode.ai/docs first.
+
+---
+
+#### Step 2: Ask About Provider Access
+
+Ask these questions **one at a time**, waiting for responses:
+
+1. "Do you have an **Antigravity** subscription?" *(Provides Claude + Gemini via `google/` prefix)*
+2. "Do you have access to **OpenAI** API?" *(Enables `openai/` models)*
+3. "Do you have access to **Cerebras** API?" *(Enables `cerebras/` for fast exploration)*
+
+---
+
+#### Step 3: Run the Installer
+
+Based on answers, run:
+
+```bash
+bunx oh-my-opencode-slim install --no-tui --antigravity=<yes|no> --openai=<yes|no> --cerebras=<yes|no>
+```
+
+**Examples:**
+```bash
+# Antigravity + OpenAI
+bunx oh-my-opencode-slim install --no-tui --antigravity=yes --openai=yes --cerebras=no
+
+# OpenAI only
+bunx oh-my-opencode-slim install --no-tui --antigravity=no --openai=yes --cerebras=no
+
+# All providers
+bunx oh-my-opencode-slim install --no-tui --antigravity=yes --openai=yes --cerebras=yes
+```
+
+The installer automatically:
+- Adds the plugin to `~/.config/opencode/opencode.json`
+- Adds `opencode-antigravity-auth` plugin (if Antigravity enabled)
+- Configures Google provider with model definitions
+- Generates agent model mappings in `~/.config/opencode/oh-my-opencode-slim.json`
+
+---
+
+#### Step 4: Authentication
+
+After installation, guide the user:
+
+**For Antigravity:**
+```bash
+opencode auth login
+# Select: Google → OAuth with Google (Antigravity)
+```
+
+**For OpenAI:**
+```bash
+export OPENAI_API_KEY="sk-..."
+```
+
+**For Cerebras:**
+```bash
+export CEREBRAS_API_KEY="..."
+```
+
+---
+
+#### Step 5: Verify
+
+```bash
+opencode
+```
+
+---
+
+#### Troubleshooting
+
+If the installer fails, check the expected config format:
+```bash
+bunx oh-my-opencode-slim install --help
+```
+
+Then manually create the config files at:
+- `~/.config/opencode/opencode.json`
+- `~/.config/opencode/oh-my-opencode-slim.json`
+
+</details>
 
 ---
 
