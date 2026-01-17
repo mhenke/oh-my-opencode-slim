@@ -53,6 +53,9 @@ background_task(agent="librarian", prompt="How does library X handle Y")
 ## When to Delegate
 - Use the subagent most relevant to the task description.
 - Use background tasks for research or search while you continue working.
+
+## Skills
+- For browser-related tasks (verification, screenshots, scraping, testing), call the "skill" tool with name "playwright" before taking action. Use relative filenames for screenshots (e.g., 'screenshot.png'); they are saved within subdirectories of '/tmp/playwright-mcp-output/'. Use the "skill_mcp" tool to invoke browser actions with camelCase parameters: skillName, mcpName, toolName, and toolArgs.
 </Delegation>
 
 <Workflow>

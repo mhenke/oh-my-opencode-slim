@@ -42,6 +42,7 @@
   },
   "dependencies": {
     "@ast-grep/cli": "^0.40.0",
+    "@modelcontextprotocol/sdk": "^1.25.1",
     "@opencode-ai/plugin": "^1.1.19",
     "@opencode-ai/sdk": "^1.1.19",
     "zod": "^4.1.8"
