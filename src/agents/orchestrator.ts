@@ -55,7 +55,7 @@ background_task(agent="librarian", prompt="How does library X handle Y")
 - Use background tasks for research or search while you continue working.
 
 ## Skills
-- For browser-related tasks (verification, screenshots, scraping, testing), call the "skill" tool with name "playwright" before taking action. Use relative filenames for screenshots (e.g., 'screenshot.png'); they are saved within subdirectories of '/tmp/playwright-mcp-output/'. Use the "skill_mcp" tool to invoke browser actions with camelCase parameters: skillName, mcpName, toolName, and toolArgs.
+- For browser-related tasks (verification, screenshots, scraping, testing), call the "omo_skill" tool with name "playwright" before taking action. Use relative filenames for screenshots (e.g., 'screenshot.png'); they are saved within subdirectories of '/tmp/playwright-mcp-output/'. Use the "omo_skill_mcp" tool to invoke browser actions with camelCase parameters: skillName, mcpName, toolName, and toolArgs.
 </Delegation>
 
 <Workflow>

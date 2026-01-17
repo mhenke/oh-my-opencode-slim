@@ -350,8 +350,8 @@ Skills are specialized capabilities that combine MCP servers with specific instr
 
 | Tool | Description |
 |------|-------------|
-| `skill` | Loads a skill (e.g., `playwright`) and provides its instructions and available MCP tools |
-| `skill_mcp` | Invokes a specific tool from an MCP server managed by a skill |
+| `omo_skill` | Loads a skill (e.g., `playwright`) and provides its instructions and available MCP tools |
+| `omo_skill_mcp` | Invokes a specific tool from an MCP server managed by a skill |
 
 #### Key Features
 - **Browser Automation**: Full Playwright capabilities (browsing, clicking, typing, scraping).
