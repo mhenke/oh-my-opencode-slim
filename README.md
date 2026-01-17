@@ -79,9 +79,9 @@ The plugin follows a "Hub and Spoke" model:
 
 **Role:** `Supreme executor, delegator, and overseer`  
 **Model:** `google/claude-opus-4-5-thinking`  
-**Source:** [src/agents/orchestrator.ts](src/agents/orchestrator.ts)
+**Prompt:** [src/agents/orchestrator.ts](src/agents/orchestrator.ts)
 
-Write and execute code, orchestrate multi-agent workflows, parse the unspoken from the spoken, summon specialists mid-battle. Shape reality directly—and assign realms to others when the universe grows too vast.
+*Shape reality directly—and assign realms to others when the universe grows too vast.*
 
 <br clear="both">
 
@@ -95,9 +95,9 @@ Write and execute code, orchestrate multi-agent workflows, parse the unspoken fr
 
 **Role:** `Codebase reconnaissance`  
 **Model:** `cerebras/zai-glm-4.6`  
-**Source:** [src/agents/explore.ts](src/agents/explore.ts)
+**Prompt:** [src/agents/explore.ts](src/agents/explore.ts)
 
-Regex search, AST pattern matching, file discovery, parallel exploration. Read-only: they chart the territory; others conquer it.
+*Read-only: they chart the territory; others conquer it.*
 
 <br clear="both">
 
@@ -111,9 +111,9 @@ Regex search, AST pattern matching, file discovery, parallel exploration. Read-o
 
 **Role:** `Strategic advisor and debugger of last resort`  
 **Model:** `openai/gpt-5.2-codex`  
-**Source:** [src/agents/oracle.ts](src/agents/oracle.ts)
+**Prompt:** [src/agents/oracle.ts](src/agents/oracle.ts)
 
-Root cause analysis, architecture review, debugging guidance, tradeoff analysis. Read-only: Oracles advise; they don't intervene.
+*Read-only: Oracles advise; they don't intervene.*
 
 <br clear="both">
 
@@ -127,9 +127,9 @@ Root cause analysis, architecture review, debugging guidance, tradeoff analysis.
 
 **Role:** `External knowledge retrieval`  
 **Model:** `google/gemini-3-flash`  
-**Source:** [src/agents/librarian.ts](src/agents/librarian.ts)
+**Prompt:** [src/agents/librarian.ts](src/agents/librarian.ts)
 
-Documentation lookup, GitHub code search, library research, best practice retrieval. Read-only: they fetch wisdom; implementation is for others.
+*Read-only: they fetch wisdom; implementation is for others.*
 
 <br clear="both">
 
@@ -143,9 +143,9 @@ Documentation lookup, GitHub code search, library research, best practice retrie
 
 **Role:** `UI/UX implementation and visual excellence`  
 **Model:** `google/gemini-3-flash`  
-**Source:** [src/agents/frontend.ts](src/agents/frontend.ts)
+**Prompt:** [src/agents/frontend.ts](src/agents/frontend.ts)
 
-Modern responsive design, CSS/Tailwind mastery, micro-animations, component architecture. Visual excellence over code perfection—beauty is the priority.
+*Visual excellence over code perfection—beauty is the priority.*
 
 <br clear="both">
 
@@ -159,9 +159,9 @@ Modern responsive design, CSS/Tailwind mastery, micro-animations, component arch
 
 **Role:** `Technical documentation and knowledge capture`  
 **Model:** `google/gemini-3-flash`  
-**Source:** [src/agents/document-writer.ts](src/agents/document-writer.ts)
+**Prompt:** [src/agents/document-writer.ts](src/agents/document-writer.ts)
 
-README crafting, API documentation, architecture docs, inline comments that don't insult your intelligence. Match existing style; focus on "why," not just "what."
+*Match existing style; focus on "why," not just "what."*
 
 <br clear="both">
 
@@ -175,9 +175,9 @@ README crafting, API documentation, architecture docs, inline comments that don'
 
 **Role:** `Image and visual content analysis`  
 **Model:** `google/gemini-3-flash`  
-**Source:** [src/agents/multimodal.ts](src/agents/multimodal.ts)
+**Prompt:** [src/agents/multimodal.ts](src/agents/multimodal.ts)
 
-Extract text from images, interpret diagrams, analyze UI screenshots, summarize visual documents. Report what they observe; inference is for others.
+*Report what they observe; inference is for others.*
 
 <br clear="both">
 
@@ -191,9 +191,9 @@ Extract text from images, interpret diagrams, analyze UI screenshots, summarize 
 
 **Role:** `Code simplification and YAGNI enforcement`  
 **Model:** `google/claude-opus-4-5-thinking`  
-**Source:** [src/agents/simplicity-reviewer.ts](src/agents/simplicity-reviewer.ts)
+**Prompt:** [src/agents/simplicity-reviewer.ts](src/agents/simplicity-reviewer.ts)
 
-Identify unnecessary complexity, challenge premature abstractions, estimate LOC reduction, enforce minimalism. Read-only: they judge; The Orchestrator executes the sentence.
+*Read-only: they judge; The Orchestrator executes the sentence.*
 
 <br clear="both">
 
