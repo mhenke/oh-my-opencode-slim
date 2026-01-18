@@ -23,14 +23,27 @@
   - [For LLM Agents](#for-llm-agents)
 - [🏗️ **Architecture & Flow**](#architecture--flow)
 - [🏛️ **Meet the Pantheon**](#meet-the-pantheon)
+  - [Orchestrator](#orchestrator)
+  - [Explorer](#explorer)
+  - [Oracle](#oracle)
+  - [Librarian](#librarian)
+  - [Frontend Designer](#frontend-designer)
+  - [Document Writer](#document-writer)
+  - [Multimodal Viewer](#multimodal-viewer)
+  - [Code Simplifier](#code-simplifier)
 - [🛠️ **Tools & Capabilities**](#tools--capabilities)
+  - [Tmux Integration](#tmux-integration)
+  - [Quota Tool](#quota-tool)
+  - [Background Tasks](#background-tasks)
+  - [LSP Tools](#lsp-tools)
+  - [Code Search Tools](#code-search-tools)
 - [🧩 **Skills**](#-skills)
-- [⚙️ **Configuration Guide**](#configuration-guide)
-  - [Locations & Precedence](#locations--precedence)
-  - [General Settings](#general-settings)
-  - [Agent Configuration](#agent-configuration)
-  - [Tmux Setup](#tmux-setup)
-  - [MCP Management](#mcp-management)
+  - [Playwright Integration](#playwright-integration)
+- [🔌 **MCP Servers**](#mcp-servers)
+- [⚙️ **Configuration**](#configuration)
+  - [Files You Edit](#files-you-edit)
+  - [OpenCode Config](#opencode-config-opencodejson)
+  - [Plugin Config](#plugin-config-oh-my-opencode-slimjson)
 - [🗑️ **Uninstallation**](#uninstallation)
 
 ---
@@ -340,6 +353,30 @@ Identify unnecessary complexity, challenge premature abstractions, estimate LOC 
 - **Auto-Cleanup**: Panes close when agents finish, layout rebalances
 - **Zero Overhead**: Works with OpenCode's built-in `task` tool AND our `background_task` tool
 
+#### Quick Setup
+
+1. **Enable the OpenCode HTTP server** in `opencode.json` (see [OpenCode Config](#opencode-config-opencodejson)).
+2. **Enable tmux integration** in `oh-my-opencode-slim.json` (see [Plugin Config](#plugin-config-oh-my-opencode-slimjson)).
+3. **Run OpenCode inside tmux**:
+   ```bash
+   tmux
+   opencode
+   ```
+
+That's it. When agents spawn, they'll appear in new panes.
+
+#### Layout Options
+
+| Layout | Description |
+|--------|-------------|
+| `main-vertical` | Your session on the left (60%), agents stacked on the right |
+| `main-horizontal` | Your session on top (60%), agents stacked below |
+| `tiled` | All panes in equal-sized grid |
+| `even-horizontal` | All panes side by side |
+| `even-vertical` | All panes stacked vertically |
+
+*See the [Option Reference](#option-reference) for detailed configuration.*
+
 ---
 
 ### Quota Tool
@@ -411,29 +448,40 @@ Skills are specialized capabilities that combine MCP servers with specific instr
 
 ---
 
-## ⚙️ Configuration Guide
+## MCP Servers
 
-The Pantheon listens to your commands through sacred JSON scriptures. Here is how you shape their behavior.
+Built-in Model Context Protocol servers (enabled by default):
 
-### Locations & Precedence
+| MCP | Purpose | URL |
+|-----|---------|-----|
+| `websearch` | Real-time web search via Exa AI | `https://mcp.exa.ai/mcp` |
+| `context7` | Official library documentation | `https://mcp.context7.com/mcp` |
+| `grep_app` | GitHub code search via grep.app | `https://mcp.grep.app` |
 
-The plugin merges configuration from two locations. Settings in the **Project Local** file override those in the **User Global** file.
+### Disabling MCPs
 
-| Level | Path | Scope |
-| :--- | :--- | :--- |
-| **User Global** | `~/.config/opencode/oh-my-opencode-slim.json` | All projects for this user |
-| **Project Local** | `./.opencode/oh-my-opencode-slim.json` | This specific repository |
-
-> **Note for Windows Users:** The global config is located at `%APPDATA%\opencode\oh-my-opencode-slim.json` or `~/.config/opencode/oh-my-opencode-slim.json`.
+You can disable specific MCP servers by adding them to the `disabled_mcps` array in your [Plugin Config](#plugin-config-oh-my-opencode-slimjson).
 
 ---
 
-### General Settings
+## Configuration
 
-#### OpenCode Server
-To enable certain integrations (like Tmux), you must first enable the OpenCode HTTP server in your main `opencode.json` file.
+### Files You Edit
 
-**File:** `~/.config/opencode/opencode.json`
+| File | Purpose |
+|------|---------|
+| `~/.config/opencode/opencode.json` | OpenCode core settings (server port for tmux) |
+| `~/.config/opencode/oh-my-opencode-slim.json` | Plugin settings (agents, tmux, MCPs) |
+| `.opencode/oh-my-opencode-slim.json` | Project-local plugin overrides (optional) |
+
+> **Platform paths:** On Windows, user config may also be at `%APPDATA%\opencode\`.
+
+---
+
+### OpenCode Config (`opencode.json`)
+
+Enable the HTTP server for tmux integration:
+
 ```json
 {
   "server": {
@@ -444,13 +492,19 @@ To enable certain integrations (like Tmux), you must first enable the OpenCode H
 
 ---
 
-### Agent Configuration
+### Plugin Config (`oh-my-opencode-slim.json`)
 
-You can customize the underlying LLM and reasoning effort for each deity in the Pantheon.
+All plugin options in one file:
 
-**File:** `oh-my-opencode-slim.json`
 ```json
 {
+  "tmux": {
+    "enabled": true,
+    "layout": "main-vertical",
+    "main_pane_size": 60
+  },
+  "disabled_agents": ["multimodal-looker", "code-simplicity-reviewer"],
+  "disabled_mcps": ["websearch", "grep_app"],
   "agents": {
     "orchestrator": {
       "model": "openai/gpt-5.2-codex",
@@ -460,75 +514,28 @@ You can customize the underlying LLM and reasoning effort for each deity in the 
       "model": "opencode/glm-4.7",
       "variant": "low"
     }
-  },
-  "disabled_agents": ["multimodal-looker", "code-simplicity-reviewer"]
-}
-```
-
-#### Agent Settings Reference
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `agents.<name>.model` | string | *Varies* | Override the LLM for a specific agent |
-| `agents.<name>.variant` | string | `"medium"` | Reasoning level (`low`, `medium`, `high`) |
-| `disabled_agents` | array | `[]` | List of agents to completely deactivate |
-
----
-
-### Tmux Setup
-
-Watch your agents work in real-time by enabling the Tmux integration. This requires the [OpenCode Server](#opencode-server) to be active.
-
-**File:** `oh-my-opencode-slim.json`
-```json
-{
-  "tmux": {
-    "enabled": true,
-    "layout": "main-vertical",
-    "main_pane_size": 60
   }
 }
 ```
 
-#### Tmux Settings Reference
+#### Option Reference
+
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `enabled` | boolean | `false` | Enable/disable tmux integration |
-| `layout` | string | `"main-vertical"` | Layout preset (see below) |
-| `main_pane_size` | number | `60` | Size of main session pane as % (20-80) |
-
-**Available Layouts:**
-- `main-vertical`: Main session left, agents stacked right.
-- `main-horizontal`: Main session top, agents stacked below.
-- `tiled`: Equal-sized grid.
-- `even-horizontal` / `even-vertical`: Evenly distributed panes.
+| `tmux.enabled` | boolean | `false` | Enable tmux pane spawning for sub-agents |
+| `tmux.layout` | string | `"main-vertical"` | Layout preset: `main-vertical`, `main-horizontal`, `tiled`, `even-horizontal`, `even-vertical` |
+| `tmux.main_pane_size` | number | `60` | Main pane size as percentage (20-80) |
+| `disabled_agents` | string[] | `[]` | Agent IDs to disable (e.g., `"multimodal-looker"`) |
+| `disabled_mcps` | string[] | `[]` | MCP server IDs to disable (e.g., `"websearch"`) |
+| `agents.<name>.model` | string | — | Override the LLM for a specific agent |
+| `agents.<name>.variant` | string | — | Reasoning effort: `"low"`, `"medium"`, `"high"` |
 
 ---
 
-### MCP Management
-
-The Pantheon comes equipped with built-in Model Context Protocol (MCP) servers.
-
-| MCP | Purpose | URL |
-|-----|---------|-----|
-| `websearch` | Real-time web search via Exa AI | `https://mcp.exa.ai/mcp` |
-| `context7` | Official library documentation | `https://mcp.context7.com/mcp` |
-| `grep_app` | GitHub code search via grep.app | `https://mcp.grep.app` |
-
-#### Disabling MCPs
-If you wish to silence an MCP server, add it to the `disabled_mcps` array in your config:
-
-**File:** `oh-my-opencode-slim.json`
-```json
-{
-  "disabled_mcps": ["websearch", "grep_app"]
-}
-```
-
----
-
-## 🗑️ Uninstallation
+## Uninstallation
 
 1. **Remove the plugin from your OpenCode config**:
+
    Edit `~/.config/opencode/opencode.json` and remove `"oh-my-opencode-slim"` from the `plugin` array.
 
 2. **Remove configuration files (optional)**:
