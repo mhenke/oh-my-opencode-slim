@@ -77,6 +77,7 @@ Once authenticated, run opencode and `ping all agents` to verify all agents resp
 
 <img src="img/ping.png" alt="Ping All Agents" width="800">
 
+> **💡 Tip: Models are fully customizable.** The installer sets sensible defaults, but you can assign *any* model to *any* agent. Edit `~/.config/opencode/oh-my-opencode-slim.json` to override models, adjust reasoning effort, or disable agents entirely. See [Configuration](#configuration) for details.
 
 **Alternative: Ask any coding agent**
 
