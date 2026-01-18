@@ -348,6 +348,32 @@ export function writeLiteConfig(installConfig: InstallConfig): ConfigMergeResult
   }
 }
 
+/**
+ * Disable OpenCode's default subagents since the plugin provides its own
+ */
+export function disableDefaultAgents(): ConfigMergeResult {
+  const configPath = getConfigJson()
+
+  try {
+    ensureConfigDir()
+    let config = parseConfig(configPath) ?? {}
+
+    const agent = (config.agent ?? {}) as Record<string, unknown>
+    agent.explore = { disable: true }
+    agent.general = { disable: true }
+    config.agent = agent
+
+    writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n")
+    return { success: true, configPath }
+  } catch (err) {
+    return {
+      success: false,
+      configPath,
+      error: `Failed to disable default agents: ${err}`,
+    }
+  }
+}
+
 export function detectCurrentConfig(): DetectedConfig {
   const result: DetectedConfig = {
     isInstalled: false,
