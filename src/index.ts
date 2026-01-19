@@ -16,7 +16,7 @@ import {
 } from "./tools";
 import { loadPluginConfig, type TmuxConfig } from "./config";
 import { createBuiltinMcps } from "./mcp";
-import { createAutoUpdateCheckerHook } from "./hooks";
+import { createAutoUpdateCheckerHook, createPhaseReminderHook, createPostReadNudgeHook } from "./hooks";
 import { startTmuxCheck } from "./utils";
 import { log } from "./shared/logger";
 
@@ -56,6 +56,12 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     showStartupToast: true,
     autoUpdate: true,
   });
+
+  // Initialize phase reminder hook for workflow compliance
+  const phaseReminderHook = createPhaseReminderHook();
+
+  // Initialize post-read nudge hook
+  const postReadNudgeHook = createPostReadNudgeHook();
 
   return {
     name: "oh-my-opencode-slim",
@@ -106,6 +112,12 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         properties?: { info?: { id?: string; parentID?: string; title?: string } };
       });
     },
+
+    // Inject phase reminder before sending to API (doesn't show in UI)
+    "experimental.chat.messages.transform": phaseReminderHook["experimental.chat.messages.transform"],
+
+    // Nudge after file reads to encourage delegation
+    "tool.execute.after": postReadNudgeHook["tool.execute.after"],
   };
 };
 

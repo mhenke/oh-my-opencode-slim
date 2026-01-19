@@ -5,6 +5,7 @@ import { createOracleAgent } from "./oracle";
 import { createLibrarianAgent } from "./librarian";
 import { createExplorerAgent } from "./explorer";
 import { createDesignerAgent } from "./designer";
+import { createFixerAgent } from "./fixer";
 
 export type { AgentDefinition } from "./orchestrator";
 
@@ -44,6 +45,7 @@ const SUBAGENT_FACTORIES: Record<SubagentName, AgentFactory> = {
   librarian: createLibrarianAgent,
   oracle: createOracleAgent,
   designer: createDesignerAgent,
+  fixer: createFixerAgent,
 };
 
 /** Get list of agent names */
@@ -55,9 +57,18 @@ export function createAgents(config?: PluginConfig): AgentDefinition[] {
   const disabledAgents = new Set(config?.disabled_agents ?? []);
   const agentOverrides = config?.agents ?? {};
 
+  // TEMP: If fixer has no config, inherit from librarian's model to avoid breaking
+  // existing users who don't have fixer in their config yet
+  const getModelForAgent = (name: SubagentName): string => {
+    if (name === "fixer" && !getOverride(agentOverrides, "fixer")?.model) {
+      return getOverride(agentOverrides, "librarian")?.model ?? DEFAULT_MODELS["librarian"];
+    }
+    return DEFAULT_MODELS[name];
+  };
+
   // 1. Gather all sub-agent proto-definitions
   const protoSubAgents = (Object.entries(SUBAGENT_FACTORIES) as [SubagentName, AgentFactory][]).map(
-    ([name, factory]) => factory(DEFAULT_MODELS[name])
+    ([name, factory]) => factory(getModelForAgent(name))
   );
 
   // 2. Apply common filtering and overrides
