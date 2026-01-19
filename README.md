@@ -62,7 +62,7 @@ bunx oh-my-opencode-slim install
 Or use non-interactive mode:
 
 ```bash
-bunx oh-my-opencode-slim install --no-tui --antigravity=yes --openai=yes --cerebras=no
+bunx oh-my-opencode-slim install --no-tui --antigravity=yes --openai=yes --tmux=no
 ```
 
 After installation, authenticate with your providers:
@@ -113,7 +113,11 @@ Ask these questions **one at a time**, waiting for responses:
 
 1. "Do you have an **Antigravity** subscription?" *(Provides Claude + Gemini via `google/` prefix)*
 2. "Do you have access to **OpenAI** API?" *(Enables `openai/` models)*
-3. "Do you have access to **Cerebras** API?" *(Enables `cerebras/` for fast exploration)*
+
+Help the user understand the tradeoffs:
+- Antigravity is the recommended path for Claude + Gemini routing.
+- OpenAI is optional; it enables `openai/` models.
+- If the user has **no providers**, the plugin still works using **OpenCode Zen** free models. They can switch to paid providers later by editing `~/.config/opencode/oh-my-opencode-slim.json`.
 
 ---
 
@@ -122,19 +126,19 @@ Ask these questions **one at a time**, waiting for responses:
 Based on answers, run:
 
 ```bash
-bunx oh-my-opencode-slim install --no-tui --antigravity=<yes|no> --openai=<yes|no> --cerebras=<yes|no>
+bunx oh-my-opencode-slim install --no-tui --antigravity=<yes|no> --openai=<yes|no>
 ```
 
 **Examples:**
 ```bash
 # Antigravity + OpenAI
-bunx oh-my-opencode-slim install --no-tui --antigravity=yes --openai=yes --cerebras=no
+bunx oh-my-opencode-slim install --no-tui --antigravity=yes --openai=yes
 
 # OpenAI only
-bunx oh-my-opencode-slim install --no-tui --antigravity=no --openai=yes --cerebras=no
+bunx oh-my-opencode-slim install --no-tui --antigravity=no --openai=yes
 
-# All providers
-bunx oh-my-opencode-slim install --no-tui --antigravity=yes --openai=yes --cerebras=yes
+# No providers (Zen free models only)
+bunx oh-my-opencode-slim install --no-tui --antigravity=no --openai=no
 ```
 
 The installer automatically:
@@ -143,13 +147,18 @@ The installer automatically:
 - Configures Google provider with model definitions
 - Generates agent model mappings in `~/.config/opencode/oh-my-opencode-slim.json`
 
+**Crucial Advice for the User:**
+- They can easily assign **different models to different agents** by editing `~/.config/opencode/oh-my-opencode-slim.json`.
+- If they add a new provider later, they just need to update this file.
+- Read generated  `~/.config/opencode/oh-my-opencode-slim.json` file and report the model configuration.
+
 ---
 
 #### Step 4: Authentication
 
 After installation, guide the user:
 
-**For Antigravity:**
+**For Antigravity/OpenAI:**
 ```bash
 opencode auth login
 # Select: Google → OAuth with Google (Antigravity)
@@ -166,7 +175,6 @@ bunx oh-my-opencode-slim install --help
 ```
 
 Then manually create the config files at:
-- `~/.config/opencode/opencode.json`
 - `~/.config/opencode/oh-my-opencode-slim.json`
 
 </details>
@@ -221,7 +229,7 @@ Write and execute code, orchestrate multi-agent workflows, parse the unspoken fr
 > **The Explorer** moves through codebases like wind through trees - swift, silent, everywhere at once. When The Orchestrator whispers "find me the auth module," The Explorer has already returned with forty file paths and a map. They were born from the first `grep` command, evolved beyond it, and now see patterns mortals miss.
 
 **Role:** `Codebase reconnaissance`  
-**Model:** `cerebras/zai-glm-4.7`  
+**Model:** `google/gemini-3-flash`  
 **Prompt:** [src/agents/explorer.ts](src/agents/explorer.ts)
 
 Regex search, AST pattern matching, file discovery, parallel exploration. *Read-only: they chart the territory; others conquer it.*
