@@ -4,12 +4,6 @@
 
 **A lightweight, powerful agent orchestration plugin for OpenCode**
 
-<a href="https://x.com/alvinunreal" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/Follow%20%40alvinunreal-000000?style=for-the-badge&logo=x&logoColor=white" alt="Follow @alvinunreal on X" />
-</a>
-
-<br>
-
 <img src="img/team.png" alt="The Pantheon - Agent Team" width="600">
 
 *Transform your AI assistant into a manager capable of delegating complex tasks to specialized sub-agents, running searches in the background, and managing multi-step workflows with ease.*
@@ -19,6 +13,10 @@
 > Slimmed-down fork of [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode) - focused on core agent orchestration with low token consumption.
 
 > **[Antigravity](https://antigravity.google) subscription recommended.** The pantheon is tuned for Antigravity's model routing. Other providers work, but you'll get the best experience with Antigravity.
+
+<a href="https://x.com/alvinunreal" target="_blank" rel="noopener noreferrer">
+  <img src="https://img.shields.io/badge/Follow%20%40alvinunreal-000000?style=for-the-badge&logo=x&logoColor=white" alt="Follow @alvinunreal on X" />
+</a>
 
 ---
 
