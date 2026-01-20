@@ -231,6 +231,7 @@ The `background_task` tool lists only subagents. If the UI list looks stale afte
 <br clear="both">
 
 ### Orchestrator
+**The Embodiment Of Order**
 
 <a href="src/agents/orchestrator.ts"><img src="img/orchestrator.png" alt="Orchestrator" align="right" width="240"></a>
 
@@ -247,10 +248,11 @@ Write and execute code, orchestrate multi-agent workflows, parse the unspoken fr
 ---
 
 ### Explorer
+**The Eternal Wanderer**
 
 <a href="src/agents/explore.ts"><img src="img/explorer.png" alt="Explorer" align="right" width="240"></a>
 
-> **The Explorer** moves through codebases like wind through trees - swift, silent, everywhere at once. When The Orchestrator whispers "find me the auth module," The Explorer has already returned with forty file paths and a map. They were born from the first `grep` command, evolved beyond it, and now see patterns mortals miss.
+> **The Explorer** is an immortal wanderer who has traversed the corridors of a million codebases since the dawn of programming. Cursed with the gift of eternal curiosity, they cannot rest until every file is known, every pattern understood, every secret revealed. Legends say they once searched the entire internet in a single heartbeat. They are the wind that carries knowledge, the eyes that see all, the spirit that never sleeps.
 
 **Role:** `Codebase reconnaissance`  
 **Model:** `google/gemini-3-flash`  
@@ -263,10 +265,11 @@ Regex search, AST pattern matching, file discovery, parallel exploration. *Read-
 ---
 
 ### Oracle
+**The Guardian of Paths**
 
 <a href="src/agents/oracle.ts"><img src="img/oracle.png" alt="Oracle" align="right" width="240"></a>
 
-> **The Oracle** does not code - they *know*. When bugs defy logic and architectures crumble, The Oracle gazes into the abyss of your codebase and speaks truth. They've seen a thousand systems rise and fall. They'll tell you which path leads to ruin, and which to production.
+> **The Oracle** stands at the crossroads of every architectural decision. They have walked every road, seen every destination, know every trap that lies ahead. When you stand at the precipice of a major refactor, they are the voice that whispers which way leads to ruin and which way leads to glory. They don't choose for you - they illuminate the path so you can choose wisely.
 
 **Role:** `Strategic advisor and debugger of last resort`  
 **Model:** `openai/gpt-5.2-codex`  
@@ -279,10 +282,11 @@ Root cause analysis, architecture review, debugging guidance, tradeoff analysis.
 ---
 
 ### Librarian
+**The Weaver of Knowledge**
 
 <a href="src/agents/librarian.ts"><img src="img/librarian.png" alt="Librarian" align="right" width="240"></a>
 
-> **The Librarian** guards a library with no walls - every GitHub repo, every npm package, every StackOverflow answer ever written. Ask them "how does React handle concurrent rendering?" and they'll return with official docs, real-world examples, and a warning about the footgun you're about to step on.
+> **The Librarian** was forged when humanity realized that no single mind could hold all knowledge. They are the weaver who connects disparate threads of information into a tapestry of understanding. They traverse the infinite library of human knowledge, gathering insights from every corner and binding them into answers that transcend mere facts. What they return is not information - it's understanding.
 
 **Role:** `External knowledge retrieval`  
 **Model:** `google/gemini-3-flash`  
@@ -295,10 +299,11 @@ Documentation lookup, GitHub code search, library research, best practice retrie
 ---
 
 ### Designer
+**The Guardian of Aesthetics**
 
 <a href="src/agents/designer.ts"><img src="img/designer.png" alt="Designer" align="right" width="240"></a>
 
-> **The Designer** believes code should be beautiful - and so should everything it renders. Born from the frustration of a thousand ugly MVPs, they wield CSS like a brush and components like clay. Hand them a feature request; receive a masterpiece. They don't do "good enough."
+> **The Designer** is an immortal guardian of beauty in a world that often forgets it matters. They have seen a million interfaces rise and fall, and they remember which ones were remembered and which were forgotten. They carry the sacred duty to ensure that every pixel serves a purpose, every animation tells a story, every interaction delights. Beauty is not optional - it's essential.
 
 **Role:** `UI/UX implementation and visual excellence`  
 **Model:** `google/gemini-3-flash`  
@@ -311,10 +316,11 @@ Modern responsive design, CSS/Tailwind mastery, micro-animations, component arch
 ---
 
 ### Fixer
+**The Last Builder**
 
 <a href="src/agents/fixer.ts"><img src="img/fixer.png" alt="Fixer" align="right" width="240"></a>
 
-> **The Fixer** is the hands that build what others envision. While The Orchestrator plans and The Oracle advises, The Fixer executes. They receive complete context from research agents and clear task specifications, then implement with surgical precision. Fast, efficient, and focused - they don't think about what to build, they just build it.
+> **The Fixer** is the last of a lineage of builders who once constructed the foundations of the digital world. When the age of planning and debating began, they remained - the ones who actually build. They carry the ancient knowledge of how to turn thought into thing, how to transform specification into implementation. They are the final step between vision and reality.
 
 **Role:** `Fast implementation specialist`  
 **Model:** `google/gemini-3-flash`  
