@@ -30,7 +30,6 @@
 - [🚀 **Installation**](#installation)
   - [For Humans](#for-humans)
   - [For LLM Agents](#for-llm-agents)
-- [🏗️ **Architecture & Flow**](#architecture--flow)
 - [🏛️ **Meet the Pantheon**](#meet-the-pantheon)
   - [Orchestrator](#orchestrator)
   - [Explorer](#explorer)
@@ -188,27 +187,6 @@ Then manually create the config files at:
 - `~/.config/opencode/oh-my-opencode-slim.json`
 
 </details>
-
----
-
-## 🏗️ Architecture & Flow
-
-The plugin follows a "Hub and Spoke" model:
-
-1. **The Orchestrator (Hub)**: The main entry point for user requests. It analyzes the task and decides which specialized agents to call.
-2. **Specialized Agents (Spokes)**: Domain-specific experts (e.g., UI/UX, Documentation, Architecture) that handle narrow tasks with high precision.
-3. **Background Manager**: A robust engine that allows the Orchestrator to "fire and forget" tasks (like deep codebase searches or documentation research) while continuing to work on other parts of the problem.
-
-### 🏛️ The Flow of a Request
-
-<img src="img/intro.png" alt="Orchestration Flow" width="800">
-
-1. **User Prompt**: "Refactor the auth logic and update the docs."
-2. **Orchestrator**: Creates a TODO list.
-3. **Delegation**:
-   - Launches an `@explorer` background task to find all auth-related files.
-   - Launches a `@librarian` task to check the latest documentation for the auth library used.
-4. **Integration**: Once background results are ready, the Orchestrator delegates to `@fixer` to perform the refactor efficiently.
 
 ---
 
