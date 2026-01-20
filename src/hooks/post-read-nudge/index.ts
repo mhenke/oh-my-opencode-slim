@@ -3,7 +3,7 @@
  * Catches the "read files → implement myself" anti-pattern.
  */
 
-const NUDGE = "\n\n---\n⚡ Consider: delegate to specialist now? (When delegating, reference file paths/lines—don't copy file contents.)";
+const NUDGE = "\n\n---\n⚡ Consider: delegate to specialist now? (When delegating, reference file paths/lines - don't copy file contents.)";
 
 interface ToolExecuteAfterInput {
   tool: string;

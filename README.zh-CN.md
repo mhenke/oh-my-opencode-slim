@@ -10,7 +10,7 @@
 
 </div>
 
-> 这是[oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode)的精简分支——专注于低令牌消耗的核心代理编排。  
+> 这是[oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode)的精简分支 -  - 专注于低令牌消耗的核心代理编排。  
 > **推荐订阅 [Antigravity](https://antigravity.google)。** 万神殿经过 Antigravity 模型路由的调优。其他提供商也可用，但使用 Antigravity 能获得最佳体验。
 
 ---
@@ -208,7 +208,7 @@ bunx oh-my-opencode-slim install --help
 **模型：** `google/claude-opus-4-5-thinking`  
 **提示：** [src/agents/orchestrator.ts](src/agents/orchestrator.ts)
 
-编写并执行代码，编排多代理工作流，从言语中解析未说出的意图，在战斗中召唤专家。*直接塑造现实——当宇宙变得过于庞大时，把领域交给别人。*
+编写并执行代码，编排多代理工作流，从言语中解析未说出的意图，在战斗中召唤专家。*直接塑造现实 -  - 当宇宙变得过于庞大时，把领域交给别人。*
 
 <br clear="both">
 
@@ -218,7 +218,7 @@ bunx oh-my-opencode-slim install --help
 
 <a href="src/agents/explore.ts"><img src="img/explorer.png" alt="Explorer" align="right" width="240"></a>
 
-> **探索者**穿梭代码库如风穿林——迅速、静默、无处不在。当编排者轻语“给我找到认证模块”，探索者已经带着四十条文件路径和地图归来。他们源自第一个 `grep` 命令，早已超越它，现在能看见凡人忽略的模式。
+> **探索者**穿梭代码库如风穿林 -  - 迅速、静默、无处不在。当编排者轻语“给我找到认证模块”，探索者已经带着四十条文件路径和地图归来。他们源自第一个 `grep` 命令，早已超越它，现在能看见凡人忽略的模式。
 
 **角色：** `代码侦查`  
 **模型：** `google/gemini-3-flash`  
@@ -234,7 +234,7 @@ bunx oh-my-opencode-slim install --help
 
 <a href="src/agents/oracle.ts"><img src="img/oracle.png" alt="Oracle" align="right" width="240"></a>
 
-> **神谕者**不编写代码——他们*洞察一切*。当 Bug 遵从逻辑，架构崩溃之时，神谕者凝望代码库深渊，传递真理。他们见证过千百个系统的兴衰，能告诉你哪条路通向毁灭，哪条通向生产环境。
+> **神谕者**不编写代码 -  - 他们*洞察一切*。当 Bug 遵从逻辑，架构崩溃之时，神谕者凝望代码库深渊，传递真理。他们见证过千百个系统的兴衰，能告诉你哪条路通向毁灭，哪条通向生产环境。
 
 **角色：** `战略顾问与最后的调试者`  
 **模型：** `openai/gpt-5.2-codex`  
@@ -250,7 +250,7 @@ bunx oh-my-opencode-slim install --help
 
 <a href="src/agents/librarian.ts"><img src="img/librarian.png" alt="Librarian" align="right" width="240"></a>
 
-> **图书管理员**守护一座无墙的图书馆——包含每个 GitHub 仓库、每个 npm 包、每个 StackOverflow 回答。问他们“React 如何处理并发渲染？”，他们会带来官方文档、真实示例，并警告你即将踩到的坑。
+> **图书管理员**守护一座无墙的图书馆 -  - 包含每个 GitHub 仓库、每个 npm 包、每个 StackOverflow 回答。问他们“React 如何处理并发渲染？”，他们会带来官方文档、真实示例，并警告你即将踩到的坑。
 
 **角色：** `外部知识检索`  
 **模型：** `google/gemini-3-flash`  
@@ -266,13 +266,13 @@ bunx oh-my-opencode-slim install --help
 
 <a href="src/agents/designer.ts"><img src="img/designer.png" alt="Designer" align="right" width="240"></a>
 
-> **设计师**相信代码应该优雅——呈现出来的效果也同样优雅。从数千个丑陋 MVP 中诞生，他们把 CSS 当成画笔，把组件当成泥巴。交给他们功能需求，收获杰作。他们不会满足于“差不多”。
+> **设计师**相信代码应该优雅 -  - 呈现出来的效果也同样优雅。从数千个丑陋 MVP 中诞生，他们把 CSS 当成画笔，把组件当成泥巴。交给他们功能需求，收获杰作。他们不会满足于“差不多”。
 
 **角色：** `UI/UX 实现与视觉卓越`  
 **模型：** `google/gemini-3-flash`  
 **提示：** [src/agents/designer.ts](src/agents/designer.ts)
 
-现代响应式设计、CSS/Tailwind 精通、微动画与组件架构。*优先视觉卓越而非代码完美——美感为先。*
+现代响应式设计、CSS/Tailwind 精通、微动画与组件架构。*优先视觉卓越而非代码完美 -  - 美感为先。*
 
 <br clear="both">
 
@@ -282,13 +282,13 @@ bunx oh-my-opencode-slim install --help
 
 <a href="src/agents/fixer.ts"><img src="img/fixer.png" alt="Fixer" align="right" width="240"></a>
 
-> **修复者**是执行他人想象的双手。当编排者规划、神谕者提点，修复者就开始落地。他们接收研究代理提供的完整上下文和明确任务说明，以极致精准实施。快速、高效、专注——他们不思考要建什么，只管去建。
+> **修复者**是执行他人想象的双手。当编排者规划、神谕者提点，修复者就开始落地。他们接收研究代理提供的完整上下文和明确任务说明，以极致精准实施。快速、高效、专注 -  - 他们不思考要建什么，只管去建。
 
 **角色：** `快速实现专家`  
 **模型：** `google/gemini-3-flash`  
 **提示：** [src/agents/fixer.ts](src/agents/fixer.ts)
 
-代码实现、重构、测试、验证。*执行计划——不研究、不委派、不策划。*
+代码实现、重构、测试、验证。*执行计划 -  - 不研究、不委派、不策划。*
 
 <br clear="both">
 
@@ -547,13 +547,13 @@ bunx oh-my-opencode-slim install --help
 | `tmux.main_pane_size` | number | `60` | 主窗格大小百分比（20-80） |
 | `disabled_agents` | string[] | `[]` | 要禁用的代理 ID（如 `"explorer"`） |
 | `disabled_mcps` | string[] | `[]` | 要禁用的 MCP 服务器 ID（如 `"websearch"`） |
-| `agents.<name>.model` | string | — | 覆盖特定代理的模型 |
-| `agents.<name>.variant` | string | — | 推理强度：`"low"`、`"medium"`、`"high"` |
-| `agents.<name>.skills` | string[] | — | 该代理可使用的技能（`"*"` 表示所有技能） |
-| `agents.<name>.temperature` | number | — | 该代理的温度 (0.0 到 2.0) |
-| `agents.<name>.prompt` | string | — | 该代理的基础提示词覆盖 |
-| `agents.<name>.prompt_append` | string | — | 追加到基础提示词后的文本 |
-| `agents.<name>.disable` | boolean | — | 禁用该特定代理 |
+| `agents.<name>.model` | string |  -  | 覆盖特定代理的模型 |
+| `agents.<name>.variant` | string |  -  | 推理强度：`"low"`、`"medium"`、`"high"` |
+| `agents.<name>.skills` | string[] |  -  | 该代理可使用的技能（`"*"` 表示所有技能） |
+| `agents.<name>.temperature` | number |  -  | 该代理的温度 (0.0 到 2.0) |
+| `agents.<name>.prompt` | string |  -  | 该代理的基础提示词覆盖 |
+| `agents.<name>.prompt_append` | string |  -  | 追加到基础提示词后的文本 |
+| `agents.<name>.disable` | boolean |  -  | 禁用该特定代理 |
 
 ---
 

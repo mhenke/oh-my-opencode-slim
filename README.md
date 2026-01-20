@@ -6,7 +6,7 @@
 
 <img src="img/team.png" alt="The Pantheon - Agent Team" width="800">
 
-*When the first codebase collapsed under its own complexity, neither god nor mortal would claim responsibility. So the Pantheon emerged from the void—six divine beings forged from necessity, each an immortal master of their craft. Now they await your command to forge order from chaos and build what was once thought impossible.*
+*When the first codebase collapsed under its own complexity, neither god nor mortal would claim responsibility. So the Pantheon emerged from the void - six divine beings forged from necessity, each an immortal master of their craft. Now they await your command to forge order from chaos and build what was once thought impossible.*
 
 </div>
 
@@ -580,13 +580,13 @@ The installer generates this file based on your providers. You can manually cust
 | `tmux.main_pane_size` | number | `60` | Main pane size as percentage (20-80) |
 | `disabled_agents` | string[] | `[]` | Agent IDs to disable (e.g., `"explorer"`) |
 | `disabled_mcps` | string[] | `[]` | MCP server IDs to disable (e.g., `"websearch"`) |
-| `agents.<name>.model` | string | — | Override the LLM for a specific agent |
-| `agents.<name>.variant` | string | — | Reasoning effort: `"low"`, `"medium"`, `"high"` |
-| `agents.<name>.skills` | string[] | — | Skills this agent can use (`"*"` = all) |
-| `agents.<name>.temperature` | number | — | Temperature for this agent (0.0 to 2.0) |
-| `agents.<name>.prompt` | string | — | Base prompt override for this agent |
-| `agents.<name>.prompt_append` | string | — | Text to append to the base prompt |
-| `agents.<name>.disable` | boolean | — | Disable this specific agent |
+| `agents.<name>.model` | string |  -  | Override the LLM for a specific agent |
+| `agents.<name>.variant` | string |  -  | Reasoning effort: `"low"`, `"medium"`, `"high"` |
+| `agents.<name>.skills` | string[] |  -  | Skills this agent can use (`"*"` = all) |
+| `agents.<name>.temperature` | number |  -  | Temperature for this agent (0.0 to 2.0) |
+| `agents.<name>.prompt` | string |  -  | Base prompt override for this agent |
+| `agents.<name>.prompt_append` | string |  -  | Text to append to the base prompt |
+| `agents.<name>.disable` | boolean |  -  | Disable this specific agent |
 
 ---
 
