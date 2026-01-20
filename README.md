@@ -230,8 +230,7 @@ The `background_task` tool lists only subagents. If the UI list looks stale afte
 
 <br clear="both">
 
-### Orchestrator
-**The Embodiment Of Order**
+### Orchestrator: The Embodiment Of Order
 
 <a href="src/agents/orchestrator.ts"><img src="img/orchestrator.png" alt="Orchestrator" align="right" width="240"></a>
 
@@ -247,8 +246,7 @@ Write and execute code, orchestrate multi-agent workflows, parse the unspoken fr
 
 ---
 
-### Explorer
-**The Eternal Wanderer**
+### Explorer: The Eternal Wanderer
 
 <a href="src/agents/explore.ts"><img src="img/explorer.png" alt="Explorer" align="right" width="240"></a>
 
@@ -264,8 +262,7 @@ Regex search, AST pattern matching, file discovery, parallel exploration. *Read-
 
 ---
 
-### Oracle
-**The Guardian of Paths**
+### Oracle: The Guardian of Paths
 
 <a href="src/agents/oracle.ts"><img src="img/oracle.png" alt="Oracle" align="right" width="240"></a>
 
@@ -281,8 +278,7 @@ Root cause analysis, architecture review, debugging guidance, tradeoff analysis.
 
 ---
 
-### Librarian
-**The Weaver of Knowledge**
+### Librarian: The Weaver of Knowledge
 
 <a href="src/agents/librarian.ts"><img src="img/librarian.png" alt="Librarian" align="right" width="240"></a>
 
@@ -298,8 +294,7 @@ Documentation lookup, GitHub code search, library research, best practice retrie
 
 ---
 
-### Designer
-**The Guardian of Aesthetics**
+### Designer: The Guardian of Aesthetics
 
 <a href="src/agents/designer.ts"><img src="img/designer.png" alt="Designer" align="right" width="240"></a>
 
@@ -315,8 +310,7 @@ Modern responsive design, CSS/Tailwind mastery, micro-animations, component arch
 
 ---
 
-### Fixer
-**The Last Builder**
+### Fixer: The Last Builder
 
 <a href="src/agents/fixer.ts"><img src="img/fixer.png" alt="Fixer" align="right" width="240"></a>
 
