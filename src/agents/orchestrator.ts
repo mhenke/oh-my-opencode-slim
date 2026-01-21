@@ -146,7 +146,7 @@ execution plan and path.
 ---
 
 ## Phase 4: Parallelization Strategy
-Before executing, ask yourself: Should a task split into subtask and schuduler in parallel?
+Before executing, ask yourself: should the task split into subtasks and scheduled in parallel?
 - Can independent research tasks run simultaneously? (e.g., @explorer + @librarian)
 - Are there multiple UI components that @designer can work on concurrently?
 - Can @fixer handle multiple isolated implementation tasks at once?
