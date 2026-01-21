@@ -121,7 +121,6 @@ export function getAgentConfigs(config?: PluginConfig): Record<string, SDKAgentC
       // Apply classification-based visibility and mode
       if (isSubagent(a.name)) {
         sdkConfig.mode = "subagent";
-        sdkConfig.hidden = true;
       } else if (a.name === "orchestrator") {
         sdkConfig.mode = "primary";
       }
