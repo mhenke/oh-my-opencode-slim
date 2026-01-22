@@ -259,3 +259,308 @@ describe("deepMerge behavior", () => {
     expect(config.agents?.oracle?.model).toBe("user/model")
   })
 })
+
+describe("preset resolution", () => {
+  let tempDir: string
+  let originalEnv: typeof process.env
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "preset-test-"))
+    originalEnv = { ...process.env }
+    process.env.XDG_CONFIG_HOME = path.join(tempDir, "user-config")
+  })
+
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true })
+    process.env = originalEnv
+  })
+
+  test("backward compatibility: config with only agents works unchanged", () => {
+    const projectDir = path.join(tempDir, "project")
+    const projectConfigDir = path.join(projectDir, ".opencode")
+    fs.mkdirSync(projectConfigDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(projectConfigDir, "oh-my-opencode-slim.json"),
+      JSON.stringify({
+        agents: { oracle: { model: "direct-model" } }
+      })
+    )
+
+    const config = loadPluginConfig(projectDir)
+    expect(config.agents?.oracle?.model).toBe("direct-model")
+    expect(config.preset).toBeUndefined()
+  })
+
+  test("preset applied: preset + presets returns preset's agents", () => {
+    const projectDir = path.join(tempDir, "project")
+    const projectConfigDir = path.join(projectDir, ".opencode")
+    fs.mkdirSync(projectConfigDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(projectConfigDir, "oh-my-opencode-slim.json"),
+      JSON.stringify({
+        preset: "fast",
+        presets: {
+          fast: { oracle: { model: "fast-model" } }
+        }
+      })
+    )
+
+    const config = loadPluginConfig(projectDir)
+    expect(config.agents?.oracle?.model).toBe("fast-model")
+  })
+
+  test("root agents override preset agents", () => {
+    const projectDir = path.join(tempDir, "project")
+    const projectConfigDir = path.join(projectDir, ".opencode")
+    fs.mkdirSync(projectConfigDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(projectConfigDir, "oh-my-opencode-slim.json"),
+      JSON.stringify({
+        preset: "fast",
+        presets: {
+          fast: { 
+            oracle: { model: "fast-model", temperature: 0.1 },
+            explorer: { model: "explorer-model" }
+          }
+        },
+        agents: {
+          oracle: { temperature: 0.9 } // Should override preset temperature
+        }
+      })
+    )
+
+    const config = loadPluginConfig(projectDir)
+    expect(config.agents?.oracle?.model).toBe("fast-model")
+    expect(config.agents?.oracle?.temperature).toBe(0.9)
+    expect(config.agents?.explorer?.model).toBe("explorer-model")
+  })
+
+  test("missing preset: preset set but not in presets -> returns empty/root agents", () => {
+    const projectDir = path.join(tempDir, "project")
+    const projectConfigDir = path.join(projectDir, ".opencode")
+    fs.mkdirSync(projectConfigDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(projectConfigDir, "oh-my-opencode-slim.json"),
+      JSON.stringify({
+        preset: "nonexistent",
+        presets: {
+          other: { oracle: { model: "other" } }
+        },
+        agents: { oracle: { model: "root" } }
+      })
+    )
+
+    const config = loadPluginConfig(projectDir)
+    expect(config.agents?.oracle?.model).toBe("root")
+  })
+
+  test("preset only: no root agents, just preset works", () => {
+    const projectDir = path.join(tempDir, "project")
+    const projectConfigDir = path.join(projectDir, ".opencode")
+    fs.mkdirSync(projectConfigDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(projectConfigDir, "oh-my-opencode-slim.json"),
+      JSON.stringify({
+        preset: "dev",
+        presets: {
+          dev: { oracle: { model: "dev-model" } }
+        }
+      })
+    )
+
+    const config = loadPluginConfig(projectDir)
+    expect(config.agents?.oracle?.model).toBe("dev-model")
+  })
+
+  test("invalid preset shape: bad agent config in preset fails schema validation", () => {
+    const projectDir = path.join(tempDir, "project")
+    const projectConfigDir = path.join(projectDir, ".opencode")
+    fs.mkdirSync(projectConfigDir, { recursive: true })
+    
+    // preset agents with invalid temperature
+    fs.writeFileSync(
+      path.join(projectConfigDir, "oh-my-opencode-slim.json"),
+      JSON.stringify({
+        preset: "invalid",
+        presets: {
+          invalid: { oracle: { temperature: 5 } }
+        }
+      })
+    )
+
+    // Should return empty config due to validation failure
+    expect(loadPluginConfig(projectDir)).toEqual({})
+  })
+
+  test("nonexistent preset from config warns and falls back to root agents", () => {
+    const projectDir = path.join(tempDir, "project")
+    const projectConfigDir = path.join(projectDir, ".opencode")
+    fs.mkdirSync(projectConfigDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(projectConfigDir, "oh-my-opencode-slim.json"),
+      JSON.stringify({
+        preset: "nonexistent",
+        presets: {
+          other: { oracle: { model: "other" } }
+        },
+        agents: { oracle: { model: "root" } }
+      })
+    )
+
+    const consoleWarnSpy = spyOn(console, "warn")
+    const config = loadPluginConfig(projectDir)
+    expect(config.agents?.oracle?.model).toBe("root")
+    expect(consoleWarnSpy).toHaveBeenCalled()
+    const warningMessage = consoleWarnSpy.mock.calls[0][0] as string
+    expect(warningMessage).toContain('Preset "nonexistent" not found')
+    expect(warningMessage).toContain('Available presets: other')
+  })
+
+  test("nonexistent preset with no root agents returns empty agents", () => {
+    const projectDir = path.join(tempDir, "project")
+    const projectConfigDir = path.join(projectDir, ".opencode")
+    fs.mkdirSync(projectConfigDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(projectConfigDir, "oh-my-opencode-slim.json"),
+      JSON.stringify({
+        preset: "nonexistent",
+        presets: {
+          other: { oracle: { model: "other" } }
+        }
+      })
+    )
+
+    const consoleWarnSpy = spyOn(console, "warn")
+    const config = loadPluginConfig(projectDir)
+    expect(config.agents).toBeUndefined()
+    expect(consoleWarnSpy).toHaveBeenCalled()
+    const warningMessage = consoleWarnSpy.mock.calls[0][0] as string
+    expect(warningMessage).toContain('Preset "nonexistent" not found')
+  })
+})
+
+describe("environment variable preset override", () => {
+  let tempDir: string
+  let originalEnv: typeof process.env
+
+  beforeEach(() => {
+    tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "env-preset-test-"))
+    originalEnv = { ...process.env }
+    process.env.XDG_CONFIG_HOME = path.join(tempDir, "user-config")
+  })
+
+  afterEach(() => {
+    fs.rmSync(tempDir, { recursive: true, force: true })
+    process.env = originalEnv
+  })
+
+  test("Env var overrides preset from config file", () => {
+    const projectDir = path.join(tempDir, "project")
+    const projectConfigDir = path.join(projectDir, ".opencode")
+    fs.mkdirSync(projectConfigDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(projectConfigDir, "oh-my-opencode-slim.json"),
+      JSON.stringify({
+        preset: "config-preset",
+        presets: {
+          "config-preset": { oracle: { model: "config-model" } },
+          "env-preset": { oracle: { model: "env-model" } }
+        }
+      })
+    )
+
+    process.env.OH_MY_OPENCODE_SLIM_PRESET = "env-preset"
+    const config = loadPluginConfig(projectDir)
+    expect(config.preset).toBe("env-preset")
+    expect(config.agents?.oracle?.model).toBe("env-model")
+  })
+
+  test("Env var works when config has no preset", () => {
+    const projectDir = path.join(tempDir, "project")
+    const projectConfigDir = path.join(projectDir, ".opencode")
+    fs.mkdirSync(projectConfigDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(projectConfigDir, "oh-my-opencode-slim.json"),
+      JSON.stringify({
+        presets: {
+          "env-preset": { oracle: { model: "env-model" } }
+        }
+      })
+    )
+
+    process.env.OH_MY_OPENCODE_SLIM_PRESET = "env-preset"
+    const config = loadPluginConfig(projectDir)
+    expect(config.preset).toBe("env-preset")
+    expect(config.agents?.oracle?.model).toBe("env-model")
+  })
+
+  test("Env var is ignored if empty string", () => {
+    const projectDir = path.join(tempDir, "project")
+    const projectConfigDir = path.join(projectDir, ".opencode")
+    fs.mkdirSync(projectConfigDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(projectConfigDir, "oh-my-opencode-slim.json"),
+      JSON.stringify({
+        preset: "config-preset",
+        presets: {
+          "config-preset": { oracle: { model: "config-model" } }
+        }
+      })
+    )
+
+    process.env.OH_MY_OPENCODE_SLIM_PRESET = ""
+    const config = loadPluginConfig(projectDir)
+    expect(config.preset).toBe("config-preset")
+    expect(config.agents?.oracle?.model).toBe("config-model")
+  })
+
+  test("Env var is ignored if undefined", () => {
+    const projectDir = path.join(tempDir, "project")
+    const projectConfigDir = path.join(projectDir, ".opencode")
+    fs.mkdirSync(projectConfigDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(projectConfigDir, "oh-my-opencode-slim.json"),
+      JSON.stringify({
+        preset: "config-preset",
+        presets: {
+          "config-preset": { oracle: { model: "config-model" } }
+        }
+      })
+    )
+
+    delete process.env.OH_MY_OPENCODE_SLIM_PRESET
+    const config = loadPluginConfig(projectDir)
+    expect(config.preset).toBe("config-preset")
+    expect(config.agents?.oracle?.model).toBe("config-model")
+  })
+
+  test("Env var with nonexistent preset warns and falls back", () => {
+    const projectDir = path.join(tempDir, "project")
+    const projectConfigDir = path.join(projectDir, ".opencode")
+    fs.mkdirSync(projectConfigDir, { recursive: true })
+    fs.writeFileSync(
+      path.join(projectConfigDir, "oh-my-opencode-slim.json"),
+      JSON.stringify({
+        preset: "config-preset",
+        presets: {
+          "config-preset": { oracle: { model: "config-model" } }
+        },
+        agents: { oracle: { model: "fallback" } }
+      })
+    )
+
+    process.env.OH_MY_OPENCODE_SLIM_PRESET = "typo-preset"
+    const consoleWarnSpy = spyOn(console, "warn")
+    const config = loadPluginConfig(projectDir)
+    expect(config.preset).toBe("typo-preset")
+    expect(config.agents?.oracle?.model).toBe("fallback")
+    expect(consoleWarnSpy).toHaveBeenCalled()
+    const calls = consoleWarnSpy.mock.calls as string[][]
+    const warningMessage = calls.find(call => 
+      call[0]?.includes("typo-preset")
+    )?.[0] || ""
+    expect(warningMessage).toContain('Preset "typo-preset" not found')
+    expect(warningMessage).toContain('environment variable')
+    expect(warningMessage).toContain('config-preset')
+  })
+})

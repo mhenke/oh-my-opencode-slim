@@ -147,7 +147,8 @@ describe("config-io", () => {
     expect(result.success).toBe(true)
     
     const saved = JSON.parse(readFileSync(litePath, "utf-8"))
-    expect(saved.agents).toBeDefined()
+    expect(saved.preset).toBe("antigravity")
+    expect(saved.presets.antigravity).toBeDefined()
     expect(saved.tmux.enabled).toBe(true)
   })
 
@@ -171,7 +172,12 @@ describe("config-io", () => {
     
     writeFileSync(configPath, JSON.stringify({ plugin: ["oh-my-opencode-slim", "opencode-antigravity-auth"] }))
     writeFileSync(litePath, JSON.stringify({ 
-      agents: { orchestrator: { model: "openai/gpt-4" } },
+      preset: "openai",
+      presets: {
+        openai: {
+          orchestrator: { model: "openai/gpt-4" }
+        }
+      },
       tmux: { enabled: true }
     }))
     

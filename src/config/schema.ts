@@ -30,12 +30,18 @@ export type TmuxConfig = z.infer<typeof TmuxConfigSchema>;
 
 export type AgentOverrideConfig = z.infer<typeof AgentOverrideConfigSchema>;
 
+export const PresetSchema = z.record(z.string(), AgentOverrideConfigSchema);
+
+export type Preset = z.infer<typeof PresetSchema>;
+
 // MCP names
 export const McpNameSchema = z.enum(["websearch", "context7", "grep_app"]);
 export type McpName = z.infer<typeof McpNameSchema>;
 
 // Main plugin config
 export const PluginConfigSchema = z.object({
+  preset: z.string().optional(),
+  presets: z.record(z.string(), PresetSchema).optional(),
   agents: z.record(z.string(), AgentOverrideConfigSchema).optional(),
   disabled_mcps: z.array(z.string()).optional(),
   tmux: TmuxConfigSchema.optional(),

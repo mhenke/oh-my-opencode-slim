@@ -81,9 +81,13 @@ function handleStepResult(result: ConfigMergeResult, successMsg: string): boolea
 }
 
 function formatConfigSummary(config: InstallConfig): string {
+  const liteConfig = generateLiteConfig(config)
+  const preset = (liteConfig.preset as string) || "unknown"
+
   const lines: string[] = []
   lines.push(`${BOLD}Configuration Summary${RESET}`)
   lines.push("")
+  lines.push(`  ${BOLD}Preset:${RESET} ${BLUE}${preset}${RESET}`)
   lines.push(`  ${config.hasAntigravity ? SYMBOLS.check : DIM + "○" + RESET} Antigravity`)
   lines.push(`  ${config.hasOpenAI ? SYMBOLS.check : DIM + "○" + RESET} OpenAI`)
   lines.push(`  ${SYMBOLS.check} Opencode Zen (free models)`) // Always enabled
@@ -93,11 +97,13 @@ function formatConfigSummary(config: InstallConfig): string {
 
 function printAgentModels(config: InstallConfig): void {
   const liteConfig = generateLiteConfig(config)
-  const agents = liteConfig.agents as Record<string, { model: string; skills: string[] }>
+  const presetName = (liteConfig.preset as string) || "unknown"
+  const presets = liteConfig.presets as Record<string, any>
+  const agents = presets?.[presetName] as Record<string, { model: string; skills: string[] }>
 
   if (!agents || Object.keys(agents).length === 0) return
 
-  console.log(`${BOLD}Agent Configuration:${RESET}`)
+  console.log(`${BOLD}Agent Configuration (Preset: ${BLUE}${presetName}${RESET}):${RESET}`)
   console.log()
 
   const maxAgentLen = Math.max(...Object.keys(agents).map((a) => a.length))

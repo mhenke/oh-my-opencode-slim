@@ -257,7 +257,9 @@ export function detectCurrentConfig(): DetectedConfig {
   const { config: liteConfig } = parseConfig(getLiteConfig())
   if (liteConfig && typeof liteConfig === "object") {
     const configObj = liteConfig as Record<string, any>
-    const agents = configObj.agents as Record<string, { model?: string }> | undefined
+    const presetName = configObj.preset as string
+    const presets = configObj.presets as Record<string, any>
+    const agents = presets?.[presetName] as Record<string, { model?: string }> | undefined
 
     if (agents) {
       const models = Object.values(agents)

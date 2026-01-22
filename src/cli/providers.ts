@@ -40,59 +40,77 @@ export const GOOGLE_PROVIDER_CONFIG = {
 // Model mappings by provider priority
 export const MODEL_MAPPINGS = {
   antigravity: {
-    orchestrator: "google/claude-opus-4-5-thinking",
-    oracle: "google/claude-opus-4-5-thinking",
-    librarian: "google/gemini-3-flash",
-    explorer: "google/gemini-3-flash",
-    designer: "google/gemini-3-flash",
-    fixer: "google/gemini-3-flash",
+    orchestrator: { model: "google/claude-opus-4-5-thinking" },
+    oracle: { model: "google/claude-opus-4-5-thinking", variant: "high" },
+    librarian: { model: "google/gemini-3-flash", variant: "low" },
+    explorer: { model: "google/gemini-3-flash", variant: "low" },
+    designer: { model: "google/gemini-3-flash", variant: "medium" },
+    fixer: { model: "google/gemini-3-flash", variant: "low" },
   },
   openai: {
-    orchestrator: "openai/gpt-5.2-codex",
-    oracle: "openai/gpt-5.2-codex",
-    librarian: "openai/gpt-5.1-codex-mini",
-    explorer: "openai/gpt-5.1-codex-mini",
-    designer: "openai/gpt-5.1-codex-mini",
-    fixer: "openai/gpt-5.1-codex-mini",
+    orchestrator: { model: "openai/gpt-5.2-codex" },
+    oracle: { model: "openai/gpt-5.2-codex", variant: "high" },
+    librarian: { model: "openai/gpt-5.1-codex-mini", variant: "low" },
+    explorer: { model: "openai/gpt-5.1-codex-mini", variant: "low" },
+    designer: { model: "openai/gpt-5.1-codex-mini", variant: "medium" },
+    fixer: { model: "openai/gpt-5.1-codex-mini", variant: "low" },
   },
-  opencode: {
-    orchestrator: "opencode/glm-4.7-free",
-    oracle: "opencode/glm-4.7-free",
-    librarian: "opencode/glm-4.7-free",
-    explorer: "opencode/glm-4.7-free",
-    designer: "opencode/glm-4.7-free",
-    fixer: "opencode/glm-4.7-free",
+  "zen-free": {
+    orchestrator: { model: "opencode/glm-4.7-free" },
+    oracle: { model: "opencode/glm-4.7-free", variant: "high" },
+    librarian: { model: "opencode/grok-code", variant: "low" },
+    explorer: { model: "opencode/grok-code", variant: "low" },
+    designer: { model: "opencode/grok-code", variant: "medium" },
+    fixer: { model: "opencode/grok-code", variant: "low" },
   },
 } as const;
 
 export function generateLiteConfig(installConfig: InstallConfig): Record<string, unknown> {
-  // Priority: antigravity > openai > opencode (Zen free models)
+  // Determine base provider
   const baseProvider = installConfig.hasAntigravity
     ? "antigravity"
     : installConfig.hasOpenAI
       ? "openai"
-      : installConfig.hasOpencodeZen
-        ? "opencode"
-        : "opencode"; // Default to Zen free models
+      : "zen-free";
 
-  const config: Record<string, unknown> = { agents: {} };
+  const config: Record<string, unknown> = {
+    preset: baseProvider,
+    presets: {},
+  };
 
-  if (baseProvider) {
-    // Start with base provider models and include default skills
-    const agents: Record<string, { model: string; skills: string[] }> = Object.fromEntries(
-      Object.entries(MODEL_MAPPINGS[baseProvider]).map(([k, v]) => [
+  // Generate all presets
+  for (const [providerName, models] of Object.entries(MODEL_MAPPINGS)) {
+    const agents: Record<string, { model: string; variant?: string; skills: string[] }> = Object.fromEntries(
+      Object.entries(models).map(([k, v]) => [
         k,
-        { model: v, skills: DEFAULT_AGENT_SKILLS[k as keyof typeof DEFAULT_AGENT_SKILLS] ?? [] },
+        {
+          model: v.model,
+          variant: v.variant,
+          skills: DEFAULT_AGENT_SKILLS[k as keyof typeof DEFAULT_AGENT_SKILLS] ?? [],
+        },
       ])
     );
+    (config.presets as Record<string, unknown>)[providerName] = agents;
+  }
 
-    // Apply provider-specific overrides for mixed configurations
-    if (installConfig.hasAntigravity) {
-      if (installConfig.hasOpenAI) {
-        agents["oracle"] = { model: "openai/gpt-5.2-codex", skills: DEFAULT_AGENT_SKILLS["oracle"] ?? [] };
-      }
-    }
-    config.agents = agents;
+  // Always add antigravity-openai preset
+  const mixedAgents: Record<string, { model: string; variant?: string }> = { ...MODEL_MAPPINGS.antigravity };
+  mixedAgents.oracle = { model: "openai/gpt-5.2-codex", variant: "high" };
+  const agents: Record<string, { model: string; variant?: string; skills: string[] }> = Object.fromEntries(
+    Object.entries(mixedAgents).map(([k, v]) => [
+      k,
+      {
+        model: v.model,
+        variant: v.variant,
+        skills: DEFAULT_AGENT_SKILLS[k as keyof typeof DEFAULT_AGENT_SKILLS] ?? [],
+      },
+    ])
+  );
+  (config.presets as Record<string, unknown>)["antigravity-openai"] = agents;
+
+  // Set default preset based on user choice
+  if (installConfig.hasAntigravity && installConfig.hasOpenAI) {
+    config.preset = "antigravity-openai";
   }
 
   if (installConfig.hasTmux) {
