@@ -281,7 +281,7 @@ Code implementation, refactoring, testing, verification. *Execute the plan - no 
 
 ### Tmux Integration
 
-> ⚠️ **Temporary workaround:** Start OpenCode with `--port 4096` to enable tmux integration. This is required until the upstream issue is resolved.
+> ⚠️ **Temporary workaround:** Start OpenCode with `--port` to enable tmux integration. The port must match the `OPENCODE_PORT` environment variable (default: 4096). This is required until the upstream issue is resolved.
 
 > ⚠️ **Known Issue:** When the server port is enabled, only one OpenCode instance can be opened at a time. We're tracking this in [issue #15](https://github.com/alvinunreal/oh-my-opencode-slim/issues/15), and there's an upstream PR to OpenCode: [opencode#9099](https://github.com/anomalyco/opencode/issues/9099).
 
@@ -289,30 +289,37 @@ Code implementation, refactoring, testing, verification. *Execute the plan - no 
 
 **Watch your agents work in real-time.** When the Orchestrator launches sub-agents or initiates background tasks, new tmux panes automatically spawn showing each agent's live progress. No more waiting in the dark.
 
-#### Why This Matters
-
-| Without Tmux Integration | With Tmux Integration |
-|--------------------------|----------------------|
-| Fire off a background task, wait anxiously | See the agent thinking, searching, coding |
-| "Is it stuck or just slow?" | Watch tool calls happen in real-time |
-| Results appear out of nowhere | Follow the journey from question to answer |
-| Debug by guessing | Debug by observation |
-
-#### What You Get
-
-- **Live Visibility**: Each sub-agent gets its own pane showing real-time output
-- **Auto-Layout**: Tmux automatically arranges panes using your preferred layout
-- **Auto-Cleanup**: Panes close when agents finish, layout rebalances
-- **Zero Overhead**: Works with OpenCode's built-in `task` tool AND our `background_task` tool
-
 #### Quick Setup
 
 1. **Enable tmux integration** in `oh-my-opencode-slim.json` (see [Plugin Config](#plugin-config-oh-my-opencode-slimjson)).
-2. **Run OpenCode inside tmux with port 4096**:
-   ```bash
-   tmux
-   opencode --port 4096
-   ```
+2. **Run OpenCode inside tmux**:
+    ```bash
+    tmux
+    opencode --port 4096
+    ```
+
+   Or use a custom port (must match `OPENCODE_PORT` env var):
+    ```bash
+    tmux
+    export OPENCODE_PORT=5000
+    opencode --port 5000
+    ```
+
+   This allows multiple OpenCode instances on different ports.
+
+#### Configuration
+
+Add this to your `oh-my-opencode-slim.json`:
+
+```json
+{
+  "tmux": {
+    "enabled": true,
+    "layout": "main-vertical",
+    "main_pane_size": 60
+  }
+}
+```
 
 #### Layout Options
 

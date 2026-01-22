@@ -42,7 +42,8 @@ export class TmuxSessionManager {
   constructor(ctx: PluginInput, tmuxConfig: TmuxConfig) {
     this.client = ctx.client;
     this.tmuxConfig = tmuxConfig;
-    this.serverUrl = ctx.serverUrl?.toString() ?? "http://localhost:4096";
+    const defaultPort = process.env.OPENCODE_PORT ?? "4096";
+    this.serverUrl = ctx.serverUrl?.toString() ?? `http://localhost:${defaultPort}`;
     this.enabled = tmuxConfig.enabled && isInsideTmux();
 
     log("[tmux-session-manager] initialized", {

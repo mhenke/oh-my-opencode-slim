@@ -17,13 +17,14 @@ mock.module("../utils/tmux", () => ({
 function createMockContext(overrides?: {
     sessionStatusResult?: { data?: Record<string, { type: string }> }
 }) {
+    const defaultPort = process.env.OPENCODE_PORT ?? "4096";
     return {
         client: {
             session: {
                 status: mock(async () => overrides?.sessionStatusResult ?? { data: {} }),
             },
         },
-        serverUrl: new URL("http://localhost:4096"),
+        serverUrl: new URL(`http://localhost:${defaultPort}`),
     } as any;
 }
 
