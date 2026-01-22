@@ -281,6 +281,8 @@ Code implementation, refactoring, testing, verification. *Execute the plan - no 
 
 ### Tmux Integration
 
+> ⚠️ **Temporary workaround:** Start OpenCode with `--port 4096` to enable tmux integration. This is required until the upstream issue is resolved.
+
 > ⚠️ **Known Issue:** When the server port is enabled, only one OpenCode instance can be opened at a time. We're tracking this in [issue #15](https://github.com/alvinunreal/oh-my-opencode-slim/issues/15), and there's an upstream PR to OpenCode: [opencode#9099](https://github.com/anomalyco/opencode/issues/9099).
 
 <img src="img/tmux.png" alt="Tmux Integration" width="800">
@@ -304,8 +306,6 @@ Code implementation, refactoring, testing, verification. *Execute the plan - no 
 - **Zero Overhead**: Works with OpenCode's built-in `task` tool AND our `background_task` tool
 
 #### Quick Setup
-
-> ⚠️ **Temporary workaround:** Start OpenCode with `--port 4096` to enable tmux integration. This is required until the upstream issue is resolved.
 
 1. **Enable tmux integration** in `oh-my-opencode-slim.json` (see [Plugin Config](#plugin-config-oh-my-opencode-slimjson)).
 2. **Run OpenCode inside tmux with port 4096**:
@@ -363,6 +363,8 @@ Language Server Protocol integration for code intelligence:
 | `lsp_diagnostics` | Get errors/warnings from the language server |
 | `lsp_rename` | Rename a symbol across all files |
 
+> **Built-in LSP Servers:** OpenCode includes pre-configured LSP servers for 30+ languages (TypeScript, Python, Rust, Go, etc.). See the [official documentation](https://opencode.ai/docs/lsp/#built-in) for the full list and requirements.
+
 ---
 
 ### Code Search Tools
@@ -374,6 +376,14 @@ Fast code search and refactoring:
 | `grep` | Fast content search using ripgrep |
 | `ast_grep_search` | AST-aware code pattern matching (25 languages) |
 | `ast_grep_replace` | AST-aware code refactoring with dry-run support |
+
+---
+
+### Formatters
+
+OpenCode automatically formats files after they're written or edited using language-specific formatters.
+
+> **Built-in Formatters:** Includes support for Prettier, Biome, gofmt, rustfmt, ruff, and 20+ others. See the [official documentation](https://opencode.ai/docs/formatters/#built-in) for the complete list.
 
 ---
 
@@ -525,6 +535,23 @@ The installer generates presets for different provider combinations. Switch betw
 | `openai` | OpenAI models (GPT-5.2 + GPT-5.1-mini) |
 | `zen-free` | Free models (GLM-4.7 + Grok Code) |
 | `antigravity-openai` | Mixed: Antigravity for most agents, OpenAI for Oracle |
+
+#### Author's Preset
+
+The author's personal configuration using Cerebras for the Orchestrator:
+
+```json
+{
+  "cerebras": {
+    "orchestrator": { "model": "cerebras/zai-glm-4.7", "skills": ["*"] },
+    "oracle": { "model": "openai/gpt-5.2-codex", "variant": "high", "skills": [] },
+    "librarian": { "model": "google/gemini-3-flash", "variant": "low", "skills": [] },
+    "explorer": { "model": "google/gemini-3-flash", "variant": "low", "skills": [] },
+    "designer": { "model": "google/gemini-3-flash", "variant": "medium", "skills": ["playwright"] },
+    "fixer": { "model": "google/gemini-3-flash", "variant": "low", "skills": [] }
+  }
+}
+```
 
 **Environment Variable Override:**
 
