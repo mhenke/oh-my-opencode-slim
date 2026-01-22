@@ -1,6 +1,6 @@
 import type { Plugin } from "@opencode-ai/plugin";
 import { getAgentConfigs } from "./agents";
-import { BackgroundTaskManager, TmuxSessionManager } from "./features";
+import { BackgroundTaskManager, TmuxSessionManager } from "./background";
 import {
   createBackgroundTools,
   lsp_goto_definition,

@@ -1,4 +1,4 @@
-import type { InstallArgs, InstallConfig, BooleanArg, DetectedConfig } from "./types"
+import type { InstallArgs, InstallConfig, BooleanArg, DetectedConfig, ConfigMergeResult } from "./types"
 import * as readline from "readline/promises"
 import {
   addPluginToOpenCodeConfig,
@@ -9,7 +9,6 @@ import {
   addProviderConfig,
   disableDefaultAgents,
   detectCurrentConfig,
-  isTmuxInstalled,
   generateLiteConfig,
 } from "./config-manager"
 
@@ -72,9 +71,7 @@ async function checkOpenCodeInstalled(): Promise<{ ok: boolean; version?: string
   return { ok: true, version: version ?? undefined }
 }
 
-type StepResult = { success: boolean; error?: string; configPath?: string }
-
-function handleStepResult(result: StepResult, successMsg: string): boolean {
+function handleStepResult(result: ConfigMergeResult, successMsg: string): boolean {
   if (!result.success) {
     printError(`Failed: ${result.error}`)
     return false

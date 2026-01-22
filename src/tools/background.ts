@@ -1,5 +1,5 @@
 import { tool, type PluginInput, type ToolDefinition } from "@opencode-ai/plugin";
-import type { BackgroundTaskManager } from "../features";
+import type { BackgroundTaskManager } from "../background";
 import { SUBAGENT_NAMES } from "../config";
 import {
   POLL_INTERVAL_MS,
