@@ -1,24 +1,28 @@
-import type { Plugin } from "@opencode-ai/plugin";
-import { getAgentConfigs } from "./agents";
-import { BackgroundTaskManager, TmuxSessionManager } from "./background";
+import type { Plugin } from '@opencode-ai/plugin';
+import { getAgentConfigs } from './agents';
+import { BackgroundTaskManager, TmuxSessionManager } from './background';
+import { loadPluginConfig, type TmuxConfig } from './config';
 import {
-  createBackgroundTools,
-  lsp_goto_definition,
-  lsp_find_references,
-  lsp_diagnostics,
-  lsp_rename,
-  grep,
-  ast_grep_search,
-  ast_grep_replace,
+  createAutoUpdateCheckerHook,
+  createPhaseReminderHook,
+  createPostReadNudgeHook,
+} from './hooks';
+import { createBuiltinMcps } from './mcp';
+import {
   antigravity_quota,
+  ast_grep_replace,
+  ast_grep_search,
+  createBackgroundTools,
   createSkillTools,
+  grep,
+  lsp_diagnostics,
+  lsp_find_references,
+  lsp_goto_definition,
+  lsp_rename,
   SkillMcpManager,
-} from "./tools";
-import { loadPluginConfig, type TmuxConfig } from "./config";
-import { createBuiltinMcps } from "./mcp";
-import { createAutoUpdateCheckerHook, createPhaseReminderHook, createPostReadNudgeHook } from "./hooks";
-import { startTmuxCheck } from "./utils";
-import { log } from "./utils/logger";
+} from './tools';
+import { startTmuxCheck } from './utils';
+import { log } from './utils/logger';
 
 const OhMyOpenCodeLite: Plugin = async (ctx) => {
   const config = loadPluginConfig(ctx.directory);
@@ -27,14 +31,14 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
   // Parse tmux config with defaults
   const tmuxConfig: TmuxConfig = {
     enabled: config.tmux?.enabled ?? false,
-    layout: config.tmux?.layout ?? "main-vertical",
+    layout: config.tmux?.layout ?? 'main-vertical',
     main_pane_size: config.tmux?.main_pane_size ?? 60,
   };
 
-  log("[plugin] initialized with tmux config", {
+  log('[plugin] initialized with tmux config', {
     tmuxConfig,
     rawTmuxConfig: config.tmux,
-    directory: ctx.directory
+    directory: ctx.directory,
   });
 
   // Start background tmux check if enabled
@@ -43,7 +47,12 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
   }
 
   const backgroundManager = new BackgroundTaskManager(ctx, tmuxConfig, config);
-  const backgroundTools = createBackgroundTools(ctx, backgroundManager, tmuxConfig, config);
+  const backgroundTools = createBackgroundTools(
+    ctx,
+    backgroundManager,
+    tmuxConfig,
+    config,
+  );
   const mcps = createBuiltinMcps(config.disabled_mcps);
   const skillMcpManager = SkillMcpManager.getInstance();
   const skillTools = createSkillTools(skillMcpManager, config);
@@ -64,7 +73,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
   const postReadNudgeHook = createPostReadNudgeHook();
 
   return {
-    name: "oh-my-opencode-slim",
+    name: 'oh-my-opencode-slim',
 
     agent: agents,
 
@@ -84,9 +93,12 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     mcp: mcps,
 
     config: async (opencodeConfig: Record<string, unknown>) => {
-      (opencodeConfig as { default_agent?: string }).default_agent = "orchestrator";
+      (opencodeConfig as { default_agent?: string }).default_agent =
+        'orchestrator';
 
-      const configAgent = opencodeConfig.agent as Record<string, unknown> | undefined;
+      const configAgent = opencodeConfig.agent as
+        | Record<string, unknown>
+        | undefined;
       if (!configAgent) {
         opencodeConfig.agent = { ...agents };
       } else {
@@ -94,7 +106,9 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       }
 
       // Merge MCP configs
-      const configMcp = opencodeConfig.mcp as Record<string, unknown> | undefined;
+      const configMcp = opencodeConfig.mcp as
+        | Record<string, unknown>
+        | undefined;
       if (!configMcp) {
         opencodeConfig.mcp = { ...mcps };
       } else {
@@ -107,21 +121,33 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       await autoUpdateChecker.event(input);
 
       // Handle tmux pane spawning for OpenCode's Task tool sessions
-      await tmuxSessionManager.onSessionCreated(input.event as {
-        type: string;
-        properties?: { info?: { id?: string; parentID?: string; title?: string } };
-      });
+      await tmuxSessionManager.onSessionCreated(
+        input.event as {
+          type: string;
+          properties?: {
+            info?: { id?: string; parentID?: string; title?: string };
+          };
+        },
+      );
     },
 
     // Inject phase reminder before sending to API (doesn't show in UI)
-    "experimental.chat.messages.transform": phaseReminderHook["experimental.chat.messages.transform"],
+    'experimental.chat.messages.transform':
+      phaseReminderHook['experimental.chat.messages.transform'],
 
     // Nudge after file reads to encourage delegation
-    "tool.execute.after": postReadNudgeHook["tool.execute.after"],
+    'tool.execute.after': postReadNudgeHook['tool.execute.after'],
   };
 };
 
 export default OhMyOpenCodeLite;
 
-export type { PluginConfig, AgentOverrideConfig, AgentName, McpName, TmuxConfig, TmuxLayout } from "./config";
-export type { RemoteMcpConfig } from "./mcp";
+export type {
+  AgentName,
+  AgentOverrideConfig,
+  McpName,
+  PluginConfig,
+  TmuxConfig,
+  TmuxLayout,
+} from './config';
+export type { RemoteMcpConfig } from './mcp';

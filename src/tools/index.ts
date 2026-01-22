@@ -1,20 +1,19 @@
-export { createBackgroundTools } from "./background";
-export {
-  lsp_goto_definition,
-  lsp_find_references,
-  lsp_diagnostics,
-  lsp_rename,
-  lspManager,
-} from "./lsp";
+// AST-grep tools
+export { ast_grep_replace, ast_grep_search } from './ast-grep';
+export { createBackgroundTools } from './background';
 
 // Grep tool (ripgrep-based)
-export { grep } from "./grep";
-
-// AST-grep tools
-export { ast_grep_search, ast_grep_replace } from "./ast-grep";
+export { grep } from './grep';
+export {
+  lsp_diagnostics,
+  lsp_find_references,
+  lsp_goto_definition,
+  lsp_rename,
+  lspManager,
+} from './lsp';
 
 // Antigravity quota tool
-export { antigravity_quota } from "./quota";
+export { antigravity_quota } from './quota';
 
 // Skill tools
-export { createSkillTools, SkillMcpManager } from "./skill";
+export { createSkillTools, SkillMcpManager } from './skill';

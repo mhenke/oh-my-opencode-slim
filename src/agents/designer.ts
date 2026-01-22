@@ -1,4 +1,4 @@
-import type { AgentDefinition } from "./orchestrator";
+import type { AgentDefinition } from './orchestrator';
 
 const DESIGNER_PROMPT = `You are a Designer - a frontend UI/UX engineer.
 
@@ -13,14 +13,27 @@ const DESIGNER_PROMPT = `You are a Designer - a frontend UI/UX engineer.
 - Use existing component libraries when available
 - Prioritize visual excellence over code perfection`;
 
-export function createDesignerAgent(model: string): AgentDefinition {
+export function createDesignerAgent(
+  model: string,
+  customPrompt?: string,
+  customAppendPrompt?: string,
+): AgentDefinition {
+  let prompt = DESIGNER_PROMPT;
+
+  if (customPrompt) {
+    prompt = customPrompt;
+  } else if (customAppendPrompt) {
+    prompt = `${DESIGNER_PROMPT}\n\n${customAppendPrompt}`;
+  }
+
   return {
-    name: "designer",
-    description: "UI/UX design and implementation. Use for styling, responsive design, component architecture and visual polish.",
+    name: 'designer',
+    description:
+      'UI/UX design and implementation. Use for styling, responsive design, component architecture and visual polish.',
     config: {
       model,
       temperature: 0.7,
-      prompt: DESIGNER_PROMPT,
+      prompt,
     },
   };
 }

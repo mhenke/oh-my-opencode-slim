@@ -1,6 +1,6 @@
-import { spawn } from "bun";
-import { log } from "./logger";
-import type { TmuxConfig, TmuxLayout } from "../config/schema";
+import { spawn } from 'bun';
+import type { TmuxConfig, TmuxLayout } from '../config/schema';
+import { log } from './logger';
 
 let tmuxPath: string | null = null;
 let tmuxChecked = false;
@@ -22,7 +22,7 @@ async function isServerRunning(serverUrl: string): Promise<boolean> {
     return true;
   }
 
-  const healthUrl = new URL("/health", serverUrl).toString();
+  const healthUrl = new URL('/health', serverUrl).toString();
   const timeoutMs = 3000;
   const maxAttempts = 2;
 
@@ -32,7 +32,9 @@ async function isServerRunning(serverUrl: string): Promise<boolean> {
 
     let response: Response | null = null;
     try {
-      response = await fetch(healthUrl, { signal: controller.signal }).catch(() => null);
+      response = await fetch(healthUrl, { signal: controller.signal }).catch(
+        () => null,
+      );
     } finally {
       clearTimeout(timeout);
     }
@@ -41,7 +43,7 @@ async function isServerRunning(serverUrl: string): Promise<boolean> {
     if (available) {
       serverCheckUrl = serverUrl;
       serverAvailable = true;
-      log("[tmux] isServerRunning: checked", { serverUrl, available, attempt });
+      log('[tmux] isServerRunning: checked', { serverUrl, available, attempt });
       return true;
     }
 
@@ -50,7 +52,7 @@ async function isServerRunning(serverUrl: string): Promise<boolean> {
     }
   }
 
-  log("[tmux] isServerRunning: checked", { serverUrl, available: false });
+  log('[tmux] isServerRunning: checked', { serverUrl, available: false });
   return false;
 }
 
@@ -66,13 +68,13 @@ export function resetServerCheck(): void {
  * Find tmux binary path
  */
 async function findTmuxPath(): Promise<string | null> {
-  const isWindows = process.platform === "win32";
-  const cmd = isWindows ? "where" : "which";
+  const isWindows = process.platform === 'win32';
+  const cmd = isWindows ? 'where' : 'which';
 
   try {
-    const proc = spawn([cmd, "tmux"], {
-      stdout: "pipe",
-      stderr: "pipe",
+    const proc = spawn([cmd, 'tmux'], {
+      stdout: 'pipe',
+      stderr: 'pipe',
     });
 
     const exitCode = await proc.exited;
@@ -82,27 +84,27 @@ async function findTmuxPath(): Promise<string | null> {
     }
 
     const stdout = await new Response(proc.stdout).text();
-    const path = stdout.trim().split("\n")[0];
+    const path = stdout.trim().split('\n')[0];
     if (!path) {
-      log("[tmux] findTmuxPath: no path in output");
+      log('[tmux] findTmuxPath: no path in output');
       return null;
     }
 
     // Verify it works
-    const verifyProc = spawn([path, "-V"], {
-      stdout: "pipe",
-      stderr: "pipe",
+    const verifyProc = spawn([path, '-V'], {
+      stdout: 'pipe',
+      stderr: 'pipe',
     });
     const verifyExit = await verifyProc.exited;
     if (verifyExit !== 0) {
-      log("[tmux] findTmuxPath: tmux -V failed", { path, verifyExit });
+      log('[tmux] findTmuxPath: tmux -V failed', { path, verifyExit });
       return null;
     }
 
-    log("[tmux] findTmuxPath: found tmux", { path });
+    log('[tmux] findTmuxPath: found tmux', { path });
     return path;
   } catch (err) {
-    log("[tmux] findTmuxPath: exception", { error: String(err) });
+    log('[tmux] findTmuxPath: exception', { error: String(err) });
     return null;
   }
 }
@@ -117,7 +119,7 @@ export async function getTmuxPath(): Promise<string | null> {
 
   tmuxPath = await findTmuxPath();
   tmuxChecked = true;
-  log("[tmux] getTmuxPath: initialized", { tmuxPath });
+  log('[tmux] getTmuxPath: initialized', { tmuxPath });
   return tmuxPath;
 }
 
@@ -131,38 +133,44 @@ export function isInsideTmux(): boolean {
 /**
  * Apply a tmux layout to the current window
  */
-async function applyLayout(tmux: string, layout: TmuxLayout, mainPaneSize: number): Promise<void> {
+async function applyLayout(
+  tmux: string,
+  layout: TmuxLayout,
+  mainPaneSize: number,
+): Promise<void> {
   try {
     // Apply the layout
-    const layoutProc = spawn([tmux, "select-layout", layout], {
-      stdout: "pipe",
-      stderr: "pipe",
+    const layoutProc = spawn([tmux, 'select-layout', layout], {
+      stdout: 'pipe',
+      stderr: 'pipe',
     });
     await layoutProc.exited;
 
     // For main-* layouts, set the main pane size
-    if (layout === "main-horizontal" || layout === "main-vertical") {
-      const sizeOption = layout === "main-horizontal"
-        ? "main-pane-height"
-        : "main-pane-width";
+    if (layout === 'main-horizontal' || layout === 'main-vertical') {
+      const sizeOption =
+        layout === 'main-horizontal' ? 'main-pane-height' : 'main-pane-width';
 
-      const sizeProc = spawn([tmux, "set-window-option", sizeOption, `${mainPaneSize}%`], {
-        stdout: "pipe",
-        stderr: "pipe",
-      });
+      const sizeProc = spawn(
+        [tmux, 'set-window-option', sizeOption, `${mainPaneSize}%`],
+        {
+          stdout: 'pipe',
+          stderr: 'pipe',
+        },
+      );
       await sizeProc.exited;
 
       // Reapply layout to use the new size
-      const reapplyProc = spawn([tmux, "select-layout", layout], {
-        stdout: "pipe",
-        stderr: "pipe",
+      const reapplyProc = spawn([tmux, 'select-layout', layout], {
+        stdout: 'pipe',
+        stderr: 'pipe',
       });
       await reapplyProc.exited;
     }
 
-    log("[tmux] applyLayout: applied", { layout, mainPaneSize });
+    log('[tmux] applyLayout: applied', { layout, mainPaneSize });
   } catch (err) {
-    log("[tmux] applyLayout: exception", { error: String(err) });
+    log('[tmux] applyLayout: exception', { error: String(err) });
   }
 }
 
@@ -181,17 +189,22 @@ export async function spawnTmuxPane(
   sessionId: string,
   description: string,
   config: TmuxConfig,
-  serverUrl: string
+  serverUrl: string,
 ): Promise<SpawnPaneResult> {
-  log("[tmux] spawnTmuxPane called", { sessionId, description, config, serverUrl });
+  log('[tmux] spawnTmuxPane called', {
+    sessionId,
+    description,
+    config,
+    serverUrl,
+  });
 
   if (!config.enabled) {
-    log("[tmux] spawnTmuxPane: config.enabled is false, skipping");
+    log('[tmux] spawnTmuxPane: config.enabled is false, skipping');
     return { success: false };
   }
 
   if (!isInsideTmux()) {
-    log("[tmux] spawnTmuxPane: not inside tmux, skipping");
+    log('[tmux] spawnTmuxPane: not inside tmux, skipping');
     return { success: false };
   }
 
@@ -199,17 +212,17 @@ export async function spawnTmuxPane(
   // This is needed because serverUrl may be a fallback even when no server is running
   const serverRunning = await isServerRunning(serverUrl);
   if (!serverRunning) {
-    const defaultPort = process.env.OPENCODE_PORT ?? "4096";
-    log("[tmux] spawnTmuxPane: OpenCode server not running, skipping", {
+    const defaultPort = process.env.OPENCODE_PORT ?? '4096';
+    log('[tmux] spawnTmuxPane: OpenCode server not running, skipping', {
       serverUrl,
-      hint: `Start opencode with --port ${defaultPort}`
+      hint: `Start opencode with --port ${defaultPort}`,
     });
     return { success: false };
   }
 
   const tmux = await getTmuxPath();
   if (!tmux) {
-    log("[tmux] spawnTmuxPane: tmux binary not found, skipping");
+    log('[tmux] spawnTmuxPane: tmux binary not found, skipping');
     return { success: false };
   }
 
@@ -224,19 +237,20 @@ export async function spawnTmuxPane(
     // Simple split - layout will handle positioning
     // Use -h for horizontal split (new pane to the right) as default
     const args = [
-      "split-window",
-      "-h",
-      "-d", // Don't switch focus to new pane
-      "-P", // Print pane info
-      "-F", "#{pane_id}", // Format: just the pane ID
+      'split-window',
+      '-h',
+      '-d', // Don't switch focus to new pane
+      '-P', // Print pane info
+      '-F',
+      '#{pane_id}', // Format: just the pane ID
       opencodeCmd,
     ];
 
-    log("[tmux] spawnTmuxPane: executing", { tmux, args, opencodeCmd });
+    log('[tmux] spawnTmuxPane: executing', { tmux, args, opencodeCmd });
 
     const proc = spawn([tmux, ...args], {
-      stdout: "pipe",
-      stderr: "pipe",
+      stdout: 'pipe',
+      stderr: 'pipe',
     });
 
     const exitCode = await proc.exited;
@@ -244,28 +258,35 @@ export async function spawnTmuxPane(
     const stderr = await new Response(proc.stderr).text();
     const paneId = stdout.trim(); // e.g., "%42"
 
-    log("[tmux] spawnTmuxPane: split result", { exitCode, paneId, stderr: stderr.trim() });
+    log('[tmux] spawnTmuxPane: split result', {
+      exitCode,
+      paneId,
+      stderr: stderr.trim(),
+    });
 
     if (exitCode === 0 && paneId) {
       // Rename the pane for visibility
       const renameProc = spawn(
-        [tmux, "select-pane", "-t", paneId, "-T", description.slice(0, 30)],
-        { stdout: "ignore", stderr: "ignore" }
+        [tmux, 'select-pane', '-t', paneId, '-T', description.slice(0, 30)],
+        { stdout: 'ignore', stderr: 'ignore' },
       );
       await renameProc.exited;
 
       // Apply layout to auto-rebalance all panes
-      const layout = config.layout ?? "main-vertical";
+      const layout = config.layout ?? 'main-vertical';
       const mainPaneSize = config.main_pane_size ?? 60;
       await applyLayout(tmux, layout, mainPaneSize);
 
-      log("[tmux] spawnTmuxPane: SUCCESS, pane created and layout applied", { paneId, layout });
+      log('[tmux] spawnTmuxPane: SUCCESS, pane created and layout applied', {
+        paneId,
+        layout,
+      });
       return { success: true, paneId };
     }
 
     return { success: false };
   } catch (err) {
-    log("[tmux] spawnTmuxPane: exception", { error: String(err) });
+    log('[tmux] spawnTmuxPane: exception', { error: String(err) });
     return { success: false };
   }
 }
@@ -274,49 +295,51 @@ export async function spawnTmuxPane(
  * Close a tmux pane by its ID and reapply layout to rebalance remaining panes
  */
 export async function closeTmuxPane(paneId: string): Promise<boolean> {
-  log("[tmux] closeTmuxPane called", { paneId });
+  log('[tmux] closeTmuxPane called', { paneId });
 
   if (!paneId) {
-    log("[tmux] closeTmuxPane: no paneId provided");
+    log('[tmux] closeTmuxPane: no paneId provided');
     return false;
   }
 
   const tmux = await getTmuxPath();
   if (!tmux) {
-    log("[tmux] closeTmuxPane: tmux binary not found");
+    log('[tmux] closeTmuxPane: tmux binary not found');
     return false;
   }
 
   try {
-    const proc = spawn([tmux, "kill-pane", "-t", paneId], {
-      stdout: "pipe",
-      stderr: "pipe",
+    const proc = spawn([tmux, 'kill-pane', '-t', paneId], {
+      stdout: 'pipe',
+      stderr: 'pipe',
     });
 
     const exitCode = await proc.exited;
     const stderr = await new Response(proc.stderr).text();
 
-    log("[tmux] closeTmuxPane: result", { exitCode, stderr: stderr.trim() });
+    log('[tmux] closeTmuxPane: result', { exitCode, stderr: stderr.trim() });
 
     if (exitCode === 0) {
-      log("[tmux] closeTmuxPane: SUCCESS, pane closed", { paneId });
+      log('[tmux] closeTmuxPane: SUCCESS, pane closed', { paneId });
 
       // Reapply layout to rebalance remaining panes
       if (storedConfig) {
-        const layout = storedConfig.layout ?? "main-vertical";
+        const layout = storedConfig.layout ?? 'main-vertical';
         const mainPaneSize = storedConfig.main_pane_size ?? 60;
         await applyLayout(tmux, layout, mainPaneSize);
-        log("[tmux] closeTmuxPane: layout reapplied", { layout });
+        log('[tmux] closeTmuxPane: layout reapplied', { layout });
       }
 
       return true;
     }
 
     // Pane might already be closed (user closed it manually, or process exited)
-    log("[tmux] closeTmuxPane: failed (pane may already be closed)", { paneId });
+    log('[tmux] closeTmuxPane: failed (pane may already be closed)', {
+      paneId,
+    });
     return false;
   } catch (err) {
-    log("[tmux] closeTmuxPane: exception", { error: String(err) });
+    log('[tmux] closeTmuxPane: exception', { error: String(err) });
     return false;
   }
 }
@@ -326,6 +349,6 @@ export async function closeTmuxPane(paneId: string): Promise<boolean> {
  */
 export function startTmuxCheck(): void {
   if (!tmuxChecked) {
-    getTmuxPath().catch(() => { });
+    getTmuxPath().catch(() => {});
   }
 }

@@ -1,15 +1,15 @@
-import * as path from "path";
-import * as os from "os";
-import * as fs from "fs";
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
 // Define base configuration directory based on OS
-const isWindows = os.platform() === "win32";
+const isWindows = os.platform() === 'win32';
 const configBase = isWindows
-  ? path.join(os.homedir(), "AppData", "Roaming", "opencode")
-  : path.join(os.homedir(), ".config", "opencode");
+  ? path.join(os.homedir(), 'AppData', 'Roaming', 'opencode')
+  : path.join(os.homedir(), '.config', 'opencode');
 
-const commandDir = path.join(configBase, "command");
-const commandFile = path.join(commandDir, "antigravity-quota.md");
+const commandDir = path.join(configBase, 'command');
+const commandFile = path.join(commandDir, 'antigravity-quota.md');
 
 const commandContent = `---
 description: Check Antigravity quota status for all configured Google accounts
@@ -36,14 +36,14 @@ try {
     fs.mkdirSync(commandDir, { recursive: true });
   }
   if (!fs.existsSync(commandFile)) {
-    fs.writeFileSync(commandFile, commandContent, "utf-8");
+    fs.writeFileSync(commandFile, commandContent, 'utf-8');
   } else {
-    const currentContent = fs.readFileSync(commandFile, "utf-8");
-    if (currentContent.includes("model: opencode/grok-code")) {
-      fs.writeFileSync(commandFile, commandContent, "utf-8");
+    const currentContent = fs.readFileSync(commandFile, 'utf-8');
+    if (currentContent.includes('model: opencode/grok-code')) {
+      fs.writeFileSync(commandFile, commandContent, 'utf-8');
     }
   }
 } catch (error) {
-  console.error("Failed to create command file/directory:", error);
+  console.error('Failed to create command file/directory:', error);
   // Continue execution, as this might not be fatal for the plugin's core function
 }

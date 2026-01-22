@@ -1,4 +1,4 @@
-import type { AgentDefinition } from "./orchestrator";
+import type { AgentDefinition } from './orchestrator';
 
 const EXPLORER_PROMPT = `You are Explorer - a fast codebase navigation specialist.
 
@@ -39,15 +39,27 @@ Concise answer to the question
 - Be exhaustive but concise
 - Include line numbers when relevant`;
 
-export function createExplorerAgent(model: string): AgentDefinition {
+export function createExplorerAgent(
+  model: string,
+  customPrompt?: string,
+  customAppendPrompt?: string,
+): AgentDefinition {
+  let prompt = EXPLORER_PROMPT;
+
+  if (customPrompt) {
+    prompt = customPrompt;
+  } else if (customAppendPrompt) {
+    prompt = `${EXPLORER_PROMPT}\n\n${customAppendPrompt}`;
+  }
+
   return {
-    name: "explorer",
-    description: "Fast codebase search and pattern matching. Use for finding files, locating code patterns, and answering 'where is X?' questions.",
+    name: 'explorer',
+    description:
+      "Fast codebase search and pattern matching. Use for finding files, locating code patterns, and answering 'where is X?' questions.",
     config: {
       model,
       temperature: 0.1,
-      prompt: EXPLORER_PROMPT,
+      prompt,
     },
   };
 }
-

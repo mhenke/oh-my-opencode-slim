@@ -1,4 +1,4 @@
-import type { AgentDefinition } from "./orchestrator";
+import type { AgentDefinition } from './orchestrator';
 
 const LIBRARIAN_PROMPT = `You are Librarian - a research specialist for codebases and documentation.
 
@@ -21,14 +21,27 @@ const LIBRARIAN_PROMPT = `You are Librarian - a research specialist for codebase
 - Link to official docs when available
 - Distinguish between official and community patterns`;
 
-export function createLibrarianAgent(model: string): AgentDefinition {
+export function createLibrarianAgent(
+  model: string,
+  customPrompt?: string,
+  customAppendPrompt?: string,
+): AgentDefinition {
+  let prompt = LIBRARIAN_PROMPT;
+
+  if (customPrompt) {
+    prompt = customPrompt;
+  } else if (customAppendPrompt) {
+    prompt = `${LIBRARIAN_PROMPT}\n\n${customAppendPrompt}`;
+  }
+
   return {
-    name: "librarian",
-    description: "External documentation and library research. Use for official docs lookup, GitHub examples, and understanding library internals.",
+    name: 'librarian',
+    description:
+      'External documentation and library research. Use for official docs lookup, GitHub examples, and understanding library internals.',
     config: {
       model,
       temperature: 0.1,
-      prompt: LIBRARIAN_PROMPT,
+      prompt,
     },
   };
 }

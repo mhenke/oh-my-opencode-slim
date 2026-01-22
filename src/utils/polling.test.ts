@@ -1,183 +1,191 @@
-import { describe, expect, test, beforeEach } from "bun:test";
-import { pollUntilStable, delay } from "./polling";
+import { describe, expect, test } from 'bun:test';
+import { delay, pollUntilStable } from './polling';
 
-describe("pollUntilStable", () => {
-    test("returns success when condition becomes stable", async () => {
-        let callCount = 0;
-        const fetchFn = async () => {
-            callCount++;
-            return callCount >= 3 ? "stable" : "changing";
-        };
+describe('pollUntilStable', () => {
+  test('returns success when condition becomes stable', async () => {
+    let callCount = 0;
+    const fetchFn = async () => {
+      callCount++;
+      return callCount >= 3 ? 'stable' : 'changing';
+    };
 
-        const isStable = (current: string, previous: string | null) => {
-            return current === "stable" && previous === "stable";
-        };
+    const isStable = (current: string, previous: string | null) => {
+      return current === 'stable' && previous === 'stable';
+    };
 
-        const result = await pollUntilStable(fetchFn, isStable, {
-            pollInterval: 10,
-            maxPollTime: 1000,
-            stableThreshold: 2,
-        });
-
-        expect(result.success).toBe(true);
-        expect(result.data).toBe("stable");
-        expect(result.timedOut).toBeUndefined();
-        expect(result.aborted).toBeUndefined();
+    const result = await pollUntilStable(fetchFn, isStable, {
+      pollInterval: 10,
+      maxPollTime: 1000,
+      stableThreshold: 2,
     });
 
-    test("returns timeout when max poll time exceeded", async () => {
-        const fetchFn = async () => "always-changing";
-        const isStable = () => false; // Never stable
+    expect(result.success).toBe(true);
+    expect(result.data).toBe('stable');
+    expect(result.timedOut).toBeUndefined();
+    expect(result.aborted).toBeUndefined();
+  });
 
-        const result = await pollUntilStable(fetchFn, isStable, {
-            pollInterval: 10,
-            maxPollTime: 50, // Very short timeout
-            stableThreshold: 2,
-        });
+  test('returns timeout when max poll time exceeded', async () => {
+    const fetchFn = async () => 'always-changing';
+    const isStable = () => false; // Never stable
 
-        expect(result.success).toBe(false);
-        expect(result.timedOut).toBe(true);
-        expect(result.data).toBe("always-changing");
+    const result = await pollUntilStable(fetchFn, isStable, {
+      pollInterval: 10,
+      maxPollTime: 50, // Very short timeout
+      stableThreshold: 2,
     });
 
-    test("returns aborted when signal is aborted", async () => {
-        const controller = new AbortController();
-        const fetchFn = async () => {
-            // Abort after first call
-            controller.abort();
-            return "data";
-        };
+    expect(result.success).toBe(false);
+    expect(result.timedOut).toBe(true);
+    expect(result.data).toBe('always-changing');
+  });
 
-        const isStable = () => false;
+  test('returns aborted when signal is aborted', async () => {
+    const controller = new AbortController();
+    const fetchFn = async () => {
+      // Abort after first call
+      controller.abort();
+      return 'data';
+    };
 
-        const result = await pollUntilStable(fetchFn, isStable, {
-            pollInterval: 10,
-            maxPollTime: 1000,
-            signal: controller.signal,
-        });
+    const isStable = () => false;
 
-        expect(result.success).toBe(false);
-        expect(result.aborted).toBe(true);
+    const result = await pollUntilStable(fetchFn, isStable, {
+      pollInterval: 10,
+      maxPollTime: 1000,
+      signal: controller.signal,
     });
 
-    test("respects custom stability threshold", async () => {
-        let callCount = 0;
-        const fetchFn = async () => {
-            callCount++;
-            return callCount >= 2 ? "stable" : "changing";
-        };
+    expect(result.success).toBe(false);
+    expect(result.aborted).toBe(true);
+  });
 
-        const isStable = (current: string, previous: string | null, stableCount: number) => {
-            return current === "stable" && previous === "stable";
-        };
+  test('respects custom stability threshold', async () => {
+    let callCount = 0;
+    const fetchFn = async () => {
+      callCount++;
+      return callCount >= 2 ? 'stable' : 'changing';
+    };
 
-        const result = await pollUntilStable(fetchFn, isStable, {
-            pollInterval: 10,
-            maxPollTime: 1000,
-            stableThreshold: 3, // Require 3 stable polls
-        });
+    const isStable = (
+      current: string,
+      previous: string | null,
+      _stableCount: number,
+    ) => {
+      return current === 'stable' && previous === 'stable';
+    };
 
-        expect(result.success).toBe(true);
-        expect(callCount).toBeGreaterThanOrEqual(5); // At least 2 changing + 3 stable
+    const result = await pollUntilStable(fetchFn, isStable, {
+      pollInterval: 10,
+      maxPollTime: 1000,
+      stableThreshold: 3, // Require 3 stable polls
     });
 
-    test("resets stable count when condition becomes unstable", async () => {
-        let callCount = 0;
-        const values = ["a", "a", "b", "b", "b", "b"]; // Unstable, then stable
-        const fetchFn = async () => values[callCount++] || "b";
+    expect(result.success).toBe(true);
+    expect(callCount).toBeGreaterThanOrEqual(5); // At least 2 changing + 3 stable
+  });
 
-        const isStable = (current: string, previous: string | null) => {
-            return current === previous && current === "b";
-        };
+  test('resets stable count when condition becomes unstable', async () => {
+    let callCount = 0;
+    const values = ['a', 'a', 'b', 'b', 'b', 'b']; // Unstable, then stable
+    const fetchFn = async () => values[callCount++] || 'b';
 
-        const result = await pollUntilStable(fetchFn, isStable, {
-            pollInterval: 10,
-            maxPollTime: 1000,
-            stableThreshold: 3,
-        });
+    const isStable = (current: string, previous: string | null) => {
+      return current === previous && current === 'b';
+    };
 
-        expect(result.success).toBe(true);
-        expect(result.data).toBe("b");
+    const result = await pollUntilStable(fetchFn, isStable, {
+      pollInterval: 10,
+      maxPollTime: 1000,
+      stableThreshold: 3,
     });
 
-    test("uses default options when not provided", async () => {
-        let callCount = 0;
-        const fetchFn = async () => {
-            callCount++;
-            return callCount >= 2 ? "stable" : "changing";
-        };
+    expect(result.success).toBe(true);
+    expect(result.data).toBe('b');
+  });
 
-        const isStable = (current: string, previous: string | null) => {
-            return current === "stable" && previous === "stable";
-        };
+  test('uses default options when not provided', async () => {
+    let callCount = 0;
+    const fetchFn = async () => {
+      callCount++;
+      return callCount >= 2 ? 'stable' : 'changing';
+    };
 
-        const result = await pollUntilStable(fetchFn, isStable);
+    const isStable = (current: string, previous: string | null) => {
+      return current === 'stable' && previous === 'stable';
+    };
 
-        expect(result.success).toBe(true);
-        expect(result.data).toBe("stable");
+    const result = await pollUntilStable(fetchFn, isStable);
+
+    expect(result.success).toBe(true);
+    expect(result.data).toBe('stable');
+  });
+
+  test('handles fetchFn that throws errors', async () => {
+    const fetchFn = async () => {
+      throw new Error('Fetch failed');
+    };
+
+    const isStable = () => false;
+
+    await expect(
+      pollUntilStable(fetchFn, isStable, {
+        pollInterval: 10,
+        maxPollTime: 100,
+      }),
+    ).rejects.toThrow('Fetch failed');
+  });
+
+  test('passes stable count to isStable function', async () => {
+    let _callCount = 0;
+    const fetchFn = async () => {
+      _callCount++;
+      return 'data';
+    };
+
+    let maxStableCount = 0;
+    const isStable = (
+      current: string,
+      previous: string | null,
+      stableCount: number,
+    ) => {
+      maxStableCount = Math.max(maxStableCount, stableCount);
+      // Check if data is actually stable (same as previous)
+      return current === previous && current === 'data';
+    };
+
+    const result = await pollUntilStable(fetchFn, isStable, {
+      pollInterval: 10,
+      maxPollTime: 1000,
+      stableThreshold: 3,
     });
 
-    test("handles fetchFn that throws errors", async () => {
-        const fetchFn = async () => {
-            throw new Error("Fetch failed");
-        };
-
-        const isStable = () => false;
-
-        await expect(
-            pollUntilStable(fetchFn, isStable, {
-                pollInterval: 10,
-                maxPollTime: 100,
-            })
-        ).rejects.toThrow("Fetch failed");
-    });
-
-    test("passes stable count to isStable function", async () => {
-        let callCount = 0;
-        const fetchFn = async () => {
-            callCount++;
-            return "data";
-        };
-
-        let maxStableCount = 0;
-        const isStable = (current: string, previous: string | null, stableCount: number) => {
-            maxStableCount = Math.max(maxStableCount, stableCount);
-            // Check if data is actually stable (same as previous)
-            return current === previous && current === "data";
-        };
-
-        const result = await pollUntilStable(fetchFn, isStable, {
-            pollInterval: 10,
-            maxPollTime: 1000,
-            stableThreshold: 3,
-        });
-
-        expect(result.success).toBe(true);
-        expect(maxStableCount).toBeGreaterThanOrEqual(2);
-    });
+    expect(result.success).toBe(true);
+    expect(maxStableCount).toBeGreaterThanOrEqual(2);
+  });
 });
 
-describe("delay", () => {
-    test("delays for specified milliseconds", async () => {
-        const start = Date.now();
-        await delay(50);
-        const elapsed = Date.now() - start;
+describe('delay', () => {
+  test('delays for specified milliseconds', async () => {
+    const start = Date.now();
+    await delay(50);
+    const elapsed = Date.now() - start;
 
-        // Allow some tolerance for timing
-        expect(elapsed).toBeGreaterThanOrEqual(45);
-        expect(elapsed).toBeLessThan(100);
-    });
+    // Allow some tolerance for timing
+    expect(elapsed).toBeGreaterThanOrEqual(45);
+    expect(elapsed).toBeLessThan(100);
+  });
 
-    test("resolves without value", async () => {
-        const result = await delay(10);
-        expect(result).toBeUndefined();
-    });
+  test('resolves without value', async () => {
+    const result = await delay(10);
+    expect(result).toBeUndefined();
+  });
 
-    test("can be used in promise chains", async () => {
-        const result = await Promise.resolve("test")
-            .then((val) => delay(10).then(() => val))
-            .then((val) => val.toUpperCase());
+  test('can be used in promise chains', async () => {
+    const result = await Promise.resolve('test')
+      .then((val) => delay(10).then(() => val))
+      .then((val) => val.toUpperCase());
 
-        expect(result).toBe("TEST");
-    });
+    expect(result).toBe('TEST');
+  });
 });

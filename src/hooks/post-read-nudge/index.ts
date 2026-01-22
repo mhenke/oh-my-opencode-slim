@@ -3,7 +3,8 @@
  * Catches the "read files → implement myself" anti-pattern.
  */
 
-const NUDGE = "\n\n---\nConsider: splitting the task to parallelize, delegate to specialist(s). (if so, reference file paths/lines—don't copy file contents)";
+const NUDGE =
+  "\n\n---\nConsider: splitting the task to parallelize, delegate to specialist(s). (if so, reference file paths/lines—don't copy file contents)";
 
 interface ToolExecuteAfterInput {
   tool: string;
@@ -19,12 +20,12 @@ interface ToolExecuteAfterOutput {
 
 export function createPostReadNudgeHook() {
   return {
-    "tool.execute.after": async (
+    'tool.execute.after': async (
       input: ToolExecuteAfterInput,
-      output: ToolExecuteAfterOutput
+      output: ToolExecuteAfterOutput,
     ): Promise<void> => {
       // Only nudge for Read tool
-      if (input.tool !== "Read" && input.tool !== "read") {
+      if (input.tool !== 'Read' && input.tool !== 'read') {
         return;
       }
 

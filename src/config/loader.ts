@@ -1,31 +1,32 @@
-import * as fs from "fs";
-import * as path from "path";
-import * as os from "os";
-import { PluginConfigSchema, type PluginConfig } from "./schema";
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import { type PluginConfig, PluginConfigSchema } from './schema';
 
-const CONFIG_FILENAME = "oh-my-opencode-slim.json";
+const CONFIG_FILENAME = 'oh-my-opencode-slim.json';
+const PROMPTS_DIR_NAME = 'oh-my-opencode-slim';
 
 /**
  * Get the user's configuration directory following XDG Base Directory specification.
  * Falls back to ~/.config if XDG_CONFIG_HOME is not set.
- * 
+ *
  * @returns The absolute path to the user's config directory
  */
 function getUserConfigDir(): string {
-  return process.env.XDG_CONFIG_HOME || path.join(os.homedir(), ".config");
+  return process.env.XDG_CONFIG_HOME || path.join(os.homedir(), '.config');
 }
 
 /**
  * Load and validate plugin configuration from a specific file path.
  * Returns null if the file doesn't exist, is invalid, or cannot be read.
  * Logs warnings for validation errors and unexpected read errors.
- * 
+ *
  * @param configPath - Absolute path to the config file
  * @returns Validated config object, or null if loading failed
  */
 function loadConfigFromPath(configPath: string): PluginConfig | null {
   try {
-    const content = fs.readFileSync(configPath, "utf-8");
+    const content = fs.readFileSync(configPath, 'utf-8');
     const rawConfig = JSON.parse(content);
     const result = PluginConfigSchema.safeParse(rawConfig);
 
@@ -38,8 +39,15 @@ function loadConfigFromPath(configPath: string): PluginConfig | null {
     return result.data;
   } catch (error) {
     // File doesn't exist or isn't readable - this is expected and fine
-    if (error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code !== 'ENOENT') {
-      console.warn(`[oh-my-opencode-slim] Error reading config from ${configPath}:`, error.message);
+    if (
+      error instanceof Error &&
+      'code' in error &&
+      (error as NodeJS.ErrnoException).code !== 'ENOENT'
+    ) {
+      console.warn(
+        `[oh-my-opencode-slim] Error reading config from ${configPath}:`,
+        error.message,
+      );
     }
     return null;
   }
@@ -48,12 +56,15 @@ function loadConfigFromPath(configPath: string): PluginConfig | null {
 /**
  * Recursively merge two objects, with override values taking precedence.
  * For nested objects, merges recursively. For arrays and primitives, override replaces base.
- * 
+ *
  * @param base - Base object to merge into
  * @param override - Override object whose values take precedence
  * @returns Merged object, or undefined if both inputs are undefined
  */
-function deepMerge<T extends Record<string, unknown>>(base?: T, override?: T): T | undefined {
+function deepMerge<T extends Record<string, unknown>>(
+  base?: T,
+  override?: T,
+): T | undefined {
   if (!base) return override;
   if (!override) return base;
 
@@ -63,13 +74,16 @@ function deepMerge<T extends Record<string, unknown>>(base?: T, override?: T): T
     const overrideVal = override[key];
 
     if (
-      typeof baseVal === "object" && baseVal !== null &&
-      typeof overrideVal === "object" && overrideVal !== null &&
-      !Array.isArray(baseVal) && !Array.isArray(overrideVal)
+      typeof baseVal === 'object' &&
+      baseVal !== null &&
+      typeof overrideVal === 'object' &&
+      overrideVal !== null &&
+      !Array.isArray(baseVal) &&
+      !Array.isArray(overrideVal)
     ) {
       result[key] = deepMerge(
         baseVal as Record<string, unknown>,
-        overrideVal as Record<string, unknown>
+        overrideVal as Record<string, unknown>,
       ) as T[keyof T];
     } else {
       result[key] = overrideVal;
@@ -80,25 +94,25 @@ function deepMerge<T extends Record<string, unknown>>(base?: T, override?: T): T
 
 /**
  * Load plugin configuration from user and project config files, merging them appropriately.
- * 
+ *
  * Configuration is loaded from two locations:
  * 1. User config: ~/.config/opencode/oh-my-opencode-slim.json (or $XDG_CONFIG_HOME)
  * 2. Project config: <directory>/.opencode/oh-my-opencode-slim.json
- * 
+ *
  * Project config takes precedence over user config. Nested objects (agents, tmux) are
  * deep-merged, while top-level arrays are replaced entirely by project config.
- * 
+ *
  * @param directory - Project directory to search for .opencode config
  * @returns Merged plugin configuration (empty object if no configs found)
  */
 export function loadPluginConfig(directory: string): PluginConfig {
   const userConfigPath = path.join(
     getUserConfigDir(),
-    "opencode",
-    CONFIG_FILENAME
+    'opencode',
+    CONFIG_FILENAME,
   );
 
-  const projectConfigPath = path.join(directory, ".opencode", CONFIG_FILENAME);
+  const projectConfigPath = path.join(directory, '.opencode', CONFIG_FILENAME);
 
   let config: PluginConfig = loadConfigFromPath(userConfigPath) ?? {};
 
@@ -126,11 +140,63 @@ export function loadPluginConfig(directory: string): PluginConfig {
       config.agents = deepMerge(preset, config.agents);
     } else {
       // Preset name specified but doesn't exist - warn user
-      const presetSource = envPreset === config.preset ? "environment variable" : "config file";
-      const availablePresets = config.presets ? Object.keys(config.presets).join(", ") : "none";
-      console.warn(`[oh-my-opencode-slim] Preset "${config.preset}" not found (from ${presetSource}). Available presets: ${availablePresets}`);
+      const presetSource =
+        envPreset === config.preset ? 'environment variable' : 'config file';
+      const availablePresets = config.presets
+        ? Object.keys(config.presets).join(', ')
+        : 'none';
+      console.warn(
+        `[oh-my-opencode-slim] Preset "${config.preset}" not found (from ${presetSource}). Available presets: ${availablePresets}`,
+      );
     }
   }
 
   return config;
+}
+
+/**
+ * Load custom prompt for an agent from the prompts directory.
+ * Checks for {agent}.md (replaces default) and {agent}_append.md (appends to default).
+ *
+ * @param agentName - Name of the agent (e.g., "orchestrator", "explorer")
+ * @returns Object with prompt and/or appendPrompt if files exist
+ */
+export function loadAgentPrompt(agentName: string): {
+  prompt?: string;
+  appendPrompt?: string;
+} {
+  const promptsDir = path.join(
+    getUserConfigDir(),
+    'opencode',
+    PROMPTS_DIR_NAME,
+  );
+  const result: { prompt?: string; appendPrompt?: string } = {};
+
+  // Check for replacement prompt
+  const promptPath = path.join(promptsDir, `${agentName}.md`);
+  if (fs.existsSync(promptPath)) {
+    try {
+      result.prompt = fs.readFileSync(promptPath, 'utf-8');
+    } catch (error) {
+      console.warn(
+        `[oh-my-opencode-slim] Error reading prompt file ${promptPath}:`,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  // Check for append prompt
+  const appendPromptPath = path.join(promptsDir, `${agentName}_append.md`);
+  if (fs.existsSync(appendPromptPath)) {
+    try {
+      result.appendPrompt = fs.readFileSync(appendPromptPath, 'utf-8');
+    } catch (error) {
+      console.warn(
+        `[oh-my-opencode-slim] Error reading append prompt file ${appendPromptPath}:`,
+        error instanceof Error ? error.message : String(error),
+      );
+    }
+  }
+
+  return result;
 }

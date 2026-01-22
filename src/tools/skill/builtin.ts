@@ -1,16 +1,16 @@
-import type { SkillDefinition } from "./types";
-import type { PluginConfig, AgentName } from "../../config/schema";
+import type { AgentName, PluginConfig } from '../../config/schema';
+import type { SkillDefinition } from './types';
 
 /** Map old agent names to new names for backward compatibility */
 const AGENT_ALIASES: Record<string, string> = {
-  "explore": "explorer",
-  "frontend-ui-ux-engineer": "designer",
+  explore: 'explorer',
+  'frontend-ui-ux-engineer': 'designer',
 };
 
 /** Default skills per agent - "*" means all skills */
 export const DEFAULT_AGENT_SKILLS: Record<AgentName, string[]> = {
-  orchestrator: ["*"],
-  designer: ["playwright"],
+  orchestrator: ['*'],
+  designer: ['playwright'],
   oracle: [],
   librarian: [],
   explorer: [],
@@ -133,21 +133,21 @@ This skill provides browser automation capabilities via the Playwright MCP serve
 5. Return results with visual proof`;
 
 const yagniEnforcementSkill: SkillDefinition = {
-  name: "yagni-enforcement",
+  name: 'yagni-enforcement',
   description:
-    "Code complexity analysis and YAGNI enforcement. Use after major refactors or before finalizing PRs to simplify code.",
+    'Code complexity analysis and YAGNI enforcement. Use after major refactors or before finalizing PRs to simplify code.',
   template: YAGNI_TEMPLATE,
 };
 
 const playwrightSkill: SkillDefinition = {
-  name: "playwright",
+  name: 'playwright',
   description:
-    "MUST USE for any browser-related tasks. Browser automation via Playwright MCP - verification, browsing, information gathering, web scraping, testing, screenshots, and all browser interactions.",
+    'MUST USE for any browser-related tasks. Browser automation via Playwright MCP - verification, browsing, information gathering, web scraping, testing, screenshots, and all browser interactions.',
   template: PLAYWRIGHT_TEMPLATE,
   mcpConfig: {
     playwright: {
-      command: "npx",
-      args: ["@playwright/mcp@latest"],
+      command: 'npx',
+      args: ['@playwright/mcp@latest'],
     },
   },
 };
@@ -172,16 +172,16 @@ export function getSkillByName(name: string): SkillDefinition | undefined {
  */
 export function getSkillsForAgent(
   agentName: string,
-  config?: PluginConfig
+  config?: PluginConfig,
 ): SkillDefinition[] {
   const allSkills = getBuiltinSkills();
   const agentSkills = getAgentSkillList(agentName, config);
-  
+
   // "*" means all skills
-  if (agentSkills.includes("*")) {
+  if (agentSkills.includes('*')) {
     return allSkills;
   }
-  
+
   return allSkills.filter((skill) => agentSkills.includes(skill.name));
 }
 
@@ -191,15 +191,15 @@ export function getSkillsForAgent(
 export function canAgentUseSkill(
   agentName: string,
   skillName: string,
-  config?: PluginConfig
+  config?: PluginConfig,
 ): boolean {
   const agentSkills = getAgentSkillList(agentName, config);
-  
+
   // "*" means all skills
-  if (agentSkills.includes("*")) {
+  if (agentSkills.includes('*')) {
     return true;
   }
-  
+
   return agentSkills.includes(skillName);
 }
 
@@ -209,12 +209,16 @@ export function canAgentUseSkill(
  */
 function getAgentSkillList(agentName: string, config?: PluginConfig): string[] {
   // Check if config has override for this agent (new name first, then alias)
-  const agentConfig = config?.agents?.[agentName] ??
-    config?.agents?.[Object.keys(AGENT_ALIASES).find(k => AGENT_ALIASES[k] === agentName) ?? ""];
+  const agentConfig =
+    config?.agents?.[agentName] ??
+    config?.agents?.[
+      Object.keys(AGENT_ALIASES).find((k) => AGENT_ALIASES[k] === agentName) ??
+        ''
+    ];
   if (agentConfig?.skills !== undefined) {
     return agentConfig.skills;
   }
-  
+
   // Fall back to defaults
   const defaultSkills = DEFAULT_AGENT_SKILLS[agentName as AgentName];
   return defaultSkills ?? [];

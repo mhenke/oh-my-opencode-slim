@@ -1,12 +1,12 @@
-import type { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import type { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import type { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
+import type { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import type { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import type { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
 /**
  * Stdio MCP server configuration (local process)
  */
 export interface StdioMcpServer {
-  type?: "stdio";
+  type?: 'stdio';
   command: string;
   args?: string[];
   env?: Record<string, string>;
@@ -16,7 +16,7 @@ export interface StdioMcpServer {
  * HTTP MCP server configuration (remote server)
  */
 export interface HttpMcpServer {
-  type: "http" | "sse";
+  type: 'http' | 'sse';
   url: string;
   headers?: Record<string, string>;
 }
@@ -53,7 +53,7 @@ export interface SkillMcpClientInfo {
 /**
  * Connection type for managed clients
  */
-export type ConnectionType = "stdio" | "http";
+export type ConnectionType = 'stdio' | 'http';
 
 /**
  * Base interface for managed MCP clients
@@ -69,7 +69,7 @@ interface ManagedClientBase {
  * Managed stdio client
  */
 export interface ManagedStdioClient extends ManagedClientBase {
-  connectionType: "stdio";
+  connectionType: 'stdio';
   transport: StdioClientTransport;
 }
 
@@ -77,7 +77,7 @@ export interface ManagedStdioClient extends ManagedClientBase {
  * Managed HTTP client
  */
 export interface ManagedHttpClient extends ManagedClientBase {
-  connectionType: "http";
+  connectionType: 'http';
   transport: StreamableHTTPClientTransport;
 }
 

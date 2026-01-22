@@ -1,27 +1,27 @@
 // Agent names
 export const SUBAGENT_NAMES = [
-    "explorer",
-    "librarian",
-    "oracle",
-    "designer",
-    "fixer",
+  'explorer',
+  'librarian',
+  'oracle',
+  'designer',
+  'fixer',
 ] as const;
 
-export const ORCHESTRATOR_NAME = "orchestrator" as const;
+export const ORCHESTRATOR_NAME = 'orchestrator' as const;
 
 export const ALL_AGENT_NAMES = [ORCHESTRATOR_NAME, ...SUBAGENT_NAMES] as const;
 
 // Agent name type (for use in DEFAULT_MODELS)
-export type AgentName = typeof ALL_AGENT_NAMES[number];
+export type AgentName = (typeof ALL_AGENT_NAMES)[number];
 
 // Default models for each agent
 export const DEFAULT_MODELS: Record<AgentName, string> = {
-    orchestrator: "google/claude-opus-4-5-thinking",
-    oracle: "openai/gpt-5.2-codex",
-    librarian: "google/gemini-3-flash",
-    explorer: "google/gemini-3-flash",
-    designer: "google/gemini-3-flash",
-    fixer: "google/gemini-3-flash",
+  orchestrator: 'google/claude-opus-4-5-thinking',
+  oracle: 'openai/gpt-5.2-codex',
+  librarian: 'google/gemini-3-flash',
+  explorer: 'google/gemini-3-flash',
+  designer: 'google/gemini-3-flash',
+  fixer: 'google/gemini-3-flash',
 };
 
 // Polling configuration

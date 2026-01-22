@@ -1,26 +1,34 @@
-import { tool, type ToolDefinition } from "@opencode-ai/plugin/tool"
-import { CLI_LANGUAGES } from "./types"
-import { runSg } from "./cli"
-import { formatSearchResult, formatReplaceResult, getEmptyResultHint } from "./utils"
-import type { CliLanguage } from "./types"
+import { type ToolDefinition, tool } from '@opencode-ai/plugin/tool';
+import { runSg } from './cli';
+import type { CliLanguage } from './types';
+import { CLI_LANGUAGES } from './types';
+import {
+  formatReplaceResult,
+  formatSearchResult,
+  getEmptyResultHint,
+} from './utils';
 
 function showOutputToUser(context: unknown, output: string): void {
-  const ctx = context as { metadata?: (input: { metadata: { output: string } }) => void }
-  ctx.metadata?.({ metadata: { output } })
+  const ctx = context as {
+    metadata?: (input: { metadata: { output: string } }) => void;
+  };
+  ctx.metadata?.({ metadata: { output } });
 }
 
 export const ast_grep_search: ToolDefinition = tool({
   description:
-    "Search code patterns across filesystem using AST-aware matching. Supports 25 languages. " +
-    "Use meta-variables: $VAR (single node), $$$ (multiple nodes). " +
-    "IMPORTANT: Patterns must be complete AST nodes (valid code). " +
+    'Search code patterns across filesystem using AST-aware matching. Supports 25 languages. ' +
+    'Use meta-variables: $VAR (single node), $$$ (multiple nodes). ' +
+    'IMPORTANT: Patterns must be complete AST nodes (valid code). ' +
     "For functions, include params and body: 'export async function $NAME($$$) { $$$ }' not 'export async function $NAME'. " +
     "Examples: 'console.log($MSG)', 'def $FUNC($$$):', 'async function $NAME($$$)'",
   args: {
     pattern: tool.schema
       .string()
-      .describe("AST pattern with meta-variables ($VAR, $$$). Must be complete AST node."),
-    lang: tool.schema.enum(CLI_LANGUAGES).describe("Target language"),
+      .describe(
+        'AST pattern with meta-variables ($VAR, $$$). Must be complete AST node.',
+      ),
+    lang: tool.schema.enum(CLI_LANGUAGES).describe('Target language'),
     paths: tool.schema
       .array(tool.schema.string())
       .optional()
@@ -28,8 +36,11 @@ export const ast_grep_search: ToolDefinition = tool({
     globs: tool.schema
       .array(tool.schema.string())
       .optional()
-      .describe("Include/exclude globs (prefix ! to exclude)"),
-    context: tool.schema.number().optional().describe("Context lines around match"),
+      .describe('Include/exclude globs (prefix ! to exclude)'),
+    context: tool.schema
+      .number()
+      .optional()
+      .describe('Context lines around match'),
   },
   execute: async (args, context) => {
     try {
@@ -39,44 +50,50 @@ export const ast_grep_search: ToolDefinition = tool({
         paths: args.paths,
         globs: args.globs,
         context: args.context,
-      })
+      });
 
-      let output = formatSearchResult(result)
+      let output = formatSearchResult(result);
 
       if (result.matches.length === 0 && !result.error) {
-        const hint = getEmptyResultHint(args.pattern, args.lang as CliLanguage)
+        const hint = getEmptyResultHint(args.pattern, args.lang as CliLanguage);
         if (hint) {
-          output += `\n\n${hint}`
+          output += `\n\n${hint}`;
         }
       }
 
-      showOutputToUser(context, output)
-      return output
+      showOutputToUser(context, output);
+      return output;
     } catch (e) {
-      const output = `Error: ${e instanceof Error ? e.message : String(e)}`
-      showOutputToUser(context, output)
-      return output
+      const output = `Error: ${e instanceof Error ? e.message : String(e)}`;
+      showOutputToUser(context, output);
+      return output;
     }
   },
-})
+});
 
 export const ast_grep_replace: ToolDefinition = tool({
   description:
-    "Replace code patterns across filesystem with AST-aware rewriting. " +
-    "Dry-run by default. Use meta-variables in rewrite to preserve matched content. " +
+    'Replace code patterns across filesystem with AST-aware rewriting. ' +
+    'Dry-run by default. Use meta-variables in rewrite to preserve matched content. ' +
     "Example: pattern='console.log($MSG)' rewrite='logger.info($MSG)'",
   args: {
-    pattern: tool.schema.string().describe("AST pattern to match"),
+    pattern: tool.schema.string().describe('AST pattern to match'),
     rewrite: tool.schema
       .string()
-      .describe("Replacement pattern (can use $VAR from pattern)"),
-    lang: tool.schema.enum(CLI_LANGUAGES).describe("Target language"),
-    paths: tool.schema.array(tool.schema.string()).optional().describe("Paths to search"),
-    globs: tool.schema.array(tool.schema.string()).optional().describe("Include/exclude globs"),
+      .describe('Replacement pattern (can use $VAR from pattern)'),
+    lang: tool.schema.enum(CLI_LANGUAGES).describe('Target language'),
+    paths: tool.schema
+      .array(tool.schema.string())
+      .optional()
+      .describe('Paths to search'),
+    globs: tool.schema
+      .array(tool.schema.string())
+      .optional()
+      .describe('Include/exclude globs'),
     dryRun: tool.schema
       .boolean()
       .optional()
-      .describe("Preview changes without applying (default: true)"),
+      .describe('Preview changes without applying (default: true)'),
   },
   execute: async (args, context) => {
     try {
@@ -87,14 +104,14 @@ export const ast_grep_replace: ToolDefinition = tool({
         paths: args.paths,
         globs: args.globs,
         updateAll: args.dryRun === false,
-      })
-      const output = formatReplaceResult(result, args.dryRun !== false)
-      showOutputToUser(context, output)
-      return output
+      });
+      const output = formatReplaceResult(result, args.dryRun !== false);
+      showOutputToUser(context, output);
+      return output;
     } catch (e) {
-      const output = `Error: ${e instanceof Error ? e.message : String(e)}`
-      showOutputToUser(context, output)
-      return output
+      const output = `Error: ${e instanceof Error ? e.message : String(e)}`;
+      showOutputToUser(context, output);
+      return output;
     }
   },
-})
+});

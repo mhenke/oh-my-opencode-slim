@@ -52,6 +52,7 @@
 - [🔌 **MCP Servers**](#mcp-servers)
 - [⚙️ **Configuration**](#configuration)
   - [Files You Edit](#files-you-edit)
+  - [Prompt Overriding](#prompt-overriding)
   - [Plugin Config](#plugin-config-oh-my-opencode-slimjson)
     - [Presets](#presets)
     - [Option Reference](#option-reference)
@@ -281,9 +282,7 @@ Code implementation, refactoring, testing, verification. *Execute the plan - no 
 
 ### Tmux Integration
 
-> ⚠️ **Temporary workaround:** Start OpenCode with `--port` to enable tmux integration. The port must match the `OPENCODE_PORT` environment variable (default: 4096). This is required until the upstream issue is resolved.
-
-> ⚠️ **Known Issue:** When the server port is enabled, only one OpenCode instance can be opened at a time. We're tracking this in [issue #15](https://github.com/alvinunreal/oh-my-opencode-slim/issues/15), and there's an upstream PR to OpenCode: [opencode#9099](https://github.com/anomalyco/opencode/issues/9099).
+> ⚠️ **Temporary workaround:** Start OpenCode with `--port` to enable tmux integration. The port must match the `OPENCODE_PORT` environment variable (default: 4096). This is required until the upstream issue is resolved. [opencode#9099](https://github.com/anomalyco/opencode/issues/9099).
 
 <img src="img/tmux.png" alt="Tmux Integration" width="800">
 
@@ -292,6 +291,17 @@ Code implementation, refactoring, testing, verification. *Execute the plan - no 
 #### Quick Setup
 
 1. **Enable tmux integration** in `oh-my-opencode-slim.json` (see [Plugin Config](#plugin-config-oh-my-opencode-slimjson)).
+
+  ```json
+  {
+    "tmux": {
+      "enabled": true,
+      "layout": "main-vertical",
+      "main_pane_size": 60
+    }
+  }
+  ```
+
 2. **Run OpenCode inside tmux**:
     ```bash
     tmux
@@ -307,19 +317,6 @@ Code implementation, refactoring, testing, verification. *Execute the plan - no 
 
    This allows multiple OpenCode instances on different ports.
 
-#### Configuration
-
-Add this to your `oh-my-opencode-slim.json`:
-
-```json
-{
-  "tmux": {
-    "enabled": true,
-    "layout": "main-vertical",
-    "main_pane_size": 60
-  }
-}
-```
 
 #### Layout Options
 
@@ -330,8 +327,6 @@ Add this to your `oh-my-opencode-slim.json`:
 | `tiled` | All panes in equal-sized grid |
 | `even-horizontal` | All panes side by side |
 | `even-vertical` | All panes stacked vertically |
-
-*See the [Option Reference](#option-reference) for detailed configuration.*
 
 ---
 
@@ -474,6 +469,37 @@ You can disable specific MCP servers by adding them to the `disabled_mcps` array
 | `~/.config/opencode/opencode.json` | OpenCode core settings |
 | `~/.config/opencode/oh-my-opencode-slim.json` | Plugin settings (agents, tmux, MCPs) |
 | `.opencode/oh-my-opencode-slim.json` | Project-local plugin overrides (optional) |
+
+---
+
+### Prompt Overriding
+
+You can customize agent prompts by creating markdown files in `~/.config/opencode/oh-my-opencode-slim/`:
+
+| File | Purpose |
+|------|---------|
+| `{agent}.md` | Replaces the default prompt entirely |
+| `{agent}_append.md` | Appends to the default prompt |
+
+**Example:**
+
+```
+~/.config/opencode/oh-my-opencode-slim/
+  ├── orchestrator.md          # Custom orchestrator prompt
+  ├── orchestrator_append.md   # Append to default orchestrator prompt
+  ├── explorer.md
+  ├── explorer_append.md
+  └── ...
+```
+
+**Usage:**
+
+- Create `{agent}.md` to completely replace an agent's default prompt
+- Create `{agent}_append.md` to add custom instructions to the default prompt
+- Both files can exist simultaneously - the replacement takes precedence
+- If neither file exists, the default prompt is used
+
+This allows you to fine-tune agent behavior without modifying the source code.
 
 ---
 

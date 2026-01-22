@@ -1,5 +1,5 @@
-import type { PluginConfig } from "../config";
-import { log } from "./logger";
+import type { PluginConfig } from '../config';
+import { log } from './logger';
 
 /**
  * Normalizes an agent name by trimming whitespace and removing the optional @ prefix.
@@ -13,7 +13,7 @@ import { log } from "./logger";
  */
 export function normalizeAgentName(agentName: string): string {
   const trimmed = agentName.trim();
-  return trimmed.startsWith("@") ? trimmed.slice(1) : trimmed;
+  return trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
 }
 
 /**
@@ -34,12 +34,12 @@ export function normalizeAgentName(agentName: string): string {
  */
 export function resolveAgentVariant(
   config: PluginConfig | undefined,
-  agentName: string
+  agentName: string,
 ): string | undefined {
   const normalized = normalizeAgentName(agentName);
   const rawVariant = config?.agents?.[normalized]?.variant;
 
-  if (typeof rawVariant !== "string") {
+  if (typeof rawVariant !== 'string') {
     return undefined;
   }
 
@@ -69,7 +69,7 @@ export function resolveAgentVariant(
  */
 export function applyAgentVariant<T extends { variant?: string }>(
   variant: string | undefined,
-  body: T
+  body: T,
 ): T {
   if (!variant) {
     return body;

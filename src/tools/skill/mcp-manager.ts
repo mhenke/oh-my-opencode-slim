@@ -1,7 +1,11 @@
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
-import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
-import type { Tool, Resource, Prompt } from "@modelcontextprotocol/sdk/types.js";
+import { Client } from '@modelcontextprotocol/sdk/client/index.js';
+import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
+import type {
+  Prompt,
+  Resource,
+  Tool,
+} from '@modelcontextprotocol/sdk/types.js';
 import type {
   ConnectionType,
   ManagedClient,
@@ -9,10 +13,10 @@ import type {
   ManagedStdioClient,
   McpServerConfig,
   SkillMcpClientInfo,
-} from "./types";
+} from './types';
 
 function getConnectionType(config: McpServerConfig): ConnectionType {
-  return "url" in config ? "http" : "stdio";
+  return 'url' in config ? 'http' : 'stdio';
 }
 
 export class SkillMcpManager {
@@ -51,12 +55,12 @@ export class SkillMcpManager {
       }
     };
 
-    process.on("exit", cleanup);
-    process.on("SIGINT", () => {
+    process.on('exit', cleanup);
+    process.on('SIGINT', () => {
       cleanup();
       process.exit(0);
     });
-    process.on("SIGTERM", () => {
+    process.on('SIGTERM', () => {
       cleanup();
       process.exit(0);
     });
@@ -68,11 +72,11 @@ export class SkillMcpManager {
 
   private async createClient(
     info: SkillMcpClientInfo,
-    config: McpServerConfig
+    config: McpServerConfig,
   ): Promise<Client> {
     const connectionType = getConnectionType(config);
 
-    if (connectionType === "http") {
+    if (connectionType === 'http') {
       return this.createHttpClient(info, config);
     }
 
@@ -81,11 +85,11 @@ export class SkillMcpManager {
 
   private async createHttpClient(
     info: SkillMcpClientInfo,
-    config: McpServerConfig
+    config: McpServerConfig,
   ): Promise<Client> {
-    if (!("url" in config)) {
+    if (!('url' in config)) {
       throw new Error(
-        `MCP server "${info.serverName}" missing url for HTTP connection.`
+        `MCP server "${info.serverName}" missing url for HTTP connection.`,
       );
     }
 
@@ -96,12 +100,16 @@ export class SkillMcpManager {
     }
 
     const transport = new StreamableHTTPClientTransport(url, {
-      requestInit: Object.keys(requestInit).length > 0 ? requestInit : undefined,
+      requestInit:
+        Object.keys(requestInit).length > 0 ? requestInit : undefined,
     });
 
     const client = new Client(
-      { name: `skill-mcp-${info.skillName}-${info.serverName}`, version: "1.0.0" },
-      { capabilities: {} }
+      {
+        name: `skill-mcp-${info.skillName}-${info.serverName}`,
+        version: '1.0.0',
+      },
+      { capabilities: {} },
     );
 
     try {
@@ -112,9 +120,10 @@ export class SkillMcpManager {
       } catch {
         // ignore transport close errors
       }
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       throw new Error(
-        `Failed to connect to MCP server "${info.serverName}". ${errorMessage}`
+        `Failed to connect to MCP server "${info.serverName}". ${errorMessage}`,
       );
     }
 
@@ -123,7 +132,7 @@ export class SkillMcpManager {
       transport,
       skillName: info.skillName,
       lastUsedAt: Date.now(),
-      connectionType: "http",
+      connectionType: 'http',
     };
 
     this.clients.set(this.getClientKey(info), managedClient);
@@ -133,11 +142,11 @@ export class SkillMcpManager {
 
   private async createStdioClient(
     info: SkillMcpClientInfo,
-    config: McpServerConfig
+    config: McpServerConfig,
   ): Promise<Client> {
-    if (!("command" in config)) {
+    if (!('command' in config)) {
       throw new Error(
-        `MCP server "${info.serverName}" missing command for stdio connection.`
+        `MCP server "${info.serverName}" missing command for stdio connection.`,
       );
     }
 
@@ -145,12 +154,15 @@ export class SkillMcpManager {
       command: config.command,
       args: config.args || [],
       env: config.env,
-      stderr: "ignore",
+      stderr: 'ignore',
     });
 
     const client = new Client(
-      { name: `skill-mcp-${info.skillName}-${info.serverName}`, version: "1.0.0" },
-      { capabilities: {} }
+      {
+        name: `skill-mcp-${info.skillName}-${info.serverName}`,
+        version: '1.0.0',
+      },
+      { capabilities: {} },
     );
 
     try {
@@ -161,9 +173,10 @@ export class SkillMcpManager {
       } catch {
         // ignore transport close errors
       }
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       throw new Error(
-        `Failed to connect to MCP server "${info.serverName}". ${errorMessage}`
+        `Failed to connect to MCP server "${info.serverName}". ${errorMessage}`,
       );
     }
 
@@ -172,7 +185,7 @@ export class SkillMcpManager {
       transport,
       skillName: info.skillName,
       lastUsedAt: Date.now(),
-      connectionType: "stdio",
+      connectionType: 'stdio',
     };
 
     this.clients.set(this.getClientKey(info), managedClient);
@@ -182,7 +195,7 @@ export class SkillMcpManager {
 
   private async getOrCreateClient(
     info: SkillMcpClientInfo,
-    config: McpServerConfig
+    config: McpServerConfig,
   ): Promise<Client> {
     const key = this.getClientKey(info);
     const existing = this.clients.get(key);
@@ -208,7 +221,7 @@ export class SkillMcpManager {
 
   async listTools(
     info: SkillMcpClientInfo,
-    config: McpServerConfig
+    config: McpServerConfig,
   ): Promise<Tool[]> {
     const client = await this.getOrCreateClient(info, config);
     const result = await client.listTools();
@@ -217,7 +230,7 @@ export class SkillMcpManager {
 
   async listResources(
     info: SkillMcpClientInfo,
-    config: McpServerConfig
+    config: McpServerConfig,
   ): Promise<Resource[]> {
     const client = await this.getOrCreateClient(info, config);
     const result = await client.listResources();
@@ -226,7 +239,7 @@ export class SkillMcpManager {
 
   async listPrompts(
     info: SkillMcpClientInfo,
-    config: McpServerConfig
+    config: McpServerConfig,
   ): Promise<Prompt[]> {
     const client = await this.getOrCreateClient(info, config);
     const result = await client.listPrompts();
@@ -237,7 +250,7 @@ export class SkillMcpManager {
     info: SkillMcpClientInfo,
     config: McpServerConfig,
     name: string,
-    args: Record<string, unknown>
+    args: Record<string, unknown>,
   ): Promise<unknown> {
     const client = await this.getOrCreateClient(info, config);
     const result = await client.callTool({ name, arguments: args });
@@ -247,7 +260,7 @@ export class SkillMcpManager {
   async readResource(
     info: SkillMcpClientInfo,
     config: McpServerConfig,
-    uri: string
+    uri: string,
   ): Promise<unknown> {
     const client = await this.getOrCreateClient(info, config);
     const result = await client.readResource({ uri });
@@ -258,7 +271,7 @@ export class SkillMcpManager {
     info: SkillMcpClientInfo,
     config: McpServerConfig,
     name: string,
-    args: Record<string, string>
+    args: Record<string, string>,
   ): Promise<unknown> {
     const client = await this.getOrCreateClient(info, config);
     const result = await client.getPrompt({ name, arguments: args });

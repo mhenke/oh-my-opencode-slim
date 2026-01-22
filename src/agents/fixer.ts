@@ -1,4 +1,4 @@
-import type { AgentDefinition } from "./orchestrator";
+import type { AgentDefinition } from './orchestrator';
 
 const FIXER_PROMPT = `You are Fixer - a fast, focused implementation specialist.
 
@@ -40,14 +40,27 @@ No changes required
 - LSP diagnostics: [not run - reason]
 </verification>`;
 
-export function createFixerAgent(model: string): AgentDefinition {
+export function createFixerAgent(
+  model: string,
+  customPrompt?: string,
+  customAppendPrompt?: string,
+): AgentDefinition {
+  let prompt = FIXER_PROMPT;
+
+  if (customPrompt) {
+    prompt = customPrompt;
+  } else if (customAppendPrompt) {
+    prompt = `${FIXER_PROMPT}\n\n${customAppendPrompt}`;
+  }
+
   return {
-    name: "fixer",
-    description: "Fast implementation specialist. Receives complete context and task spec, executes code changes efficiently.",
+    name: 'fixer',
+    description:
+      'Fast implementation specialist. Receives complete context and task spec, executes code changes efficiently.',
     config: {
       model,
       temperature: 0.2,
-      prompt: FIXER_PROMPT,
+      prompt,
     },
   };
 }

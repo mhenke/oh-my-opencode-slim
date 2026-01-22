@@ -1,16 +1,20 @@
-import { tool, type PluginInput, type ToolDefinition } from "@opencode-ai/plugin";
-import type { BackgroundTaskManager } from "../background";
-import { SUBAGENT_NAMES } from "../config";
 import {
-  POLL_INTERVAL_MS,
-  MAX_POLL_TIME_MS,
+  type PluginInput,
+  type ToolDefinition,
+  tool,
+} from '@opencode-ai/plugin';
+import type { BackgroundTaskManager } from '../background';
+import type { PluginConfig } from '../config';
+import {
   DEFAULT_TIMEOUT_MS,
+  MAX_POLL_TIME_MS,
+  POLL_INTERVAL_MS,
   STABLE_POLLS_THRESHOLD,
-} from "../config";
-import type { TmuxConfig } from "../config/schema";
-import type { PluginConfig } from "../config";
-import { applyAgentVariant, resolveAgentVariant } from "../utils";
-import { log } from "../utils/logger";
+  SUBAGENT_NAMES,
+} from '../config';
+import type { TmuxConfig } from '../config/schema';
+import { applyAgentVariant, resolveAgentVariant } from '../utils';
+import { log } from '../utils/logger';
 
 const z = tool.schema;
 
@@ -42,9 +46,9 @@ export function createBackgroundTools(
   ctx: PluginInput,
   manager: BackgroundTaskManager,
   tmuxConfig?: TmuxConfig,
-  pluginConfig?: PluginConfig
+  pluginConfig?: PluginConfig,
 ): Record<string, ToolDefinition> {
-  const agentNames = SUBAGENT_NAMES.join(", ");
+  const agentNames = SUBAGENT_NAMES.join(', ');
 
   // Tool for launching agent tasks (async or sync mode)
   const background_task = tool({
@@ -55,16 +59,28 @@ Agents: ${agentNames}.
 Async mode returns task_id immediately - use \`background_output\` to get results.
 Sync mode blocks until completion and returns the result directly.`,
     args: {
-      description: z.string().describe("Short description of the task (5-10 words)"),
-      prompt: z.string().describe("The task prompt for the agent"),
+      description: z
+        .string()
+        .describe('Short description of the task (5-10 words)'),
+      prompt: z.string().describe('The task prompt for the agent'),
       agent: z.string().describe(`Agent to use: ${agentNames}`),
-      sync: z.boolean().optional().describe("Wait for completion (default: false = async)"),
-      session_id: z.string().optional().describe("Continue existing session (sync mode only)"),
+      sync: z
+        .boolean()
+        .optional()
+        .describe('Wait for completion (default: false = async)'),
+      session_id: z
+        .string()
+        .optional()
+        .describe('Continue existing session (sync mode only)'),
     },
     async execute(args, toolContext) {
       // Validate tool context has required sessionID
-      if (!toolContext || typeof toolContext !== "object" || !("sessionID" in toolContext)) {
-        throw new Error("Invalid toolContext: missing sessionID");
+      if (
+        !toolContext ||
+        typeof toolContext !== 'object' ||
+        !('sessionID' in toolContext)
+      ) {
+        throw new Error('Invalid toolContext: missing sessionID');
       }
       const agent = String(args.agent);
       const prompt = String(args.prompt);
@@ -81,7 +97,7 @@ Sync mode blocks until completion and returns the result directly.`,
           ctx,
           tmuxConfig,
           pluginConfig,
-          args.session_id as string | undefined
+          args.session_id as string | undefined,
         );
       }
 
@@ -105,16 +121,23 @@ Use \`background_output\` with task_id="${task.id}" to get results.`;
 
   // Tool for retrieving output from background tasks
   const background_output = tool({
-    description: "Get output from background task.",
+    description: 'Get output from background task.',
     args: {
-      task_id: z.string().describe("Task ID from background_task"),
-      block: z.boolean().optional().describe("Wait for completion (default: false)"),
-      timeout: z.number().optional().describe("Timeout in ms (default: 120000)"),
+      task_id: z.string().describe('Task ID from background_task'),
+      block: z
+        .boolean()
+        .optional()
+        .describe('Wait for completion (default: false)'),
+      timeout: z
+        .number()
+        .optional()
+        .describe('Timeout in ms (default: 120000)'),
     },
-async execute(args) {
+    async execute(args) {
       const taskId = String(args.task_id);
       const block = args.block === true;
-      const timeout = typeof args.timeout === "number" ? args.timeout : DEFAULT_TIMEOUT_MS;
+      const timeout =
+        typeof args.timeout === 'number' ? args.timeout : DEFAULT_TIMEOUT_MS;
 
       // Retrieve task result (optionally blocking until completion)
       const task = await manager.getResult(taskId, block, timeout);
@@ -125,7 +148,7 @@ async execute(args) {
       // Calculate task duration
       const duration = task.completedAt
         ? `${Math.floor((task.completedAt.getTime() - task.startedAt.getTime()) / 1000)}s`
-        : "running";
+        : 'running';
 
       let output = `Task: ${task.id}
  Description: ${task.description}
@@ -137,12 +160,12 @@ async execute(args) {
  `;
 
       // Include task result or error based on status
-      if (task.status === "completed" && task.result != null) {
+      if (task.status === 'completed' && task.result != null) {
         output += task.result;
-      } else if (task.status === "failed") {
+      } else if (task.status === 'failed') {
         output += `Error: ${task.error}`;
       } else {
-        output += "(Task still running)";
+        output += '(Task still running)';
       }
 
       return output;
@@ -151,10 +174,11 @@ async execute(args) {
 
   // Tool for canceling running background tasks
   const background_cancel = tool({
-    description: "Cancel running background task(s). Use all=true to cancel all.",
+    description:
+      'Cancel running background task(s). Use all=true to cancel all.',
     args: {
-      task_id: z.string().optional().describe("Specific task to cancel"),
-      all: z.boolean().optional().describe("Cancel all running tasks"),
+      task_id: z.string().optional().describe('Specific task to cancel'),
+      all: z.boolean().optional().describe('Cancel all running tasks'),
     },
     async execute(args) {
       // Cancel all running tasks if requested
@@ -164,12 +188,14 @@ async execute(args) {
       }
 
       // Cancel specific task if task_id provided
-      if (typeof args.task_id === "string") {
+      if (typeof args.task_id === 'string') {
         const count = manager.cancel(args.task_id);
-        return count > 0 ? `Cancelled task ${args.task_id}.` : `Task ${args.task_id} not found or not running.`;
+        return count > 0
+          ? `Cancelled task ${args.task_id}.`
+          : `Task ${args.task_id} not found or not running.`;
       }
 
-      return "Specify task_id or use all=true.";
+      return 'Specify task_id or use all=true.';
     },
   });
 
@@ -197,7 +223,7 @@ async function executeSync(
   ctx: PluginInput,
   tmuxConfig?: TmuxConfig,
   pluginConfig?: PluginConfig,
-  existingSessionId?: string
+  existingSessionId?: string,
 ): Promise<string> {
   // Resolve or create session for the task
   const { sessionID, error: sessionError } = await resolveSessionId(
@@ -206,7 +232,7 @@ async function executeSync(
     description,
     agent,
     tmuxConfig,
-    existingSessionId
+    existingSessionId,
   );
 
   if (sessionError) {
@@ -214,10 +240,18 @@ async function executeSync(
   }
 
   // Disable recursive delegation tools to prevent infinite loops
-  log(`[background-sync] launching sync task for agent="${agent}"`, { description });
+  log(`[background-sync] launching sync task for agent="${agent}"`, {
+    description,
+  });
 
   // Send prompt to the session
-  const { error: promptError } = await sendPrompt(ctx, sessionID, prompt, agent, pluginConfig);
+  const { error: promptError } = await sendPrompt(
+    ctx,
+    sessionID,
+    prompt,
+    agent,
+    pluginConfig,
+  );
   if (promptError) {
     return withTaskMetadata(`Error: ${promptError}`, sessionID);
   }
@@ -225,18 +259,23 @@ async function executeSync(
   // Poll session until completion, abort, or timeout
   const pollResult = await pollSession(ctx, sessionID, toolContext.abort);
   if (pollResult.aborted) {
-    return withTaskMetadata("Task aborted.", sessionID);
+    return withTaskMetadata('Task aborted.', sessionID);
   }
   if (pollResult.timeout) {
     const minutes = Math.floor(MAX_POLL_TIME_MS / 60000);
-    return withTaskMetadata(`Error: Agent timed out after ${minutes} minutes.`, sessionID);
+    return withTaskMetadata(
+      `Error: Agent timed out after ${minutes} minutes.`,
+      sessionID,
+    );
   }
   if (pollResult.error) {
     return withTaskMetadata(`Error: ${pollResult.error}`, sessionID);
   }
 
   // Retrieve and extract the agent's response
-  const messagesResult = await ctx.client.session.messages({ path: { id: sessionID } });
+  const messagesResult = await ctx.client.session.messages({
+    path: { id: sessionID },
+  });
   if (messagesResult.error) {
     return `Error: Failed to get messages: ${messagesResult.error}`;
   }
@@ -245,7 +284,7 @@ async function executeSync(
   const responseText = extractResponseText(messages);
 
   if (!responseText) {
-    return withTaskMetadata("Error: No response from agent.", sessionID);
+    return withTaskMetadata('Error: No response from agent.', sessionID);
   }
 
   // Pane closing is handled by TmuxSessionManager via polling
@@ -261,13 +300,18 @@ export async function resolveSessionId(
   description: string,
   agent: string,
   tmuxConfig?: TmuxConfig,
-  existingSessionId?: string
+  existingSessionId?: string,
 ): Promise<{ sessionID: string; error?: string }> {
   // If existing session ID provided, validate and return it
   if (existingSessionId) {
-    const sessionResult = await ctx.client.session.get({ path: { id: existingSessionId } });
+    const sessionResult = await ctx.client.session.get({
+      path: { id: existingSessionId },
+    });
     if (sessionResult.error) {
-      return { sessionID: "", error: `Failed to get session: ${sessionResult.error}` };
+      return {
+        sessionID: '',
+        error: `Failed to get session: ${sessionResult.error}`,
+      };
     }
     return { sessionID: existingSessionId };
   }
@@ -283,10 +327,12 @@ export async function createSession(
   toolContext: ToolContext,
   description: string,
   agent: string,
-  tmuxConfig?: TmuxConfig
+  tmuxConfig?: TmuxConfig,
 ): Promise<{ sessionID: string; error?: string }> {
   // Get parent session to inherit directory context
-  const parentSession = await ctx.client.session.get({ path: { id: toolContext.sessionID } }).catch(() => null);
+  const parentSession = await ctx.client.session
+    .get({ path: { id: toolContext.sessionID } })
+    .catch(() => null);
   const parentDirectory = parentSession?.data?.directory ?? ctx.directory;
 
   // Create new session with parent relationship
@@ -299,7 +345,10 @@ export async function createSession(
   });
 
   if (createResult.error) {
-    return { sessionID: "", error: `Failed to create session: ${createResult.error}` };
+    return {
+      sessionID: '',
+      error: `Failed to create session: ${createResult.error}`,
+    };
   }
 
   // Give TmuxSessionManager time to spawn the pane via event hook
@@ -319,7 +368,7 @@ export async function sendPrompt(
   sessionID: string,
   prompt: string,
   agent: string,
-  pluginConfig?: PluginConfig
+  pluginConfig?: PluginConfig,
 ): Promise<{ error?: string }> {
   // Resolve agent variant configuration
   const resolvedVariant = resolveAgentVariant(pluginConfig, agent);
@@ -327,7 +376,7 @@ export async function sendPrompt(
   type PromptBody = {
     agent: string;
     tools: { background_task: boolean; task: boolean };
-    parts: Array<{ type: "text"; text: string }>;
+    parts: Array<{ type: 'text'; text: string }>;
     variant?: string;
   };
 
@@ -335,7 +384,7 @@ export async function sendPrompt(
   const baseBody: PromptBody = {
     agent,
     tools: { background_task: false, task: false },
-    parts: [{ type: "text" as const, text: prompt }],
+    parts: [{ type: 'text' as const, text: prompt }],
   };
   const promptBody = applyAgentVariant(resolvedVariant, baseBody);
 
@@ -347,7 +396,9 @@ export async function sendPrompt(
     });
     return {};
   } catch (error) {
-    return { error: `Failed to send prompt: ${error instanceof Error ? error.message : String(error)}` };
+    return {
+      error: `Failed to send prompt: ${error instanceof Error ? error.message : String(error)}`,
+    };
   }
 }
 
@@ -357,7 +408,7 @@ export async function sendPrompt(
 export async function pollSession(
   ctx: PluginInput,
   sessionID: string,
-  abortSignal: AbortSignal
+  abortSignal: AbortSignal,
 ): Promise<{ error?: string; timeout?: boolean; aborted?: boolean }> {
   const pollStart = Date.now();
   let lastMsgCount = 0;
@@ -377,17 +428,22 @@ export async function pollSession(
     if (statusResult.error) {
       return { error: `Failed to get session status: ${statusResult.error}` };
     }
-    const allStatuses = (statusResult.data ?? {}) as Record<string, SessionStatus>;
+    const allStatuses = (statusResult.data ?? {}) as Record<
+      string,
+      SessionStatus
+    >;
     const sessionStatus = allStatuses[sessionID];
 
-    if (sessionStatus && sessionStatus.type !== "idle") {
+    if (sessionStatus && sessionStatus.type !== 'idle') {
       stablePolls = 0;
       lastMsgCount = 0;
       continue;
     }
 
     // Check message count - if stable for threshold, task is complete
-    const messagesCheck = await ctx.client.session.messages({ path: { id: sessionID } });
+    const messagesCheck = await ctx.client.session.messages({
+      path: { id: sessionID },
+    });
     if (messagesCheck.error) {
       return { error: `Failed to check messages: ${messagesCheck.error}` };
     }
@@ -411,20 +467,22 @@ export async function pollSession(
  */
 export function extractResponseText(messages: SessionMessage[]): string {
   // Filter for assistant messages only
-  const assistantMessages = messages.filter((m) => m.info?.role === "assistant");
+  const assistantMessages = messages.filter(
+    (m) => m.info?.role === 'assistant',
+  );
   const extractedContent: string[] = [];
 
   // Extract text and reasoning content from message parts
   for (const message of assistantMessages) {
     for (const part of message.parts ?? []) {
-      if ((part.type === "text" || part.type === "reasoning") && part.text) {
+      if ((part.type === 'text' || part.type === 'reasoning') && part.text) {
         extractedContent.push(part.text);
       }
     }
   }
 
   // Join non-empty content with double newlines
-  return extractedContent.filter((t) => t.length > 0).join("\n\n");
+  return extractedContent.filter((t) => t.length > 0).join('\n\n');
 }
 
 /**

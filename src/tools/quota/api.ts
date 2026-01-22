@@ -1,51 +1,53 @@
-import * as path from "path";
-import * as os from "os";
-import * as fs from "fs";
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import type {
   Account,
-  AccountsConfig,
-  TokenResponse,
-  LoadCodeAssistResponse,
-  QuotaResponse,
   AccountQuotaResult,
+  AccountsConfig,
+  LoadCodeAssistResponse,
   ModelQuota,
-} from "./types";
+  QuotaResponse,
+  TokenResponse,
+} from './types';
 
 // API endpoints
-const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
-const CLOUDCODE_BASE_URL = "https://cloudcode-pa.googleapis.com";
+const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
+const CLOUDCODE_BASE_URL = 'https://cloudcode-pa.googleapis.com';
 
 // Timing constants
 const DEFAULT_RESET_MS = 86_400_000; // 24 hours - fallback when API doesn't provide reset time
 const ACCOUNT_FETCH_DELAY_MS = 200; // Delay between account fetches to avoid rate limiting
 const CLOUDCODE_METADATA = {
-  ideType: "ANTIGRAVITY",
-  platform: "PLATFORM_UNSPECIFIED",
-  pluginType: "GEMINI",
+  ideType: 'ANTIGRAVITY',
+  platform: 'PLATFORM_UNSPECIFIED',
+  pluginType: 'GEMINI',
 };
 
 // Client credentials (from opencode-antigravity-auth)
-const CLIENT_ID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com";
-const CLIENT_SECRET = "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";
+const CLIENT_ID =
+  '1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com';
+const CLIENT_SECRET = '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';
 
 // Config paths
-const isWindows = os.platform() === "win32";
+const isWindows = os.platform() === 'win32';
 const configBase = isWindows
-  ? path.join(os.homedir(), "AppData", "Roaming", "opencode")
-  : path.join(os.homedir(), ".config", "opencode");
+  ? path.join(os.homedir(), 'AppData', 'Roaming', 'opencode')
+  : path.join(os.homedir(), '.config', 'opencode');
 
-const xdgData = process.env.XDG_DATA_HOME || path.join(os.homedir(), ".local", "share");
-const dataBase = isWindows ? configBase : path.join(xdgData, "opencode");
+const xdgData =
+  process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share');
+const dataBase = isWindows ? configBase : path.join(xdgData, 'opencode');
 
 export const CONFIG_PATHS = [
-  path.join(configBase, "antigravity-accounts.json"),
-  path.join(dataBase, "antigravity-accounts.json"),
+  path.join(configBase, 'antigravity-accounts.json'),
+  path.join(dataBase, 'antigravity-accounts.json'),
 ];
 
 export function loadAccountsConfig(): AccountsConfig | null {
   for (const p of CONFIG_PATHS) {
     if (fs.existsSync(p)) {
-      return JSON.parse(fs.readFileSync(p, "utf-8")) as AccountsConfig;
+      return JSON.parse(fs.readFileSync(p, 'utf-8')) as AccountsConfig;
     }
   }
   return null;
@@ -56,12 +58,12 @@ async function refreshToken(refreshToken: string): Promise<string> {
     client_id: CLIENT_ID,
     client_secret: CLIENT_SECRET,
     refresh_token: refreshToken,
-    grant_type: "refresh_token",
+    grant_type: 'refresh_token',
   });
 
   const res = await fetch(GOOGLE_TOKEN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
     body: params.toString(),
   });
 
@@ -70,13 +72,15 @@ async function refreshToken(refreshToken: string): Promise<string> {
   return data.access_token;
 }
 
-async function loadCodeAssist(accessToken: string): Promise<LoadCodeAssistResponse> {
+async function loadCodeAssist(
+  accessToken: string,
+): Promise<LoadCodeAssistResponse> {
   const res = await fetch(`${CLOUDCODE_BASE_URL}/v1internal:loadCodeAssist`, {
-    method: "POST",
+    method: 'POST',
     headers: {
       Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      "User-Agent": "antigravity",
+      'Content-Type': 'application/json',
+      'User-Agent': 'antigravity',
     },
     body: JSON.stringify({ metadata: CLOUDCODE_METADATA }),
   });
@@ -86,25 +90,31 @@ async function loadCodeAssist(accessToken: string): Promise<LoadCodeAssistRespon
 }
 
 function extractProjectId(project: unknown): string | undefined {
-  if (typeof project === "string" && project) return project;
-  if (project && typeof project === "object" && "id" in project) {
+  if (typeof project === 'string' && project) return project;
+  if (project && typeof project === 'object' && 'id' in project) {
     const id = (project as { id?: string }).id;
     if (id) return id;
   }
   return undefined;
 }
 
-async function fetchModels(accessToken: string, projectId?: string): Promise<QuotaResponse> {
+async function fetchModels(
+  accessToken: string,
+  projectId?: string,
+): Promise<QuotaResponse> {
   const payload = projectId ? { project: projectId } : {};
-  const res = await fetch(`${CLOUDCODE_BASE_URL}/v1internal:fetchAvailableModels`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-      "User-Agent": "antigravity",
+  const res = await fetch(
+    `${CLOUDCODE_BASE_URL}/v1internal:fetchAvailableModels`,
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+        'User-Agent': 'antigravity',
+      },
+      body: JSON.stringify(payload),
     },
-    body: JSON.stringify(payload),
-  });
+  );
 
   if (!res.ok) throw new Error(`fetchModels failed (${res.status})`);
   return (await res.json()) as QuotaResponse;
@@ -119,9 +129,16 @@ function formatDuration(ms: number): string {
 }
 
 // Filter out internal/test models
-const EXCLUDED_PATTERNS = ["chat_", "rev19", "gemini 2.5", "gemini 3 pro image"];
+const EXCLUDED_PATTERNS = [
+  'chat_',
+  'rev19',
+  'gemini 2.5',
+  'gemini 3 pro image',
+];
 
-export async function fetchAccountQuota(account: Account): Promise<AccountQuotaResult> {
+export async function fetchAccountQuota(
+  account: Account,
+): Promise<AccountQuotaResult> {
   try {
     const accessToken = await refreshToken(account.refreshToken);
     let projectId = account.projectId || account.managedProjectId;
@@ -151,7 +168,7 @@ export async function fetchAccountQuota(account: Account): Promise<AccountQuotaR
       let resetMs = DEFAULT_RESET_MS;
       if (qi.resetTime) {
         const parsed = new Date(qi.resetTime).getTime();
-        if (!isNaN(parsed)) resetMs = Math.max(0, parsed - now);
+        if (!Number.isNaN(parsed)) resetMs = Math.max(0, parsed - now);
       }
 
       models.push({
@@ -174,7 +191,9 @@ export async function fetchAccountQuota(account: Account): Promise<AccountQuotaR
   }
 }
 
-export async function fetchAllQuotas(accounts: Account[]): Promise<AccountQuotaResult[]> {
+export async function fetchAllQuotas(
+  accounts: Account[],
+): Promise<AccountQuotaResult[]> {
   const results: AccountQuotaResult[] = [];
   for (let i = 0; i < accounts.length; i++) {
     if (i > 0) await new Promise((r) => setTimeout(r, ACCOUNT_FETCH_DELAY_MS));

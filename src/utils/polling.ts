@@ -1,8 +1,8 @@
 import {
-  POLL_INTERVAL_MS,
   MAX_POLL_TIME_MS,
+  POLL_INTERVAL_MS,
   STABLE_POLLS_THRESHOLD,
-} from "../config";
+} from '../config';
 
 export interface PollOptions {
   pollInterval?: number;
@@ -25,7 +25,7 @@ export interface PollResult<T> {
 export async function pollUntilStable<T>(
   fetchFn: () => Promise<T>,
   isStable: (current: T, previous: T | null, stableCount: number) => boolean,
-  opts: PollOptions = {}
+  opts: PollOptions = {},
 ): Promise<PollResult<T>> {
   const pollInterval = opts.pollInterval ?? POLL_INTERVAL_MS;
   const maxPollTime = opts.maxPollTime ?? MAX_POLL_TIME_MS;

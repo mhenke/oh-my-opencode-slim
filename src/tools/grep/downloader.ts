@@ -1,139 +1,158 @@
-import { existsSync, mkdirSync, chmodSync, unlinkSync, readdirSync } from "node:fs"
-import { join } from "node:path"
-import { spawn } from "bun"
-import { extractZip } from "../../utils"
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  unlinkSync,
+} from 'node:fs';
+import { join } from 'node:path';
+import { spawn } from 'bun';
+import { extractZip } from '../../utils';
 
-export function findFileRecursive(dir: string, filename: string): string | null {
+export function findFileRecursive(
+  dir: string,
+  filename: string,
+): string | null {
   try {
-    const entries = readdirSync(dir, { withFileTypes: true, recursive: true })
+    const entries = readdirSync(dir, { withFileTypes: true, recursive: true });
     for (const entry of entries) {
       if (entry.isFile() && entry.name === filename) {
-        return join(entry.parentPath ?? dir, entry.name)
+        return join(entry.parentPath ?? dir, entry.name);
       }
     }
   } catch {
-    return null
+    return null;
   }
-  return null
+  return null;
 }
 
-const RG_VERSION = "14.1.1"
+const RG_VERSION = '14.1.1';
 
 // Platform key format: ${process.platform}-${process.arch} (consistent with ast-grep)
-const PLATFORM_CONFIG: Record<string, { platform: string; extension: "tar.gz" | "zip" } | undefined> =
-{
-  "darwin-arm64": { platform: "aarch64-apple-darwin", extension: "tar.gz" },
-  "darwin-x64": { platform: "x86_64-apple-darwin", extension: "tar.gz" },
-  "linux-arm64": { platform: "aarch64-unknown-linux-gnu", extension: "tar.gz" },
-  "linux-x64": { platform: "x86_64-unknown-linux-musl", extension: "tar.gz" },
-  "win32-x64": { platform: "x86_64-pc-windows-msvc", extension: "zip" },
-}
+const PLATFORM_CONFIG: Record<
+  string,
+  { platform: string; extension: 'tar.gz' | 'zip' } | undefined
+> = {
+  'darwin-arm64': { platform: 'aarch64-apple-darwin', extension: 'tar.gz' },
+  'darwin-x64': { platform: 'x86_64-apple-darwin', extension: 'tar.gz' },
+  'linux-arm64': { platform: 'aarch64-unknown-linux-gnu', extension: 'tar.gz' },
+  'linux-x64': { platform: 'x86_64-unknown-linux-musl', extension: 'tar.gz' },
+  'win32-x64': { platform: 'x86_64-pc-windows-msvc', extension: 'zip' },
+};
 
 function getPlatformKey(): string {
-  return `${process.platform}-${process.arch}`
+  return `${process.platform}-${process.arch}`;
 }
 
 function getInstallDir(): string {
-  const homeDir = process.env.HOME || process.env.USERPROFILE || "."
-  return join(homeDir, ".cache", "oh-my-opencode-slim", "bin")
+  const homeDir = process.env.HOME || process.env.USERPROFILE || '.';
+  return join(homeDir, '.cache', 'oh-my-opencode-slim', 'bin');
 }
 
 function getRgPath(): string {
-  const isWindows = process.platform === "win32"
-  return join(getInstallDir(), isWindows ? "rg.exe" : "rg")
+  const isWindows = process.platform === 'win32';
+  return join(getInstallDir(), isWindows ? 'rg.exe' : 'rg');
 }
 
 async function downloadFile(url: string, destPath: string): Promise<void> {
-  const response = await fetch(url)
+  const response = await fetch(url);
   if (!response.ok) {
-    throw new Error(`Failed to download: ${response.status} ${response.statusText}`)
+    throw new Error(
+      `Failed to download: ${response.status} ${response.statusText}`,
+    );
   }
 
-  const buffer = await response.arrayBuffer()
-  await Bun.write(destPath, buffer)
+  const buffer = await response.arrayBuffer();
+  await Bun.write(destPath, buffer);
 }
 
-async function extractTarGz(archivePath: string, destDir: string): Promise<void> {
-  const args = ["tar", "-xzf", archivePath, "--strip-components=1"]
+async function extractTarGz(
+  archivePath: string,
+  destDir: string,
+): Promise<void> {
+  const args = ['tar', '-xzf', archivePath, '--strip-components=1'];
 
-  if (process.platform === "darwin") {
-    args.push("--include=*/rg")
-  } else if (process.platform === "linux") {
-    args.push("--wildcards", "*/rg")
+  if (process.platform === 'darwin') {
+    args.push('--include=*/rg');
+  } else if (process.platform === 'linux') {
+    args.push('--wildcards', '*/rg');
   }
 
   const proc = spawn(args, {
     cwd: destDir,
-    stdout: "pipe",
-    stderr: "pipe",
-  })
+    stdout: 'pipe',
+    stderr: 'pipe',
+  });
 
-  const exitCode = await proc.exited
+  const exitCode = await proc.exited;
   if (exitCode !== 0) {
-    const stderr = await new Response(proc.stderr).text()
-    throw new Error(`Failed to extract tar.gz: ${stderr}`)
+    const stderr = await new Response(proc.stderr).text();
+    throw new Error(`Failed to extract tar.gz: ${stderr}`);
   }
 }
 
-async function extractZipArchive(archivePath: string, destDir: string): Promise<void> {
-  await extractZip(archivePath, destDir)
+async function extractZipArchive(
+  archivePath: string,
+  destDir: string,
+): Promise<void> {
+  await extractZip(archivePath, destDir);
 
-  const binaryName = process.platform === "win32" ? "rg.exe" : "rg"
-  const foundPath = findFileRecursive(destDir, binaryName)
+  const binaryName = process.platform === 'win32' ? 'rg.exe' : 'rg';
+  const foundPath = findFileRecursive(destDir, binaryName);
   if (foundPath) {
-    const destPath = join(destDir, binaryName)
+    const destPath = join(destDir, binaryName);
     if (foundPath !== destPath) {
-      const { renameSync } = await import("node:fs")
-      renameSync(foundPath, destPath)
+      const { renameSync } = await import('node:fs');
+      renameSync(foundPath, destPath);
     }
   }
 }
 
 export async function downloadAndInstallRipgrep(): Promise<string> {
-  const platformKey = getPlatformKey()
-  const config = PLATFORM_CONFIG[platformKey]
+  const platformKey = getPlatformKey();
+  const config = PLATFORM_CONFIG[platformKey];
 
   if (!config) {
-    throw new Error(`Unsupported platform: ${platformKey}`)
+    throw new Error(`Unsupported platform: ${platformKey}`);
   }
 
-  const installDir = getInstallDir()
-  const rgPath = getRgPath()
+  const installDir = getInstallDir();
+  const rgPath = getRgPath();
 
   if (existsSync(rgPath)) {
-    return rgPath
+    return rgPath;
   }
 
-  mkdirSync(installDir, { recursive: true })
+  mkdirSync(installDir, { recursive: true });
 
-  const filename = `ripgrep-${RG_VERSION}-${config.platform}.${config.extension}`
-  const url = `https://github.com/BurntSushi/ripgrep/releases/download/${RG_VERSION}/${filename}`
-  const archivePath = join(installDir, filename)
+  const filename = `ripgrep-${RG_VERSION}-${config.platform}.${config.extension}`;
+  const url = `https://github.com/BurntSushi/ripgrep/releases/download/${RG_VERSION}/${filename}`;
+  const archivePath = join(installDir, filename);
 
   try {
-    console.log(`[oh-my-opencode-slim] Downloading ripgrep...`)
-    await downloadFile(url, archivePath)
+    console.log(`[oh-my-opencode-slim] Downloading ripgrep...`);
+    await downloadFile(url, archivePath);
 
-    if (config.extension === "tar.gz") {
-      await extractTarGz(archivePath, installDir)
+    if (config.extension === 'tar.gz') {
+      await extractTarGz(archivePath, installDir);
     } else {
-      await extractZipArchive(archivePath, installDir)
+      await extractZipArchive(archivePath, installDir);
     }
 
-    if (process.platform !== "win32") {
-      chmodSync(rgPath, 0o755)
+    if (process.platform !== 'win32') {
+      chmodSync(rgPath, 0o755);
     }
 
     if (!existsSync(rgPath)) {
-      throw new Error("ripgrep binary not found after extraction")
+      throw new Error('ripgrep binary not found after extraction');
     }
 
-    console.log(`[oh-my-opencode-slim] ripgrep ready.`)
-    return rgPath
+    console.log(`[oh-my-opencode-slim] ripgrep ready.`);
+    return rgPath;
   } finally {
     if (existsSync(archivePath)) {
       try {
-        unlinkSync(archivePath)
+        unlinkSync(archivePath);
       } catch {
         // Cleanup failures are non-critical
       }
@@ -142,6 +161,6 @@ export async function downloadAndInstallRipgrep(): Promise<string> {
 }
 
 export function getInstalledRipgrepPath(): string | null {
-  const rgPath = getRgPath()
-  return existsSync(rgPath) ? rgPath : null
+  const rgPath = getRgPath();
+  return existsSync(rgPath) ? rgPath : null;
 }

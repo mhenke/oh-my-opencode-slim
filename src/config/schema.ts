@@ -1,4 +1,4 @@
-import { z } from "zod";
+import { z } from 'zod';
 
 // Agent override configuration (distinct from SDK's AgentConfig)
 export const AgentOverrideConfigSchema = z.object({
@@ -10,11 +10,11 @@ export const AgentOverrideConfigSchema = z.object({
 
 // Tmux layout options
 export const TmuxLayoutSchema = z.enum([
-  "main-horizontal", // Main pane on top, agents stacked below
-  "main-vertical",   // Main pane on left, agents stacked on right
-  "tiled",           // All panes equal size grid
-  "even-horizontal", // All panes side by side
-  "even-vertical",   // All panes stacked vertically
+  'main-horizontal', // Main pane on top, agents stacked below
+  'main-vertical', // Main pane on left, agents stacked on right
+  'tiled', // All panes equal size grid
+  'even-horizontal', // All panes side by side
+  'even-vertical', // All panes stacked vertically
 ]);
 
 export type TmuxLayout = z.infer<typeof TmuxLayoutSchema>;
@@ -22,7 +22,7 @@ export type TmuxLayout = z.infer<typeof TmuxLayoutSchema>;
 // Tmux integration configuration
 export const TmuxConfigSchema = z.object({
   enabled: z.boolean().default(false),
-  layout: TmuxLayoutSchema.default("main-vertical"),
+  layout: TmuxLayoutSchema.default('main-vertical'),
   main_pane_size: z.number().min(20).max(80).default(60), // percentage for main pane
 });
 
@@ -35,7 +35,7 @@ export const PresetSchema = z.record(z.string(), AgentOverrideConfigSchema);
 export type Preset = z.infer<typeof PresetSchema>;
 
 // MCP names
-export const McpNameSchema = z.enum(["websearch", "context7", "grep_app"]);
+export const McpNameSchema = z.enum(['websearch', 'context7', 'grep_app']);
 export type McpName = z.infer<typeof McpNameSchema>;
 
 // Main plugin config
@@ -50,4 +50,4 @@ export const PluginConfigSchema = z.object({
 export type PluginConfig = z.infer<typeof PluginConfigSchema>;
 
 // Agent names - re-exported from constants for convenience
-export type { AgentName } from "./constants";
+export type { AgentName } from './constants';

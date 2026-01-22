@@ -1,10 +1,10 @@
-import { websearch } from "./websearch";
-import { context7 } from "./context7";
-import { grep_app } from "./grep-app";
-import type { McpConfig } from "./types";
-import type { McpName } from "../config";
+import type { McpName } from '../config';
+import { context7 } from './context7';
+import { grep_app } from './grep-app';
+import type { McpConfig } from './types';
+import { websearch } from './websearch';
 
-export type { RemoteMcpConfig, LocalMcpConfig, McpConfig } from "./types";
+export type { LocalMcpConfig, McpConfig, RemoteMcpConfig } from './types';
 
 const allBuiltinMcps: Record<McpName, McpConfig> = {
   websearch,
@@ -16,9 +16,11 @@ const allBuiltinMcps: Record<McpName, McpConfig> = {
  * Creates MCP configurations, excluding disabled ones
  */
 export function createBuiltinMcps(
-  disabledMcps: readonly string[] = []
+  disabledMcps: readonly string[] = [],
 ): Record<string, McpConfig> {
   return Object.fromEntries(
-    Object.entries(allBuiltinMcps).filter(([name]) => !disabledMcps.includes(name))
+    Object.entries(allBuiltinMcps).filter(
+      ([name]) => !disabledMcps.includes(name),
+    ),
   );
 }
