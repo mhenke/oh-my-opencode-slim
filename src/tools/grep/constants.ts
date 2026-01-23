@@ -5,6 +5,8 @@ import {
   downloadAndInstallRipgrep,
   getInstalledRipgrepPath,
 } from './downloader';
+import { homedir } from 'os';
+
 
 export type GrepBackend = 'rg' | 'grep';
 
@@ -23,26 +25,13 @@ function findExecutable(name: string): string | null {
   try {
     const result = spawnSync(cmd, [name], { encoding: 'utf-8', timeout: 5000 });
     if (result.status === 0 && result.stdout.trim()) {
-      return result.stdout.trim().split('\n')[0];
+      // Handle both Unix (\n) and Windows (\r\n) line endings
+      return result.stdout.trim().split(/\r?\n/)[0];
     }
   } catch {
     // Command execution failed
   }
   return null;
-}
-
-function getDataDir(): string {
-  if (process.platform === 'win32') {
-    return (
-      process.env.LOCALAPPDATA ||
-      process.env.APPDATA ||
-      join(process.env.USERPROFILE || '.', 'AppData', 'Local')
-    );
-  }
-  return (
-    process.env.XDG_DATA_HOME ||
-    join(process.env.HOME || '.', '.local', 'share')
-  );
 }
 
 function getOpenCodeBundledRg(): string | null {
@@ -54,7 +43,7 @@ function getOpenCodeBundledRg(): string | null {
 
   const candidates = [
     // OpenCode XDG data path (highest priority - where OpenCode installs rg)
-    join(getDataDir(), 'opencode', 'bin', rgName),
+    join(homedir(), '.opencode', 'bin', rgName),
     // Legacy paths relative to execPath
     join(execDir, rgName),
     join(execDir, 'bin', rgName),

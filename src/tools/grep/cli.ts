@@ -8,8 +8,8 @@ import {
   DEFAULT_TIMEOUT_MS,
   GREP_SAFETY_FLAGS,
   type GrepBackend,
-  RG_SAFETY_FLAGS,
   resolveGrepCli,
+  RG_SAFETY_FLAGS,
 } from './constants';
 import type { CountResult, GrepMatch, GrepOptions, GrepResult } from './types';
 
@@ -26,7 +26,11 @@ function buildRgArgs(options: GrepOptions): string[] {
     args.push(`-C${Math.min(options.context, 10)}`);
   }
 
-  if (options.caseSensitive) args.push('--case-sensitive');
+  if (options.caseSensitive) {
+    args.push('--case-sensitive');
+  } else {
+    args.push('-i');
+  }
   if (options.wholeWord) args.push('-w');
   if (options.fixedStrings) args.push('-F');
   if (options.multiline) args.push('-U');
@@ -90,7 +94,8 @@ function parseOutput(output: string): GrepMatch[] {
   if (!output.trim()) return [];
 
   const matches: GrepMatch[] = [];
-  const lines = output.split('\n');
+  // Handle both Unix (\n) and Windows (\r\n) line endings
+  const lines = output.trim().split(/\r?\n/);
 
   for (const line of lines) {
     if (!line.trim()) continue;
@@ -112,7 +117,8 @@ function parseCountOutput(output: string): CountResult[] {
   if (!output.trim()) return [];
 
   const results: CountResult[] = [];
-  const lines = output.split('\n');
+  // Handle both Unix (\n) and Windows (\r\n) line endings
+  const lines = output.trim().split(/\r?\n/);
 
   for (const line of lines) {
     if (!line.trim()) continue;
