@@ -12,17 +12,6 @@
 
 > Slimmed-down fork of [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode) - focused on core agent orchestration with low token consumption.
 
-> **[Antigravity](https://antigravity.google) subscription recommended.** The pantheon is tuned for Antigravity's model routing. Other providers work, but you'll get the best experience with Antigravity.
-
-<div align="center">
-
-[![GitHub Stars](https://img.shields.io/github/stars/alvinunreal/oh-my-opencode-slim?style=for-the-badge&logo=github&logoColor=white)](https://github.com/alvinunreal/oh-my-opencode-slim)
-<a href="https://x.com/alvinunreal" target="_blank" rel="noopener noreferrer">
-  <img src="https://img.shields.io/badge/%20%40alvinunreal-000000?style=for-the-badge&logo=x&logoColor=white" alt="@alvinunreal on X" />
-</a>
-
-</div>
-
 ---
 
 ## ⚡ Quick Navigation
@@ -306,9 +295,11 @@ Skills are specialized capabilities that agents can use. Each agent has a defaul
 | `explorer` | none |
 | `fixer` | none |
 
-### Skill Syntax
+### Configuration & Syntax
 
-Skills support wildcard and exclusion syntax for flexible control:
+You can customize which skills each agent uses by editing your plugin configuration file: `~/.config/opencode/oh-my-opencode-slim.json`.
+
+**Syntax:**
 
 | Syntax | Description | Example |
 |--------|-------------|---------|
@@ -323,6 +314,23 @@ Skills support wildcard and exclusion syntax for flexible control:
 - Conflicts (e.g., `["a", "!a"]`) → deny wins (principle of least privilege)
 - Empty list `[]` → no skills allowed
 
+**Example Configuration:**
+
+```json
+{
+  "presets": {
+    "my-preset": {
+      "orchestrator": {
+        "skills": ["*", "!playwright"]
+      },
+      "designer": {
+        "skills": ["playwright", "simplify"]
+      }
+    }
+  }
+}
+```
+
 ### Simplify
 
 **The Minimalist's sacred truth: every line of code is a liability.**
@@ -336,25 +344,6 @@ Use after major refactors or before finalizing PRs. Identifies unnecessary compl
 - **Browser Automation**: Full Playwright capabilities (browsing, clicking, typing, scraping).
 - **Screenshots**: Capture visual state of any web page.
 - **Sandboxed Output**: Screenshots saved to session subdirectory (check tool output for path).
-
-### Customizing Agent Skills
-
-Override skills per-agent in your [Plugin Config](#plugin-config-oh-my-opencode-slimjson):
-
-```json
-{
-  "presets": {
-    "my-preset": {
-  "orchestrator": {
-    "skills": ["*", "!playwright"]
-  },
-  "designer": {
-    "skills": ["playwright", "simplify"]
-  }
-    }
-  }
-}
-```
 
 ---
 
@@ -381,9 +370,13 @@ Control which agents can access which MCP servers using per-agent allowlists:
 | `explorer` | none |
 | `fixer` | none |
 
-### MCP Syntax
+### Configuration & Syntax
 
-MCPs support wildcard and exclusion syntax (same as skills):
+You can configure MCP access in your plugin configuration file: `~/.config/opencode/oh-my-opencode-slim.json`.
+
+**Per-Agent Permissions**
+
+Control which agents can access which MCP servers using the `mcps` array in your preset. The syntax is the same as for skills:
 
 | Syntax | Description | Example |
 |--------|-------------|---------|
@@ -398,13 +391,7 @@ MCPs support wildcard and exclusion syntax (same as skills):
 - Conflicts (e.g., `["a", "!a"]`) → deny wins
 - Empty list `[]` → no MCPs allowed
 
-### Disabling MCPs
-
-You can disable specific MCP servers globally by adding them to the `disabled_mcps` array in your [Plugin Config](#plugin-config-oh-my-opencode-slimjson).
-
-### Customizing MCP Permissions
-
-Override MCP access per-agent in your [Plugin Config](#plugin-config-oh-my-opencode-slimjson):
+**Example Configuration:**
 
 ```json
 {
@@ -423,6 +410,10 @@ Override MCP access per-agent in your [Plugin Config](#plugin-config-oh-my-openc
   }
 }
 ```
+
+**Global Disabling**
+
+You can disable specific MCP servers globally by adding them to the `disabled_mcps` array at the root of your config object.
 
 ---
 
