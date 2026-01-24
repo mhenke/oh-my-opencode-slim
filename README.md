@@ -601,6 +601,8 @@ Routes through Antigravity's CLIProxy for Claude + Gemini models:
 }
 ```
 
+</details>
+
 ### Author's Preset
 
 Mixed setup combining multiple providers:
