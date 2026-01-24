@@ -79,14 +79,14 @@ describe('providers', () => {
     expect(config.preset).toBe('zen-free');
     const agents = (config.presets as any)['zen-free'];
     expect(agents).toBeDefined();
-    expect(agents.orchestrator.model).toBe('opencode/grok-code');
+    expect(agents.orchestrator.model).toBe('opencode/big-pickle');
     expect(agents.orchestrator.variant).toBeUndefined();
     // Should NOT include other presets
     expect((config.presets as any).cliproxy).toBeUndefined();
     expect((config.presets as any).openai).toBeUndefined();
   });
 
-  test('generateLiteConfig uses zen-free grok-code models', () => {
+  test('generateLiteConfig uses zen-free big-pickle models', () => {
     const config = generateLiteConfig({
       hasAntigravity: false,
       hasOpenAI: false,
@@ -96,10 +96,10 @@ describe('providers', () => {
 
     expect(config.preset).toBe('zen-free');
     const agents = (config.presets as any)['zen-free'];
-    expect(agents.orchestrator.model).toBe('opencode/grok-code');
-    expect(agents.oracle.model).toBe('opencode/grok-code');
+    expect(agents.orchestrator.model).toBe('opencode/big-pickle');
+    expect(agents.oracle.model).toBe('opencode/big-pickle');
     expect(agents.oracle.variant).toBe('high');
-    expect(agents.librarian.model).toBe('opencode/grok-code');
+    expect(agents.librarian.model).toBe('opencode/big-pickle');
     expect(agents.librarian.variant).toBe('low');
   });
 

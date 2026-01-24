@@ -111,7 +111,7 @@ function formatConfigSummary(config: InstallConfig): string {
   lines.push(
     `  ${config.hasOpenAI ? SYMBOLS.check : `${DIM}○${RESET}`} OpenAI`,
   );
-  lines.push(`  ${SYMBOLS.check} Opencode Zen (Grok)`); // Always enabled
+  lines.push(`  ${SYMBOLS.check} Opencode Zen (Big Pickle)`); // Always enabled
   lines.push(
     `  ${config.hasTmux ? SYMBOLS.check : `${DIM}○${RESET}`} Tmux Integration`,
   );
@@ -268,7 +268,7 @@ async function runInstall(config: InstallConfig): Promise<number> {
 
   if (!config.hasAntigravity && !config.hasOpenAI) {
     printWarning(
-      'No providers configured. Zen Grok models will be used as fallback.',
+      'No providers configured. Zen Big Pickle models will be used as fallback.',
     );
   }
 

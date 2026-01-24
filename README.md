@@ -126,7 +126,7 @@ Ask these questions **one at a time**, waiting for responses:
 Help the user understand the tradeoffs:
 - Antigravity via cliproxy provides Claude + Gemini routing.
 - OpenAI is optional; it enables `openai/` models.
-- If the user has **no providers**, the plugin still works using **OpenCode Zen** free models. They can switch to paid providers later by editing `~/.config/opencode/oh-my-opencode-slim.json`.
+- If the user has **no providers**, the plugin still works using **OpenCode Zen** free models (`opencode/big-pickle`). They can switch to paid providers later by editing `~/.config/opencode/oh-my-opencode-slim.json`.
 
 ---
 

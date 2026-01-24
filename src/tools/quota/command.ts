@@ -39,7 +39,7 @@ try {
     fs.writeFileSync(commandFile, commandContent, 'utf-8');
   } else {
     const currentContent = fs.readFileSync(commandFile, 'utf-8');
-    if (currentContent.includes('model: opencode/grok-code')) {
+    if (currentContent.includes('model: opencode/big-pickle')) {
       fs.writeFileSync(commandFile, commandContent, 'utf-8');
     }
   }

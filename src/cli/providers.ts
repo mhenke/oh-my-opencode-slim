@@ -64,12 +64,12 @@ export const MODEL_MAPPINGS = {
     fixer: { model: 'openai/gpt-5.1-codex-mini', variant: 'low' },
   },
   'zen-free': {
-    orchestrator: { model: 'opencode/grok-code' },
-    oracle: { model: 'opencode/grok-code', variant: 'high' },
-    librarian: { model: 'opencode/grok-code', variant: 'low' },
-    explorer: { model: 'opencode/grok-code', variant: 'low' },
-    designer: { model: 'opencode/grok-code', variant: 'medium' },
-    fixer: { model: 'opencode/grok-code', variant: 'low' },
+    orchestrator: { model: 'opencode/big-pickle' },
+    oracle: { model: 'opencode/big-pickle', variant: 'high' },
+    librarian: { model: 'opencode/big-pickle', variant: 'low' },
+    explorer: { model: 'opencode/big-pickle', variant: 'low' },
+    designer: { model: 'opencode/big-pickle', variant: 'medium' },
+    fixer: { model: 'opencode/big-pickle', variant: 'low' },
   },
 } as const;
 
