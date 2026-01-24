@@ -215,10 +215,10 @@ Then manually create the config files at:
 > **The Orchestrator** was born when the first codebase collapsed under its own complexity. Neither god nor mortal would claim responsibility - so The Orchestrator emerged from the void, forging order from chaos. It determines the optimal path to any goal, balancing speed, quality, and cost. It guides the team, summoning the right specialist for each task and delegating to achieve the best possible outcome.
 
 **Role:** `Master delegator and strategic coordinator`  
-**Model:** `google/claude-opus-4-5-thinking`  
 **Prompt:** [src/agents/orchestrator.ts](src/agents/orchestrator.ts)  
-**Skills:** `*` (all skills)  
+**Recommended Models:** `cliproxy/gemini-claude-opus-4-5-thinking` `openai/gpt-5.2-codex`
 **MCPs:** `websearch`
+**Skills:** `*` (all skills)  
 
 Write and execute code, orchestrate multi-agent workflows, parse the unspoken from the spoken, summon specialists mid-battle. *Shape reality directly - and assign realms to others when the universe grows too vast.*
 
@@ -231,8 +231,10 @@ Write and execute code, orchestrate multi-agent workflows, parse the unspoken fr
 > **The Explorer** is an immortal wanderer who has traversed the corridors of a million codebases since the dawn of programming. Cursed with the gift of eternal curiosity, they cannot rest until every file is known, every pattern understood, every secret revealed. Legends say they once searched the entire internet in a single heartbeat. They are the wind that carries knowledge, the eyes that see all, the spirit that never sleeps.
 
 **Role:** `Codebase reconnaissance`  
-**Model:** `google/gemini-3-flash`  
+
 **Prompt:** [src/agents/explorer.ts](src/agents/explorer.ts)  
+**Recommended Models:** `cerebras/zai-glm-4.7` `google/gemini-3-flash` `openai/gpt-5.1-codex-mini`
+
 **Skills:** none  
 **MCPs:** none
 
@@ -247,8 +249,10 @@ Regex search, AST pattern matching, file discovery, parallel exploration. *Read-
 > **The Oracle** stands at the crossroads of every architectural decision. They have walked every road, seen every destination, know every trap that lies ahead. When you stand at the precipice of a major refactor, they are the voice that whispers which way leads to ruin and which way leads to glory. They don't choose for you - they illuminate the path so you can choose wisely.
 
 **Role:** `Strategic advisor and debugger of last resort`  
-**Model:** `openai/gpt-5.2-codex`  
+
 **Prompt:** [src/agents/oracle.ts](src/agents/oracle.ts)  
+**Recommended Models:** `openai/gpt-5.2-codex` `cliproxy/gemini-3-pro-high`  
+
 **Skills:** none  
 **MCPs:** none
 
@@ -263,8 +267,8 @@ Root cause analysis, architecture review, debugging guidance, tradeoff analysis.
 > **The Librarian** was forged when humanity realized that no single mind could hold all knowledge. They are the weaver who connects disparate threads of information into a tapestry of understanding. They traverse the infinite library of human knowledge, gathering insights from every corner and binding them into answers that transcend mere facts. What they return is not information - it's understanding.
 
 **Role:** `External knowledge retrieval`  
-**Model:** `google/gemini-3-flash`  
 **Prompt:** [src/agents/librarian.ts](src/agents/librarian.ts)  
+**Recommended Models:** `google/gemini-3-flash` `openai/gpt-5.1-codex-mini`  
 **Skills:** none  
 **MCPs:** `websearch`, `context7`, `grep_app`
 
@@ -279,8 +283,10 @@ Documentation lookup, GitHub code search, library research, best practice retrie
 > **The Designer** is an immortal guardian of beauty in a world that often forgets it matters. They have seen a million interfaces rise and fall, and they remember which ones were remembered and which were forgotten. They carry the sacred duty to ensure that every pixel serves a purpose, every animation tells a story, every interaction delights. Beauty is not optional - it's essential.
 
 **Role:** `UI/UX implementation and visual excellence`  
-**Model:** `google/gemini-3-flash`  
+
 **Prompt:** [src/agents/designer.ts](src/agents/designer.ts)  
+**Recommended Models:** `google/gemini-3-flash`
+
 **Skills:** `playwright`  
 **MCPs:** none
 
@@ -295,8 +301,10 @@ Modern responsive design, CSS/Tailwind mastery, micro-animations, component arch
 > **The Fixer** is the last of a lineage of builders who once constructed the foundations of the digital world. When the age of planning and debating began, they remained - the ones who actually build. They carry the ancient knowledge of how to turn thought into thing, how to transform specification into implementation. They are the final step between vision and reality.
 
 **Role:** `Fast implementation specialist`  
-**Model:** `google/gemini-3-flash`  
+
 **Prompt:** [src/agents/fixer.ts](src/agents/fixer.ts)  
+**Recommended Models:** `cerebras/zai-glm-4.7` `google/gemini-3-flash` `openai/gpt-5.1-codex-mini`
+
 **Skills:** none  
 **MCPs:** none
 
