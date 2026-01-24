@@ -180,8 +180,6 @@ curl -fsSL https://raw.githubusercontent.com/brokechubb/cliproxyapi-installer/re
 **Authenticate with Antigravity:**
 ```bash
 ./cli-proxy-api --antigravity-login
-# Add --no-browser to print login URL instead of opening browser
-# The local OAuth callback uses port 51121
 ```
 
 **For OpenAI (if enabled):**
