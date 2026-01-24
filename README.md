@@ -31,8 +31,6 @@
   - [OpenAI Preset](#openai-preset)
   - [Antigravity via CLIProxy Preset](#antigravity-via-cliproxy-preset)
   - [Author's Preset](#authors-preset)
-  - [Creating Custom Presets](#creating-custom-presets)
-  - [Option Reference](#option-reference)
 - [🧩 Skills](#-skills)
   - [Available Skills](#available-skills)
   - [Default Skill Assignments](#default-skill-assignments)
@@ -558,7 +556,8 @@ Routes through Antigravity's CLIProxy for Claude + Gemini models:
 }
 ```
 
-Requires provider configuration:
+<details>
+<summary>Verify provider configuration in ~/.config/opencode/opencode.json</summary>
 
 ```json
 {
@@ -602,6 +601,8 @@ Requires provider configuration:
 }
 ```
 
+<details>
+
 ### Author's Preset
 
 Mixed setup combining multiple providers:
@@ -621,39 +622,6 @@ Mixed setup combining multiple providers:
   }
 }
 ```
-
-### Creating Custom Presets
-
-You can create your own presets by adding them to the `presets` object:
-
-```json
-{
-  "presets": {
-    "my-custom": {
-      "orchestrator": { "model": "google/claude-opus-4-5-thinking", "skills": ["*"], "mcps": ["websearch"] },
-      "oracle": { "model": "openai/gpt-5.2-codex", "variant": "high", "skills": [], "mcps": [] },
-      "librarian": { "model": "google/gemini-3-flash", "variant": "low", "skills": [], "mcps": ["websearch", "context7", "grep_app"] },
-      "explorer": { "model": "google/gemini-3-flash", "variant": "low", "skills": [], "mcps": [] },
-      "designer": { "model": "google/gemini-3-flash", "variant": "medium", "skills": ["playwright"], "mcps": [] },
-      "fixer": { "model": "google/gemini-3-flash", "variant": "low", "skills": [], "mcps": [] }
-    }
-  }
-}
-```
-
-Then set `preset: "my-custom"` to activate it.
-
-### Option Reference
-
-| Option | Type | Default | Description |
-|--------|------|---------|-------------|
-| `preset` | string | - | Name of the preset to use (e.g., `"openai"`, `"cliproxy"`) |
-| `presets` | object | - | Named preset configurations containing agent mappings |
-| `presets.<name>.<agent>.model` | string | - | Model ID for the agent (e.g., `"google/claude-opus-4-5-thinking"`) |
-| `presets.<name>.<agent>.temperature` | number | - | Temperature setting (0-2) for the agent |
-| `presets.<name>.<agent>.variant` | string | - | Agent variant for reasoning effort (e.g., `"low"`, `"medium"`, `"high"`) |
-| `presets.<name>.<agent>.skills` | string[] | - | Array of skill names the agent can use (`"*"` for all, `"!item"` to exclude) |
-| `presets.<name>.<agent>.mcps` | string[] | - | Array of MCP names the agent can use (`"*"` for all, `"!item"` to exclude) |
 
 ---
 
@@ -951,6 +919,13 @@ The installer generates this file based on your providers. You can manually cust
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
+| `preset` | string | - | Name of the preset to use (e.g., `"openai"`, `"cliproxy"`) |
+| `presets` | object | - | Named preset configurations containing agent mappings |
+| `presets.<name>.<agent>.model` | string | - | Model ID for the agent (e.g., `"google/claude-opus-4-5-thinking"`) |
+| `presets.<name>.<agent>.temperature` | number | - | Temperature setting (0-2) for the agent |
+| `presets.<name>.<agent>.variant` | string | - | Agent variant for reasoning effort (e.g., `"low"`, `"medium"`, `"high"`) |
+| `presets.<name>.<agent>.skills` | string[] | - | Array of skill names the agent can use (`"*"` for all, `"!item"` to exclude) |
+| `presets.<name>.<agent>.mcps` | string[] | - | Array of MCP names the agent can use (`"*"` for all, `"!item"` to exclude) |
 | `tmux.enabled` | boolean | `false` | Enable tmux pane spawning for sub-agents |
 | `tmux.layout` | string | `"main-vertical"` | Layout preset: `main-vertical`, `main-horizontal`, `tiled`, `even-horizontal`, `even-vertical` |
 | `tmux.main_pane_size` | number | `60` | Main pane size as percentage (20-80) |
