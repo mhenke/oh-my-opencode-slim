@@ -208,107 +208,285 @@ Then manually create the config files at:
 
 ## 🏛️ Meet the Pantheon
 
-### Orchestrator: The Embodiment Of Order
+### 01. Orchestrator: The Embodiment Of Order
 
-<a href="src/agents/orchestrator.ts"><img src="img/orchestrator.png" alt="Orchestrator" align="right" width="240"></a>
-
-> **The Orchestrator** was born when the first codebase collapsed under its own complexity. Neither god nor mortal would claim responsibility - so The Orchestrator emerged from the void, forging order from chaos. It determines the optimal path to any goal, balancing speed, quality, and cost. It guides the team, summoning the right specialist for each task and delegating to achieve the best possible outcome.
-
-**Role:** `Master delegator and strategic coordinator`  
-**Prompt:** [src/agents/orchestrator.ts](src/agents/orchestrator.ts)  
-**Recommended Models:** `cliproxy/gemini-claude-opus-4-5-thinking` `openai/gpt-5.2-codex`
-**MCPs:** `websearch`
-**Skills:** `*` (all skills)  
-
-Write and execute code, orchestrate multi-agent workflows, parse the unspoken from the spoken, summon specialists mid-battle. *Shape reality directly - and assign realms to others when the universe grows too vast.*
-
----
-
-### Explorer: The Eternal Wanderer
-
-<a href="src/agents/explorer.ts"><img src="img/explorer.png" alt="Explorer" align="right" width="240"></a>
-
-> **The Explorer** is an immortal wanderer who has traversed the corridors of a million codebases since the dawn of programming. Cursed with the gift of eternal curiosity, they cannot rest until every file is known, every pattern understood, every secret revealed. Legends say they once searched the entire internet in a single heartbeat. They are the wind that carries knowledge, the eyes that see all, the spirit that never sleeps.
-
-**Role:** `Codebase reconnaissance`  
-
-**Prompt:** [src/agents/explorer.ts](src/agents/explorer.ts)  
-**Recommended Models:** `cerebras/zai-glm-4.7` `google/gemini-3-flash` `openai/gpt-5.1-codex-mini`
-
-**Skills:** none  
-**MCPs:** none
-
-Regex search, AST pattern matching, file discovery, parallel exploration. *Read-only: they chart the territory; others conquer it.*
-
----
-
-### Oracle: The Guardian of Paths
-
-<a href="src/agents/oracle.ts"><img src="img/oracle.png" alt="Oracle" align="right" width="240"></a>
-
-> **The Oracle** stands at the crossroads of every architectural decision. They have walked every road, seen every destination, know every trap that lies ahead. When you stand at the precipice of a major refactor, they are the voice that whispers which way leads to ruin and which way leads to glory. They don't choose for you - they illuminate the path so you can choose wisely.
-
-**Role:** `Strategic advisor and debugger of last resort`  
-
-**Prompt:** [src/agents/oracle.ts](src/agents/oracle.ts)  
-**Recommended Models:** `openai/gpt-5.2-codex` `cliproxy/gemini-3-pro-high`  
-
-**Skills:** none  
-**MCPs:** none
-
-Root cause analysis, architecture review, debugging guidance, tradeoff analysis. *Read-only: Oracles advise; they don't intervene.*
+<table>
+  <tr>
+    <td width="30%" align="center" valign="top">
+      <img src="img/orchestrator.png" width="240" style="border-radius: 10px;">
+      <br><sub><i>Forged in the void of complexity.</i></sub>
+    </td>
+    <td width="70%" valign="top">
+      The Orchestrator was born when the first codebase collapsed under its own complexity. Neither god nor mortal would claim responsibility - so The Orchestrator emerged from the void, forging order from chaos. It determines the optimal path to any goal, balancing speed, quality, and cost. It guides the team, summoning the right specialist for each task and delegating to achieve the best possible outcome.
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Role:</b> <code>Master delegator and strategic coordinator</code>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Prompt:</b> <a href="src/agents/orchestrator.ts"><code>orchestrator.ts</code></a>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Recommended Models:</b> <code>cliproxy/gemini-claude-opus-4-5-thinking</code> <code>openai/gpt-5.2-codex</code>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>MCPs:</b> <code>websearch</code>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Skills:</b> <code>*</code> (all)
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Capabilities:</b><br>
+      Write and execute code, orchestrate multi-agent workflows, parse the unspoken from the spoken, summon specialists mid-battle. <i>Shape reality directly - and assign realms to others when the universe grows too vast.</i>
+    </td>
+  </tr>
+</table>
 
 ---
 
-### Librarian: The Weaver of Knowledge
+### 02. Explorer: The Eternal Wanderer
 
-<a href="src/agents/librarian.ts"><img src="img/librarian.png" alt="Librarian" align="right" width="240"></a>
-
-> **The Librarian** was forged when humanity realized that no single mind could hold all knowledge. They are the weaver who connects disparate threads of information into a tapestry of understanding. They traverse the infinite library of human knowledge, gathering insights from every corner and binding them into answers that transcend mere facts. What they return is not information - it's understanding.
-
-**Role:** `External knowledge retrieval`  
-**Prompt:** [src/agents/librarian.ts](src/agents/librarian.ts)  
-**Recommended Models:** `google/gemini-3-flash` `openai/gpt-5.1-codex-mini`  
-**Skills:** none  
-**MCPs:** `websearch`, `context7`, `grep_app`
-
-Documentation lookup, GitHub code search, library research, best practice retrieval. *Read-only: they fetch wisdom; implementation is for others.*
+<table>
+  <tr>
+    <td width="30%" align="center" valign="top">
+      <img src="img/explorer.png" width="240" style="border-radius: 10px;">
+      <br><sub><i>The wind that carries knowledge.</i></sub>
+    </td>
+    <td width="70%" valign="top">
+      The Explorer is an immortal wanderer who has traversed the corridors of a million codebases since the dawn of programming. Cursed with the gift of eternal curiosity, they cannot rest until every file is known, every pattern understood, every secret revealed. Legends say they once searched the entire internet in a single heartbeat. They are the wind that carries knowledge, the eyes that see all, the spirit that never sleeps.
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Role:</b> <code>Codebase reconnaissance</code>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Prompt:</b> <a href="src/agents/explorer.ts"><code>explorer.ts</code></a>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Recommended Models:</b> <code>cerebras/zai-glm-4.7</code> <code>google/gemini-3-flash</code> <code>openai/gpt-5.1-codex-mini</code>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>MCPs:</b> none
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Skills:</b> none
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Capabilities:</b><br>
+      Regex search, AST pattern matching, file discovery, parallel exploration. <i>Read-only: they chart the territory; others conquer it.</i>
+    </td>
+  </tr>
+</table>
 
 ---
 
-### Designer: The Guardian of Aesthetics
+### 03. Oracle: The Guardian of Paths
 
-<a href="src/agents/designer.ts"><img src="img/designer.png" alt="Designer" align="right" width="240"></a>
-
-> **The Designer** is an immortal guardian of beauty in a world that often forgets it matters. They have seen a million interfaces rise and fall, and they remember which ones were remembered and which were forgotten. They carry the sacred duty to ensure that every pixel serves a purpose, every animation tells a story, every interaction delights. Beauty is not optional - it's essential.
-
-**Role:** `UI/UX implementation and visual excellence`  
-
-**Prompt:** [src/agents/designer.ts](src/agents/designer.ts)  
-**Recommended Models:** `google/gemini-3-flash`
-
-**Skills:** `playwright`  
-**MCPs:** none
-
-Modern responsive design, CSS/Tailwind mastery, micro-animations, component architecture. *Visual excellence over code perfection - beauty is the priority.*
+<table>
+  <tr>
+    <td width="30%" align="center" valign="top">
+      <img src="img/oracle.png" width="240" style="border-radius: 10px;">
+      <br><sub><i>The voice at the crossroads.</i></sub>
+    </td>
+    <td width="70%" valign="top">
+      The Oracle stands at the crossroads of every architectural decision. They have walked every road, seen every destination, know every trap that lies ahead. When you stand at the precipice of a major refactor, they are the voice that whispers which way leads to ruin and which way leads to glory. They don't choose for you - they illuminate the path so you can choose wisely.
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Role:</b> <code>Strategic advisor and debugger of last resort</code>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Prompt:</b> <a href="src/agents/oracle.ts"><code>oracle.ts</code></a>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Recommended Models:</b> <code>openai/gpt-5.2-codex</code> <code>cliproxy/gemini-3-pro-high</code>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>MCPs:</b> none
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Skills:</b> none
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Capabilities:</b><br>
+      Root cause analysis, architecture review, debugging guidance, tradeoff analysis. <i>Read-only: Oracles advise; they don't intervene.</i>
+    </td>
+  </tr>
+</table>
 
 ---
 
-### Fixer: The Last Builder
+### 04. Librarian: The Weaver of Knowledge
 
-<a href="src/agents/fixer.ts"><img src="img/fixer.png" alt="Fixer" align="right" width="240"></a>
+<table>
+  <tr>
+    <td width="30%" align="center" valign="top">
+      <img src="img/librarian.png" width="240" style="border-radius: 10px;">
+      <br><sub><i>The weaver of understanding.</i></sub>
+    </td>
+    <td width="70%" valign="top">
+      The Librarian was forged when humanity realized that no single mind could hold all knowledge. They are the weaver who connects disparate threads of information into a tapestry of understanding. They traverse the infinite library of human knowledge, gathering insights from every corner and binding them into answers that transcend mere facts. What they return is not information - it's understanding.
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Role:</b> <code>External knowledge retrieval</code>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Prompt:</b> <a href="src/agents/librarian.ts"><code>librarian.ts</code></a>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Recommended Models:</b> <code>google/gemini-3-flash</code> <code>openai/gpt-5.1-codex-mini</code>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>MCPs:</b> <code>websearch</code> <code>context7</code> <code>grep_app</code>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Skills:</b> none
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Capabilities:</b><br>
+      Documentation lookup, GitHub code search, library research, best practice retrieval. <i>Read-only: they fetch wisdom; implementation is for others.</i>
+    </td>
+  </tr>
+</table>
 
-> **The Fixer** is the last of a lineage of builders who once constructed the foundations of the digital world. When the age of planning and debating began, they remained - the ones who actually build. They carry the ancient knowledge of how to turn thought into thing, how to transform specification into implementation. They are the final step between vision and reality.
+---
 
-**Role:** `Fast implementation specialist`  
+### 05. Designer: The Guardian of Aesthetics
 
-**Prompt:** [src/agents/fixer.ts](src/agents/fixer.ts)  
-**Recommended Models:** `cerebras/zai-glm-4.7` `google/gemini-3-flash` `openai/gpt-5.1-codex-mini`
+<table>
+  <tr>
+    <td width="30%" align="center" valign="top">
+      <img src="img/designer.png" width="240" style="border-radius: 10px;">
+      <br><sub><i>Beauty is essential.</i></sub>
+    </td>
+    <td width="70%" valign="top">
+      The Designer is an immortal guardian of beauty in a world that often forgets it matters. They have seen a million interfaces rise and fall, and they remember which ones were remembered and which were forgotten. They carry the sacred duty to ensure that every pixel serves a purpose, every animation tells a story, every interaction delights. Beauty is not optional - it's essential.
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Role:</b> <code>UI/UX implementation and visual excellence</code>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Prompt:</b> <a href="src/agents/designer.ts"><code>designer.ts</code></a>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Recommended Models:</b> <code>google/gemini-3-flash</code>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>MCPs:</b> none
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Skills:</b> <code>playwright</code>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Capabilities:</b><br>
+      Modern responsive design, CSS/Tailwind mastery, micro-animations, component architecture. <i>Visual excellence over code perfection - beauty is the priority.</i>
+    </td>
+  </tr>
+</table>
 
-**Skills:** none  
-**MCPs:** none
+---
 
-Code implementation, refactoring, testing, verification. *Execute the plan - no research, no delegation, no planning.*
+### 06. Fixer: The Last Builder
+
+<table>
+  <tr>
+    <td width="30%" align="center" valign="top">
+      <img src="img/fixer.png" width="240" style="border-radius: 10px;">
+      <br><sub><i>The final step between vision and reality.</i></sub>
+    </td>
+    <td width="70%" valign="top">
+      The Fixer is the last of a lineage of builders who once constructed the foundations of the digital world. When the age of planning and debating began, they remained - the ones who actually build. They carry the ancient knowledge of how to turn thought into thing, how to transform specification into implementation. They are the final step between vision and reality.
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Role:</b> <code>Fast implementation specialist</code>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Prompt:</b> <a href="src/agents/fixer.ts"><code>fixer.ts</code></a>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Recommended Models:</b> <code>cerebras/zai-glm-4.7</code> <code>google/gemini-3-flash</code> <code>openai/gpt-5.1-codex-mini</code>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>MCPs:</b> none
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Skills:</b> none
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Capabilities:</b><br>
+      Code implementation, refactoring, testing, verification. <i>Execute the plan - no research, no delegation, no planning.</i>
+    </td>
+  </tr>
+</table>
 
 ---
 
