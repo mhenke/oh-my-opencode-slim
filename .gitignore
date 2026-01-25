@@ -46,9 +46,6 @@ local
 opencode
 oh-my-opencode
 
-# Cartography
-.slim/
-
 # Python
 __pycache__/
 *.py[cod]
