@@ -2,11 +2,14 @@ import type { AgentConfig as SDKAgentConfig } from '@opencode-ai/sdk';
 import {
   type AgentOverrideConfig,
   DEFAULT_MODELS,
+  getAgentOverride,
   loadAgentPrompt,
   type PluginConfig,
   SUBAGENT_NAMES,
 } from '../config';
-import { getAgentMcpList } from '../tools/skill/builtin';
+import { getAgentMcpList } from '../config/agent-mcps';
+import { getSkillPermissionsForAgent } from '../cli/skills';
+
 import { createDesignerAgent } from './designer';
 import { createExplorerAgent } from './explorer';
 import { createFixerAgent } from './fixer';
@@ -21,30 +24,6 @@ type AgentFactory = (
   customPrompt?: string,
   customAppendPrompt?: string,
 ) => AgentDefinition;
-
-// Backward Compatibility
-
-/** Map old agent names to new names for backward compatibility */
-const AGENT_ALIASES: Record<string, string> = {
-  explore: 'explorer',
-  'frontend-ui-ux-engineer': 'designer',
-};
-
-/**
- * Get agent override config by name, supporting backward-compatible aliases.
- * Checks both the current name and any legacy alias names.
- */
-function getOverride(
-  overrides: Record<string, AgentOverrideConfig>,
-  name: string,
-): AgentOverrideConfig | undefined {
-  return (
-    overrides[name] ??
-    overrides[
-      Object.keys(AGENT_ALIASES).find((k) => AGENT_ALIASES[k] === name) ?? ''
-    ]
-  );
-}
 
 // Agent Configuration Helpers
 
@@ -63,16 +42,32 @@ function applyOverrides(
 
 /**
  * Apply default permissions to an agent.
- * Currently sets 'question' permission to 'allow' for all agents.
+ * Sets 'question' permission to 'allow' and includes skill permission presets.
+ * If configuredSkills is provided, it honors that list instead of defaults.
  */
-function applyDefaultPermissions(agent: AgentDefinition): void {
+function applyDefaultPermissions(
+  agent: AgentDefinition,
+  configuredSkills?: string[],
+): void {
   const existing = (agent.config.permission ?? {}) as Record<
     string,
-    'ask' | 'allow' | 'deny'
+    'ask' | 'allow' | 'deny' | Record<string, 'ask' | 'allow' | 'deny'>
   >;
+
+  // Get skill-specific permissions for this agent
+  const skillPermissions = getSkillPermissionsForAgent(
+    agent.name,
+    configuredSkills,
+  );
+
   agent.config.permission = {
     ...existing,
     question: 'allow',
+    // Apply skill permissions as nested object under 'skill' key
+    skill: {
+      ...(typeof existing.skill === 'object' ? existing.skill : {}),
+      ...skillPermissions,
+    },
   } as SDKAgentConfig['permission'];
 }
 
@@ -104,15 +99,12 @@ const SUBAGENT_FACTORIES: Record<SubagentName, AgentFactory> = {
  * @returns Array of agent definitions (orchestrator first, then subagents)
  */
 export function createAgents(config?: PluginConfig): AgentDefinition[] {
-  const agentOverrides = config?.agents ?? {};
-
   // TEMP: If fixer has no config, inherit from librarian's model to avoid breaking
   // existing users who don't have fixer in their config yet
   const getModelForAgent = (name: SubagentName): string => {
-    if (name === 'fixer' && !getOverride(agentOverrides, 'fixer')?.model) {
+    if (name === 'fixer' && !getAgentOverride(config, 'fixer')?.model) {
       return (
-        getOverride(agentOverrides, 'librarian')?.model ??
-        DEFAULT_MODELS.librarian
+        getAgentOverride(config, 'librarian')?.model ?? DEFAULT_MODELS.librarian
       );
     }
     return DEFAULT_MODELS[name];
@@ -130,18 +122,19 @@ export function createAgents(config?: PluginConfig): AgentDefinition[] {
     );
   });
 
-  // 2. Apply overrides to each agent
+  // 2. Apply overrides and default permissions to each agent
   const allSubAgents = protoSubAgents.map((agent) => {
-    const override = getOverride(agentOverrides, agent.name);
+    const override = getAgentOverride(config, agent.name);
     if (override) {
       applyOverrides(agent, override);
     }
+    applyDefaultPermissions(agent, override?.skills);
     return agent;
   });
 
   // 3. Create Orchestrator (with its own overrides and custom prompts)
   const orchestratorModel =
-    getOverride(agentOverrides, 'orchestrator')?.model ??
+    getAgentOverride(config, 'orchestrator')?.model ??
     DEFAULT_MODELS.orchestrator;
   const orchestratorPrompts = loadAgentPrompt('orchestrator');
   const orchestrator = createOrchestratorAgent(
@@ -149,8 +142,8 @@ export function createAgents(config?: PluginConfig): AgentDefinition[] {
     orchestratorPrompts.prompt,
     orchestratorPrompts.appendPrompt,
   );
-  applyDefaultPermissions(orchestrator);
-  const oOverride = getOverride(agentOverrides, 'orchestrator');
+  const oOverride = getAgentOverride(config, 'orchestrator');
+  applyDefaultPermissions(orchestrator, oOverride?.skills);
   if (oOverride) {
     applyOverrides(orchestrator, oOverride);
   }

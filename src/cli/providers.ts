@@ -1,8 +1,7 @@
-import {
-  DEFAULT_AGENT_MCPS,
-  DEFAULT_AGENT_SKILLS,
-} from '../tools/skill/builtin';
+import { DEFAULT_AGENT_MCPS } from '../config/agent-mcps';
+import { RECOMMENDED_SKILLS } from './skills';
 import type { InstallConfig } from './types';
+
 
 /**
  * Provider configurations for Cliproxy (Antigravity via cliproxy)
@@ -81,140 +80,61 @@ export function generateLiteConfig(
     presets: {},
   };
 
-  // Only generate preset based on user selection
-  if (installConfig.hasAntigravity && installConfig.hasOpenAI) {
-    // Mixed preset: cliproxy base with OpenAI oracle
-    (config.presets as Record<string, unknown>).cliproxy = {
-      orchestrator: {
-        model: 'cliproxy/gemini-claude-opus-4-5-thinking',
-        skills: ['*'],
-        mcps: ['websearch'],
-      },
-      oracle: {
-        model: 'openai/gpt-5.2-codex',
-        variant: 'high',
-        skills: [],
-        mcps: [],
-      },
-      librarian: {
-        model: 'cliproxy/gemini-3-flash-preview',
-        variant: 'low',
-        skills: [],
-        mcps: ['websearch', 'context7', 'grep_app'],
-      },
-      explorer: {
-        model: 'cliproxy/gemini-3-flash-preview',
-        variant: 'low',
-        skills: [],
-        mcps: [],
-      },
-      designer: {
-        model: 'cliproxy/gemini-3-flash-preview',
-        variant: 'medium',
-        skills: ['playwright'],
-        mcps: [],
-      },
-      fixer: {
-        model: 'cliproxy/gemini-3-flash-preview',
-        variant: 'low',
-        skills: [],
-        mcps: [],
-      },
+  // Determine active preset name
+  let activePreset: 'cliproxy' | 'openai' | 'zen-free' = 'zen-free';
+  if (installConfig.hasAntigravity) activePreset = 'cliproxy';
+  else if (installConfig.hasOpenAI) activePreset = 'openai';
+
+  config.preset = activePreset;
+
+  const createAgentConfig = (agentName: string, modelInfo: { model: string; variant?: string }) => {
+    const isOrchestrator = agentName === 'orchestrator';
+
+    // Skills: orchestrator gets "*", others get recommended skills for their role
+    const skills = isOrchestrator
+      ? ['*']
+      : RECOMMENDED_SKILLS.filter(
+        (s) =>
+          s.allowedAgents.includes('*') ||
+          s.allowedAgents.includes(agentName),
+      ).map((s) => s.skillName);
+
+    // Special case for designer and agent-browser skill
+    if (agentName === 'designer' && !skills.includes('agent-browser')) {
+      skills.push('agent-browser');
+    }
+
+    return {
+      model: modelInfo.model,
+      variant: modelInfo.variant,
+      skills,
+      mcps: DEFAULT_AGENT_MCPS[agentName as keyof typeof DEFAULT_AGENT_MCPS] ?? [],
     };
-    config.preset = 'cliproxy';
-  } else if (installConfig.hasAntigravity) {
-    // Cliproxy only
-    (config.presets as Record<string, unknown>).cliproxy = {
-      orchestrator: {
-        model: 'cliproxy/gemini-claude-opus-4-5-thinking',
-        skills: ['*'],
-        mcps: ['websearch'],
-      },
-      oracle: {
-        model: 'cliproxy/gemini-3-pro-preview',
-        variant: 'high',
-        skills: [],
-        mcps: [],
-      },
-      librarian: {
-        model: 'cliproxy/gemini-3-flash-preview',
-        variant: 'low',
-        skills: [],
-        mcps: ['websearch', 'context7', 'grep_app'],
-      },
-      explorer: {
-        model: 'cliproxy/gemini-3-flash-preview',
-        variant: 'low',
-        skills: [],
-        mcps: [],
-      },
-      designer: {
-        model: 'cliproxy/gemini-3-flash-preview',
-        variant: 'medium',
-        skills: ['playwright'],
-        mcps: [],
-      },
-      fixer: {
-        model: 'cliproxy/gemini-3-flash-preview',
-        variant: 'low',
-        skills: [],
-        mcps: [],
-      },
-    };
-    config.preset = 'cliproxy';
-  } else if (installConfig.hasOpenAI) {
-    // OpenAI only
-    const createAgents = (
-      models: Record<string, { model: string; variant?: string }>,
-    ): Record<
-      string,
-      { model: string; variant?: string; skills: string[]; mcps: string[] }
-    > =>
-      Object.fromEntries(
-        Object.entries(models).map(([k, v]) => [
-          k,
-          {
-            model: v.model,
-            variant: v.variant,
-            skills:
-              DEFAULT_AGENT_SKILLS[k as keyof typeof DEFAULT_AGENT_SKILLS] ??
-              [],
-            mcps:
-              DEFAULT_AGENT_MCPS[k as keyof typeof DEFAULT_AGENT_MCPS] ?? [],
-          },
-        ]),
-      );
-    (config.presets as Record<string, unknown>).openai = createAgents(
-      MODEL_MAPPINGS.openai,
+  };
+
+  const buildPreset = (mappingName: keyof typeof MODEL_MAPPINGS) => {
+    const mapping = MODEL_MAPPINGS[mappingName];
+    return Object.fromEntries(
+      Object.entries(mapping).map(([agentName, modelInfo]) => {
+        let activeModelInfo = { ...modelInfo };
+
+        // Hybrid case: Antigravity + OpenAI (use OpenAI for Oracle)
+        if (
+          activePreset === 'cliproxy' &&
+          installConfig.hasOpenAI &&
+          agentName === 'oracle'
+        ) {
+          activeModelInfo = { ...MODEL_MAPPINGS.openai.oracle };
+        }
+
+        return [agentName, createAgentConfig(agentName, activeModelInfo)];
+      }),
     );
-    config.preset = 'openai';
-  } else {
-    // Zen free only
-    const createAgents = (
-      models: Record<string, { model: string; variant?: string }>,
-    ): Record<
-      string,
-      { model: string; variant?: string; skills: string[]; mcps: string[] }
-    > =>
-      Object.fromEntries(
-        Object.entries(models).map(([k, v]) => [
-          k,
-          {
-            model: v.model,
-            variant: v.variant,
-            skills:
-              DEFAULT_AGENT_SKILLS[k as keyof typeof DEFAULT_AGENT_SKILLS] ??
-              [],
-            mcps:
-              DEFAULT_AGENT_MCPS[k as keyof typeof DEFAULT_AGENT_MCPS] ?? [],
-          },
-        ]),
-      );
-    (config.presets as Record<string, unknown>)['zen-free'] = createAgents(
-      MODEL_MAPPINGS['zen-free'],
-    );
-    config.preset = 'zen-free';
-  }
+  };
+
+  (config.presets as Record<string, unknown>)[activePreset] = buildPreset(
+    activePreset === 'cliproxy' ? 'antigravity' : activePreset,
+  );
 
   if (installConfig.hasTmux) {
     config.tmux = {

@@ -1,4 +1,9 @@
 // Agent names
+export const AGENT_ALIASES: Record<string, string> = {
+  explore: 'explorer',
+  'frontend-ui-ux-engineer': 'designer',
+};
+
 export const SUBAGENT_NAMES = [
   'explorer',
   'librarian',
