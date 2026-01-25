@@ -687,16 +687,16 @@ The skill uses a background Python engine (`cartographer.py`) to manage state an
 
 ```bash
 # Initialize mapping manually
-python ~/.config/opencode/skills/cartography/scripts/cartographer.py init \
+python3 ~/.config/opencode/skills/cartography/scripts/cartographer.py init \
   --root . \
   --include "src/**/*.ts" \
   --exclude "**/*.test.ts"
 
 # Check for changes since last map
-python ~/.config/opencode/skills/cartography/scripts/cartographer.py changes --root .
+python3 ~/.config/opencode/skills/cartography/scripts/cartographer.py changes --root .
 
 # Sync hashes after manual map updates
-python ~/.config/opencode/skills/cartography/scripts/cartographer.py update --root .
+python3 ~/.config/opencode/skills/cartography/scripts/cartographer.py update --root .
 ```
 </details>
 

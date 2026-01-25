@@ -36,7 +36,7 @@ If it **doesn't exist**: Continue to Step 2 (Initialize).
 3. **Run cartographer.py init**:
 
 ```bash
-python ~/.config/opencode/skills/cartography/scripts/cartographer.py init \
+python3 ~/.config/opencode/skills/cartography/scripts/cartographer.py init \
   --root /path/to/repo \
   --include "src/**/*.ts" \
   --exclude "**/*.test.ts" --exclude "dist/**" --exclude "node_modules/**"

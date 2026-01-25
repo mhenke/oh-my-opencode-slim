@@ -14,13 +14,13 @@ Cartography helps orchestrators map and understand codebases by:
 
 ```bash
 # Initialize mapping
-python cartographer.py init --root /repo --include "src/**/*.ts" --exclude "node_modules/**"
+python3 cartographer.py init --root /repo --include "src/**/*.ts" --exclude "node_modules/**"
 
 # Check what changed
-python cartographer.py changes --root /repo
+python3 cartographer.py changes --root /repo
 
 # Update hashes
-python cartographer.py update --root /repo
+python3 cartographer.py update --root /repo
 ```
 
 ## Outputs
