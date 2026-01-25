@@ -21,6 +21,7 @@ export interface InstallConfig {
   hasOpencodeZen: boolean;
   hasTmux: boolean;
   installSkills: boolean;
+  installCustomSkills: boolean;
 }
 
 export interface ConfigMergeResult {

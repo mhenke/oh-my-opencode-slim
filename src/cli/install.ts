@@ -10,6 +10,7 @@ import {
   writeLiteConfig,
 } from './config-manager';
 import { RECOMMENDED_SKILLS, installSkill } from './skills';
+import { CUSTOM_SKILLS, installCustomSkill } from './custom-skills';
 import type {
   BooleanArg,
   ConfigMergeResult,
@@ -157,6 +158,7 @@ function argsToConfig(args: InstallArgs): InstallConfig {
     hasOpencodeZen: true, // Always enabled - free models available to all users
     hasTmux: args.tmux === 'yes',
     installSkills: args.skills === 'yes',
+    installCustomSkills: args.skills === 'yes', // Install custom skills when skills=yes
   };
 }
 
@@ -226,12 +228,24 @@ async function runInteractiveMode(
     const skills = await askYesNo(rl, 'Install recommended skills?', 'yes');
     console.log();
 
+    // Custom skills prompt
+    console.log(`${BOLD}Custom Skills:${RESET}`);
+    for (const skill of CUSTOM_SKILLS) {
+      console.log(
+        `  ${SYMBOLS.bullet} ${BOLD}${skill.name}${RESET}: ${skill.description}`,
+      );
+    }
+    console.log();
+    const customSkills = await askYesNo(rl, 'Install custom skills?', 'yes');
+    console.log();
+
     return {
       hasAntigravity: antigravity === 'yes',
       hasOpenAI: openai === 'yes',
       hasOpencodeZen: true,
       hasTmux: false,
       installSkills: skills === 'yes',
+      installCustomSkills: customSkills === 'yes',
     };
   } finally {
     rl.close();
@@ -248,6 +262,7 @@ async function runInstall(config: InstallConfig): Promise<number> {
   let totalSteps = 4; // Base: check opencode, add plugin, disable default agents, write lite config
   if (config.hasAntigravity) totalSteps += 1; // provider config only (no auth plugin needed)
   if (config.installSkills) totalSteps += 1; // skills installation
+  if (config.installCustomSkills) totalSteps += 1; // custom skills installation
 
   let step = 1;
 
@@ -289,6 +304,25 @@ async function runInstall(config: InstallConfig): Promise<number> {
     }
     printSuccess(
       `${skillsInstalled}/${RECOMMENDED_SKILLS.length} skills installed`,
+    );
+  }
+
+  // Install custom skills if requested
+  if (config.installCustomSkills) {
+    printStep(step++, totalSteps, 'Installing custom skills...');
+    let customSkillsInstalled = 0;
+    const projectRoot = process.cwd(); // Assumes running from project root
+    for (const skill of CUSTOM_SKILLS) {
+      printInfo(`Installing ${skill.name}...`);
+      if (installCustomSkill(skill, projectRoot)) {
+        printSuccess(`Installed: ${skill.name}`);
+        customSkillsInstalled++;
+      } else {
+        printWarning(`Failed to install: ${skill.name}`);
+      }
+    }
+    printSuccess(
+      `${customSkillsInstalled}/${CUSTOM_SKILLS.length} custom skills installed`,
     );
   }
 
