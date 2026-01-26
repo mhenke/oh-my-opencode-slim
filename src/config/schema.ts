@@ -39,6 +39,14 @@ export type Preset = z.infer<typeof PresetSchema>;
 export const McpNameSchema = z.enum(['websearch', 'context7', 'grep_app']);
 export type McpName = z.infer<typeof McpNameSchema>;
 
+// Background task configuration
+export const BackgroundTaskConfigSchema = z.object({
+  notifyOnComplete: z.boolean().default(false),
+  maxConcurrentStarts: z.number().min(1).max(50).default(10),
+});
+
+export type BackgroundTaskConfig = z.infer<typeof BackgroundTaskConfigSchema>;
+
 // Main plugin config
 export const PluginConfigSchema = z.object({
   preset: z.string().optional(),
@@ -46,6 +54,7 @@ export const PluginConfigSchema = z.object({
   agents: z.record(z.string(), AgentOverrideConfigSchema).optional(),
   disabled_mcps: z.array(z.string()).optional(),
   tmux: TmuxConfigSchema.optional(),
+  background: BackgroundTaskConfigSchema.optional(),
 });
 
 export type PluginConfig = z.infer<typeof PluginConfigSchema>;
