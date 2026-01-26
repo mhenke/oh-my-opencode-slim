@@ -1,31 +1,8 @@
-<div align="center" style="padding: 4rem 1rem 2rem; background: linear-gradient(180deg, #020510, #070a16 60%, #04070f 100%); border-radius: 36px;">
-  <div style="max-width: 1100px; display: flex; gap: 3rem; align-items: center; flex-wrap: wrap; justify-content: center;">
-    <div style="flex: 1; min-width: 260px; text-align: left;">
-      <p style="font-size: 0.9rem; letter-spacing: 0.25rem; text-transform: uppercase; color: #8cc8ff;">Multi Agent Suite</p>
-      <h1 style="font-size: clamp(3rem, 4vw, 4rem); margin: 0.4rem 0 1rem; font-family: 'Archivo Black', 'Space Grotesk', system-ui; color: #fdfdfd;">Command the Pantheon</h1>
-      <p style="margin-top: 1rem; font-style: italic; color: #a8b5d6; font-size: 1rem;">
-        Six divine beings emerged from the dawn of code, each an immortal master of their craft await your command to forge order from chaos and build what was once thought impossible.
-      </p>
-      <div style="margin-top: 1.25rem; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.5rem;">
-        <div style="display: flex; align-items: center; gap: 0.6rem;">
-          <span style="width: 12px; height: 12px; border-radius: 999px; background: #ffb347;"></span>
-          <span style="color: #fdfdfd; font-weight: 600;">Mix any models</span>
-        </div>
-        <div style="display: flex; align-items: center; gap: 0.6rem;">
-          <span style="width: 12px; height: 12px; border-radius: 999px; background: #7bd3ff;"></span>
-          <span style="color: #fdfdfd; font-weight: 600;">Auto delegate tasks</span>
-        </div>
-      </div>
-    </div>
-    <div style="flex: 0 0 280px; position: relative;">
-      <div style="border-radius: 28px; padding: 1rem; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); backdrop-filter: blur(18px);">
-        <img src="img/team.png" alt="Pantheon agents" width="260" style="border-radius: 20px; box-shadow: 0 30px 50px rgba(4, 7, 15, 0.7);">
-      </div>
-    </div>
-  </div>
+<div align="center">
+  <img src="img/team.png" alt="Pantheon agents" width="420">
+  <p><i>Six divine beings emerged from the dawn of code, each an immortal master of their craft await your command to forge order from chaos and build what was once thought impossible.</i></p>
+  <p><b>Multi Agent Suite</b> · Mix any models · Auto delegate tasks</p>
 </div>
-
-> Slimmed-down fork of [oh-my-opencode](https://github.com/code-yeongyu/oh-my-opencode) - focused on core agent orchestration with low token consumption.
 
 ---
 
