@@ -5,8 +5,9 @@ import {
   readdirSync,
   statSync,
 } from 'node:fs';
-import { join, dirname } from 'node:path';
 import { homedir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 /**
  * A custom skill bundled in this repository.
@@ -74,12 +75,10 @@ function copyDirRecursive(src: string, dest: string): void {
  * @param projectRoot - Root directory of oh-my-opencode-slim project
  * @returns True if installation succeeded, false otherwise
  */
-export function installCustomSkill(
-  skill: CustomSkill,
-  projectRoot: string,
-): boolean {
+export function installCustomSkill(skill: CustomSkill): boolean {
   try {
-    const sourcePath = join(projectRoot, skill.sourcePath);
+    const packageRoot = fileURLToPath(new URL('../..', import.meta.url));
+    const sourcePath = join(packageRoot, skill.sourcePath);
     const targetPath = join(getCustomSkillsDir(), skill.name);
 
     // Validate source exists

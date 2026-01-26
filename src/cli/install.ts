@@ -9,8 +9,8 @@ import {
   isOpenCodeInstalled,
   writeLiteConfig,
 } from './config-manager';
-import { RECOMMENDED_SKILLS, installSkill } from './skills';
 import { CUSTOM_SKILLS, installCustomSkill } from './custom-skills';
+import { installSkill, RECOMMENDED_SKILLS } from './skills';
 import type {
   BooleanArg,
   ConfigMergeResult,
@@ -311,10 +311,9 @@ async function runInstall(config: InstallConfig): Promise<number> {
   if (config.installCustomSkills) {
     printStep(step++, totalSteps, 'Installing custom skills...');
     let customSkillsInstalled = 0;
-    const projectRoot = process.cwd(); // Assumes running from project root
     for (const skill of CUSTOM_SKILLS) {
       printInfo(`Installing ${skill.name}...`);
-      if (installCustomSkill(skill, projectRoot)) {
+      if (installCustomSkill(skill)) {
         printSuccess(`Installed: ${skill.name}`);
         customSkillsInstalled++;
       } else {
