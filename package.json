@@ -43,7 +43,10 @@
     "check": "biome check --write .",
     "check:ci": "biome check .",
     "dev": "bun run build && opencode",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "bun run build",
+    "release:patch": "npm version patch && git push --follow-tags && npm publish",
+    "release:minor": "npm version minor && git push --follow-tags && npm publish",
+    "release:major": "npm version major && git push --follow-tags && npm publish"
   },
   "dependencies": {
     "@ast-grep/cli": "^0.40.0",
