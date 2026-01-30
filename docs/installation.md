@@ -24,7 +24,7 @@ bunx oh-my-opencode-slim@latest install
 Or use non-interactive mode:
 
 ```bash
-bunx oh-my-opencode-slim@latest install --no-tui --antigravity=yes --openai=yes --tmux=no
+bunx oh-my-opencode-slim@latest install --no-tui --kimi=yes --openai=yes --tmux=no
 ```
 
 ### After Installation
@@ -68,11 +68,11 @@ If not installed, direct the user to https://opencode.ai/docs first.
 
 Ask these questions **one at a time**, waiting for responses:
 
-1. "Do you have an **Antigravity** subscription (via cliproxy)?" *(Provides Claude + Gemini via `cliproxy/` prefix)*
+1. "Do you have access to **Kimi For Coding**?" *(Provides Kimi k1.5 models)*
 2. "Do you have access to **OpenAI** API?" *(Enables `openai/` models)*
 
 Help the user understand the tradeoffs:
-- Antigravity via cliproxy provides Claude + Gemini routing.
+- Kimi For Coding provides powerful k1.5 models for coding tasks.
 - OpenAI is optional; it enables `openai/` models.
 - If the user has **no providers**, the plugin still works using **OpenCode Zen** free models (`opencode/big-pickle`). They can switch to paid providers later by editing `~/.config/opencode/oh-my-opencode-slim.json`.
 
@@ -81,24 +81,23 @@ Help the user understand the tradeoffs:
 Based on answers, run:
 
 ```bash
-bunx oh-my-opencode-slim@latest install --no-tui --antigravity=<yes|no> --openai=<yes|no>
+bunx oh-my-opencode-slim@latest install --no-tui --kimi=<yes|no> --openai=<yes|no>
 ```
 
 **Examples:**
 ```bash
-# Antigravity + OpenAI
-bunx oh-my-opencode-slim@latest install --no-tui --antigravity=yes --openai=yes --tmux=no
+# Kimi + OpenAI
+bunx oh-my-opencode-slim@latest install --no-tui --kimi=yes --openai=yes --tmux=no
 
 # OpenAI only
-bunx oh-my-opencode-slim@latest install --no-tui --antigravity=no --openai=yes --tmux=no
+bunx oh-my-opencode-slim@latest install --no-tui --kimi=no --openai=yes --tmux=no
 
 # No providers (Zen free models only)
-bunx oh-my-opencode-slim@latest install --no-tui --antigravity=no --openai=no --tmux=no
+bunx oh-my-opencode-slim@latest install --no-tui --kimi=no --openai=no --tmux=no
 ```
 
 The installer automatically:
 - Adds the plugin to `~/.config/opencode/opencode.json`
-- Configures cliproxy provider for Antigravity models
 - Generates agent model mappings in `~/.config/opencode/oh-my-opencode-slim.json`
 
 **Crucial Advice for the User:**
@@ -106,24 +105,14 @@ The installer automatically:
 - If they add a new provider later, they just need to update this file.
 - Read generated `~/.config/opencode/oh-my-opencode-slim.json` file and report the model configuration.
 
-### Step 4: Install and Configure Cliproxy (if using Antigravity)
+### Step 4: Authenticate with Providers
 
-If the user selected Antigravity, guide them to install cliproxy:
-
-**macOS:**
+**For Kimi (if enabled):**
+Ask user to run the following command.
+Don't run it yourself, it requires user interaction.
 ```bash
-brew install cliproxyapi
-brew services start cliproxyapi
-```
-
-**Linux:**
-```bash
-curl -fsSL https://raw.githubusercontent.com/brokechubb/cliproxyapi-installer/refs/heads/master/cliproxyapi-installer | bash
-```
-
-**Authenticate with Antigravity:**
-```bash
-./cli-proxy-api --antigravity-login
+opencode auth login
+# Select "Kimi For Coding" provider and complete OAuth flow
 ```
 
 **For OpenAI (if enabled):**
@@ -162,27 +151,23 @@ Then manually create the config files at:
 
 3. Check that your provider is configured in `~/.config/opencode/opencode.json`
 
-### Cliproxy Issues
+### Authentication Issues
 
-If cliproxy is not working:
+If providers are not working:
 
-1. Check if the service is running:
+1. Check your authentication status:
    ```bash
-   # macOS
-   brew services list | grep cliproxy
-
-   # Linux
-   ps aux | grep cli-proxy-api
+   opencode auth status
    ```
 
-2. Test the connection:
+2. Re-authenticate if needed:
    ```bash
-   curl http://127.0.0.1:8317/v1/models
+   opencode auth login
    ```
 
-3. Check your authentication:
+3. Verify your config file has the correct provider configuration:
    ```bash
-   ./cli-proxy-api --antigravity-login
+   cat ~/.config/opencode/oh-my-opencode-slim.json
    ```
 
 ### Tmux Integration Not Working
@@ -215,17 +200,4 @@ See the [Quick Reference](quick-reference.md#tmux-integration) for more details.
    ```bash
    npx skills remove simplify
    npx skills remove agent-browser
-   ```
-
-4. **Stop cliproxy (if installed)**:
-   ```bash
-   # macOS
-   brew services stop cliproxyapi
-   brew uninstall cliproxyapi
-
-   # Linux
-   # Stop the service manually
-   pkill cli-proxy-api
-   # Remove the binary
-   rm -f /usr/local/bin/cli-proxy-api
    ```
