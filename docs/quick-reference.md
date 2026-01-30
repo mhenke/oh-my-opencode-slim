@@ -135,16 +135,18 @@ Mixed setup combining multiple providers:
   "preset": "alvin",
   "presets": {
     "alvin": {
-      "orchestrator": { "model": "cliproxy/gemini-claude-opus-4-5-thinking", "skills": ["*"], "mcps": ["*"] },
+      "orchestrator": { "model": "google/claude-opus-4-5-thinking", "skills": ["*"], "mcps": ["*"] },
       "oracle": { "model": "openai/gpt-5.2-codex", "variant": "high", "skills": [], "mcps": [] },
-      "librarian": { "model": "cliproxy/gemini-3-flash-preview", "variant": "low", "skills": [], "mcps": ["websearch", "context7", "grep_app"] },
+      "librarian": { "model": "google/gemini-3-flash", "variant": "low", "skills": [], "mcps": ["websearch", "context7", "grep_app"] },
       "explorer": { "model": "cerebras/zai-glm-4.7", "variant": "low", "skills": [], "mcps": [] },
-      "designer": { "model": "cliproxy/gemini-3-flash-preview", "variant": "medium", "skills": ["agent-browser"], "mcps": [] },
+      "designer": { "model": "google/gemini-3-flash", "variant": "medium", "skills": ["agent-browser"], "mcps": [] },
       "fixer": { "model": "cerebras/zai-glm-4.7", "variant": "low", "skills": [], "mcps": [] }
     }
   }
 }
 ```
+
+> **Antigravity Provider:** For complete Antigravity setup guide, see [Antigravity Setup](antigravity.md)
 
 ---
 
@@ -340,7 +342,7 @@ You can disable specific MCP servers globally by adding them to the `disabled_mc
 
 #### Quick Setup
 
-1. **Enable tmux integration** in `oh-my-opencode-slim.json` (see [Plugin Config](#plugin-config-oh-my-opencode-slimjson)).
+1. **Enable tmux integration** in `oh-my-opencode-slim.json`:
 
    ```json
    {
@@ -358,15 +360,6 @@ You can disable specific MCP servers globally by adding them to the `disabled_mc
     opencode --port 4096
     ```
 
-   Or use a custom port (must match `OPENCODE_PORT` env var):
-    ```bash
-    tmux
-    export OPENCODE_PORT=5000
-    opencode --port 5000
-    ```
-
-   This allows multiple OpenCode instances on different ports.
-
 #### Layout Options
 
 | Layout | Description |
@@ -376,6 +369,8 @@ You can disable specific MCP servers globally by adding them to the `disabled_mc
 | `tiled` | All panes in equal-sized grid |
 | `even-horizontal` | All panes side by side |
 | `even-vertical` | All panes stacked vertically |
+
+> **Detailed Guide:** For complete tmux integration documentation, troubleshooting, and advanced usage, see [Tmux Integration](tmux-integration.md)
 
 ### Background Tasks
 
