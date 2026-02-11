@@ -218,7 +218,64 @@ export function generateLiteConfig(
   const config: Record<string, unknown> = {
     preset: 'zen-free',
     presets: {},
+    balanceProviderUsage: installConfig.balanceProviderUsage ?? false,
   };
+
+  // Handle manual configuration mode
+  if (
+    installConfig.setupMode === 'manual' &&
+    installConfig.manualAgentConfigs
+  ) {
+    config.preset = 'manual';
+    const manualPreset: Record<string, unknown> = {};
+    const chains: Record<string, string[]> = {};
+
+    for (const agentName of AGENT_NAMES) {
+      const manualConfig = installConfig.manualAgentConfigs[agentName];
+      if (manualConfig) {
+        manualPreset[agentName] = {
+          model: manualConfig.primary,
+          skills:
+            agentName === 'orchestrator'
+              ? ['*']
+              : RECOMMENDED_SKILLS.filter(
+                  (s) =>
+                    s.allowedAgents.includes('*') ||
+                    s.allowedAgents.includes(agentName),
+                ).map((s) => s.skillName),
+          mcps:
+            DEFAULT_AGENT_MCPS[agentName as keyof typeof DEFAULT_AGENT_MCPS] ??
+            [],
+        };
+
+        // Build fallback chain from manual config
+        const fallbackChain = [
+          manualConfig.primary,
+          manualConfig.fallback1,
+          manualConfig.fallback2,
+          manualConfig.fallback3,
+        ].filter((m, i, arr) => m && arr.indexOf(m) === i); // dedupe
+        chains[agentName] = fallbackChain;
+      }
+    }
+
+    (config.presets as Record<string, unknown>).manual = manualPreset;
+    config.fallback = {
+      enabled: true,
+      timeoutMs: 15000,
+      chains,
+    };
+
+    if (installConfig.hasTmux) {
+      config.tmux = {
+        enabled: true,
+        layout: 'main-vertical',
+        main_pane_size: 60,
+      };
+    }
+
+    return config;
+  }
 
   // Determine active preset name
   let activePreset:
@@ -357,6 +414,9 @@ export function generateLiteConfig(
     const hasExternalProviders =
       installConfig.hasKimi ||
       installConfig.hasOpenAI ||
+      installConfig.hasAnthropic ||
+      installConfig.hasCopilot ||
+      installConfig.hasZaiPlan ||
       installConfig.hasAntigravity;
 
     if (hasExternalProviders && activePreset !== 'chutes') return;

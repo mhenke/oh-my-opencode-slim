@@ -9,6 +9,59 @@ const FALLBACK_AGENT_NAMES = [
   'fixer',
 ] as const;
 
+const MANUAL_AGENT_NAMES = [
+  'orchestrator',
+  'oracle',
+  'designer',
+  'explorer',
+  'librarian',
+  'fixer',
+] as const;
+
+const ProviderModelIdSchema = z
+  .string()
+  .regex(
+    /^[^/\s]+\/[^\s]+$/,
+    'Expected provider/model format (provider/.../model)',
+  );
+
+export const ManualAgentPlanSchema = z
+  .object({
+    primary: ProviderModelIdSchema,
+    fallback1: ProviderModelIdSchema,
+    fallback2: ProviderModelIdSchema,
+    fallback3: ProviderModelIdSchema,
+  })
+  .superRefine((value, ctx) => {
+    const unique = new Set([
+      value.primary,
+      value.fallback1,
+      value.fallback2,
+      value.fallback3,
+    ]);
+    if (unique.size !== 4) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'primary and fallbacks must be unique per agent',
+      });
+    }
+  });
+
+export const ManualPlanSchema = z
+  .object({
+    orchestrator: ManualAgentPlanSchema,
+    oracle: ManualAgentPlanSchema,
+    designer: ManualAgentPlanSchema,
+    explorer: ManualAgentPlanSchema,
+    librarian: ManualAgentPlanSchema,
+    fixer: ManualAgentPlanSchema,
+  })
+  .strict();
+
+export type ManualAgentName = (typeof MANUAL_AGENT_NAMES)[number];
+export type ManualAgentPlan = z.infer<typeof ManualAgentPlanSchema>;
+export type ManualPlan = z.infer<typeof ManualPlanSchema>;
+
 const AgentModelChainSchema = z.array(z.string()).min(1);
 
 const FallbackChainsSchema = z
@@ -20,7 +73,7 @@ const FallbackChainsSchema = z
     librarian: AgentModelChainSchema.optional(),
     fixer: AgentModelChainSchema.optional(),
   })
-  .strict();
+  .catchall(AgentModelChainSchema);
 
 export type FallbackAgentName = (typeof FALLBACK_AGENT_NAMES)[number];
 
@@ -81,6 +134,9 @@ export type FailoverConfig = z.infer<typeof FailoverConfigSchema>;
 // Main plugin config
 export const PluginConfigSchema = z.object({
   preset: z.string().optional(),
+  scoringEngineVersion: z.enum(['v1', 'v2-shadow', 'v2']).optional(),
+  balanceProviderUsage: z.boolean().optional(),
+  manualPlan: ManualPlanSchema.optional(),
   presets: z.record(z.string(), PresetSchema).optional(),
   agents: z.record(z.string(), AgentOverrideConfigSchema).optional(),
   disabled_mcps: z.array(z.string()).optional(),

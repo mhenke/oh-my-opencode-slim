@@ -343,7 +343,9 @@ export function addGoogleProvider(): ConfigMergeResult {
 export function addChutesProvider(): ConfigMergeResult {
   const configPath = getExistingConfigPath();
   try {
-    const { config: parsedConfig, error } = parseConfig(configPath);
+    // Chutes now follows the OpenCode auth flow (same as other providers).
+    // Keep this step as a no-op success for backward-compatible install output.
+    const { error } = parseConfig(configPath);
     if (error) {
       return {
         success: false,
@@ -351,26 +353,12 @@ export function addChutesProvider(): ConfigMergeResult {
         error: `Failed to parse config: ${error}`,
       };
     }
-    const config = parsedConfig ?? {};
-    const providers = (config.provider ?? {}) as Record<string, unknown>;
-
-    providers.chutes = {
-      npm: '@ai-sdk/openai-compatible',
-      name: 'Chutes',
-      options: {
-        baseURL: 'https://llm.chutes.ai/v1',
-        apiKey: '{env:CHUTES_API_KEY}',
-      },
-    };
-    config.provider = providers;
-
-    writeConfig(configPath, config);
     return { success: true, configPath };
   } catch (err) {
     return {
       success: false,
       configPath,
-      error: `Failed to add chutes provider: ${err}`,
+      error: `Failed to validate chutes provider config: ${err}`,
     };
   }
 }

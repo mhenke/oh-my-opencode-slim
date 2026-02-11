@@ -24,6 +24,16 @@ chutes/minimax-m2.1-5000
   "limit": { "context": 500000, "output": 64000 },
   "capabilities": { "reasoning": true, "toolcall": true, "attachment": false }
 }
+chutes/qwen3-coder-30b
+{
+  "id": "qwen3-coder-30b",
+  "providerID": "chutes",
+  "name": "Qwen3 Coder 30B",
+  "status": "active",
+  "cost": { "input": 0.4, "output": 0.8, "cache": { "read": 0, "write": 0 } },
+  "limit": { "context": 262144, "output": 32768 },
+  "capabilities": { "reasoning": true, "toolcall": true, "attachment": false }
+}
 `;
 
 describe('opencode-models parser', () => {
@@ -39,5 +49,15 @@ describe('opencode-models parser', () => {
     expect(models.length).toBe(1);
     expect(models[0]?.model).toBe('chutes/minimax-m2.1-5000');
     expect(models[0]?.dailyRequestLimit).toBe(5000);
+  });
+
+  test('includes non-free chutes models when freeOnly is disabled', () => {
+    const models = parseOpenCodeModelsVerboseOutput(
+      SAMPLE_OUTPUT,
+      'chutes',
+      false,
+    );
+    expect(models.length).toBe(2);
+    expect(models[1]?.model).toBe('chutes/qwen3-coder-30b');
   });
 });

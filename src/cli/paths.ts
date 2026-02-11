@@ -29,6 +29,20 @@ export function getLiteConfig(): string {
   return join(getConfigDir(), 'oh-my-opencode-slim.json');
 }
 
+export function getLiteConfigJsonc(): string {
+  return join(getConfigDir(), 'oh-my-opencode-slim.jsonc');
+}
+
+export function getExistingLiteConfigPath(): string {
+  const jsonPath = getLiteConfig();
+  if (existsSync(jsonPath)) return jsonPath;
+
+  const jsoncPath = getLiteConfigJsonc();
+  if (existsSync(jsoncPath)) return jsoncPath;
+
+  return jsonPath;
+}
+
 export function getExistingConfigPath(): string {
   const jsonPath = getConfigJson();
   if (existsSync(jsonPath)) return jsonPath;

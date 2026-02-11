@@ -1,3 +1,4 @@
+import { resolveOpenCodePath } from './system';
 import type { DiscoveredModel, OpenCodeFreeModel } from './types';
 
 interface OpenCodeModelVerboseRecord {
@@ -97,13 +98,13 @@ export function parseOpenCodeModelsVerboseOutput(
 ): DiscoveredModel[] {
   const lines = output.split(/\r?\n/);
   const models: DiscoveredModel[] = [];
+  const modelHeaderPattern = /^[a-z0-9-]+\/.+$/i;
 
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index]?.trim();
     if (!line || !line.includes('/')) continue;
 
-    const isModelHeader = /^[a-z0-9-]+\/[a-z0-9._-]+$/i.test(line);
-    if (!isModelHeader) continue;
+    if (!modelHeaderPattern.test(line)) continue;
 
     let jsonStart = -1;
     for (let search = index + 1; search < lines.length; search++) {
@@ -112,7 +113,7 @@ export function parseOpenCodeModelsVerboseOutput(
         break;
       }
 
-      if (/^[a-z0-9-]+\/[a-z0-9._-]+$/i.test(lines[search]?.trim() ?? '')) {
+      if (modelHeaderPattern.test(lines[search]?.trim() ?? '')) {
         break;
       }
     }
@@ -158,12 +159,16 @@ export function parseOpenCodeModelsVerboseOutput(
   return models;
 }
 
-async function discoverFreeModelsByProvider(providerID?: string): Promise<{
-  models: OpenCodeFreeModel[];
+async function discoverModelsByProvider(
+  providerID?: string,
+  freeOnly = true,
+): Promise<{
+  models: DiscoveredModel[];
   error?: string;
 }> {
   try {
-    const proc = Bun.spawn(['opencode', 'models', '--refresh', '--verbose'], {
+    const opencodePath = resolveOpenCodePath();
+    const proc = Bun.spawn([opencodePath, 'models', '--refresh', '--verbose'], {
       stdout: 'pipe',
       stderr: 'pipe',
     });
@@ -180,11 +185,7 @@ async function discoverFreeModelsByProvider(providerID?: string): Promise<{
     }
 
     return {
-      models: parseOpenCodeModelsVerboseOutput(
-        stdout,
-        providerID,
-        true,
-      ) as OpenCodeFreeModel[],
+      models: parseOpenCodeModelsVerboseOutput(stdout, providerID, freeOnly),
     };
   } catch {
     return {
@@ -199,7 +200,8 @@ export async function discoverModelCatalog(): Promise<{
   error?: string;
 }> {
   try {
-    const proc = Bun.spawn(['opencode', 'models', '--refresh', '--verbose'], {
+    const opencodePath = resolveOpenCodePath();
+    const proc = Bun.spawn([opencodePath, 'models', '--refresh', '--verbose'], {
       stdout: 'pipe',
       stderr: 'pipe',
     });
@@ -230,12 +232,21 @@ export async function discoverOpenCodeFreeModels(): Promise<{
   models: OpenCodeFreeModel[];
   error?: string;
 }> {
-  return discoverFreeModelsByProvider('opencode');
+  const result = await discoverModelsByProvider('opencode', true);
+  return { models: result.models as OpenCodeFreeModel[], error: result.error };
 }
 
 export async function discoverProviderFreeModels(providerID: string): Promise<{
   models: OpenCodeFreeModel[];
   error?: string;
 }> {
-  return discoverFreeModelsByProvider(providerID);
+  const result = await discoverModelsByProvider(providerID, true);
+  return { models: result.models as OpenCodeFreeModel[], error: result.error };
+}
+
+export async function discoverProviderModels(providerID: string): Promise<{
+  models: DiscoveredModel[];
+  error?: string;
+}> {
+  return discoverModelsByProvider(providerID, false);
 }

@@ -196,7 +196,7 @@ describe('config-io', () => {
     expect(detected.hasTmux).toBe(true);
   });
 
-  test('addChutesProvider configures chutes provider and detection', () => {
+  test('addChutesProvider keeps OpenCode auth-based chutes flow intact', () => {
     const configPath = join(tmpDir, 'opencode', 'opencode.json');
     const litePath = join(tmpDir, 'opencode', 'oh-my-opencode-slim.json');
     paths.ensureConfigDir();
@@ -221,10 +221,8 @@ describe('config-io', () => {
     expect(result.success).toBe(true);
 
     const saved = JSON.parse(readFileSync(configPath, 'utf-8'));
-    expect(saved.provider.chutes).toBeDefined();
-    expect(saved.provider.chutes.options.baseURL).toBe(
-      'https://llm.chutes.ai/v1',
-    );
+    expect(saved.plugin).toContain('oh-my-opencode-slim');
+    expect(saved.provider).toBeUndefined();
 
     const detected = detectCurrentConfig();
     expect(detected.hasChutes).toBe(true);

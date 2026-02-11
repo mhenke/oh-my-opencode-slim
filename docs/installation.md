@@ -34,7 +34,7 @@ The installer supports multiple providers:
 - **Kimi For Coding**: High-performance coding models
 - **OpenAI**: GPT-4 and GPT-3.5 models
 - **Antigravity (Google)**: Claude 4.5 and Gemini 3 models via Google's infrastructure
-- **Chutes**: Free daily-capped models (`chutes/*`) with dynamic role-aware selection
+- **Chutes**: Live-refreshed `chutes/*` models via OpenCode auth flow
 
 When OpenCode free mode is enabled, the installer runs:
 
@@ -105,7 +105,11 @@ Help the user understand the tradeoffs:
 - Kimi For Coding provides powerful coding models.
 - OpenAI enables `openai/` models.
 - Antigravity (Google) provides Claude and Gemini models via Google infrastructure.
-- Chutes provides free daily-capped models and requires `CHUTES_API_KEY`.
+- Chutes uses OpenCode provider authentication (`opencode auth login` -> select `chutes`).
+- Optional external ranking signals:
+  - `ARTIFICIAL_ANALYSIS_API_KEY` (quality/coding/latency/price)
+  - `OPENROUTER_API_KEY` (model pricing metadata)
+  If set, installer dynamic planning uses these signals to improve model ranking.
 
 ### Step 3: Run the Installer
 
