@@ -1,7 +1,7 @@
 <div align="center">
   <img src="img/team.png" alt="Pantheon agents" width="420">
   <p><i>Six divine beings emerged from the dawn of code, each an immortal master of their craft await your command to forge order from chaos and build what was once thought impossible.</i></p>
-  <p><b>Multi Agent Suite</b> · Mix any models · Auto delegate tasks · Antigravity + Chutes ready</p>
+  <p><b>Open Multi Agent Suite</b> · Mix any models · Auto delegate tasks</p>
 </div>
 
 ---
