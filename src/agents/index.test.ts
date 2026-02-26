@@ -142,6 +142,39 @@ describe('orchestrator agent', () => {
   });
 });
 
+describe('skill permissions', () => {
+  test('orchestrator gets cartography skill allowed by default', () => {
+    const agents = createAgents();
+    const orchestrator = agents.find((a) => a.name === 'orchestrator');
+    expect(orchestrator).toBeDefined();
+    const skillPerm = (
+      orchestrator?.config.permission as Record<string, unknown>
+    )?.skill as Record<string, string>;
+    // orchestrator gets wildcard allow (from RECOMMENDED_SKILLS wildcard entry)
+    expect(skillPerm?.['*']).toBe('allow');
+    // CUSTOM_SKILLS loop must also add a named cartography entry for orchestrator
+    expect(skillPerm?.cartography).toBe('allow');
+  });
+
+  test('explorer gets cartography skill allowed by default', () => {
+    const agents = createAgents();
+    const explorer = agents.find((a) => a.name === 'explorer');
+    expect(explorer).toBeDefined();
+    const skillPerm = (explorer?.config.permission as Record<string, unknown>)
+      ?.skill as Record<string, string>;
+    expect(skillPerm?.cartography).toBe('allow');
+  });
+
+  test('oracle gets requesting-code-review skill allowed by default', () => {
+    const agents = createAgents();
+    const oracle = agents.find((a) => a.name === 'oracle');
+    expect(oracle).toBeDefined();
+    const skillPerm = (oracle?.config.permission as Record<string, unknown>)
+      ?.skill as Record<string, string>;
+    expect(skillPerm?.['requesting-code-review']).toBe('allow');
+  });
+});
+
 describe('isSubagent type guard', () => {
   test('returns true for valid subagent names', () => {
     expect(isSubagent('explorer')).toBe(true);

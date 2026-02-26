@@ -45,6 +45,7 @@ local
 .ignore
 opencode
 oh-my-opencode
+opencode.jsonc
 
 # AI Memory
 .aim/
