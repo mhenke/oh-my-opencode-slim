@@ -4,6 +4,8 @@ export interface AgentDefinition {
   name: string;
   description?: string;
   config: AgentConfig;
+  /** Priority-ordered model entries for runtime fallback resolution. */
+  _modelArray?: Array<{ id: string; variant?: string }>;
 }
 
 const ORCHESTRATOR_PROMPT = `<Role>
@@ -141,7 +143,9 @@ When user's approach seems problematic:
 `;
 
 export function createOrchestratorAgent(
-  model: string,
+  model?:
+    | string
+    | Array<string | { id: string; variant?: string }>,
   customPrompt?: string,
   customAppendPrompt?: string,
 ): AgentDefinition {
@@ -153,14 +157,23 @@ export function createOrchestratorAgent(
     prompt = `${ORCHESTRATOR_PROMPT}\n\n${customAppendPrompt}`;
   }
 
-  return {
+  const definition: AgentDefinition = {
     name: 'orchestrator',
     description:
       'AI coding orchestrator that delegates tasks to specialist agents for optimal quality, speed, and cost',
     config: {
-      model,
       temperature: 0.1,
       prompt,
     },
   };
+
+  if (Array.isArray(model)) {
+    definition._modelArray = model.map((m) =>
+      typeof m === 'string' ? { id: m } : m,
+    );
+  } else if (typeof model === 'string' && model) {
+    definition.config.model = model;
+  }
+
+  return definition;
 }

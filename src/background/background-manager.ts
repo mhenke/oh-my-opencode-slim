@@ -241,7 +241,18 @@ export class BackgroundTaskManager {
     const chain: string[] = [];
     const seen = new Set<string>();
 
-    for (const model of [primary, ...configuredChain]) {
+    // primary may be a string, an array of string|{id,variant?}, or undefined
+    let primaryIds: string[];
+    if (Array.isArray(primary)) {
+      primaryIds = primary.map((m) =>
+        typeof m === 'string' ? m : m.id,
+      );
+    } else if (typeof primary === 'string') {
+      primaryIds = [primary];
+    } else {
+      primaryIds = [];
+    }
+    for (const model of [...primaryIds, ...configuredChain]) {
       if (!model || seen.has(model)) continue;
       seen.add(model);
       chain.push(model);
