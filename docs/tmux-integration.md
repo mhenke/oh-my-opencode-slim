@@ -185,6 +185,20 @@ tmux switch -t project1
 tmux switch -t project2
 ```
 
+### Navigating Sessions
+
+```bash
+# List all sessions (in another terminal)
+tmux list-sessions
+
+# Switch to specific session (in tmux)
+Ctrl+B s      # list sessions and select
+Ctrl+B (      # switch to previous session
+Ctrl+B )      # switch to next session
+Ctrl+B $      # rename current session
+Ctrl+B d      # detach from current session
+```
+
 ---
 
 ## Troubleshooting
