@@ -28,6 +28,7 @@ describe('config-io', () => {
 
   beforeEach(() => {
     tmpDir = mkdtempSync(join(tmpdir(), 'opencode-io-test-'));
+    delete process.env.OPENCODE_CONFIG_DIR;
     process.env.XDG_CONFIG_HOME = tmpDir;
   });
 
@@ -127,6 +128,7 @@ describe('config-io', () => {
       hasTmux: true,
       installSkills: false,
       installCustomSkills: false,
+      reset: false,
     });
     expect(result.success).toBe(true);
 
