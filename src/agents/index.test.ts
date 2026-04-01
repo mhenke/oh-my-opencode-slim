@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { PluginConfig } from '../config';
-import { SUBAGENT_NAMES } from '../config';
+import { DEFAULT_MODELS, SUBAGENT_NAMES } from '../config';
 import { createAgents, getAgentConfigs, isSubagent } from './index';
 
 describe('agent alias backward compatibility', () => {
@@ -317,5 +317,57 @@ describe('getAgentConfigs', () => {
     const configs = getAgentConfigs();
     expect(configs.orchestrator.description).toBeDefined();
     expect(configs.explorer.description).toBeDefined();
+  });
+});
+
+describe('council agent model resolution', () => {
+  test('council agent uses config.council.master.model', () => {
+    const config = {
+      council: {
+        master: { model: 'anthropic/claude-sonnet-4-6' },
+        presets: {
+          default: {
+            councillors: {
+              alpha: { model: 'test/alpha-model' },
+            },
+            master: undefined,
+          },
+        },
+      },
+    } as unknown as PluginConfig;
+    const agents = createAgents(config);
+    const council = agents.find((a) => a.name === 'council');
+    expect(council?.config.model).toBe('anthropic/claude-sonnet-4-6');
+  });
+
+  test('council agent falls back to default without council config', () => {
+    const agents = createAgents();
+    const council = agents.find((a) => a.name === 'council');
+    expect(council?.config.model).toBe(DEFAULT_MODELS.council);
+  });
+
+  test('council-master agent uses config.council.master.model', () => {
+    const config = {
+      council: {
+        master: { model: 'anthropic/claude-sonnet-4-6' },
+        presets: {
+          default: {
+            councillors: {
+              alpha: { model: 'test/alpha-model' },
+            },
+            master: undefined,
+          },
+        },
+      },
+    } as unknown as PluginConfig;
+    const agents = createAgents(config);
+    const councilMaster = agents.find((a) => a.name === 'council-master');
+    expect(councilMaster?.config.model).toBe('anthropic/claude-sonnet-4-6');
+  });
+
+  test('council-master agent falls back to default without council config', () => {
+    const agents = createAgents();
+    const councilMaster = agents.find((a) => a.name === 'council-master');
+    expect(councilMaster?.config.model).toBe(DEFAULT_MODELS['council-master']);
   });
 });
