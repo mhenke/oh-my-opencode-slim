@@ -257,6 +257,24 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "hakimzulkufli",
+      "name": "Hakim Zulkufli",
+      "avatar_url": "https://avatars.githubusercontent.com/u/42469039?v=4",
+      "profile": "https://hzu.lol/",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "sklakegg",
+      "name": "Simon Klakegg",
+      "avatar_url": "https://avatars.githubusercontent.com/u/14874913?v=4",
+      "profile": "https://bit.ly/2N1ynXZ",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commitConvention": "angular"
