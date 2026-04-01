@@ -484,6 +484,11 @@
               "type": "string"
             }
           }
+        },
+        "retry_on_empty": {
+          "default": true,
+          "description": "When true (default), empty provider responses are treated as failures, triggering fallback/retry. Set to false to treat them as successes.",
+          "type": "boolean"
         }
       }
     },
@@ -559,6 +564,13 @@
             "parallel",
             "serial"
           ]
+        },
+        "councillor_retries": {
+          "default": 3,
+          "description": "Number of retry attempts for councillors and master that return empty responses (e.g. due to provider rate limiting). Default: 3 retries.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
         }
       },
       "required": [
