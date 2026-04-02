@@ -272,6 +272,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "sudorest",
+      "name": "Kiwi",
+      "avatar_url": "https://avatars.githubusercontent.com/u/214225921?v=4",
+      "profile": "https://github.com/sudorest",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commitConvention": "angular"
