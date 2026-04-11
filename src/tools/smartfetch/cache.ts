@@ -5,7 +5,7 @@ import type { FetchResult } from './types';
 export const CACHE = new LRUCache<string, FetchResult>({
   maxSize: 50 * 1024 * 1024,
   ttl: 15 * 60 * 1000,
-  sizeCalculation: (value) => {
+  sizeCalculation: (value: FetchResult) => {
     if ('binary' in value) return value.data?.byteLength ?? 1024;
     const rawContent =
       value.rawContent ?? value.html ?? value.markdown ?? value.text ?? '';

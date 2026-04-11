@@ -44,7 +44,7 @@ import {
   readSecondaryModelFromConfig,
   runSecondaryModelWithFallback,
 } from './secondary-model';
-import type { SmartfetchOptions } from './types';
+import type { RedirectStep, SmartfetchOptions } from './types';
 import {
   buildLlmsRequiredMessage,
   buildRedirectResultMessage,
@@ -273,7 +273,8 @@ export function createWebfetchTool(
                     redirect_url: result.redirectUrl,
                     status_code: result.statusCode,
                     redirect_chain: result.redirectChain.map(
-                      (step) => `${step.status} ${step.from} -> ${step.to}`,
+                      (step: RedirectStep) =>
+                        `${step.status} ${step.from} -> ${step.to}`,
                     ),
                     upgraded_to_https: upgradedToHttps,
                   })
@@ -547,7 +548,8 @@ export function createWebfetchTool(
                   filename: fetchResult.filename,
                   binary_kind: fetchResult.binaryKind,
                   redirect_chain: fetchResult.redirectChain.map(
-                    (step) => `${step.status} ${step.from} -> ${step.to}`,
+                    (step: RedirectStep) =>
+                      `${step.status} ${step.from} -> ${step.to}`,
                   ),
                   upgraded_to_https: fetchResult.upgradedToHttps,
                   llms_probe_error: fetchResult.llmsProbeError,
@@ -584,7 +586,8 @@ export function createWebfetchTool(
                   filename: fetchResult.filename,
                   binary_kind: fetchResult.binaryKind,
                   redirect_chain: fetchResult.redirectChain.map(
-                    (step) => `${step.status} ${step.from} -> ${step.to}`,
+                    (step: RedirectStep) =>
+                      `${step.status} ${step.from} -> ${step.to}`,
                   ),
                   upgraded_to_https: fetchResult.upgradedToHttps,
                   truncated: fetchResult.truncated,
@@ -621,7 +624,8 @@ export function createWebfetchTool(
                 filename: fetchResult.filename,
                 binary_kind: fetchResult.binaryKind,
                 redirect_chain: fetchResult.redirectChain.map(
-                  (step) => `${step.status} ${step.from} -> ${step.to}`,
+                  (step: RedirectStep) =>
+                    `${step.status} ${step.from} -> ${step.to}`,
                 ),
                 upgraded_to_https: fetchResult.upgradedToHttps,
                 llms_probe_error: fetchResult.llmsProbeError,
@@ -668,7 +672,8 @@ export function createWebfetchTool(
               used_llms_txt: fetchResult.usedLlmsTxt,
               extracted_main: fetchResult.extractedMain,
               redirect_chain: fetchResult.redirectChain.map(
-                (step) => `${step.status} ${step.from} -> ${step.to}`,
+                (step: RedirectStep) =>
+                  `${step.status} ${step.from} -> ${step.to}`,
               ),
               upgraded_to_https: fetchResult.upgradedToHttps,
               llms_probe_error: fetchResult.llmsProbeError,
@@ -733,7 +738,8 @@ export function createWebfetchTool(
                 used_llms_txt: fetchResult.usedLlmsTxt,
                 extracted_main: fetchResult.extractedMain,
                 redirect_chain: fetchResult.redirectChain.map(
-                  (step) => `${step.status} ${step.from} -> ${step.to}`,
+                  (step: RedirectStep) =>
+                    `${step.status} ${step.from} -> ${step.to}`,
                 ),
                 upgraded_to_https: fetchResult.upgradedToHttps,
                 llms_probe_error: fetchResult.llmsProbeError,
@@ -777,7 +783,8 @@ export function createWebfetchTool(
               used_llms_txt: fetchResult.usedLlmsTxt,
               extracted_main: fetchResult.extractedMain,
               redirect_chain: fetchResult.redirectChain.map(
-                (step) => `${step.status} ${step.from} -> ${step.to}`,
+                (step: RedirectStep) =>
+                  `${step.status} ${step.from} -> ${step.to}`,
               ),
               upgraded_to_https: fetchResult.upgradedToHttps,
               llms_probe_error: fetchResult.llmsProbeError,

@@ -255,17 +255,22 @@ const turndown = new TurndownService({
 
 turndown.remove(['script', 'style', 'noscript', 'meta', 'link']);
 turndown.remove(
-  (node) =>
-    node.nodeName === 'A' &&
+  (node: unknown) =>
+    (node as Element).nodeName === 'A' &&
     /permanent link/i.test((node as Element).getAttribute('title') || ''),
 );
 turndown.addRule('fenced-pre-code', {
-  filter(node) {
-    return node.nodeName === 'PRE' && !!(node as Element).querySelector('code');
+  filter(node: unknown) {
+    return (
+      (node as Element).nodeName === 'PRE' &&
+      !!(node as Element).querySelector('code')
+    );
   },
-  replacement(_content, node) {
+  replacement(_content: string, node: unknown) {
     const code = (node as Element).querySelector('code');
-    const text = trimBlankRuns(code?.textContent || node.textContent || '');
+    const text = trimBlankRuns(
+      code?.textContent || (node as Element).textContent || '',
+    );
     if (!text) return '';
     return `\n\n\`\`\`\n${text}\n\`\`\`\n\n`;
   },
