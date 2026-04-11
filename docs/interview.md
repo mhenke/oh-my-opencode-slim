@@ -117,7 +117,8 @@ Inside the interview page:
     "interview": {
       "maxQuestions": 2,
       "outputFolder": "interview",
-      "autoOpenBrowser": true
+      "autoOpenBrowser": true,
+      "port": 0
     }
   }
 }
@@ -128,6 +129,29 @@ Inside the interview page:
 - `maxQuestions` — max questions per round, `1-10`, default `2`
 - `outputFolder` — where markdown files are written, default `interview`
 - `autoOpenBrowser` — open the localhost UI in your default browser, default `true`
+- `port` — fixed port for the interview UI server, `0-65535`, default `0` (OS-assigned). Set a fixed port for remote access via Tailscale Serve, Cloudflare Tunnel, or SSH tunneling. Note: ports 1-1023 require elevated privileges on most systems.
+
+## Remote access
+
+The interview UI binds to `127.0.0.1`. To access it from a remote machine:
+
+### Tailscale Serve
+
+```text
+tailscale serve --bg --https=443 http://127.0.0.1:<port>
+```
+
+### Cloudflare Tunnel
+
+```text
+cloudflared tunnel --url http://127.0.0.1:<port>
+```
+
+### SSH tunnel
+
+```text
+ssh -L <port>:127.0.0.1:<port> your-server
+```
 
 ## Good use cases
 

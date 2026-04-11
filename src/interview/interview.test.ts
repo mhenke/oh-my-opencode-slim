@@ -1,6 +1,9 @@
 import { describe, expect, mock, test } from 'bun:test';
 import * as fs from 'node:fs/promises';
+import { createServer } from 'node:http';
 import * as path from 'node:path';
+import { InterviewConfigSchema } from '../config/schema';
+import { createInterviewServer } from './server';
 import { createInterviewService as createRealInterviewService } from './service';
 import type { InterviewAnswer } from './types';
 import { renderInterviewPage } from './ui';
@@ -1505,5 +1508,153 @@ describe('renderInterviewPage', () => {
 
     expect(html).toContain('<svg');
     expect(html).not.toContain('https://ohmyopencodeslim.com');
+  });
+});
+
+/** Discover a free port by briefly binding to port 0, then closing. */
+async function findFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const srv = createServer();
+    srv.listen(0, '127.0.0.1', () => {
+      const addr = srv.address();
+      srv.close(() => {
+        if (!addr || typeof addr === 'string') {
+          reject(new Error('Failed to find free port'));
+          return;
+        }
+        resolve(addr.port);
+      });
+    });
+    srv.on('error', reject);
+  });
+}
+
+describe('interview server port configuration', () => {
+  const noopDeps = {
+    getState: mock(
+      async (_id: string) =>
+        ({
+          interview: {
+            id: 'x',
+            idea: 'x',
+            status: 'active',
+            markdownPath: 'x',
+          },
+          questions: [],
+          mode: 'awaiting-agent' as const,
+          isBusy: false,
+        }) as any,
+    ),
+    submitAnswers: mock(async (_id: string, _answers: InterviewAnswer[]) => {}),
+  };
+
+  test('server starts on a specific port when port is non-zero', async () => {
+    const freePort = await findFreePort();
+    const server = createInterviewServer({ ...noopDeps, port: freePort });
+    try {
+      const baseUrl = await server.ensureStarted();
+      expect(baseUrl).toBe(`http://127.0.0.1:${freePort}`);
+    } finally {
+      server.close();
+    }
+  });
+
+  test('server starts on a random port when port is 0', async () => {
+    const server = createInterviewServer({ ...noopDeps, port: 0 });
+    try {
+      const baseUrl = await server.ensureStarted();
+      expect(baseUrl).toMatch(/^http:\/\/127\.0\.0\.1:\d+$/);
+      const port = Number.parseInt(baseUrl.split(':').pop()!, 10);
+      expect(port).toBeGreaterThan(0);
+    } finally {
+      server.close();
+    }
+  });
+
+  test('baseUrl contains the correct port number for fixed port', async () => {
+    const freePort = await findFreePort();
+    const server = createInterviewServer({ ...noopDeps, port: freePort });
+    try {
+      const baseUrl = await server.ensureStarted();
+      const port = Number.parseInt(baseUrl.split(':').pop()!, 10);
+      expect(port).toBe(freePort);
+    } finally {
+      server.close();
+    }
+  });
+
+  test('baseUrl contains a valid port number for random port', async () => {
+    const server = createInterviewServer({ ...noopDeps, port: 0 });
+    try {
+      const baseUrl = await server.ensureStarted();
+      const port = Number.parseInt(baseUrl.split(':').pop()!, 10);
+      expect(port).toBeGreaterThanOrEqual(1);
+      expect(port).toBeLessThanOrEqual(65535);
+    } finally {
+      server.close();
+    }
+  });
+
+  test('rejects with friendly error when port is already in use', async () => {
+    // Occupy a port first
+    const blocker = createServer();
+    const occupiedPort = await new Promise<number>((resolve, reject) => {
+      blocker.listen(0, '127.0.0.1', () => {
+        const addr = blocker.address();
+        if (!addr || typeof addr === 'string') {
+          reject(new Error('Failed to bind blocker'));
+          return;
+        }
+        resolve(addr.port);
+      });
+      blocker.on('error', reject);
+    });
+
+    const server = createInterviewServer({
+      ...noopDeps,
+      port: occupiedPort,
+    });
+    try {
+      await expect(server.ensureStarted()).rejects.toThrow(
+        `Interview server port ${occupiedPort} is already in use`,
+      );
+    } finally {
+      server.close();
+      blocker.close();
+    }
+  });
+});
+
+describe('InterviewConfigSchema port validation', () => {
+  test('accepts valid port 0', () => {
+    const result = InterviewConfigSchema.parse({ port: 0 });
+    expect(result.port).toBe(0);
+  });
+
+  test('accepts valid port 8080', () => {
+    const result = InterviewConfigSchema.parse({ port: 8080 });
+    expect(result.port).toBe(8080);
+  });
+
+  test('accepts valid port 65535', () => {
+    const result = InterviewConfigSchema.parse({ port: 65535 });
+    expect(result.port).toBe(65535);
+  });
+
+  test('defaults port to 0 when omitted', () => {
+    const result = InterviewConfigSchema.parse({});
+    expect(result.port).toBe(0);
+  });
+
+  test('rejects negative port', () => {
+    expect(() => InterviewConfigSchema.parse({ port: -1 })).toThrow();
+  });
+
+  test('rejects port above 65535', () => {
+    expect(() => InterviewConfigSchema.parse({ port: 70000 })).toThrow();
+  });
+
+  test('rejects float port', () => {
+    expect(() => InterviewConfigSchema.parse({ port: 3.5 })).toThrow();
   });
 });

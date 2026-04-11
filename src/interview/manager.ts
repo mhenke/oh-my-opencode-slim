@@ -39,6 +39,7 @@ export function createInterviewManager(
     getState: async (interviewId) => service.getInterviewState(interviewId),
     submitAnswers: async (interviewId, answers) =>
       service.submitAnswers(interviewId, answers),
+    port: config.interview?.port ?? 0,
   });
 
   // Inject server URL resolver into service (lazy: server starts on first request)

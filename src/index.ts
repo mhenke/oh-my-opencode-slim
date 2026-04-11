@@ -473,10 +473,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     'chat.headers': chatHeadersHook['chat.headers'],
 
     // Track which agent each session uses (needed for serve-mode prompt injection)
-    'chat.message': async (input: {
-      sessionID: string;
-      agent?: string;
-    }) => {
+    'chat.message': async (input: { sessionID: string; agent?: string }) => {
       if (input.agent) {
         sessionAgentMap.set(input.sessionID, input.agent);
       }
@@ -502,7 +499,9 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         if (!alreadyInjected) {
           // Prepend the orchestrator prompt to the system array
           const { ORCHESTRATOR_PROMPT } = await import('./agents/orchestrator');
-          output.system[0] = ORCHESTRATOR_PROMPT + (output.system[0] ? '\n\n' + output.system[0] : '');
+          output.system[0] =
+            ORCHESTRATOR_PROMPT +
+            (output.system[0] ? '\n\n' + output.system[0] : '');
         }
       }
     },
