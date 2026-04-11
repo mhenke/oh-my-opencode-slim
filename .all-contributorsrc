@@ -317,6 +317,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "blaszewski",
+      "name": "Bartosz Łaszewski",
+      "avatar_url": "https://avatars.githubusercontent.com/u/14119531?v=4",
+      "profile": "https://github.com/blaszewski",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commitConvention": "angular"
