@@ -258,6 +258,11 @@
               "items": {
                 "type": "string"
               }
+            },
+            "options": {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "Provider-specific model options (e.g., textVerbosity, thinking budget)"
             }
           }
         }
@@ -321,6 +326,11 @@
             "items": {
               "type": "string"
             }
+          },
+          "options": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Provider-specific model options (e.g., textVerbosity, thinking budget)"
           }
         }
       }

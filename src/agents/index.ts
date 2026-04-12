@@ -53,6 +53,12 @@ function applyOverrides(
   if (override.variant) agent.config.variant = override.variant;
   if (override.temperature !== undefined)
     agent.config.temperature = override.temperature;
+  if (override.options) {
+    agent.config.options = {
+      ...agent.config.options,
+      ...override.options,
+    };
+  }
 }
 
 /**

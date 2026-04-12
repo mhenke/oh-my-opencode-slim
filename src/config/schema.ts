@@ -98,6 +98,7 @@ export const AgentOverrideConfigSchema = z.object({
   variant: z.string().optional().catch(undefined),
   skills: z.array(z.string()).optional(), // skills this agent can use ("*" = all, "!item" = exclude)
   mcps: z.array(z.string()).optional(), // MCPs this agent can use ("*" = all, "!item" = exclude)
+  options: z.record(z.string(), z.unknown()).optional(), // provider-specific model options (e.g., textVerbosity, thinking budget)
 });
 
 // Multiplexer type options
