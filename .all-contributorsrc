@@ -335,6 +335,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "dkovacevic15",
+      "name": "Dusan Kovacevic",
+      "avatar_url": "https://avatars.githubusercontent.com/u/24757821?v=4",
+      "profile": "https://github.com/dkovacevic15",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commitConvention": "angular"
