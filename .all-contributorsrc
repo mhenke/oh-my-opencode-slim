@@ -344,6 +344,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "jwcrystal",
+      "name": "jwcrystal",
+      "avatar_url": "https://avatars.githubusercontent.com/u/121911854?v=4",
+      "profile": "https://github.com/jwcrystal",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commitConvention": "angular"
