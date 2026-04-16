@@ -2,10 +2,17 @@ import { describe, expect, test } from 'bun:test';
 import type { PluginConfig } from '../config';
 import {
   AgentOverrideConfigSchema,
+  DEFAULT_DISABLED_AGENTS,
   DEFAULT_MODELS,
   SUBAGENT_NAMES,
 } from '../config';
-import { createAgents, getAgentConfigs, isSubagent } from './index';
+import {
+  createAgents,
+  getAgentConfigs,
+  getDisabledAgents,
+  getEnabledAgentNames,
+  isSubagent,
+} from './index';
 
 describe('agent alias backward compatibility', () => {
   test("applies 'explore' config to 'explorer' agent", () => {
@@ -272,7 +279,8 @@ describe('agent classification', () => {
   });
 
   test('getAgentConfigs applies correct classification visibility and mode', () => {
-    const configs = getAgentConfigs();
+    // Enable all agents (including observer) for classification testing
+    const configs = getAgentConfigs({ disabled_agents: [] });
 
     // Primary agent
     expect(configs.orchestrator.mode).toBe('primary');
@@ -301,7 +309,7 @@ describe('createAgents', () => {
     expect(names).toContain('fixer');
   });
 
-  test('creates exactly 9 agents (1 primary + 8 subagents)', () => {
+  test('creates exactly 9 agents by default (1 orchestrator + 8 subagents, observer disabled)', () => {
     const agents = createAgents();
     expect(agents.length).toBe(9);
   });
@@ -547,5 +555,125 @@ describe('AgentOverrideConfigSchema options validation', () => {
       options: 'not-an-object',
     });
     expect(result.success).toBe(false);
+  });
+});
+
+describe('disabled_agents', () => {
+  test('disabled agents are not created', () => {
+    const config: PluginConfig = {
+      disabled_agents: ['designer', 'fixer'],
+    };
+    const agents = createAgents(config);
+    const names = agents.map((a) => a.name);
+    expect(names).not.toContain('designer');
+    expect(names).not.toContain('fixer');
+    expect(names).toContain('orchestrator');
+    expect(names).toContain('explorer');
+    expect(names).toContain('oracle');
+    expect(names).toContain('librarian');
+  });
+
+  test('protected agents cannot be disabled', () => {
+    const config: PluginConfig = {
+      disabled_agents: ['orchestrator', 'councillor', 'council-master'],
+    };
+    const agents = createAgents(config);
+    const names = agents.map((a) => a.name);
+    expect(names).toContain('orchestrator');
+    expect(names).toContain('councillor');
+    expect(names).toContain('council-master');
+  });
+
+  test('disabling council disables all council agents', () => {
+    const config: PluginConfig = {
+      disabled_agents: ['council'],
+    };
+    const agents = createAgents(config);
+    const names = agents.map((a) => a.name);
+    expect(names).not.toContain('council');
+    // councillor and council-master are protected, they stay
+    expect(names).toContain('councillor');
+    expect(names).toContain('council-master');
+  });
+
+  test('agent count decreases when agents are disabled', () => {
+    const agents = createAgents();
+    expect(agents.length).toBe(9); // 1 + 8 (observer disabled by default)
+
+    const disabledConfig: PluginConfig = {
+      disabled_agents: ['observer', 'designer'],
+    };
+    const disabledAgents = createAgents(disabledConfig);
+    expect(disabledAgents.length).toBe(8);
+  });
+
+  test('getDisabledAgents respects protection rules', () => {
+    const config: PluginConfig = {
+      disabled_agents: ['orchestrator', 'designer', 'councillor'],
+    };
+    const disabled = getDisabledAgents(config);
+    expect(disabled.has('designer')).toBe(true);
+    expect(disabled.has('orchestrator')).toBe(false);
+    expect(disabled.has('councillor')).toBe(false);
+  });
+
+  test('getEnabledAgentNames filters correctly', () => {
+    const config: PluginConfig = {
+      disabled_agents: ['designer', 'fixer'],
+    };
+    const enabled = getEnabledAgentNames(config);
+    expect(enabled).not.toContain('designer');
+    expect(enabled).not.toContain('fixer');
+    expect(enabled).toContain('orchestrator');
+    expect(enabled).toContain('explorer');
+  });
+
+  test('empty disabled_agents creates all agents including observer', () => {
+    const config: PluginConfig = {
+      disabled_agents: [],
+    };
+    const agents = createAgents(config);
+    expect(agents.length).toBe(10);
+    expect(agents.map((a) => a.name)).toContain('observer');
+  });
+});
+
+describe('observer agent', () => {
+  test('observer is disabled by default', () => {
+    const agents = createAgents();
+    const names = agents.map((a) => a.name);
+    expect(names).not.toContain('observer');
+  });
+
+  test('observer is enabled when removed from disabled_agents', () => {
+    const config: PluginConfig = {
+      disabled_agents: [],
+    };
+    const agents = createAgents(config);
+    const names = agents.map((a) => a.name);
+    expect(names).toContain('observer');
+  });
+
+  test('observer is disabled when explicitly listed', () => {
+    const config: PluginConfig = {
+      disabled_agents: ['observer'],
+    };
+    const agents = createAgents(config);
+    const names = agents.map((a) => a.name);
+    expect(names).not.toContain('observer');
+  });
+
+  test('observer can be enabled alongside other disabled agents', () => {
+    const config: PluginConfig = {
+      disabled_agents: ['designer'],
+    };
+    const agents = createAgents(config);
+    const names = agents.map((a) => a.name);
+    expect(names).toContain('observer');
+    expect(names).not.toContain('designer');
+  });
+
+  test('DEFAULT_DISABLED_AGENTS contains observer', () => {
+    expect(DEFAULT_DISABLED_AGENTS).toContain('observer');
   });
 });

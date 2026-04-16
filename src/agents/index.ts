@@ -2,10 +2,13 @@ import type { AgentConfig as SDKAgentConfig } from '@opencode-ai/sdk/v2';
 import { getSkillPermissionsForAgent } from '../cli/skills';
 import {
   type AgentOverrideConfig,
+  ALL_AGENT_NAMES,
+  DEFAULT_DISABLED_AGENTS,
   DEFAULT_MODELS,
   getAgentOverride,
   loadAgentPrompt,
   type PluginConfig,
+  PROTECTED_AGENTS,
   SUBAGENT_NAMES,
 } from '../config';
 import { getAgentMcpList } from '../config/agent-mcps';
@@ -17,6 +20,7 @@ import { createDesignerAgent } from './designer';
 import { createExplorerAgent } from './explorer';
 import { createFixerAgent } from './fixer';
 import { createLibrarianAgent } from './librarian';
+import { createObserverAgent } from './observer';
 import { createOracleAgent } from './oracle';
 import { type AgentDefinition, createOrchestratorAgent } from './orchestrator';
 
@@ -114,6 +118,7 @@ const SUBAGENT_FACTORIES: Record<SubagentName, AgentFactory> = {
   oracle: createOracleAgent,
   designer: createDesignerAgent,
   fixer: createFixerAgent,
+  observer: createObserverAgent,
   council: createCouncilAgent,
   councillor: createCouncillorAgent,
   'council-master': createCouncilMasterAgent,
@@ -129,6 +134,8 @@ const SUBAGENT_FACTORIES: Record<SubagentName, AgentFactory> = {
  * @returns Array of agent definitions (orchestrator first, then subagents)
  */
 export function createAgents(config?: PluginConfig): AgentDefinition[] {
+  const disabled = getDisabledAgents(config);
+
   // TEMP: If fixer has no config, inherit from librarian's model to avoid breaking
   // existing users who don't have fixer in their config yet
   const getModelForAgent = (name: SubagentName): string => {
@@ -161,14 +168,16 @@ export function createAgents(config?: PluginConfig): AgentDefinition[] {
   // 1. Gather all sub-agent definitions with custom prompts
   const protoSubAgents = (
     Object.entries(SUBAGENT_FACTORIES) as [SubagentName, AgentFactory][]
-  ).map(([name, factory]) => {
-    const customPrompts = loadAgentPrompt(name, config?.preset);
-    return factory(
-      getModelForAgent(name),
-      customPrompts.prompt,
-      customPrompts.appendPrompt,
-    );
-  });
+  )
+    .filter(([name]) => !disabled.has(name))
+    .map(([name, factory]) => {
+      const customPrompts = loadAgentPrompt(name, config?.preset);
+      return factory(
+        getModelForAgent(name),
+        customPrompts.prompt,
+        customPrompts.appendPrompt,
+      );
+    });
 
   // 2. Apply overrides and default permissions to each agent
   const allSubAgents = protoSubAgents.map((agent) => {
@@ -191,6 +200,7 @@ export function createAgents(config?: PluginConfig): AgentDefinition[] {
     orchestratorModel,
     orchestratorPrompts.prompt,
     orchestratorPrompts.appendPrompt,
+    disabled,
   );
   applyDefaultPermissions(orchestrator, orchestratorOverride?.skills);
   if (orchestratorOverride) {
@@ -237,4 +247,28 @@ export function getAgentConfigs(
       return [a.name, sdkConfig];
     }),
   );
+}
+
+/**
+ * Get the set of disabled agent names from config, applying protection rules.
+ */
+export function getDisabledAgents(config?: PluginConfig): Set<string> {
+  const userDisabled = config?.disabled_agents;
+  const disabledSource =
+    userDisabled !== undefined ? userDisabled : DEFAULT_DISABLED_AGENTS;
+  const disabled = new Set<string>();
+  for (const name of disabledSource) {
+    if (!PROTECTED_AGENTS.has(name)) {
+      disabled.add(name);
+    }
+  }
+  return disabled;
+}
+
+/**
+ * Get the list of enabled (non-disabled) agent names.
+ */
+export function getEnabledAgentNames(config?: PluginConfig): string[] {
+  const disabled = getDisabledAgents(config);
+  return ALL_AGENT_NAMES.filter((name) => !disabled.has(name));
 }

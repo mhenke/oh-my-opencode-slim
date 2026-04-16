@@ -10,6 +10,7 @@ export const SUBAGENT_NAMES = [
   'oracle',
   'designer',
   'fixer',
+  'observer',
   'council',
   'councillor',
   'council-master',
@@ -36,8 +37,26 @@ export const ORCHESTRATABLE_AGENTS = [
   'oracle',
   'designer',
   'fixer',
+  'observer',
   'council',
 ] as const;
+
+/** Agents that cannot be disabled even if listed in disabled_agents config. */
+export const PROTECTED_AGENTS = new Set([
+  'orchestrator',
+  'councillor',
+  'council-master',
+]);
+
+/**
+ * Get the list of orchestratable agents, excluding any disabled agents.
+ * This is used for delegation validation at runtime.
+ */
+export function getOrchestratableAgents(
+  disabledAgents?: Set<string>,
+): string[] {
+  return ORCHESTRATABLE_AGENTS.filter((name) => !disabledAgents?.has(name));
+}
 
 export const SUBAGENT_DELEGATION_RULES: Record<AgentName, readonly string[]> = {
   orchestrator: ORCHESTRATABLE_AGENTS,
@@ -46,6 +65,7 @@ export const SUBAGENT_DELEGATION_RULES: Record<AgentName, readonly string[]> = {
   explorer: [],
   librarian: [],
   oracle: [],
+  observer: [],
   council: [],
   councillor: [],
   'council-master': [],
@@ -60,6 +80,7 @@ export const DEFAULT_MODELS: Record<AgentName, string | undefined> = {
   explorer: 'openai/gpt-5.4-mini',
   designer: 'openai/gpt-5.4-mini',
   fixer: 'openai/gpt-5.4-mini',
+  observer: 'openai/gpt-5.4-mini',
   council: 'openai/gpt-5.4-mini',
   councillor: 'openai/gpt-5.4-mini',
   'council-master': 'openai/gpt-5.4-mini',
@@ -91,3 +112,7 @@ export const COUNCILLOR_STAGGER_MS = 250;
 
 // Polling stability
 export const STABLE_POLLS_THRESHOLD = 3;
+
+/** Agents that are disabled by default. Users must explicitly enable them
+ *  by removing from disabled_agents and configuring an appropriate model. */
+export const DEFAULT_DISABLED_AGENTS: string[] = ['observer'];

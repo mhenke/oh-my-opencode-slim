@@ -1,5 +1,5 @@
 import type { Plugin } from '@opencode-ai/plugin';
-import { createAgents, getAgentConfigs } from './agents';
+import { createAgents, getAgentConfigs, getDisabledAgents } from './agents';
 import { BackgroundTaskManager, MultiplexerSessionManager } from './background';
 import { loadPluginConfig, type MultiplexerConfig } from './config';
 import { parseList } from './config/agent-mcps';
@@ -16,6 +16,7 @@ import {
   createTodoContinuationHook,
   ForegroundFallbackManager,
 } from './hooks';
+import { processImageAttachments } from './hooks/image-hook';
 import { createInterviewManager } from './interview';
 import { createBuiltinMcps } from './mcp';
 import { getMultiplexer, startAvailabilityCheck } from './multiplexer';
@@ -314,6 +315,12 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
             if (chosen.variant) {
               entry.variant = chosen.variant;
             }
+          } else {
+            // Agent exists in slim but not in opencodeConfig.agent — create entry
+            (configAgent as Record<string, unknown>)[agentName] = {
+              model: chosen.id,
+              ...(chosen.variant ? { variant: chosen.variant } : {}),
+            };
           }
           log('[plugin] resolved model from array', {
             agent: agentName,
@@ -546,9 +553,15 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         );
         if (!alreadyInjected) {
           // Prepend the orchestrator prompt to the system array
-          const { ORCHESTRATOR_PROMPT } = await import('./agents/orchestrator');
+          // Use buildOrchestratorPrompt with disabledAgents so the
+          // serve-mode prompt matches the interactive-mode prompt
+          const { buildOrchestratorPrompt } = await import(
+            './agents/orchestrator'
+          );
+          const disabledAgents = getDisabledAgents(config);
+          const orchestratorPrompt = buildOrchestratorPrompt(disabledAgents);
           output.system[0] =
-            ORCHESTRATOR_PROMPT +
+            orchestratorPrompt +
             (output.system[0] ? `\n\n${output.system[0]}` : '');
         }
       }
@@ -576,6 +589,18 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           }>;
         }>;
       };
+
+      // Strip image parts from orchestrator messages when @observer is available.
+      // When the orchestrator's model doesn't support image input, the API call
+      // fails before the LLM can respond. We replace image bytes with a text
+      // nudge so the orchestrator delegates to @observer instead.
+      processImageAttachments({
+        messages: typedOutput.messages,
+        workDir: ctx.directory,
+        disabledAgents: getDisabledAgents(config),
+        log,
+      });
+
       await todoContinuationHook.handleMessagesTransform({
         messages: typedOutput.messages,
       });
