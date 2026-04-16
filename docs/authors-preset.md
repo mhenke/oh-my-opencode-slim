@@ -8,14 +8,14 @@ This is the exact configuration the author runs day-to-day. It mixes three provi
 
 ```jsonc
 {
-  "preset": "best",
+  "preset": "openai",
   "presets": {
-    "best": { "orchestrator": { "model": "openai/gpt-5.4-fast", "skills": [ "*" ], "mcps": [ "*"] },
-      "oracle": { "model": "openai/gpt-5.4-fast", "variant": "high", "skills": [], "mcps": [] },
-      "librarian": { "model": "fireworks-ai/accounts/fireworks/routers/kimi-k2p5-turbo", "variant": "low", "skills": [], "mcps": [ "websearch", "context7", "grep_app" ] },
-      "explorer": { "model": "fireworks-ai/accounts/fireworks/routers/kimi-k2p5-turbo", "variant": "low", "skills": [], "mcps": [] },
-      "designer": { "model": "github-copilot/gemini-3.1-pro-preview", "skills": [ "agent-browser" ], "mcps": [] },
-      "fixer": { "model": "fireworks-ai/accounts/fireworks/routers/kimi-k2p5-turbo", "variant": "low", "skills": [], "mcps": [] }
+    "openai": { "orchestrator": { "model": "openai/gpt-5.4-fast", "skills": [ "*" ], "mcps": [ "*", "websearch"] },
+        "oracle": { "model": "openai/gpt-5.4-fast", "variant": "high", "skills": [], "mcps": [] },
+        "librarian": { "model": "openai/gpt-5.3-codex-spark", "variant": "low", "skills": [], "mcps": [ "websearch", "context7", "grep_app" ] },
+        "explorer": { "model": "openai/gpt-5.3-codex-spark", "variant": "low", "skills": [], "mcps": [] },
+        "designer": { "model": "github-copilot/gemini-3.1-pro-preview", "skills": [ "agent-browser" ], "mcps": [] },
+        "fixer": { "model": "openai/gpt-5.3-codex-spark", "variant": "low", "skills": [], "mcps": [] }
     }
   },
   "multiplexer": {

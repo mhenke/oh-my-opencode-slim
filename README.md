@@ -38,6 +38,9 @@ bunx oh-my-opencode-slim@latest install --reset
 
 The default configuration uses OpenAI. To use Kimi, GitHub Copilot, or ZAI Coding Plan, see **[Provider Configurations](docs/provider-configurations.md)** for step-by-step instructions and config examples.
 
+> [!TIP]
+> Want to see the latest models OpenCode knows about? Run `opencode models --refresh` to refresh the cache and list currently available models.
+
 ### JSON Schema
 
 An official JSON Schema is included in the package for editor validation and autocomplete. Add a `$schema` reference to your config file:
@@ -406,11 +409,12 @@ If any agent fails to respond, check your provider authentication and config fil
 
 Slim only intercepts `apply_patch` before native execution. It rewrites recoverable stale patches, canonizes safe tolerant matches against the real file when unicode/trim drift is the only mismatch, keeps the authored `new_lines` bytes intact, preserves existing file EOL/final-newline state for updates, validates malformed patches strictly before helper execution, uses a conservative bounded LCS fallback, supports sequential `Update File` hunks on the same path through accumulated helper state, and blocks `apply_patch` before the native tool runs if any patch path falls outside the allowed root/worktree. This rescue does not extend to `edit` or `write`.
 
-### 💡 Author's Setup
+### 💡 Presets
 
 | Doc | Contents |
 |-----|----------|
-| **[Author's Preset](docs/authors-preset.md)** | The exact config the author runs daily — OpenAI + Fireworks AI + GitHub Copilot |
+| **[Author's Preset](docs/authors-preset.md)** | The exact config the author runs daily — OpenAI Pro + GitHub Copilot |
+| **[$30 Preset](docs/thirty-dollars-preset.md)** | A mixed setup using Codex Plus ($20) + GitHub Copilot Pro ($10) for about $30/month total |
 
 ---
 
@@ -499,8 +503,3 @@ Slim only intercepts `apply_patch` before native execution. It rewrites recovera
 MIT
 
 ---
-
-<!-- MoltFounders Banner -->
-<a href="https://moltfounders.com/jobs/09d1c6e7-9e0e-4683-8d78-e2376aaa2333">
-  <img src="img/moltfounders-banner.png" alt="MoltFounders - The Agent Co-Founder Network">
-</a>
