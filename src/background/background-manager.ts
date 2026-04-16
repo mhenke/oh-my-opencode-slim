@@ -45,6 +45,7 @@ interface PersistedTask {
   parentSessionId: string;
   description: string;
   agent: string;
+  prompt: string;
   status: BackgroundTask['status'];
   result?: string;
   error?: string;
@@ -62,6 +63,7 @@ function persistTask(task: BackgroundTask): void {
       parentSessionId: task.parentSessionId,
       description: task.description,
       agent: task.agent,
+      prompt: task.prompt,
       status: task.status,
       result: task.result,
       error: task.error,
@@ -89,8 +91,7 @@ function loadPersistedTask(taskId: string): BackgroundTask | null {
       error: data.error,
       startedAt: new Date(data.startedAt),
       completedAt: data.completedAt ? new Date(data.completedAt) : undefined,
-      // Not persisted; callers use status/result only
-      prompt: '',
+      prompt: data.prompt,
       config: { maxConcurrentStarts: 10 },
     };
   } catch {
