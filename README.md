@@ -224,6 +224,9 @@ If any agent fails to respond, check your provider authentication and config fil
 
 ### Council: The Chorus of Minds
 
+> [!NOTE]
+> **Why doesn't Orchestrator auto-call Council more often?** This is intentional. Council runs multiple models at once, so automatic delegation is kept strict because it is usually the highest-cost path in the system. In practice, Council is meant to be used manually when you want it, for example: <code>@council compare these two architectures</code>.
+
 <table>
   <tr>
     <td width="30%" align="center" valign="top">
