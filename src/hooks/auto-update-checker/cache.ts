@@ -19,6 +19,29 @@ interface AutoUpdateInstallContext {
   packageJsonPath: string;
 }
 
+function normalizePath(filePath: string): string {
+  return path.resolve(filePath);
+}
+
+function isWithinPath(childPath: string, parentPath: string): boolean {
+  const relativePath = path.relative(parentPath, childPath);
+  return (
+    relativePath === '' ||
+    (!relativePath.startsWith('..') && !path.isAbsolute(relativePath))
+  );
+}
+
+function isManagedInstallDir(installDir: string): boolean {
+  const normalizedInstallDir = normalizePath(installDir);
+  const normalizedCacheDir = normalizePath(CACHE_DIR);
+  const normalizedPackagesDir = path.join(normalizedCacheDir, 'packages');
+
+  return (
+    normalizedInstallDir === normalizedCacheDir ||
+    isWithinPath(normalizedInstallDir, normalizedPackagesDir)
+  );
+}
+
 /**
  * Removes a package from the bun.lock file if it's in JSON format.
  * Note: Newer Bun versions (1.1+) use a custom text format for bun.lock.
@@ -123,6 +146,13 @@ export function resolveInstallContext(
       path.basename(nodeModulesDir) === 'node_modules'
     ) {
       const installDir = path.dirname(nodeModulesDir);
+      if (!isManagedInstallDir(installDir)) {
+        log(
+          `[auto-update-checker] Skipping auto-update for unmanaged install root: ${installDir}`,
+        );
+        return null;
+      }
+
       const packageJsonPath = path.join(installDir, 'package.json');
       if (fs.existsSync(packageJsonPath)) {
         return { installDir, packageJsonPath };

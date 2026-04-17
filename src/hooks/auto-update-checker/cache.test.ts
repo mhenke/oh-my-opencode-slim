@@ -1,5 +1,7 @@
 import { describe, expect, mock, spyOn, test } from 'bun:test';
 import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 
 // Mock logger to avoid noise
 mock.module('../../utils/logger', () => ({
@@ -17,27 +19,44 @@ mock.module('../../cli/config-manager', () => ({
 // Cache buster for dynamic imports
 let importCounter = 0;
 
+const cacheDir =
+  process.platform === 'win32'
+    ? path.join(process.env.LOCALAPPDATA ?? os.homedir(), 'opencode')
+    : path.join(os.homedir(), '.cache', 'opencode');
+const packagesInstallDir = path.join(
+  cacheDir,
+  'packages',
+  'oh-my-opencode-slim@latest',
+);
+const packagesRuntimePath = path.join(
+  packagesInstallDir,
+  'node_modules',
+  'oh-my-opencode-slim',
+  'package.json',
+);
+const packagesWrapperPath = path.join(packagesInstallDir, 'package.json');
+const legacyPackageJsonPath = path.join(cacheDir, 'package.json');
+const legacyInstalledPath = path.join(
+  cacheDir,
+  'node_modules',
+  'oh-my-opencode-slim',
+);
+
 describe('auto-update-checker/cache', () => {
   describe('resolveInstallContext', () => {
     test('detects OpenCode packages install root from runtime package path', async () => {
       const existsSpy = spyOn(fs, 'existsSync').mockImplementation(
-        (p: string) =>
-          p ===
-          '/home/user/.cache/opencode/packages/oh-my-opencode-slim@latest/package.json',
+        (p: string) => p === packagesWrapperPath,
       );
       const { resolveInstallContext } = await import(
         `./cache?test=${importCounter++}`
       );
 
-      const context = resolveInstallContext(
-        '/home/user/.cache/opencode/packages/oh-my-opencode-slim@latest/node_modules/oh-my-opencode-slim/package.json',
-      );
+      const context = resolveInstallContext(packagesRuntimePath);
 
       expect(context).toEqual({
-        installDir:
-          '/home/user/.cache/opencode/packages/oh-my-opencode-slim@latest',
-        packageJsonPath:
-          '/home/user/.cache/opencode/packages/oh-my-opencode-slim@latest/package.json',
+        installDir: packagesInstallDir,
+        packageJsonPath: packagesWrapperPath,
       });
 
       existsSpy.mockRestore();
@@ -49,8 +68,23 @@ describe('auto-update-checker/cache', () => {
         `./cache?test=${importCounter++}`
       );
 
+      const context = resolveInstallContext(packagesRuntimePath);
+
+      expect(context).toBeNull();
+
+      existsSpy.mockRestore();
+    });
+
+    test('rejects project-local .opencode wrapper installs', async () => {
+      const existsSpy = spyOn(fs, 'existsSync').mockImplementation(
+        (p: string) => p === '/repo/.opencode/package.json',
+      );
+      const { resolveInstallContext } = await import(
+        `./cache?test=${importCounter++}`
+      );
+
       const context = resolveInstallContext(
-        '/home/user/.cache/opencode/packages/oh-my-opencode-slim@latest/node_modules/oh-my-opencode-slim/package.json',
+        '/repo/.opencode/node_modules/oh-my-opencode-slim/package.json',
       );
 
       expect(context).toBeNull();
@@ -75,17 +109,16 @@ describe('auto-update-checker/cache', () => {
     test('updates packages wrapper dependency and removes installed package', async () => {
       const existsSpy = spyOn(fs, 'existsSync').mockImplementation(
         (p: string) =>
-          p ===
-            '/home/user/.cache/opencode/packages/oh-my-opencode-slim@latest/package.json' ||
-          p ===
-            '/home/user/.cache/opencode/packages/oh-my-opencode-slim@latest/node_modules/oh-my-opencode-slim',
+          p === packagesWrapperPath ||
+          p === path.join(
+            packagesInstallDir,
+            'node_modules',
+            'oh-my-opencode-slim',
+          ),
       );
       const readSpy = spyOn(fs, 'readFileSync').mockImplementation(
         (p: string) => {
-          if (
-            p ===
-            '/home/user/.cache/opencode/packages/oh-my-opencode-slim@latest/package.json'
-          ) {
+          if (p === packagesWrapperPath) {
             return JSON.stringify({
               dependencies: {
                 'oh-my-opencode-slim': '0.9.1',
@@ -109,14 +142,12 @@ describe('auto-update-checker/cache', () => {
       const result = preparePackageUpdate(
         '0.9.11',
         'oh-my-opencode-slim',
-        '/home/user/.cache/opencode/packages/oh-my-opencode-slim@latest/node_modules/oh-my-opencode-slim/package.json',
+        packagesRuntimePath,
       );
 
-      expect(result).toBe(
-        '/home/user/.cache/opencode/packages/oh-my-opencode-slim@latest',
-      );
+      expect(result).toBe(packagesInstallDir);
       expect(rmSyncSpy).toHaveBeenCalledWith(
-        '/home/user/.cache/opencode/packages/oh-my-opencode-slim@latest/node_modules/oh-my-opencode-slim',
+        path.join(packagesInstallDir, 'node_modules', 'oh-my-opencode-slim'),
         { recursive: true, force: true },
       );
       expect(writtenData.length).toBeGreaterThan(0);
@@ -135,8 +166,7 @@ describe('auto-update-checker/cache', () => {
     test('keeps working when dependency is already on target version', async () => {
       const existsSpy = spyOn(fs, 'existsSync').mockImplementation(
         (p: string) =>
-          p.endsWith('/.cache/opencode/package.json') ||
-          p.endsWith('/.cache/opencode/node_modules/oh-my-opencode-slim'),
+          p === legacyPackageJsonPath || p === legacyInstalledPath,
       );
       const readSpy = spyOn(fs, 'readFileSync').mockReturnValue(
         JSON.stringify({
@@ -153,7 +183,7 @@ describe('auto-update-checker/cache', () => {
 
       const result = preparePackageUpdate('1.0.1', 'oh-my-opencode-slim', null);
 
-      expect(result?.endsWith('/.cache/opencode')).toBe(true);
+      expect(result).toBe(cacheDir);
       expect(writeSpy).not.toHaveBeenCalled();
       expect(rmSyncSpy).toHaveBeenCalled();
 
