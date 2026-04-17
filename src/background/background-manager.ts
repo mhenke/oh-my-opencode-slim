@@ -46,6 +46,7 @@ interface PersistedTask {
   description: string;
   agent: string;
   prompt: string;
+  config: BackgroundTaskConfig;
   status: BackgroundTask['status'];
   result?: string;
   error?: string;
@@ -64,13 +65,18 @@ function persistTask(task: BackgroundTask): void {
       description: task.description,
       agent: task.agent,
       prompt: task.prompt,
+      config: task.config,
       status: task.status,
       result: task.result,
       error: task.error,
       startedAt: task.startedAt.toISOString(),
       completedAt: task.completedAt?.toISOString(),
     };
-    fs.writeFileSync(path.join(dir, `${task.id}.json`), JSON.stringify(data), 'utf-8');
+    fs.writeFileSync(
+      path.join(dir, `${task.id}.json`),
+      JSON.stringify(data),
+      'utf-8',
+    );
   } catch (e) {
     log(`[background-manager] failed to persist task ${task.id}: ${e}`);
   }
@@ -92,7 +98,7 @@ function loadPersistedTask(taskId: string): BackgroundTask | null {
       startedAt: new Date(data.startedAt),
       completedAt: data.completedAt ? new Date(data.completedAt) : undefined,
       prompt: data.prompt,
-      config: { maxConcurrentStarts: 10 },
+      config: data.config,
     };
   } catch {
     return null;
