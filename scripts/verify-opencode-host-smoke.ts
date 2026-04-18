@@ -92,7 +92,9 @@ async function waitForHealth(url: string, timeoutMs: number) {
 
   while (Date.now() < deadline) {
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(2_000),
+      });
       if (response.ok) return;
       lastError = `health check returned ${response.status}`;
     } catch (error) {
@@ -147,6 +149,12 @@ function assertNoPluginLoadErrors(logs: string) {
 
   fail(
     `OpenCode logs contain plugin load errors:${relevantLines ? `\n${relevantLines}` : ''}`,
+  );
+}
+
+function omitOpencodeEnv(env: NodeJS.ProcessEnv) {
+  return Object.fromEntries(
+    Object.entries(env).filter(([key]) => !key.startsWith('OPENCODE_')),
   );
 }
 
@@ -227,6 +235,7 @@ async function verifyHostSmoke(tarballPath: string) {
       XDG_CONFIG_HOME: configDir,
       XDG_CACHE_HOME: cacheDir,
       XDG_DATA_HOME: dataDir,
+      OPENCODE_TEST_HOME: homeDir,
       OPENCODE_CONFIG_DIR: configDir,
       OPENCODE_CONFIG_CONTENT: config,
       OPENCODE_DISABLE_AUTOUPDATE: 'true',
@@ -250,7 +259,7 @@ async function verifyHostSmoke(tarballPath: string) {
       {
         cwd: workspaceDir,
         env: {
-          ...process.env,
+          ...omitOpencodeEnv(process.env),
           ...env,
         },
         stdio: ['ignore', 'pipe', 'pipe'],
@@ -278,7 +287,7 @@ async function verifyHostSmoke(tarballPath: string) {
 
     try {
       await Promise.race([
-        waitForHealth(`http://127.0.0.1:${port}/health`, healthTimeoutMs),
+        waitForHealth(`http://127.0.0.1:${port}/global/health`, healthTimeoutMs),
         exitPromise,
       ]);
     } catch (error) {
