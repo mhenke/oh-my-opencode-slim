@@ -569,10 +569,12 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         );
         if (!alreadyInjected) {
           // Prepend the orchestrator prompt to the system array.
-          // agentDefs[0] is always the orchestrator — use its resolved prompt
+          // Use the resolved prompt from the orchestrator agent definition
           // (which includes any custom replacement or append from orchestrator.md / orchestrator_append.md)
           // Fall back to buildOrchestratorPrompt only if the resolved prompt is missing.
-          const orchestratorDef = agentDefs[0];
+          const orchestratorDef = agentDefs.find(
+            (a) => a.name === 'orchestrator',
+          );
           const orchestratorPrompt =
             typeof orchestratorDef?.config?.prompt === 'string'
               ? orchestratorDef.config.prompt
