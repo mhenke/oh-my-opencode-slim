@@ -35,6 +35,27 @@ function cleanupOldLogs(logDir: string): void {
   } catch {
     // Directory may not exist yet — that's fine
   }
+
+  // Apply the same 7-day retention to persisted background task files
+  try {
+    const bgTaskDir = path.join(logDir, 'bg-tasks');
+    const taskFiles = fs.readdirSync(bgTaskDir);
+    const now = Date.now();
+    for (const entry of taskFiles) {
+      if (!entry.endsWith('.json')) continue;
+      const filePath = path.join(bgTaskDir, entry);
+      try {
+        const stat = fs.statSync(filePath);
+        if (now - stat.mtimeMs > RETENTION_MS) {
+          fs.unlinkSync(filePath);
+        }
+      } catch {
+        // Skip individual file errors
+      }
+    }
+  } catch {
+    // bg-tasks dir may not exist yet — that's fine
+  }
 }
 
 export function initLogger(sessionId: string): void {
