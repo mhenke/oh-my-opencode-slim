@@ -36,156 +36,300 @@ import {
 import { resolveRuntimeAgentName, rewriteDisplayNameMentions } from './utils';
 import { initLogger, log } from './utils/logger';
 
+/**
+ * Best-effort log to opencode's app logger.
+ * Wrapped in try/catch to avoid deadlocking on opencode v1.4.8–v1.4.9
+ * where client.app.log() during init triggers a middleware cycle.
+ */
+async function appLog(
+  ctx: Parameters<Plugin>[0],
+  level: 'error' | 'warn' | 'info',
+  message: string,
+): Promise<void> {
+  try {
+    await ctx.client.app.log({
+      body: { service: 'oh-my-opencode-slim', level, message },
+    });
+  } catch {
+    // client.app.log may deadlock or be unavailable; stderr is the
+    // fallback
+    const prefix =
+      level === 'error' ? 'ERROR' : level === 'warn' ? 'WARN' : 'INFO';
+    console.error(`[oh-my-opencode-slim] ${prefix}: ${message}`);
+  }
+}
+
+/** Minimum expected registrations for a healthy plugin load. */
+const HEALTH_CHECK = {
+  minAgents: 5,
+  minTools: 5,
+  minMcps: 1,
+} as const;
+
+/**
+ * Probe jsdom at init time so the first webfetch call doesn't fail
+ * silently. Logs a warning if jsdom can't be imported or instantiated,
+ * but does not throw; the plugin works without webfetch.
+ */
+async function probeJSDOM(): Promise<string | null> {
+  try {
+    const { JSDOM } = await import('jsdom');
+    new JSDOM('<!DOCTYPE html><html><body>test</body></html>');
+    return null;
+  } catch (err) {
+    return String(err);
+  }
+}
+
 const OhMyOpenCodeLite: Plugin = async (ctx) => {
   const sessionId = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15);
   initLogger(sessionId);
-  const config = loadPluginConfig(ctx.directory);
-  const agentDefs = createAgents(config);
-  const agents = getAgentConfigs(config);
 
-  // Build a map of agent name → priority model array for runtime fallback.
-  // Populated when the user configures model as an array in their plugin config.
-  const modelArrayMap: Record<
-    string,
-    Array<{ id: string; variant?: string }>
-  > = {};
-  for (const agentDef of agentDefs) {
-    if (agentDef._modelArray && agentDef._modelArray.length > 0) {
-      modelArrayMap[agentDef.name] = agentDef._modelArray;
-    }
-  }
-  // Build runtime fallback chains for all foreground agents.
-  // Each chain is an ordered list of model strings to try when the current
-  // model is rate-limited. Seeds from _modelArray entries (when the user
-  // configures model as an array), then appends fallback.chains entries.
-  const runtimeChains: Record<string, string[]> = {};
-  for (const agentDef of agentDefs) {
-    if (agentDef._modelArray?.length) {
-      runtimeChains[agentDef.name] = agentDef._modelArray.map((m) => m.id);
-    }
-  }
-  if (config.fallback?.enabled !== false) {
-    const chains =
-      (config.fallback?.chains as Record<string, string[] | undefined>) ?? {};
-    for (const [agentName, chainModels] of Object.entries(chains)) {
-      if (!chainModels?.length) continue;
-      const existing = runtimeChains[agentName] ?? [];
-      const seen = new Set(existing);
-      for (const m of chainModels) {
-        if (!seen.has(m)) {
-          seen.add(m);
-          existing.push(m);
-        }
+  // Declare variables that must survive the try/catch for the return
+  // closure. These are set inside the try block.
+  let config: ReturnType<typeof loadPluginConfig>;
+  let agentDefs: ReturnType<typeof createAgents>;
+  let agents: ReturnType<typeof getAgentConfigs>;
+  let mcps: ReturnType<typeof createBuiltinMcps>;
+  let modelArrayMap: Record<string, Array<{ id: string; variant?: string }>>;
+  let runtimeChains: Record<string, string[]>;
+  let multiplexerConfig: MultiplexerConfig;
+  let multiplexerEnabled: boolean;
+  let backgroundManager: BackgroundTaskManager;
+  let multiplexerSessionManager: MultiplexerSessionManager;
+  let autoUpdateChecker: ReturnType<typeof createAutoUpdateCheckerHook>;
+  let phaseReminderHook: ReturnType<typeof createPhaseReminderHook>;
+  let filterAvailableSkillsHook: ReturnType<
+    typeof createFilterAvailableSkillsHook
+  >;
+  let sessionAgentMap: Map<string, string>;
+  let postFileToolNudgeHook: ReturnType<typeof createPostFileToolNudgeHook>;
+  let chatHeadersHook: ReturnType<typeof createChatHeadersHook>;
+  let delegateTaskRetryHook: ReturnType<typeof createDelegateTaskRetryHook>;
+  let applyPatchHook: ReturnType<typeof createApplyPatchHook>;
+  let jsonErrorRecoveryHook: ReturnType<typeof createJsonErrorRecoveryHook>;
+  let foregroundFallback: ForegroundFallbackManager;
+  let todoContinuationHook: ReturnType<typeof createTodoContinuationHook>;
+  let interviewManager: ReturnType<typeof createInterviewManager>;
+  let backgroundTools: ReturnType<typeof createBackgroundTools>;
+  let councilTools: Record<string, unknown>;
+  let webfetch: ReturnType<typeof createWebfetchTool>;
+
+  // Counters for post-init health check (set inside try, checked outside)
+  let toolCount = 0;
+
+  try {
+    config = loadPluginConfig(ctx.directory);
+    agentDefs = createAgents(config);
+    agents = getAgentConfigs(config);
+
+    // Build a map of agent name → priority model array for runtime
+    // fallback. Populated when the user configures model as an array in
+    // their plugin config.
+    modelArrayMap = {} as Record<
+      string,
+      Array<{ id: string; variant?: string }>
+    >;
+    for (const agentDef of agentDefs) {
+      if (agentDef._modelArray && agentDef._modelArray.length > 0) {
+        modelArrayMap[agentDef.name] = agentDef._modelArray;
       }
-      runtimeChains[agentName] = existing;
     }
-  }
+    // Build runtime fallback chains for all foreground agents. Each chain
+    // is an ordered list of model strings to try when the current model is
+    // rate-limited. Seeds from _modelArray entries (when the user
+    // configures model as an array), then appends fallback.chains entries.
+    runtimeChains = {} as Record<string, string[]>;
+    for (const agentDef of agentDefs) {
+      if (agentDef._modelArray?.length) {
+        runtimeChains[agentDef.name] = agentDef._modelArray.map((m) => m.id);
+      }
+    }
+    if (config.fallback?.enabled !== false) {
+      const chains =
+        (config.fallback?.chains as Record<string, string[] | undefined>) ?? {};
+      for (const [agentName, chainModels] of Object.entries(chains)) {
+        if (!chainModels?.length) continue;
+        const existing = runtimeChains[agentName] ?? [];
+        const seen = new Set(existing);
+        for (const m of chainModels) {
+          if (!seen.has(m)) {
+            seen.add(m);
+            existing.push(m);
+          }
+        }
+        runtimeChains[agentName] = existing;
+      }
+    }
 
-  // Parse multiplexer config with defaults
-  const multiplexerConfig: MultiplexerConfig = {
-    type: config.multiplexer?.type ?? 'none',
-    layout: config.multiplexer?.layout ?? 'main-vertical',
-    main_pane_size: config.multiplexer?.main_pane_size ?? 60,
-  };
+    // Parse multiplexer config with defaults
+    multiplexerConfig = {
+      type: config.multiplexer?.type ?? 'none',
+      layout: config.multiplexer?.layout ?? 'main-vertical',
+      main_pane_size: config.multiplexer?.main_pane_size ?? 60,
+    };
 
-  // Get multiplexer instance for capability checks
-  const multiplexer = getMultiplexer(multiplexerConfig);
-  const multiplexerEnabled =
-    multiplexerConfig.type !== 'none' && multiplexer !== null;
+    // Get multiplexer instance for capability checks
+    const multiplexer = getMultiplexer(multiplexerConfig);
+    multiplexerEnabled =
+      multiplexerConfig.type !== 'none' && multiplexer !== null;
 
-  log('[plugin] initialized with multiplexer config', {
-    multiplexerConfig,
-    enabled: multiplexerEnabled,
-    directory: ctx.directory,
-  });
+    log('[plugin] initialized with multiplexer config', {
+      multiplexerConfig,
+      enabled: multiplexerEnabled,
+      directory: ctx.directory,
+    });
 
-  // Start background availability check if enabled
-  if (multiplexerEnabled) {
-    startAvailabilityCheck(multiplexerConfig);
-  }
+    // Start background availability check if enabled
+    if (multiplexerEnabled) {
+      startAvailabilityCheck(multiplexerConfig);
+    }
 
-  const backgroundManager = new BackgroundTaskManager(
-    ctx,
-    multiplexerConfig,
-    config,
-  );
-  const backgroundTools = createBackgroundTools(
-    ctx,
-    backgroundManager,
-    multiplexerConfig,
-    config,
-  );
+    backgroundManager = new BackgroundTaskManager(
+      ctx,
+      multiplexerConfig,
+      config,
+    );
+    backgroundTools = createBackgroundTools(
+      ctx,
+      backgroundManager,
+      multiplexerConfig,
+      config,
+    );
 
-  // Initialize council tools (only when council is configured)
-  const councilTools = config.council
-    ? createCouncilTool(
-        ctx,
-        new CouncilManager(
+    // Initialize council tools (only when council is configured)
+    councilTools = config.council
+      ? createCouncilTool(
           ctx,
-          config,
-          backgroundManager.getDepthTracker(),
-          multiplexerEnabled,
-        ),
-      )
-    : {};
+          new CouncilManager(
+            ctx,
+            config,
+            backgroundManager.getDepthTracker(),
+            multiplexerEnabled,
+          ),
+        )
+      : {};
 
-  const mcps = createBuiltinMcps(config.disabled_mcps, config.websearch);
-  const webfetch = createWebfetchTool(ctx);
+    mcps = createBuiltinMcps(config.disabled_mcps, config.websearch);
+    webfetch = createWebfetchTool(ctx);
 
-  // Initialize MultiplexerSessionManager to handle OpenCode's built-in Task tool sessions
-  const multiplexerSessionManager = new MultiplexerSessionManager(
-    ctx,
-    multiplexerConfig,
-  );
+    // Initialize MultiplexerSessionManager to handle OpenCode's built-in
+    // Task tool sessions
+    multiplexerSessionManager = new MultiplexerSessionManager(
+      ctx,
+      multiplexerConfig,
+    );
 
-  // Initialize auto-update checker hook
-  const autoUpdateChecker = createAutoUpdateCheckerHook(ctx, {
-    showStartupToast: config.showStartupToast ?? true,
-    autoUpdate: true,
+    // Initialize auto-update checker hook
+    autoUpdateChecker = createAutoUpdateCheckerHook(ctx, {
+      showStartupToast: config.showStartupToast ?? true,
+      autoUpdate: true,
+    });
+
+    // Initialize phase reminder hook for workflow compliance
+    phaseReminderHook = createPhaseReminderHook();
+
+    // Initialize available skills filter hook
+    filterAvailableSkillsHook = createFilterAvailableSkillsHook(ctx, config);
+
+    // Track session → agent mapping for serve-mode system prompt injection
+    sessionAgentMap = new Map<string, string>();
+
+    // Initialize post-file-tool nudge hook
+    postFileToolNudgeHook = createPostFileToolNudgeHook({
+      shouldInject: (sessionID) =>
+        sessionAgentMap.get(sessionID) === 'orchestrator',
+    });
+
+    chatHeadersHook = createChatHeadersHook(ctx);
+
+    // Initialize delegate-task retry guidance hook
+    delegateTaskRetryHook = createDelegateTaskRetryHook(ctx);
+
+    applyPatchHook = createApplyPatchHook(ctx);
+    // Initialize JSON parse error recovery hook
+    jsonErrorRecoveryHook = createJsonErrorRecoveryHook(ctx);
+
+    // Initialize foreground fallback manager for runtime model switching
+    foregroundFallback = new ForegroundFallbackManager(
+      ctx.client,
+      runtimeChains,
+      config.fallback?.enabled !== false &&
+        Object.keys(runtimeChains).length > 0,
+    );
+
+    // Initialize todo-continuation hook (opt-in auto-continue for
+    // incomplete todos)
+    todoContinuationHook = createTodoContinuationHook(ctx, {
+      maxContinuations: config.todoContinuation?.maxContinuations ?? 5,
+      cooldownMs: config.todoContinuation?.cooldownMs ?? 3000,
+      autoEnable: config.todoContinuation?.autoEnable ?? false,
+      autoEnableThreshold: config.todoContinuation?.autoEnableThreshold ?? 4,
+    });
+    interviewManager = createInterviewManager(ctx, config);
+
+    toolCount =
+      Object.keys(backgroundTools).length +
+      Object.keys(councilTools).length +
+      Object.keys(todoContinuationHook.tool).length +
+      1 + // webfetch
+      4 + // lsp_goto_definition, lsp_find_references, lsp_diagnostics, lsp_rename
+      2; // ast_grep_search, ast_grep_replace
+  } catch (err) {
+    // Plugin init failed: log visibly before re-throwing so the user
+    // sees something actionable instead of a silent "loaded but empty".
+    log('[plugin] FATAL: init failed', String(err));
+    await appLog(
+      ctx,
+      'error',
+      `INIT FAILED: ${String(err)}. Report at github.com/alvinunreal/oh-my-opencode-slim/issues/310`,
+    );
+    throw err;
+  }
+
+  // ── Health check: validate registrations ────────────────────────────
+  const agentCount = Object.keys(agents).length;
+  const mcpCount = Object.keys(mcps).length;
+  // Skip MCP threshold when user explicitly disabled all built-in MCPs
+  const mcpThreshold =
+    config.disabled_mcps && config.disabled_mcps.length > 0
+      ? 0
+      : HEALTH_CHECK.minMcps;
+
+  if (
+    agentCount < HEALTH_CHECK.minAgents ||
+    toolCount < HEALTH_CHECK.minTools ||
+    mcpCount < mcpThreshold
+  ) {
+    const msg = [
+      'Health check: registrations suspiciously low.',
+      `  agents: ${agentCount} (expected >=${HEALTH_CHECK.minAgents})`,
+      `  tools:  ${toolCount} (expected >=${HEALTH_CHECK.minTools})`,
+      `  mcps:   ${mcpCount} (expected >=${mcpThreshold})`,
+      'This usually means a dependency failed to resolve (jsdom, etc).',
+      'If you recently updated opencode, see:',
+      '  github.com/alvinunreal/oh-my-opencode-slim/issues/310',
+    ].join('\n');
+    log(`[plugin] WARN: ${msg}`);
+    await appLog(ctx, 'warn', msg);
+  } else {
+    log('[plugin] health check passed', {
+      agents: agentCount,
+      tools: toolCount,
+      mcps: mcpCount,
+    });
+  }
+
+  // ── Probe jsdom (async, non-blocking) ───────────────────────────────
+  // Don't await this; we don't want to block init. The warning will
+  // appear shortly after startup if jsdom is broken.
+  probeJSDOM().then((err) => {
+    if (err) {
+      const msg = `jsdom probe failed; webfetch tool will not work: ${err}`;
+      log(`[plugin] WARN: ${msg}`);
+      appLog(ctx, 'warn', msg).catch(() => {});
+    }
   });
-
-  // Initialize phase reminder hook for workflow compliance
-  const phaseReminderHook = createPhaseReminderHook();
-
-  // Initialize available skills filter hook
-  const filterAvailableSkillsHook = createFilterAvailableSkillsHook(
-    ctx,
-    config,
-  );
-
-  // Track session → agent mapping for serve-mode system prompt injection
-  const sessionAgentMap = new Map<string, string>();
-
-  // Initialize post-file-tool nudge hook
-  const postFileToolNudgeHook = createPostFileToolNudgeHook({
-    shouldInject: (sessionID) =>
-      sessionAgentMap.get(sessionID) === 'orchestrator',
-  });
-
-  const chatHeadersHook = createChatHeadersHook(ctx);
-
-  // Initialize delegate-task retry guidance hook
-  const delegateTaskRetryHook = createDelegateTaskRetryHook(ctx);
-
-  const applyPatchHook = createApplyPatchHook(ctx);
-  // Initialize JSON parse error recovery hook
-  const jsonErrorRecoveryHook = createJsonErrorRecoveryHook(ctx);
-
-  // Initialize foreground fallback manager for runtime model switching
-  const foregroundFallback = new ForegroundFallbackManager(
-    ctx.client,
-    runtimeChains,
-    config.fallback?.enabled !== false && Object.keys(runtimeChains).length > 0,
-  );
-
-  // Initialize todo-continuation hook (opt-in auto-continue for incomplete todos)
-  const todoContinuationHook = createTodoContinuationHook(ctx, {
-    maxContinuations: config.todoContinuation?.maxContinuations ?? 5,
-    cooldownMs: config.todoContinuation?.cooldownMs ?? 3000,
-    autoEnable: config.todoContinuation?.autoEnable ?? false,
-    autoEnableThreshold: config.todoContinuation?.autoEnableThreshold ?? 4,
-  });
-  const interviewManager = createInterviewManager(ctx, config);
 
   return {
     name: 'oh-my-opencode-slim',
@@ -248,12 +392,13 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       }
       const configAgent = opencodeConfig.agent as Record<string, unknown>;
 
-      // Model resolution for foreground agents: combine _modelArray entries
-      // with fallback.chains config, then pick the first model in the
-      // effective array for startup-time selection.
+      // Model resolution for foreground agents: combine _modelArray
+      // entries with fallback.chains config, then pick the first model in
+      // the effective array for startup-time selection.
       //
-      // Runtime failover on API errors (e.g. rate limits mid-conversation)
-      // is handled separately by ForegroundFallbackManager via the event hook.
+      // Runtime failover on API errors (e.g. rate limits
+      // mid-conversation) is handled separately by
+      // ForegroundFallbackManager via the event hook.
       const fallbackChainsEnabled = config.fallback?.enabled !== false;
       const fallbackChains = fallbackChainsEnabled
         ? ((config.fallback?.chains as Record<string, string[] | undefined>) ??
@@ -276,8 +421,9 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         if (!chainModels || chainModels.length === 0) continue;
 
         if (!effectiveArrays[agentName]) {
-          // Agent has no _modelArray — seed from its current string model so
-          // the fallback chain appends after it rather than replacing it.
+          // Agent has no _modelArray — seed from its current string model
+          // so the fallback chain appends after it rather than replacing
+          // it.
           const entry = configAgent[agentName] as
             | Record<string, unknown>
             | undefined;
@@ -301,12 +447,12 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         for (const [agentName, modelArray] of Object.entries(effectiveArrays)) {
           if (modelArray.length === 0) continue;
 
-          // Use the first model in the effective array.
-          // Not all providers require entries in opencodeConfig.provider —
-          // some are loaded automatically by opencode (e.g. github-copilot,
-          // openrouter). We cannot distinguish these from truly unconfigured
-          // providers at config-hook time, so we cannot gate on the provider
-          // config keys. Runtime failover is handled separately by
+          // Use the first model in the effective array. Not all providers
+          // require entries in opencodeConfig.provider — some are loaded
+          // automatically by opencode (e.g. github-copilot, openrouter).
+          // We cannot distinguish these from truly unconfigured providers
+          // at config-hook time, so we cannot gate on the provider config
+          // keys. Runtime failover is handled separately by
           // ForegroundFallbackManager.
           const chosen = modelArray[0];
           const entry = configAgent[agentName] as
@@ -318,7 +464,8 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
               entry.variant = chosen.variant;
             }
           } else {
-            // Agent exists in slim but not in opencodeConfig.agent — create entry
+            // Agent exists in slim but not in opencodeConfig.agent —
+            // create entry
             (configAgent as Record<string, unknown>)[agentName] = {
               model: chosen.id,
               ...(chosen.variant ? { variant: chosen.variant } : {}),
@@ -487,18 +634,22 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       }
     },
 
-    // Best-effort rescue only for stale apply_patch input before native execution
+    // Best-effort rescue only for stale apply_patch input before native
+    // execution
     'tool.execute.before': async (input, output) => {
       await applyPatchHook['tool.execute.before'](
         input as {
           tool: string;
           directory?: string;
         },
-        output as { args?: { patchText?: unknown; [key: string]: unknown } },
+        output as {
+          args?: { patchText?: unknown; [key: string]: unknown };
+        },
       );
     },
 
-    // Direct interception of /auto-continue command — bypasses LLM round-trip
+    // Direct interception of /auto-continue command — bypasses LLM
+    // round-trip
     'command.execute.before': async (input, output) => {
       await todoContinuationHook.handleCommandExecuteBefore(
         input as {
@@ -521,7 +672,8 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
     'chat.headers': chatHeadersHook['chat.headers'],
 
-    // Track which agent each session uses (needed for serve-mode prompt injection)
+    // Track which agent each session uses (needed for serve-mode prompt
+    // injection)
     'chat.message': async (
       input: { sessionID: string; agent?: string },
       output?: { message?: { agent?: string } },
@@ -548,11 +700,12 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       });
     },
 
-    // Inject orchestrator system prompt for serve-mode sessions.
-    // In serve mode, the agent's prompt field may be absent from the agents registry
-    // (built before plugin config hooks run). This hook injects it at LLM call time.
-    // Uses the already-resolved prompt from agentDefs (which has custom replacement
-    // or append prompts applied) instead of rebuilding the default.
+    // Inject orchestrator system prompt for serve-mode sessions. In serve
+    // mode, the agent's prompt field may be absent from the agents
+    // registry (built before plugin config hooks run). This hook injects
+    // it at LLM call time. Uses the already-resolved prompt from
+    // agentDefs (which has custom replacement or append prompts applied)
+    // instead of rebuilding the default.
     'experimental.chat.system.transform': async (
       input: { sessionID?: string },
       output: { system: string[] },
@@ -568,10 +721,12 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
             s.includes('orchestrator'),
         );
         if (!alreadyInjected) {
-          // Prepend the orchestrator prompt to the system array.
-          // Use the resolved prompt from the orchestrator agent definition
-          // (which includes any custom replacement or append from orchestrator.md / orchestrator_append.md)
-          // Fall back to buildOrchestratorPrompt only if the resolved prompt is missing.
+          // Prepend the orchestrator prompt to the system array. Use the
+          // resolved prompt from the orchestrator agent definition (which
+          // includes any custom replacement or append from orchestrator.md
+          // / orchestrator_append.md) Fall back to
+          // buildOrchestratorPrompt only if the resolved prompt is
+          // missing.
           const orchestratorDef = agentDefs.find(
             (a) => a.name === 'orchestrator',
           );
@@ -592,19 +747,22 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       );
 
       // Collapse to single system message for provider compatibility.
-      // Some providers (e.g. Qwen3.5 via DashScope) reject multiple system
-      // messages. Sub-hooks above may push additional entries; join them
-      // back into one element so OpenCode emits a single system message.
+      // Some providers (e.g. Qwen3.5 via DashScope) reject multiple
+      // system messages. Sub-hooks above may push additional entries; join
+      // them back into one element so OpenCode emits a single system
+      // message.
       const joined = output.system.join('\n\n');
       output.system = joined ? [joined] : [];
     },
 
-    // Inject phase reminder and filter available skills before sending to API (doesn't show in UI)
+    // Inject phase reminder and filter available skills before sending to
+    // API (doesn't show in UI)
     'experimental.chat.messages.transform': async (
       input: Record<string, never>,
       output: { messages: unknown[] },
     ): Promise<void> => {
-      // Type assertion since we know the structure matches MessageWithParts[]
+      // Type assertion since we know the structure matches
+      // MessageWithParts[]
       const typedOutput = output as {
         messages: Array<{
           info: { role: string; agent?: string; sessionID?: string };
@@ -628,10 +786,11 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         }
       }
 
-      // Strip image parts from orchestrator messages when @observer is available.
-      // When the orchestrator's model doesn't support image input, the API call
-      // fails before the LLM can respond. We replace image bytes with a text
-      // nudge so the orchestrator delegates to @observer instead.
+      // Strip image parts from orchestrator messages when @observer is
+      // available. When the orchestrator's model doesn't support image
+      // input, the API call fails before the LLM can respond. We replace
+      // image bytes with a text nudge so the orchestrator delegates to
+      // @observer instead.
       processImageAttachments({
         messages: typedOutput.messages,
         workDir: ctx.directory,
@@ -652,7 +811,8 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       );
     },
 
-    // Post-tool hooks: retry guidance for delegation errors + file-tool nudge
+    // Post-tool hooks: retry guidance for delegation errors + file-tool
+    // nudge
     'tool.execute.after': async (input, output) => {
       await delegateTaskRetryHook['tool.execute.after'](
         input as { tool: string },
