@@ -590,6 +590,13 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         input,
         output,
       );
+
+      // Collapse to single system message for provider compatibility.
+      // Some providers (e.g. Qwen3.5 via DashScope) reject multiple system
+      // messages. Sub-hooks above may push additional entries; join them
+      // back into one element so OpenCode emits a single system message.
+      const joined = output.system.join('\n\n');
+      output.system = joined ? [joined] : [];
     },
 
     // Inject phase reminder and filter available skills before sending to API (doesn't show in UI)

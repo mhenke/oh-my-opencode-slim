@@ -86,7 +86,7 @@ describe('todo hygiene', () => {
     await hook.handleChatSystemTransform({ sessionID: 's1' }, system);
 
     expect(
-      system.system.filter((item) => item === TODO_HYGIENE_REMINDER),
+      system.system.filter((item) => item.includes(TODO_HYGIENE_REMINDER)),
     ).toHaveLength(1);
   });
 
