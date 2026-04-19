@@ -18,6 +18,14 @@ import type {
   PluginEntryInfo,
 } from './types';
 
+function isString(value: unknown): value is string {
+  return typeof value === 'string';
+}
+
+function getPluginEntries(config: OpencodeConfig): string[] {
+  return Array.isArray(config.plugin) ? config.plugin.filter(isString) : [];
+}
+
 /**
  * Checks if a version string indicates a prerelease (contains a hyphen).
  */
@@ -75,7 +83,7 @@ function getLocalDevPath(directory: string): string | null {
       if (!fs.existsSync(configPath)) continue;
       const content = fs.readFileSync(configPath, 'utf-8');
       const config = JSON.parse(stripJsonComments(content)) as OpencodeConfig;
-      const plugins = config.plugin ?? [];
+      const plugins = getPluginEntries(config);
 
       for (const entry of plugins) {
         if (entry.startsWith('file://') && entry.includes(PACKAGE_NAME)) {
@@ -162,7 +170,7 @@ export function findPluginEntry(directory: string): PluginEntryInfo | null {
       if (!fs.existsSync(configPath)) continue;
       const content = fs.readFileSync(configPath, 'utf-8');
       const config = JSON.parse(stripJsonComments(content)) as OpencodeConfig;
-      const plugins = config.plugin ?? [];
+      const plugins = getPluginEntries(config);
 
       for (const entry of plugins) {
         if (entry === PACKAGE_NAME) {

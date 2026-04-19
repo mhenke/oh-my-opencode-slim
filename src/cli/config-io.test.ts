@@ -203,6 +203,31 @@ describe('config-io', () => {
     expect(saved.plugin).toEqual(['other', packageRoot]);
   });
 
+  test('addPluginToOpenCodeConfig preserves non-string plugin entries when refreshing', async () => {
+    const configPath = join(tmpDir, 'opencode', 'opencode.json');
+    paths.ensureConfigDir();
+    process.argv[1] = '';
+
+    const objectPlugin = { name: 'some-config-plugin', enabled: true };
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        plugin: ['other-plugin', objectPlugin, 'oh-my-opencode-slim@1.0.0'],
+      }),
+    );
+
+    const result = await addPluginToOpenCodeConfig();
+    expect(result.success).toBe(true);
+
+    const saved = JSON.parse(readFileSync(configPath, 'utf-8'));
+    expect(saved.plugin).toContain('oh-my-opencode-slim');
+    expect(saved.plugin).toContain('other-plugin');
+    expect(saved.plugin).not.toContain('oh-my-opencode-slim@1.0.0');
+    // Non-string entries (objects) must survive the plugin refresh
+    expect(saved.plugin).toContainEqual(objectPlugin);
+    expect(saved.plugin.length).toBe(3);
+  });
+
   test('writeLiteConfig writes lite config with OpenAI preset', () => {
     const litePath = join(tmpDir, 'opencode', 'oh-my-opencode-slim.json');
     paths.ensureConfigDir();

@@ -27,8 +27,12 @@ function isString(value: unknown): value is string {
   return typeof value === 'string';
 }
 
+function getPlugins(config: OpenCodeConfig): unknown[] {
+  return Array.isArray(config.plugin) ? config.plugin : [];
+}
+
 function getPluginEntries(config: OpenCodeConfig): string[] {
-  return Array.isArray(config.plugin) ? config.plugin.filter(isString) : [];
+  return getPlugins(config).filter(isString);
 }
 
 function normalizePathForMatch(path: string): string {
@@ -212,12 +216,14 @@ export async function addPluginToOpenCodeConfig(): Promise<ConfigMergeResult> {
       };
     }
     const config = parsedConfig ?? {};
-    const plugins = getPluginEntries(config);
+    const plugins = getPlugins(config);
 
     const pluginEntry = getPluginEntry();
 
     // Remove existing oh-my-opencode-slim entries
-    const filteredPlugins = plugins.filter((p) => !isPluginEntry(p));
+    const filteredPlugins = plugins.filter(
+      (plugin) => !isString(plugin) || !isPluginEntry(plugin),
+    );
 
     // Add fresh entry
     filteredPlugins.push(pluginEntry);
