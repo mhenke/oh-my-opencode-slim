@@ -23,6 +23,18 @@ import type {
 
 const PACKAGE_NAME = 'oh-my-opencode-slim';
 
+function isString(value: unknown): value is string {
+  return typeof value === 'string';
+}
+
+function getPlugins(config: OpenCodeConfig): unknown[] {
+  return Array.isArray(config.plugin) ? config.plugin : [];
+}
+
+function getPluginEntries(config: OpenCodeConfig): string[] {
+  return getPlugins(config).filter(isString);
+}
+
 function normalizePathForMatch(path: string): string {
   return path.replaceAll('\\', '/');
 }
@@ -204,12 +216,14 @@ export async function addPluginToOpenCodeConfig(): Promise<ConfigMergeResult> {
       };
     }
     const config = parsedConfig ?? {};
-    const plugins = config.plugin ?? [];
+    const plugins = getPlugins(config);
 
     const pluginEntry = getPluginEntry();
 
     // Remove existing oh-my-opencode-slim entries
-    const filteredPlugins = plugins.filter((p) => !isPluginEntry(p));
+    const filteredPlugins = plugins.filter(
+      (plugin) => !isString(plugin) || !isPluginEntry(plugin),
+    );
 
     // Add fresh entry
     filteredPlugins.push(pluginEntry);
@@ -324,7 +338,7 @@ export function detectCurrentConfig(): DetectedConfig {
   const { config } = parseConfig(getExistingConfigPath());
   if (!config) return result;
 
-  const plugins = config.plugin ?? [];
+  const plugins = getPluginEntries(config);
   result.isInstalled = plugins.some((p) => isPluginEntry(p));
   result.hasAntigravity = plugins.some((p) =>
     p.startsWith('opencode-antigravity-auth'),

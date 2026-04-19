@@ -8,7 +8,7 @@ export interface InstallArgs {
 }
 
 export interface OpenCodeConfig {
-  plugin?: string[];
+  plugin?: unknown[];
   provider?: Record<string, unknown>;
   agent?: Record<string, unknown>;
   [key: string]: unknown;
