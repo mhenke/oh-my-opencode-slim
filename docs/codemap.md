@@ -1,20 +1,21 @@
-# Cartography Skill
+# Codemap Skill
 
-Cartography is a **custom skill** bundled with this repo.
+Codemap is a **custom skill** bundled with this repo.
 
 It helps agents quickly build a high-quality mental model of an unfamiliar codebase by generating a structured *codemap* and tracking changes over time.
 
 ## What it does
 
-Cartography is designed for repository understanding and hierarchical codemap generation:
+Codemap is designed for repository understanding and hierarchical codemap generation:
 
 1. Selects relevant code/config files using LLM judgment
-2. Creates `.slim/cartography.json` for change tracking
-3. Generates `codemap.md` templates (per folder) for explorers to fill in
+2. Creates `.slim/codemap.json` for change tracking
+3. Generates `codemap.md` templates (per folder) for fixers to fill in
+4. Migrates legacy `.slim/cartography.json` state to `.slim/codemap.json`
 
 ## How to use
 
-Cartography is installed automatically by the `oh-my-opencode-slim` installer when custom skills are enabled.
+Codemap is installed automatically by the `oh-my-opencode-slim` installer when custom skills are enabled.
 
 ### Run it (manual / local)
 
@@ -33,13 +34,13 @@ python3 cartographer.py update --root /repo
 
 ## Outputs
 
-### `.slim/cartography.json`
+### `.slim/codemap.json`
 
 A change-tracking file with hashes for files/folders.
 
 ### `codemap.md` (per folder)
 
-Empty templates created in each folder so an Explorer-style agent can fill in:
+Empty templates created in each folder so a Fixer-style agent can fill in:
 
 - Responsibility
 - Design patterns
@@ -50,9 +51,9 @@ Empty templates created in each folder so an Explorer-style agent can fill in:
 
 The existing screenshot lives in `img/cartography.png`.
 
-![Cartography screenshot](../img/cartography.png)
+![Codemap screenshot](../img/cartography.png)
 
 ## Related
 
-- `src/skills/cartography/README.md` and `src/skills/cartography/SKILL.md` contain the skill’s internal docs.
+- `src/skills/codemap/README.md` and `src/skills/codemap/SKILL.md` contain the skill’s internal docs.
 - `codemap.md` at the repo root is an example output/starting point.

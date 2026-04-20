@@ -258,5 +258,5 @@ See the [Multiplexer Integration Guide](multiplexer-integration.md) for more det
    ```bash
    npx skills remove agent-browser
    rm -rf ~/.config/opencode/skills/simplify
-   rm -rf ~/.config/opencode/skills/cartography
+   rm -rf ~/.config/opencode/skills/codemap
    ```

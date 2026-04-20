@@ -17,13 +17,13 @@
 | [Interview](interview.md) | `/interview` command, browser UI, dashboard mode, multi-session coordination |
 | [Multiplexer Integration](multiplexer-integration.md) | Real-time pane monitoring, layouts, troubleshooting |
 | [Todo Continuation](todo-continuation.md) | `auto_continue`, `/auto-continue`, cooldowns, safety gates |
-| [Cartography Skill](cartography.md) | Hierarchical codemap generation |
+| [Codemap Skill](codemap.md) | Hierarchical codemap generation |
 
 ## ⚙️ Config & Reference
 
 | Doc | Contents |
 |-----|----------|
-| [Skills](skills.md) | `simplify`, `agent-browser`, `cartography` — skills assignment syntax |
+| [Skills](skills.md) | `simplify`, `agent-browser`, `codemap` — skills assignment syntax |
 | [MCPs](mcps.md) | `websearch`, `context7`, `grep_app` — permissions per agent, global disable |
 | [Tools](tools.md) | Background tasks, LSP, code search (`ast_grep`), formatters |
 | [Configuration](configuration.md) | Config files, prompt overriding, JSONC, full option reference table |
