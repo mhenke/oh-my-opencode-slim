@@ -107,6 +107,9 @@ function writeUniqueFile(
   const ext = extname(name);
   const base = basename(name, ext) || name;
   let candidate = join(dir, name);
+  if (existsSync(candidate)) {
+    return null;
+  }
   let counter = 0;
 
   const MAX_ATTEMPTS = 1000;
