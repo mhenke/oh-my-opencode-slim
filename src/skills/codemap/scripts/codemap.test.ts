@@ -16,7 +16,7 @@ import {
   loadState,
   PatternMatcher,
   selectFiles,
-} from './cartographer.mjs';
+} from './codemap.mjs';
 
 const tempDirs: string[] = [];
 

@@ -23,13 +23,13 @@ From a repo root (or with an explicit `--root`):
 
 ```bash
 # Initialize mapping
-node cartographer.mjs init --root /repo --include "src/**/*.ts" --exclude "node_modules/**"
+node codemap.mjs init --root /repo --include "src/**/*.ts" --exclude "node_modules/**"
 
 # Check what changed
-node cartographer.mjs changes --root /repo
+node codemap.mjs changes --root /repo
 
 # Update hashes
-node cartographer.mjs update --root /repo
+node codemap.mjs update --root /repo
 ```
 
 ## Outputs

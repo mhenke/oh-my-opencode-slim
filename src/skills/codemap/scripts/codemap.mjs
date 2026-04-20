@@ -460,7 +460,7 @@ export function main(argv = process.argv.slice(2)) {
 
     if (!command || !options.root) {
       console.error(
-        'Usage: cartographer.mjs <init|changes|update> --root /path [--include glob] [--exclude glob] [--exception path]',
+        'Usage: codemap.mjs <init|changes|update> --root /path [--include glob] [--exclude glob] [--exception path]',
       );
       return 1;
     }
