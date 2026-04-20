@@ -16,13 +16,13 @@ Legacy `.slim/cartography.json` state is migrated to `.slim/codemap.json` automa
 
 ```bash
 # Initialize mapping
-python3 cartographer.py init --root /repo --include "src/**/*.ts" --exclude "node_modules/**"
+node cartographer.mjs init --root /repo --include "src/**/*.ts" --exclude "node_modules/**"
 
 # Check what changed
-python3 cartographer.py changes --root /repo
+node cartographer.mjs changes --root /repo
 
 # Update hashes
-python3 cartographer.py update --root /repo
+node cartographer.mjs update --root /repo
 ```
 
 ## Outputs

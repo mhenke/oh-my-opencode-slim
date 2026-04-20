@@ -37,10 +37,10 @@ If neither file exists: Continue to Step 2 (Initialize).
      - Docs: `docs/**`, `*.md` (except root `README.md` if needed), `LICENSE`
      - Build/Deps: `node_modules/**`, `dist/**`, `build/**`, `*.min.js`
    - Respect `.gitignore` automatically
-3. **Run cartographer.py init**:
+3. **Run cartographer.mjs init**:
 
 ```bash
-python3 ~/.config/opencode/skills/codemap/scripts/cartographer.py init \
+node ~/.config/opencode/skills/codemap/scripts/cartographer.mjs init \
   --root ./ \
   --include "src/**/*.ts" \
   --exclude "**/*.test.ts" --exclude "dist/**" --exclude "node_modules/**"
@@ -54,10 +54,10 @@ This creates:
 
 ### Step 3: Detect Changes (If state already exists)
 
-1. **Run cartographer.py changes** to see what changed:
+1. **Run cartographer.mjs changes** to see what changed:
 
 ```bash
-python3 ~/.config/opencode/skills/codemap/scripts/cartographer.py changes \
+node ~/.config/opencode/skills/codemap/scripts/cartographer.mjs changes \
   --root ./
 ```
 
@@ -71,7 +71,7 @@ python3 ~/.config/opencode/skills/codemap/scripts/cartographer.py changes \
 4. **Run update** to save new state:
 
 ```bash
-python3 ~/.config/opencode/skills/codemap/scripts/cartographer.py update \
+node ~/.config/opencode/skills/codemap/scripts/cartographer.mjs update \
   --root ./
 ```
 
