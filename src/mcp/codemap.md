@@ -1,7 +1,5 @@
 # src/mcp/
 
-<!-- Explorer: Fill in this section with architectural understanding -->
-
 ## Responsibility
 
 - Define and expose the built-in MCP endpoints (websearch, context7, grep.app) alongside the shared type aliases so the application can treat remote and local MCPs uniformly (`src/mcp/index.ts`, `src/mcp/types.ts`).

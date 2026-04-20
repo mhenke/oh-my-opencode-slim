@@ -4,24 +4,32 @@ This directory exposes the public hook entry points that feature code imports to
 
 ## Responsibility
 
-Acts as a single entry point that re-exports the factory functions and types for every hook implementation underneath `src/hooks/`, so other modules can import from a flat namespace without needing to know subpaths.
+Acts as the central export surface for all runtime hooks in `src/hooks/*`, so callers can register feature behavior from one namespace (`src/hooks/index.ts`) without depending on subfolder internals.
 
 ## Design
 
-- **Aggregator/re-export pattern**: `index.ts` consolidates all hook factories and types for the entire hooks subsystem.
-- **Factory-based design**: Each hook is a factory function that returns a hook object with specific hook points (e.g., `'tool.execute.after'`, `'experimental.chat.messages.transform'`, `'chat.headers'`).
-- **Modular architecture**: Each hook lives in its own subdirectory with internal components (hook implementation, patterns, guidance, etc.).
-- **Event-driven hooks**: Hooks respond to OpenCode plugin events and modify output before it reaches the LLM or UI.
+- **Aggregator/re-export pattern**: `src/hooks/index.ts` re-exports hook factories, classes, and types from submodules.
+- **Factory architecture**: Every feature module exports a `create*Hook` factory and returns an object implementing one or more OpenCode lifecycle surfaces (`tool.execute.before`, `tool.execute.after`, message/system transforms, `event`, command handlers).
+- **Submodule boundary**: Each behavior class/function set is isolated in a folder (`auto-update-checker/`, `foreground-fallback/`, etc.) with a local `index.ts` shim.
+- **Typed hook contracts**: The exported signatures use concrete OpenCode plugin types where available (`PluginInput`) and strict internal helper shapes for internal state.
 
 ## Flow
 
-1. **Import**: Feature modules import factories from `src/hooks/index.ts` (e.g., `createPhaseReminderHook`, `createJsonErrorRecoveryHook`).
-2. **Configure**: Call factory with any required context (e.g., `PluginInput` for client access).
-3. **Register**: Hook objects are registered with OpenCode's plugin system via the feature layer.
-4. **Execute**: At runtime, OpenCode invokes hook functions at specific points (tool execution, message transformation, event handling).
-5. **Modify**: Hooks inspect input/output and apply side-effects (inject text, modify headers, append guidance).
+1. Consumers import from `src/hooks/index.ts` (e.g. `createTodoContinuationHook`, `createPhaseReminderHook`).
+2. Plugin initialization in `src/index.ts` invokes hook factories with `PluginInput` and optional config.
+3. OpenCode dispatches lifecycle callbacks at tool, message, system, event, and command surfaces.
+4. Each implementation mutates the provided payload (e.g., `output.output`, `output.messages`, `output.system`) or triggers client APIs.
+5. Hook handlers produce side effects like retries, prompts, reminders, and metadata updates.
 
 ## Integration
+
+- `createAutoUpdateCheckerHook`: lifecycle `event` (`session.created`) and startup `ctx.client.tui` notifications.
+- `createApplyPatchHook`: `tool.execute.before` pre-processing for `apply_patch` arguments.
+- `createDelegateTaskRetryHook`, `createJsonErrorRecoveryHook`, `createPostFileToolNudgeHook`, `createFilterAvailableSkillsHook`: primarily `tool.execute.after` / message-transform surfaces.
+- `createPhaseReminderHook`, todo-continuation message system handlers: `experimental.chat.messages.transform` / `experimental.chat.system.transform`.
+- `ForegroundFallbackManager`: wired to the global event stream for foreground fallback on rate-limit conditions.
+- `createChatHeadersHook`, `processImageAttachments`: transport/attachments/header-level integrations.
+- All submodules are consumed through `src/index.ts`, which also wires `auto-continue` command integration from `todo-continuation`.
 
 ### Hook Points
 
