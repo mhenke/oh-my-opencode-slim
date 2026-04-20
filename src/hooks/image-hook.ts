@@ -108,7 +108,7 @@ function writeUniqueFile(
   const base = basename(name, ext) || name;
   let candidate = join(dir, name);
   if (existsSync(candidate)) {
-    return null;
+    return candidate;
   }
   let counter = 0;
 
