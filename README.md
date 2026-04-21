@@ -105,7 +105,7 @@ ping all agents
 
 <div align="center">
   <img src="img/ping.png" alt="Ping all agents" width="600">
-  <p><i>Confirmation that all six agents are online and ready.</i></p>
+  <p><i>Confirmation that all configured agents are online and ready.</i></p>
 </div>
 
 If any agent fails to respond, check your provider authentication and config file.
@@ -239,7 +239,7 @@ If any agent fails to respond, check your provider authentication and config fil
 
 ---
 
-### Council: The Chorus of Minds
+### 04. Council: The Chorus of Minds
 
 > [!NOTE]
 > **Why doesn't Orchestrator auto-call Council more often?** This is intentional. Council runs multiple models at once, so automatic delegation is kept strict because it is usually the highest-cost path in the system. In practice, Council is meant to be used manually when you want it, for example: <code>@council compare these two architectures</code>.
@@ -288,7 +288,7 @@ If any agent fails to respond, check your provider authentication and config fil
 
 ---
 
-### 04. Librarian: The Weaver of Knowledge
+### 05. Librarian: The Weaver of Knowledge
 
 <table>
   <tr>
@@ -329,7 +329,7 @@ If any agent fails to respond, check your provider authentication and config fil
 
 ---
 
-### 05. Designer: The Guardian of Aesthetics
+### 06. Designer: The Guardian of Aesthetics
 
 <table>
   <tr>
@@ -370,7 +370,7 @@ If any agent fails to respond, check your provider authentication and config fil
 
 ---
 
-### 06. Fixer: The Last Builder
+### 07. Fixer: The Last Builder
 
 <table>
   <tr>
@@ -409,18 +409,22 @@ If any agent fails to respond, check your provider authentication and config fil
   </tr>
 </table>
 
-### 07. Observer: The Silent Witness
+---
+
+## Optional Agents
+
+### Observer: The Silent Witness
 
 > [!NOTE]
 > **Why a separate agent?** If your Orchestrator model is not multimodal, enable Observer to handle images, screenshots, PDFs, and other visual files. Observer is disabled by default and gives the Orchestrator a dedicated multimodal reader without forcing you to change your main reasoning model. Set `disabled_agents: []` and an `observer` model in your configuration.
 
 <table>
   <tr>
-    <td width="240" valign="top">
-      <b>Observer</b><br>
-      <i>Visual & binary analysis</i>
+    <td width="30%" align="center" valign="top">
+      <img src="img/observer.jpg" width="240" style="border-radius: 10px;">
+      <br><sub><i>The eye that reads what others cannot.</i></sub>
     </td>
-    <td>
+    <td width="70%" valign="top">
 
 **Read-only visual analysis** — interprets images, screenshots, PDFs, and diagrams. Returns structured observations to the orchestrator without loading raw file bytes into the main context window.
 
