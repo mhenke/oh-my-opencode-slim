@@ -59,8 +59,7 @@ export const CouncilPresetSchema = z
         for (const [innerKey, innerRaw] of Object.entries(
           raw as Record<string, unknown>,
         )) {
-          const innerParsed =
-            CouncillorConfigSchema.safeParse(innerRaw);
+          const innerParsed = CouncillorConfigSchema.safeParse(innerRaw);
           if (!innerParsed.success) {
             ctx.addIssue({
               code: z.ZodIssueCode.custom,

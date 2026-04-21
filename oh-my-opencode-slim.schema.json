@@ -600,8 +600,7 @@
         "timeout": {
           "default": 180000,
           "type": "number",
-          "minimum": 0,
-          "description": "Councillor timeout (ms)"
+          "minimum": 0
         },
         "default_preset": {
           "default": "default",
@@ -621,7 +620,17 @@
           "description": "Number of retry attempts for councillors that return empty responses (e.g. due to provider rate limiting). Default: 3 retries.",
           "type": "integer",
           "minimum": 0,
-        "maximum": 5
+          "maximum": 5
+        },
+        "master": {
+          "description": "DEPRECATED — ignored. Council agent synthesizes directly."
+        },
+        "master_timeout": {
+          "description": "DEPRECATED — ignored. Use \"timeout\" instead."
+        },
+        "master_fallback": {
+          "description": "DEPRECATED — ignored. No separate master session."
+        }
       },
       "required": [
         "presets"
