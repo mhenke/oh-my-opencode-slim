@@ -109,7 +109,7 @@ describe('custom-agent creation', () => {
     expect(() => createAgents(config)).toThrow();
   });
 
-  test('requires orchestratorPrompt to start with the custom agent mention', () => {
+  test('accepts arbitrary orchestratorPrompt text for custom agents', () => {
     const config: PluginConfig = {
       agents: {
         janitor: {
@@ -119,8 +119,10 @@ describe('custom-agent creation', () => {
       },
     };
 
-    expect(() => createAgents(config)).toThrow(
-      "Custom agent 'janitor' orchestratorPrompt must start with '@janitor'",
+    const agents = createAgents(config);
+    const orchestrator = agents.find((agent) => agent.name === 'orchestrator');
+    expect(orchestrator?.config.prompt).toContain(
+      '@cleanup\n- Role: Cleanup specialist',
     );
   });
 });

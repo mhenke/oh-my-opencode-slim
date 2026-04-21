@@ -107,18 +107,6 @@ function hasCustomAgentModel(
   return !Array.isArray(override.model) || override.model.length > 0;
 }
 
-function validateCustomAgentOverride(
-  name: string,
-  override: AgentOverrideConfig,
-): void {
-  const orchestratorPrompt = override.orchestratorPrompt?.trim();
-  if (orchestratorPrompt && !orchestratorPrompt.startsWith(`@${name}`)) {
-    throw new Error(
-      `Custom agent '${name}' orchestratorPrompt must start with '@${name}'`,
-    );
-  }
-}
-
 function buildCustomAgentDefinition(
   name: string,
   override: AgentOverrideConfig,
@@ -287,7 +275,6 @@ export function createAgents(config?: PluginConfig): AgentDefinition[] {
       return [];
     }
 
-    validateCustomAgentOverride(name, override);
     const customPrompts = loadAgentPrompt(name, config?.preset);
 
     return [

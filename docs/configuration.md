@@ -185,5 +185,4 @@ Notes:
 
 - Custom agent names must be safe identifiers such as `janitor` or `security-reviewer`
 - Custom agents without a `model` are skipped with a warning
-- `orchestratorPrompt` must begin with the matching `@agent-name`
 - Disabled custom agents are not registered or injected into the orchestrator prompt
