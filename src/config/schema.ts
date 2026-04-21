@@ -79,28 +79,34 @@ const FallbackChainsSchema = z
 export type FallbackAgentName = (typeof FALLBACK_AGENT_NAMES)[number];
 
 // Agent override configuration (distinct from SDK's AgentConfig)
-export const AgentOverrideConfigSchema = z.object({
-  model: z
-    .union([
-      z.string(),
-      z.array(
-        z.union([
-          z.string(),
-          z.object({
-            id: z.string(),
-            variant: z.string().optional(),
-          }),
-        ]),
-      ),
-    ])
-    .optional(),
-  temperature: z.number().min(0).max(2).optional(),
-  variant: z.string().optional().catch(undefined),
-  skills: z.array(z.string()).optional(), // skills this agent can use ("*" = all, "!item" = exclude)
-  mcps: z.array(z.string()).optional(), // MCPs this agent can use ("*" = all, "!item" = exclude)
-  options: z.record(z.string(), z.unknown()).optional(), // provider-specific model options (e.g., textVerbosity, thinking budget)
-  displayName: z.string().min(1).optional(),
-});
+export const AgentOverrideConfigSchema = z
+  .object({
+    model: z
+      .union([
+        z.string(),
+        z
+          .array(
+            z.union([
+              z.string(),
+              z.object({
+                id: z.string(),
+                variant: z.string().optional(),
+              }),
+            ]),
+          )
+          .min(1),
+      ])
+      .optional(),
+    temperature: z.number().min(0).max(2).optional(),
+    variant: z.string().optional().catch(undefined),
+    skills: z.array(z.string()).optional(), // skills this agent can use ("*" = all, "!item" = exclude)
+    mcps: z.array(z.string()).optional(), // MCPs this agent can use ("*" = all, "!item" = exclude)
+    prompt: z.string().min(1).optional(),
+    orchestratorPrompt: z.string().min(1).optional(),
+    options: z.record(z.string(), z.unknown()).optional(), // provider-specific model options (e.g., textVerbosity, thinking budget)
+    displayName: z.string().min(1).optional(),
+  })
+  .strict();
 
 // Multiplexer type options
 export const MultiplexerTypeSchema = z.enum(['auto', 'tmux', 'zellij', 'none']);

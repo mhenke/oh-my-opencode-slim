@@ -90,6 +90,9 @@ All config files support **JSONC** (JSON with Comments):
 | `presets.<name>.<agent>.skills` | string[] | — | Skills the agent can use (`"*"`, `"!item"`, explicit list) |
 | `presets.<name>.<agent>.mcps` | string[] | — | MCPs the agent can use (`"*"`, `"!item"`, explicit list) |
 | `presets.<name>.<agent>.options` | object | — | Provider-specific model options passed to the AI SDK (e.g., `textVerbosity`, `thinking` budget) |
+| `agents.<customAgent>.model` | string\|array | — | Required for custom agents inferred from unknown `agents` keys |
+| `agents.<customAgent>.prompt` | string | — | Full execution prompt for a custom agent |
+| `agents.<customAgent>.orchestratorPrompt` | string | — | Exact `@agent` block injected into the orchestrator prompt; must start with `@<agent-name>` |
 | `agents.<agent>.displayName` | string | — | Custom user-facing alias for the agent in the active config |
 | `showStartupToast` | boolean | `true` | Show the startup activation toast (`oh-my-opencode-slim is active`) when OpenCode starts |
 | `multiplexer.type` | string | `"none"` | Multiplexer mode: `auto`, `tmux`, `zellij`, or `none` |
@@ -159,3 +162,28 @@ Notes:
 - `@` prefixes and surrounding whitespace are normalized automatically
 - Display names must be unique
 - Display names cannot conflict with internal agent names like `oracle` or `explorer`
+
+### Custom Agents
+
+Unknown keys under `agents` are treated as custom subagents. A custom agent needs
+its own `model`, a normal `prompt`, and optionally an `orchestratorPrompt` that
+teaches the orchestrator exactly when to delegate to it.
+
+```jsonc
+{
+  "agents": {
+    "janitor": {
+      "model": "github-copilot/gpt-5.4",
+      "prompt": "You are Janitor. Audit codebase entropy, dead code, docs drift, naming inconsistencies, and unnecessary complexity. Prefer analysis and plans over direct edits.",
+      "orchestratorPrompt": "@janitor\n- Role: Maintenance specialist for codebase cleanup and entropy reduction\n- **Delegate when:** after large refactors • cleanup/technical-debt review • dead code or docs drift is suspected\n- **Don't delegate when:** feature implementation • urgent debugging • UI/UX work"
+    }
+  }
+}
+```
+
+Notes:
+
+- Custom agent names must be safe identifiers such as `janitor` or `security-reviewer`
+- Custom agents without a `model` are skipped with a warning
+- `orchestratorPrompt` must begin with the matching `@agent-name`
+- Disabled custom agents are not registered or injected into the orchestrator prompt

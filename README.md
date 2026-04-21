@@ -83,6 +83,10 @@ The default generated configuration looks like this:
 
 To use Kimi, GitHub Copilot, ZAI Coding Plan, or a mixed-provider setup, use **[Configuration](docs/configuration.md)** for the full reference. If you want a ready-made starting point, check the **[Author's Preset](docs/authors-preset.md)** and **[$30 Preset](docs/thirty-dollars-preset.md)** - the `$30` preset is the best cheap setup.
 
+The configuration guide also covers custom subagents via `agents.<name>`, where
+you can define both a normal `prompt` and an `orchestratorPrompt` block for
+delegation.
+
 You can also mix and match any models per agent. For model suggestions, see the **Recommended Models** listed under each agent below.
 
 ### ✅ Verify Your Setup

@@ -1,6 +1,7 @@
 import {
   ALL_AGENT_NAMES,
   getAgentOverride,
+  getCustomAgentNames,
   type PluginConfig,
 } from '../config';
 import { log } from './logger';
@@ -18,6 +19,14 @@ import { log } from './logger';
 export function normalizeAgentName(agentName: string): string {
   const trimmed = agentName.trim();
   return trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
+}
+
+function getRuntimeAgentNames(config?: PluginConfig): string[] {
+  const unique = new Set<string>([
+    ...ALL_AGENT_NAMES,
+    ...getCustomAgentNames(config),
+  ]);
+  return [...unique];
 }
 
 /**
@@ -77,7 +86,7 @@ export function resolveRuntimeAgentName(
     return normalized;
   }
 
-  for (const internalName of ALL_AGENT_NAMES) {
+  for (const internalName of getRuntimeAgentNames(config)) {
     const displayName = getAgentOverride(config, internalName)?.displayName;
     if (!displayName) {
       continue;
@@ -109,7 +118,7 @@ export function rewriteDisplayNameMentions(
 
   let rewritten = text;
 
-  for (const internalName of ALL_AGENT_NAMES) {
+  for (const internalName of getRuntimeAgentNames(config)) {
     const displayName = getAgentOverride(config, internalName)?.displayName;
     if (!displayName) {
       continue;

@@ -536,6 +536,52 @@ describe('AgentOverrideConfigSchema options validation', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  test('rejects empty model arrays', () => {
+    const result = AgentOverrideConfigSchema.safeParse({
+      model: [],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('accepts prompt and orchestratorPrompt override fields', () => {
+    const result = AgentOverrideConfigSchema.safeParse({
+      model: 'openai/gpt-5.4',
+      prompt: 'You are a specialized reviewer.',
+      orchestratorPrompt: '@reviewer\n- Role: Specialized reviewer',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.prompt).toBe('You are a specialized reviewer.');
+      expect(result.data.orchestratorPrompt).toBe(
+        '@reviewer\n- Role: Specialized reviewer',
+      );
+    }
+  });
+
+  test('rejects empty prompt fields', () => {
+    const result = AgentOverrideConfigSchema.safeParse({
+      model: 'openai/gpt-5.4',
+      prompt: '',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('rejects empty orchestratorPrompt fields', () => {
+    const result = AgentOverrideConfigSchema.safeParse({
+      model: 'openai/gpt-5.4',
+      orchestratorPrompt: '',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('rejects description field on overrides', () => {
+    const result = AgentOverrideConfigSchema.safeParse({
+      model: 'openai/gpt-5.4',
+      description: 'not supported for custom agents',
+    } as Record<string, unknown>);
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('disabled_agents', () => {
@@ -604,6 +650,20 @@ describe('disabled_agents', () => {
     expect(enabled).not.toContain('fixer');
     expect(enabled).toContain('orchestrator');
     expect(enabled).toContain('explorer');
+  });
+
+  test('getEnabledAgentNames includes enabled custom agents', () => {
+    const config: PluginConfig = {
+      disabled_agents: ['janitor'],
+      agents: {
+        janitor: { model: 'openai/gpt-5.4-mini' },
+        reviewer: { model: 'openai/gpt-5.4-mini' },
+      },
+    };
+
+    const enabled = getEnabledAgentNames(config);
+    expect(enabled).toContain('reviewer');
+    expect(enabled).not.toContain('janitor');
   });
 
   test('empty disabled_agents creates all agents including observer', () => {
