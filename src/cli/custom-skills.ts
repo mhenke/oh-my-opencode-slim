@@ -35,10 +35,10 @@ export const CUSTOM_SKILLS: CustomSkill[] = [
     sourcePath: 'src/skills/simplify',
   },
   {
-    name: 'cartography',
+    name: 'codemap',
     description: 'Repository understanding and hierarchical codemap generation',
-    allowedAgents: ['orchestrator', 'explorer'],
-    sourcePath: 'src/skills/cartography',
+    allowedAgents: ['orchestrator'],
+    sourcePath: 'src/skills/codemap',
   },
 ];
 

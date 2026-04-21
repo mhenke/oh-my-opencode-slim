@@ -539,6 +539,23 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     },
 
     event: async (input) => {
+      const event = input.event as {
+        type: string;
+        properties?: {
+          info?: { id?: string; parentID?: string; title?: string };
+          sessionID?: string;
+          status?: { type: string };
+        };
+      };
+
+      if (event.type === 'session.created') {
+        const childSessionId = event.properties?.info?.id;
+        const parentSessionId = event.properties?.info?.parentID;
+        if (depthTracker && childSessionId && parentSessionId) {
+          depthTracker.registerChild(parentSessionId, childSessionId);
+        }
+      }
+
       // Runtime model fallback for foreground agents (rate-limit detection)
       await foregroundFallback.handleEvent(input.event);
 
@@ -549,30 +566,13 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       await autoUpdateChecker.event(input);
 
       // Handle multiplexer pane spawning for OpenCode's Task tool sessions
-      await multiplexerSessionManager.onSessionCreated(
-        input.event as {
-          type: string;
-          properties?: {
-            info?: { id?: string; parentID?: string; title?: string };
-          };
-        },
-      );
+      await multiplexerSessionManager.onSessionCreated(event);
 
       // Handle session.status events for pane cleanup
-      await multiplexerSessionManager.onSessionStatus(
-        input.event as {
-          type: string;
-          properties?: { sessionID?: string; status?: { type: string } };
-        },
-      );
+      await multiplexerSessionManager.onSessionStatus(event);
 
       // Handle session.deleted events for pane cleanup
-      await multiplexerSessionManager.onSessionDeleted(
-        input.event as {
-          type: string;
-          properties?: { sessionID?: string };
-        },
-      );
+      await multiplexerSessionManager.onSessionDeleted(event);
 
       await interviewManager.handleEvent(
         input as {
@@ -597,6 +597,10 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           | { info?: { id?: string }; sessionID?: string }
           | undefined;
         const sessionID = props?.info?.id ?? props?.sessionID;
+
+        if (depthTracker && sessionID) {
+          depthTracker.cleanup(sessionID);
+        }
         if (sessionID) {
           sessionAgentMap.delete(sessionID);
         }

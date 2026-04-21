@@ -19,7 +19,7 @@ Skills are installed via the `oh-my-opencode-slim` installer or manually with `n
 | Skill | Description | Assigned to by default |
 |-------|-------------|----------------------|
 | [`simplify`](#simplify) | Behavior-preserving code simplification | `oracle` |
-| [`cartography`](#cartography) | Repository codemap generation | `orchestrator`, `explorer` |
+| [`codemap`](#codemap) | Repository codemap generation | `orchestrator` |
 
 ---
 
@@ -43,13 +43,13 @@ Source: adapted from Addy Osmani's `code-simplification` skill and bundled local
 
 ---
 
-## cartography
+## codemap
 
 **Automated repository mapping through hierarchical codemaps.**
 
-`cartography` empowers the Orchestrator to build and maintain a deep architectural understanding of any codebase. Instead of reading thousands of lines of code on every task, agents refer to hierarchical `codemap.md` files describing the *why* and *how* of each directory.
+`codemap` empowers the Orchestrator to build and maintain a deep architectural understanding of any codebase. Instead of reading thousands of lines of code on every task, agents refer to hierarchical `codemap.md` files describing the *why* and *how* of each directory.
 
-**How to use:** Ask the Orchestrator to `run cartography`. It automatically detects whether to initialize a new map or update an existing one.
+**How to use:** Ask the Orchestrator to `run codemap`. It automatically detects whether to initialize a new map or update an existing one.
 
 **Why it's useful:**
 - **Instant onboarding** — understand unfamiliar codebases in seconds
@@ -57,7 +57,7 @@ Source: adapted from Addy Osmani's `code-simplification` skill and bundled local
 - **Change detection** — only modified folders are re-analyzed
 - **Timeless documentation** — focuses on high-level design, not implementation details
 
-See **[Cartography Skill](cartography.md)** for full documentation including manual commands and technical details.
+See **[Codemap Skill](codemap.md)** for full documentation including manual commands and technical details.
 
 ---
 
@@ -85,7 +85,7 @@ Control which skills each agent can use in `~/.config/opencode/oh-my-opencode-sl
   "presets": {
     "my-preset": {
       "orchestrator": {
-        "skills": ["cartography"]
+        "skills": ["codemap"]
       },
       "oracle": {
         "skills": ["simplify"]

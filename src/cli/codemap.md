@@ -400,7 +400,7 @@ InstallConfig (preferences)
 
 | Name | Source | Agents | Description |
 |------|--------|--------|-------------|
-| `cartography` | src/skills/cartography | orchestrator, explorer | Repository understanding and hierarchical codemap generation |
+| `codemap` | src/skills/codemap | orchestrator | Repository understanding and hierarchical codemap generation |
 
 ### Permission-Only Skills (external, not installed)
 

@@ -219,7 +219,7 @@ describe('per-model variant in array config', () => {
 });
 
 describe('skill permissions', () => {
-  test('orchestrator gets cartography skill allowed by default', () => {
+  test('orchestrator gets codemap skill allowed by default', () => {
     const agents = createAgents();
     const orchestrator = agents.find((a) => a.name === 'orchestrator');
     expect(orchestrator).toBeDefined();
@@ -228,17 +228,17 @@ describe('skill permissions', () => {
     )?.skill as Record<string, string>;
     // orchestrator gets wildcard allow (from RECOMMENDED_SKILLS wildcard entry)
     expect(skillPerm?.['*']).toBe('allow');
-    // CUSTOM_SKILLS loop must also add a named cartography entry for orchestrator
-    expect(skillPerm?.cartography).toBe('allow');
+    // CUSTOM_SKILLS loop must also add a named codemap entry for orchestrator
+    expect(skillPerm?.codemap).toBe('allow');
   });
 
-  test('explorer gets cartography skill allowed by default', () => {
+  test('fixer does not get codemap skill allowed by default', () => {
     const agents = createAgents();
-    const explorer = agents.find((a) => a.name === 'explorer');
-    expect(explorer).toBeDefined();
-    const skillPerm = (explorer?.config.permission as Record<string, unknown>)
+    const fixer = agents.find((a) => a.name === 'fixer');
+    expect(fixer).toBeDefined();
+    const skillPerm = (fixer?.config.permission as Record<string, unknown>)
       ?.skill as Record<string, string>;
-    expect(skillPerm?.cartography).toBe('allow');
+    expect(skillPerm?.codemap).not.toBe('allow');
   });
 
   test('oracle gets requesting-code-review skill allowed by default', () => {

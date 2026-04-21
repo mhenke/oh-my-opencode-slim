@@ -30,7 +30,7 @@ const packagedRequiredFiles = [
   'dist/cli/index.js',
   'oh-my-opencode-slim.schema.json',
   'src/skills/simplify/SKILL.md',
-  'src/skills/cartography/SKILL.md',
+  'src/skills/codemap/SKILL.md',
 ];
 
 function fail(message: string): never {

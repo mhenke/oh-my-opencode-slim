@@ -1,19 +1,30 @@
 # src/hooks/phase-reminder/
 
-<!-- Explorer: Fill in this section with architectural understanding -->
-
 ## Responsibility
 
-Keep the orchestrator agent’s working memory on track by injecting a terse phase reminder directly into the payload sent to the API. Because the reminder lives in `experimental.chat.messages.transform`, it doesn’t surface in the UI until the next response is generated, yet it keeps the delegate→plan→execute→verify workflow in scope for every user turn.
+Keep orchestrator guidance aligned over long turns by prepending a phase reminder to the latest user message text before the next LLM request.
 
 ## Design
 
-Exports a single factory (`createPhaseReminderHook`) that supplies an `experimental.chat.messages.transform` handler. The hook stores the reminder template in `PHASE_REMINDER`, scopes mutation to the orchestrator (or default session) only, and rewrites the first text part of the last user message by prefixing it with the reminder plus a divider. Encapsulating this in a synchronous factory keeps the hook pluggable and compatible with the global hook registry.
+- `PHASE_REMINDER` constant is composed from `PHASE_REMINDER_TEXT` (`config/constants.ts`).
+- `createPhaseReminderHook()` returns a single `experimental.chat.messages.transform` handler.
+- Message filtering is role/agent-aware:
+  - locates the latest `'user'` role in `output.messages`,
+  - only mutates if no explicit agent or `agent === 'orchestrator'`,
+  - no-op for internal control messages containing `SLIM_INTERNAL_INITIATOR_MARKER`.
+- Mutation target is the first `text` part in that message; replacement is an in-place prefix.
+- Uses `SLIM_INTERNAL_INITIATOR_MARKER` from `../../utils` to avoid feedback loops.
 
 ## Flow
 
-When the hook fires, it inspects the outgoing messages array, walks backward to locate the last `'user'` role entry, and short-circuits if none exists. If the user message belongs to another agent, it skips mutation. Otherwise it finds the first text part, prepends the reminder block (and a separator) to the existing text, and leaves the rest of the payload untouched. Since it modifies `output.messages` just before the API call, downstream components (like UI) never see the reminder; it only influences the assistant’s reasoning in the next turn.
+1. On transform, scan backward through `messages` for last `info.role === 'user'`.
+2. If agent is non-orchestrator, return.
+3. Locate first part where `type === 'text'`.
+4. If marker exists, return.
+5. Prefix `part.text` with `PHASE_REMINDER + '\n\n---\n\n'`.
 
 ## Integration
 
-Registered through the shared hook registry, this module hooks the `experimental.chat.messages.transform` lifecycle event that runs right before OpenAI invocation. It only touches the orchestrator session’s outgoing message list, so its effect is indirect: the reminder guides every assistant response that follows the user turn, but no other module needs to call it explicitly.
+- Registered through `src/hooks/index.ts` and plugin-level hook wiring in `src/index.ts`.
+- Consumes `experimental.chat.messages.transform` and mutates the outgoing `messages` payload only.
+- Does not depend on stateful services; no network or client APIs are required.

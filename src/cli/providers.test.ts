@@ -79,13 +79,16 @@ describe('providers', () => {
     // Oracle should have bundled simplify
     expect(agents.oracle.skills).toContain('simplify');
 
-    // Explorer should have bundled cartography
-    expect(agents.explorer.skills).toContain('cartography');
+    // Orchestrator should implicitly cover bundled codemap via '*'
+    expect(agents.orchestrator.skills).toContain('*');
 
     // Designer should have 'agent-browser'
     expect(agents.designer.skills).toContain('agent-browser');
 
-    // Fixer should have no skills by default (empty recommended list)
+    // Explorer should have no bundled skills by default
+    expect(agents.explorer.skills).toEqual([]);
+
+    // Fixer should have no bundled skills by default
     expect(agents.fixer.skills).toEqual([]);
   });
 

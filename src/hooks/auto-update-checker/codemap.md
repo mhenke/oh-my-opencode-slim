@@ -2,27 +2,38 @@
 
 ## Responsibility
 
-- Provides an OpenCode hook that reacts to `session.created`, ensures the hook only runs once per startup, and surfaces update information to the user via TUI toasts and logs.
-- Detects local development builds, cached installs, and running plugins pinned to specific versions so the hook can decide whether to notify, auto-update, or skip work.
+- Provide a startup hook that detects plugin update availability for `oh-my-opencode-slim`, reports status through TUI toasts, and optionally performs a cache-safe `bun install` refresh.
+- Handle local dev mode and pinned plugin versions distinctly (`file://`, pinned tags, and `latest` channel semantics).
 
 ## Design
 
-- `index.ts` orchestrates the hook lifecycle: it filters session events, defers the heavy work via `setTimeout`, and delegates version discovery and updates to helper functions while respecting the user’s `autoUpdate` and `showStartupToast` preferences.
-- `checker.ts` encapsulates environment-aware utilities (config path discovery, local dev detection, NPM registry fetching, and pinned-version mutation) plus memoized cache lookups so the hook can derive current, cached, and latest versions without duplicating logic.
-- `cache.ts` is responsible for invalidating cached installs (`node_modules`, `package.json`, `bun.lock`) before a fresh `bun install`, keeping the cached package state consistent with the server-provided latest version.
-- Shared `constants.ts` standardizes paths (cache directory, config locations, package name, registry URL) and fetch timeouts so the rest of the hook is configuration-free.
+- `createAutoUpdateCheckerHook(ctx, options)` in `index.ts` registers an `event` handler for `session.created` and guards one-time startup execution (`hasChecked`).
+- `runBackgroundUpdateCheck` performs version resolution and branches into:
+  - local-dev no-op path,
+  - pinned plugin notification,
+  - manual notification when `autoUpdate=false`,
+  - or auto-update execution path.
+- `checker.ts` is the core discovery layer and exports:
+  - `findPluginEntry`, `extractChannel`, `getCachedVersion`, `getLocalDevVersion`, `getLatestVersion`, `updatePinnedVersion`.
+- `cache.ts` owns cache preparation with `resolveInstallContext` and `preparePackageUpdate`.
+- `constants.ts` centralizes install and config-path constants (`CACHE_DIR`, `PACKAGE_NAME`, `NPM_REGISTRY_URL`, `NPM_FETCH_TIMEOUT`, config path aliases).
+- `types.ts` declares `AutoUpdateCheckerOptions`, `PluginEntryInfo`, config/package typed envelopes.
 
 ## Flow
 
-- On the first `session.created` event without a parent session, `createAutoUpdateCheckerHook` schedules `runBackgroundUpdateCheck` while immediately showing an initial toast (unless disabled) and short-circuiting for local dev builds.
-- `runBackgroundUpdateCheck` resolves the current plugin entry and cached version, determines the update channel via `extractChannel`, retrieves the latest dist-tag from `getLatestVersion`, and compares versions.
-- When an update is available, the hook either notifies the user or, if `autoUpdate` is on, updates the pinned entry in the OpenCode config (`updatePinnedVersion`), invalidates the cached package, and runs `bun install` safely (`runBunInstallSafe`) with a 60-second timeout before showing success/error toasts.
-- `checker.ts` supports the above flow with helpers (`getLocalDevVersion`, `findPluginEntry`, `getCachedVersion`, `extractChannel`, etc.) that read configs (`.opencode/*.jsonc`, global config paths) via `stripJsonComments` and `fs` operations.
-- `cache.ts` runs before reinstall to remove lingering plugin directories, dependency entries, and JSON-formatted `bun.lock` references, ensuring `runBunInstallSafe` operates on a clean slate.
+1. On first eligible `session.created` (root/no parent), schedule asynchronous update check.
+2. If local development plugin is detected (`getLocalDevVersion`), emit info toast and return.
+3. Resolve current version from `getCachedVersion` + plugin entry in config (`findPluginEntry`).
+4. Fetch channel metadata (`extractChannel` + `getLatestVersion`).
+5. If update is needed:
+   - pinned entry ⇒ notify only,
+   - unpinned and `autoUpdate=false` ⇒ notify only,
+   - unpinned and auto-update enabled ⇒ call `preparePackageUpdate`, then `runBunInstallSafe`.
+6. Surface success/failure via `ctx.client.tui.showToast` and `utils/logger`.
 
 ## Integration
 
-- Hooks into the OpenCode plugin lifecycle via `ctx.client.tui.showToast` and the `session.created` event, leveraging `PluginInput` to know the working directory and show UI feedback.
-- Reads OpenCode configuration files exposed by `../../cli/config-manager` to locate plugin entries, pinned versions, and local `file://` installs, so it stays aligned with the same config sources that enable plugin loading.
-- Uses shared `../../utils/logger` for tracing background operations and errors while talking to platform APIs (`fetch`, `Bun.spawn`, `fs`) to inspect, mutate, and reinstall the `oh-my-opencode-slim` package stored under `CACHE_DIR`.
-- Exposes `AutoUpdateCheckerOptions` for consumers (via `index.ts`) to opt out of toasts or automatic installs while still reusing the same checker/cache helpers.
+- Wired through `src/hooks/index.ts` and plugin initialization (`src/index.ts`) as an `event` hook.
+- Consumes `PluginInput.client.tui.showToast`, `PluginInput.directory`, `ctx.client` context, and reads config paths through `cli/config-manager` (`stripJsonComments`, `getOpenCodeConfigPaths`).
+- Runtime interactions use `crossSpawn` for `bun install`, Node `fs/path`, and `fetch` against `NPM_REGISTRY_URL`.
+- Export surface includes `getAutoUpdateInstallDir` and `AutoUpdateCheckerOptions` for testability and host-side overrides.
