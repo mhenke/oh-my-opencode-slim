@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AGENT_ALIASES, ALL_AGENT_NAMES } from './constants';
 import { CouncilConfigSchema } from './council-schema';
 
 const FALLBACK_AGENT_NAMES = [
@@ -230,42 +231,85 @@ export const FailoverConfigSchema = z.object({
 
 export type FailoverConfig = z.infer<typeof FailoverConfigSchema>;
 
-// Main plugin config
-export const PluginConfigSchema = z.object({
-  preset: z.string().optional(),
-  setDefaultAgent: z.boolean().optional(),
-  scoringEngineVersion: z.enum(['v1', 'v2-shadow', 'v2']).optional(),
-  balanceProviderUsage: z.boolean().optional(),
-  showStartupToast: z
-    .boolean()
-    .optional()
-    .describe(
-      'Show the startup activation toast when OpenCode starts. Defaults to true.',
-    ),
-  manualPlan: ManualPlanSchema.optional(),
-  presets: z.record(z.string(), PresetSchema).optional(),
-  agents: z.record(z.string(), AgentOverrideConfigSchema).optional(),
-  disabled_agents: z
-    .array(z.string())
-    .optional()
-    .describe(
-      'Agent names to disable completely. ' +
-        'Disabled agents are not instantiated and cannot be delegated to. ' +
-        'Orchestrator and council internal agents (councillor) cannot be disabled. ' +
-        "By default, 'observer' is disabled. Remove it from this list and configure a vision-capable model to enable.",
-    ),
-  disabled_mcps: z.array(z.string()).optional(),
-  // Multiplexer config (new unified config - preferred)
-  multiplexer: MultiplexerConfigSchema.optional(),
-  // Legacy tmux config (for backward compatibility)
-  // When tmux.enabled is true, it's equivalent to multiplexer.type = 'tmux'
-  tmux: TmuxConfigSchema.optional(),
-  websearch: WebsearchConfigSchema.optional(),
-  interview: InterviewConfigSchema.optional(),
-  todoContinuation: TodoContinuationConfigSchema.optional(),
-  fallback: FailoverConfigSchema.optional(),
-  council: CouncilConfigSchema.optional(),
-});
+function validateCustomOnlyPromptFields(
+  overrides: Record<string, z.infer<typeof AgentOverrideConfigSchema>>,
+  ctx: z.RefinementCtx,
+  pathPrefix: Array<string | number>,
+): void {
+  for (const [name, override] of Object.entries(overrides)) {
+    const isBuiltInOrAlias =
+      (ALL_AGENT_NAMES as readonly string[]).includes(name) ||
+      AGENT_ALIASES[name] !== undefined;
+
+    if (!isBuiltInOrAlias) {
+      continue;
+    }
+
+    if (override.prompt !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...pathPrefix, name, 'prompt'],
+        message: 'prompt is only supported for custom agents',
+      });
+    }
+
+    if (override.orchestratorPrompt !== undefined) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: [...pathPrefix, name, 'orchestratorPrompt'],
+        message: 'orchestratorPrompt is only supported for custom agents',
+      });
+    }
+  }
+}
+
+export const PluginConfigSchema = z
+  .object({
+    preset: z.string().optional(),
+    setDefaultAgent: z.boolean().optional(),
+    scoringEngineVersion: z.enum(['v1', 'v2-shadow', 'v2']).optional(),
+    balanceProviderUsage: z.boolean().optional(),
+    showStartupToast: z
+      .boolean()
+      .optional()
+      .describe(
+        'Show the startup activation toast when OpenCode starts. Defaults to true.',
+      ),
+    manualPlan: ManualPlanSchema.optional(),
+    presets: z.record(z.string(), PresetSchema).optional(),
+    agents: z.record(z.string(), AgentOverrideConfigSchema).optional(),
+    disabled_agents: z
+      .array(z.string())
+      .optional()
+      .describe(
+        'Agent names to disable completely. ' +
+          'Disabled agents are not instantiated and cannot be delegated to. ' +
+          'Orchestrator and council internal agents (councillor) cannot be disabled. ' +
+          "By default, 'observer' is disabled. Remove it from this list and configure a vision-capable model to enable.",
+      ),
+    disabled_mcps: z.array(z.string()).optional(),
+    // Multiplexer config (new unified config - preferred)
+    multiplexer: MultiplexerConfigSchema.optional(),
+    // Legacy tmux config (for backward compatibility)
+    // When tmux.enabled is true, it's equivalent to multiplexer.type = 'tmux'
+    tmux: TmuxConfigSchema.optional(),
+    websearch: WebsearchConfigSchema.optional(),
+    interview: InterviewConfigSchema.optional(),
+    todoContinuation: TodoContinuationConfigSchema.optional(),
+    fallback: FailoverConfigSchema.optional(),
+    council: CouncilConfigSchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.agents) {
+      validateCustomOnlyPromptFields(value.agents, ctx, ['agents']);
+    }
+
+    if (value.presets) {
+      for (const [presetName, preset] of Object.entries(value.presets)) {
+        validateCustomOnlyPromptFields(preset, ctx, ['presets', presetName]);
+      }
+    }
+  });
 
 export type PluginConfig = z.infer<typeof PluginConfigSchema>;
 

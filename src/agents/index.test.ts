@@ -4,6 +4,7 @@ import {
   AgentOverrideConfigSchema,
   DEFAULT_DISABLED_AGENTS,
   DEFAULT_MODELS,
+  PluginConfigSchema,
   SUBAGENT_NAMES,
 } from '../config';
 import {
@@ -581,6 +582,63 @@ describe('AgentOverrideConfigSchema options validation', () => {
       description: 'not supported for custom agents',
     } as Record<string, unknown>);
     expect(result.success).toBe(false);
+  });
+});
+
+describe('PluginConfigSchema custom-agent-only prompt fields', () => {
+  test('rejects prompt on built-in top-level agent overrides', () => {
+    const result = PluginConfigSchema.safeParse({
+      agents: {
+        oracle: {
+          model: 'openai/gpt-5.4',
+          prompt: 'ignored built-in prompt override',
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('rejects orchestratorPrompt on built-in top-level agent overrides', () => {
+    const result = PluginConfigSchema.safeParse({
+      agents: {
+        explorer: {
+          model: 'openai/gpt-5.4-mini',
+          orchestratorPrompt: '@explorer\n- Role: should be invalid here',
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('rejects custom-only prompt fields on built-in preset agents', () => {
+    const result = PluginConfigSchema.safeParse({
+      presets: {
+        openai: {
+          oracle: {
+            model: 'openai/gpt-5.4',
+            prompt: 'ignored preset built-in prompt override',
+          },
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('allows prompt fields on custom agents', () => {
+    const result = PluginConfigSchema.safeParse({
+      agents: {
+        janitor: {
+          model: 'openai/gpt-5.4-mini',
+          prompt: 'You are Janitor.',
+          orchestratorPrompt: '@janitor\n- Role: Cleanup specialist',
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
   });
 });
 
