@@ -129,11 +129,11 @@ describe('orchestrator agent', () => {
     expect((orchestrator?.config.permission as any).question).toBe('allow');
   });
 
-  test('orchestrator is allowed to invoke council_session', () => {
+  test('orchestrator is denied access to council_session', () => {
     const agents = createAgents();
     const orchestrator = agents.find((a) => a.name === 'orchestrator');
     expect((orchestrator?.config.permission as any).council_session).toBe(
-      'allow',
+      'deny',
     );
   });
 

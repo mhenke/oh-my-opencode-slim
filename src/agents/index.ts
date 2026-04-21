@@ -31,7 +31,7 @@ type AgentFactory = (
   customAppendPrompt?: string,
 ) => AgentDefinition;
 
-const COUNCIL_TOOL_ALLOWED_AGENTS = new Set(['orchestrator', 'council']);
+const COUNCIL_TOOL_ALLOWED_AGENTS = new Set(['council']);
 
 function normalizeDisplayName(displayName: string): string {
   const trimmed = displayName.trim();
