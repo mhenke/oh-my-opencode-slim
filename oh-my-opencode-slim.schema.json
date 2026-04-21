@@ -218,6 +218,7 @@
                   "type": "string"
                 },
                 {
+                  "minItems": 1,
                   "type": "array",
                   "items": {
                     "anyOf": [
@@ -263,6 +264,14 @@
                 "type": "string"
               }
             },
+            "prompt": {
+              "type": "string",
+              "minLength": 1
+            },
+            "orchestratorPrompt": {
+              "type": "string",
+              "minLength": 1
+            },
             "options": {
               "type": "object",
               "propertyNames": {
@@ -274,7 +283,8 @@
               "type": "string",
               "minLength": 1
             }
-          }
+          },
+          "additionalProperties": false
         }
       }
     },
@@ -292,6 +302,7 @@
                 "type": "string"
               },
               {
+                "minItems": 1,
                 "type": "array",
                 "items": {
                   "anyOf": [
@@ -337,6 +348,14 @@
               "type": "string"
             }
           },
+          "prompt": {
+            "type": "string",
+            "minLength": 1
+          },
+          "orchestratorPrompt": {
+            "type": "string",
+            "minLength": 1
+          },
           "options": {
             "type": "object",
             "propertyNames": {
@@ -348,7 +367,8 @@
             "type": "string",
             "minLength": 1
           }
-        }
+        },
+        "additionalProperties": false
       }
     },
     "disabled_agents": {

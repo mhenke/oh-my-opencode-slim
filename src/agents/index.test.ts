@@ -4,6 +4,7 @@ import {
   AgentOverrideConfigSchema,
   DEFAULT_DISABLED_AGENTS,
   DEFAULT_MODELS,
+  PluginConfigSchema,
   SUBAGENT_NAMES,
 } from '../config';
 import {
@@ -536,6 +537,109 @@ describe('AgentOverrideConfigSchema options validation', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  test('rejects empty model arrays', () => {
+    const result = AgentOverrideConfigSchema.safeParse({
+      model: [],
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('accepts prompt and orchestratorPrompt override fields', () => {
+    const result = AgentOverrideConfigSchema.safeParse({
+      model: 'openai/gpt-5.4',
+      prompt: 'You are a specialized reviewer.',
+      orchestratorPrompt: '@reviewer\n- Role: Specialized reviewer',
+    });
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.prompt).toBe('You are a specialized reviewer.');
+      expect(result.data.orchestratorPrompt).toBe(
+        '@reviewer\n- Role: Specialized reviewer',
+      );
+    }
+  });
+
+  test('rejects empty prompt fields', () => {
+    const result = AgentOverrideConfigSchema.safeParse({
+      model: 'openai/gpt-5.4',
+      prompt: '',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('rejects empty orchestratorPrompt fields', () => {
+    const result = AgentOverrideConfigSchema.safeParse({
+      model: 'openai/gpt-5.4',
+      orchestratorPrompt: '',
+    });
+    expect(result.success).toBe(false);
+  });
+
+  test('rejects description field on overrides', () => {
+    const result = AgentOverrideConfigSchema.safeParse({
+      model: 'openai/gpt-5.4',
+      description: 'not supported for custom agents',
+    } as Record<string, unknown>);
+    expect(result.success).toBe(false);
+  });
+});
+
+describe('PluginConfigSchema custom-agent-only prompt fields', () => {
+  test('rejects prompt on built-in top-level agent overrides', () => {
+    const result = PluginConfigSchema.safeParse({
+      agents: {
+        oracle: {
+          model: 'openai/gpt-5.4',
+          prompt: 'ignored built-in prompt override',
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('rejects orchestratorPrompt on built-in top-level agent overrides', () => {
+    const result = PluginConfigSchema.safeParse({
+      agents: {
+        explorer: {
+          model: 'openai/gpt-5.4-mini',
+          orchestratorPrompt: '@explorer\n- Role: should be invalid here',
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('rejects custom-only prompt fields on built-in preset agents', () => {
+    const result = PluginConfigSchema.safeParse({
+      presets: {
+        openai: {
+          oracle: {
+            model: 'openai/gpt-5.4',
+            prompt: 'ignored preset built-in prompt override',
+          },
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
+
+  test('allows prompt fields on custom agents', () => {
+    const result = PluginConfigSchema.safeParse({
+      agents: {
+        janitor: {
+          model: 'openai/gpt-5.4-mini',
+          prompt: 'You are Janitor.',
+          orchestratorPrompt: '@janitor\n- Role: Cleanup specialist',
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
 });
 
 describe('disabled_agents', () => {
@@ -604,6 +708,20 @@ describe('disabled_agents', () => {
     expect(enabled).not.toContain('fixer');
     expect(enabled).toContain('orchestrator');
     expect(enabled).toContain('explorer');
+  });
+
+  test('getEnabledAgentNames includes enabled custom agents', () => {
+    const config: PluginConfig = {
+      disabled_agents: ['janitor'],
+      agents: {
+        janitor: { model: 'openai/gpt-5.4-mini' },
+        reviewer: { model: 'openai/gpt-5.4-mini' },
+      },
+    };
+
+    const enabled = getEnabledAgentNames(config);
+    expect(enabled).toContain('reviewer');
+    expect(enabled).not.toContain('janitor');
   });
 
   test('empty disabled_agents creates all agents including observer', () => {
