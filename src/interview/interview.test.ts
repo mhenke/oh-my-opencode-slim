@@ -803,6 +803,49 @@ describe('interview service', () => {
       // Cleanup
       await fs.rm(tempDir, { recursive: true, force: true });
     });
+
+    test('message.updated stores current session model for interview follow-ups', async () => {
+      const tempDir = await fs.mkdtemp('/tmp/interview-test-');
+      const ctx = createMockContext({ directory: tempDir });
+
+      const service = createInterviewService(ctx);
+      service.setBaseUrlResolver(async () => 'http://localhost:9999');
+      const sessionID = 'session-model-track';
+
+      const output = { parts: [] as Array<{ type: string; text?: string }> };
+      await service.handleCommandExecuteBefore(
+        { command: 'interview', sessionID, arguments: 'Model Track Test' },
+        output,
+      );
+
+      const interviewId = requireInterviewId(
+        extractInterviewIdFromLastPrompt(ctx.client.session.prompt),
+      );
+
+      await service.handleEvent({
+        event: {
+          type: 'message.updated',
+          properties: {
+            info: {
+              sessionID,
+              providerID: 'openai',
+              modelID: 'gpt-5.4-mini',
+            },
+          },
+        },
+      });
+
+      ctx.client.session.promptAsync.mock.calls.length = 0;
+      await service.handleNudgeAction(interviewId, 'more-questions');
+
+      const call = ctx.client.session.promptAsync.mock.calls[0]?.[0];
+      expect(call.body.model).toEqual({
+        providerID: 'openai',
+        modelID: 'gpt-5.4-mini',
+      });
+
+      await fs.rm(tempDir, { recursive: true, force: true });
+    });
   });
 
   describe('configurable output folder', () => {
@@ -1218,6 +1261,74 @@ describe('interview service', () => {
       // Cleanup
       await fs.rm(tempDir, { recursive: true, force: true });
     });
+
+    test('reuses observed session model when submitting interview answers', async () => {
+      const tempDir = await fs.mkdtemp('/tmp/interview-test-');
+
+      const messagesData: Array<{
+        info?: { role: string };
+        parts?: Array<{ type: string; text?: string }>;
+      }> = [];
+
+      const ctx = createMockContext({
+        directory: tempDir,
+        messagesData,
+      });
+
+      const service = createInterviewService(ctx);
+      service.setBaseUrlResolver(async () => 'http://localhost:9999');
+      const sessionID = 'session-answer-model';
+      const output = { parts: [] as Array<{ type: string; text?: string }> };
+
+      await service.handleCommandExecuteBefore(
+        {
+          command: 'interview',
+          sessionID,
+          arguments: 'Answer Model Test',
+        },
+        output,
+      );
+
+      const interviewId = requireInterviewId(
+        extractInterviewIdFromLastPrompt(ctx.client.session.prompt),
+      );
+
+      messagesData.push({
+        info: { role: 'assistant' },
+        parts: [
+          {
+            type: 'text',
+            text: 'Question.\n<interview_state>\n{\n  "summary": "Test",\n  "questions": [{"id": "q-1", "question": "What?", "options": ["A", "B"]}]\n}\n</interview_state>',
+          },
+        ],
+      });
+
+      await service.handleEvent({
+        event: {
+          type: 'message.updated',
+          properties: {
+            info: {
+              sessionID,
+              providerID: 'anthropic',
+              modelID: 'claude-sonnet-4-6',
+            },
+          },
+        },
+      });
+
+      ctx.client.session.promptAsync.mock.calls.length = 0;
+      await service.submitAnswers(interviewId, [
+        { questionId: 'q-1', answer: 'A' },
+      ]);
+
+      const call = ctx.client.session.promptAsync.mock.calls[0]?.[0];
+      expect(call.body.model).toEqual({
+        providerID: 'anthropic',
+        modelID: 'claude-sonnet-4-6',
+      });
+
+      await fs.rm(tempDir, { recursive: true, force: true });
+    });
   });
 
   describe('agent-provided title', () => {
@@ -1604,22 +1715,22 @@ describe('renderInterviewPage', () => {
     );
   });
 
-  test('renders a self-contained brand mark', () => {
+  test('renders the hosted brand logo', () => {
     const html = renderInterviewPage('brand-test', 'brand-test');
 
-    expect(html).toContain('<svg');
-    expect(html).not.toContain('https://ohmyopencodeslim.com');
+    expect(html).toContain('<img class="brand-mark"');
+    expect(html).toContain(
+      'https://ohmyopencodeslim.com/android-chrome-512x512.png',
+    );
   });
 
-  test('includes smooth scroll-to-top behavior in the submit handler', () => {
-    const html = renderInterviewPage('scroll-test', 'scroll-test');
+  test('shows explicit Enter guidance for option questions', () => {
+    const html = renderInterviewPage('enter-hint-test', 'enter-hint-test');
 
-    expect(html).toContain('function scrollToTop()');
-    expect(html).toContain(
-      "window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });",
-    );
-    expect(html).toContain('overlayText.textContent = "Submitting Answers...";');
-    expect(html).toContain('scrollToTop();');
+    expect(html).toContain('.question-hint {');
+    expect(html).toContain('.hint-chip {');
+    expect(html).toContain('<kbd>Enter</kbd><span>Accept selected answer</span>');
+    expect(html).toContain('<kbd>1-9</kbd><span>Choose an option</span>');
   });
 });
 
@@ -1657,7 +1768,13 @@ describe('interview server port configuration', () => {
           isBusy: false,
         }) as any,
     ),
+    listInterviewFiles: mock(async () => []),
+    listInterviews: mock(() => []),
     submitAnswers: mock(async (_id: string, _answers: InterviewAnswer[]) => {}),
+    handleNudgeAction: mock(
+      async (_id: string, _action: 'more-questions' | 'confirm-complete') => {},
+    ),
+    outputFolder: 'interview',
   };
 
   test('server starts on a specific port when port is non-zero', async () => {

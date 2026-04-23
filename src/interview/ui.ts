@@ -8,6 +8,9 @@ interface DashboardInterviewItem extends InterviewListItem {
   directory?: string;
 }
 
+const BRAND_LOGO_URL =
+  'https://ohmyopencodeslim.com/android-chrome-512x512.png';
+
 export function escapeHtml(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -117,14 +120,10 @@ function sharedStyles(): string {
       .footer { margin-top: 32px; text-align: center; font-size: 13px; color: rgba(255,255,255,0.4); }`;
 }
 
-// ─── Dashboard brand SVG ───────────────────────────────────────────
+// ─── Dashboard brand image ─────────────────────────────────────────
 
-function brandSvg(size: number): string {
-  return `<svg class="brand-mark" viewBox="0 0 144 144" role="img" aria-label="Oh My Opencode Slim" style="width:${size}px;height:${size}px">
-          <rect x="12" y="12" width="120" height="120" rx="32" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.18)" stroke-width="2"/>
-          <path d="M50 48h18c16 0 26 10 26 24s-10 24-26 24H50z" fill="none" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
-          <path d="M74 48h20c10 0 18 8 18 18v12c0 10-8 18-18 18H74" fill="none" stroke="white" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity="0.65"/>
-        </svg>`;
+function brandImage(size: number): string {
+  return `<img class="brand-mark" src="${BRAND_LOGO_URL}" alt="Oh My Opencode Slim" width="${size}" height="${size}" />`;
 }
 
 export function renderDashboardPage(
@@ -371,7 +370,7 @@ export function renderDashboardPage(
   <body>
     <div class="wrap">
       <div class="brand-header">
-        ${brandSvg(96)}
+        ${brandImage(96)}
         <h1>Interviews</h1>
         <p class="muted">${totalCount} item${totalCount === 1 ? '' : 's'}</p>
       </div>
@@ -577,6 +576,37 @@ export function renderInterviewPage(
       }
       
       .options { display: flex; flex-direction: column; gap: 10px; margin-bottom: 20px; }
+      .question-hint {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: -4px 0 16px;
+        color: rgba(255,255,255,0.5);
+        font-size: 13px;
+        line-height: 1.5;
+        transition: color 0.2s ease;
+      }
+      .active-question .question-hint {
+        color: rgba(255,255,255,0.78);
+      }
+      .hint-chip {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: rgba(255,255,255,0.06);
+        border: 1px solid rgba(255,255,255,0.08);
+      }
+      .hint-chip kbd {
+        font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+        font-size: 12px;
+        padding: 2px 6px;
+        border-radius: 6px;
+        background: rgba(255,255,255,0.12);
+        border: 1px solid rgba(255,255,255,0.08);
+        color: rgba(255,255,255,0.95);
+      }
       
       .option { 
         border: 1px solid rgba(255,255,255,0.1); 
@@ -856,7 +886,7 @@ export function renderInterviewPage(
     <div class="wrap">
       <a href="/" class="back-link">← All Interviews</a>
       <div class="brand-header">
-        ${brandSvg(144)}
+        ${brandImage(144)}
       </div>
       <h1 id="idea">Connecting...</h1>
       <p class="muted" id="summary">Preparing interview session</p>
@@ -897,7 +927,15 @@ export function renderInterviewPage(
       ${clipboardHelperJs()}
       const interviewId = ${JSON.stringify(interviewId).replace(/</g, '\\u003c')};
       const resumeSlug = ${JSON.stringify(resumeSlug).replace(/</g, '\\u003c')};
-      const state = { data: null, answers: {}, activeQuestionIndex: 0, lastSig: null, customMode: {} };
+      const state = {
+        data: null,
+        answers: {},
+        activeQuestionIndex: 0,
+        lastQuestionIds: [],
+        lastSig: null,
+        customMode: {},
+        isSubmitting: false,
+      };
 
       function updateSubmitButton() {
         const button = document.getElementById('submitButton');
@@ -910,7 +948,11 @@ export function renderInterviewPage(
         const allAnswered = questions.every((question) =>
           (state.answers[question.id] || '').trim().length > 0,
         );
-        button.disabled = state.data.isBusy || !questions.length || !allAnswered;
+        button.disabled =
+          state.data.isBusy ||
+          state.isSubmitting ||
+          !questions.length ||
+          !allAnswered;
         const hideSubmit = ['completed', 'session-disconnected'];
         button.style.display = hideSubmit.includes(state.data.mode) ? 'none' : '';
         
@@ -1061,6 +1103,54 @@ export function renderInterviewPage(
          });
       }
 
+      function scrollToActiveQuestion(behavior) {
+        const questions = state.data?.questions || [];
+        const activeQ = questions[state.activeQuestionIndex];
+        if (!activeQ) return;
+
+        const wrapper = document.getElementById('question-' + activeQ.id);
+        if (wrapper) {
+          wrapper.scrollIntoView({ behavior, block: 'center' });
+        }
+      }
+
+      function syncActiveQuestionIndex(questions) {
+        if (!questions.length) {
+          state.activeQuestionIndex = 0;
+          state.lastQuestionIds = [];
+          return;
+        }
+
+        const nextQuestionIds = questions.map((question) => question.id);
+        const previousQuestionIds = state.lastQuestionIds || [];
+        const activeQuestionId = previousQuestionIds[state.activeQuestionIndex];
+        const nextActiveIndex = activeQuestionId
+          ? nextQuestionIds.indexOf(activeQuestionId)
+          : -1;
+
+        if (nextActiveIndex >= 0) {
+          state.activeQuestionIndex = nextActiveIndex;
+        } else {
+          state.activeQuestionIndex = 0;
+        }
+
+        state.lastQuestionIds = nextQuestionIds;
+      }
+
+      function isTextEntryTarget(target) {
+        return target &&
+          (target.tagName === 'TEXTAREA' ||
+            target.tagName === 'INPUT' ||
+            target.isContentEditable);
+      }
+
+      function isShortcutBlockedTarget(target) {
+        if (!target) return false;
+        return !!target.closest(
+          'button, a, select, summary, textarea, input, [contenteditable="true"]',
+        );
+      }
+
       document.addEventListener('keydown', (e) => {
         const isSubmitShortcut =
           (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) ||
@@ -1074,11 +1164,40 @@ export function renderInterviewPage(
           return;
         }
 
-        if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+        if (isTextEntryTarget(e.target)) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
 
         const questions = state.data?.questions || [];
         if (!questions.length) return;
+
+        if (e.key === 'Enter') {
+          if (e.repeat) {
+            e.preventDefault();
+            return;
+          }
+          if (isShortcutBlockedTarget(e.target)) return;
+          if (state.data.isBusy || state.isSubmitting) return;
+
+          const activeQ = questions[state.activeQuestionIndex];
+          if (!activeQ) return;
+
+          const answer = (state.answers[activeQ.id] || '').trim();
+          if (!answer) return;
+
+          const isLastQuestion =
+            state.activeQuestionIndex === questions.length - 1;
+          if (isLastQuestion) {
+            const submitBtn = document.getElementById('submitButton');
+            if (submitBtn && !submitBtn.disabled) {
+              submitBtn.click();
+            }
+          } else {
+            advanceToNextQuestion(activeQ.id);
+          }
+
+          e.preventDefault();
+          return;
+        }
 
          const num = parseInt(e.key, 10);
          if (num >= 1 && num <= 9) {
@@ -1247,6 +1366,10 @@ export function renderInterviewPage(
       function renderQuestions(questions) {
         const sig = JSON.stringify([questions, state.data?.mode]);
         const container = document.getElementById('questions');
+        const previousActiveQuestionId =
+          state.lastQuestionIds[state.activeQuestionIndex];
+
+        syncActiveQuestionIndex(questions);
 
         if (state.lastSig === sig) {
           questions.forEach((q) => updateOptionsDOM(q.id));
@@ -1288,6 +1411,15 @@ export function renderInterviewPage(
 
           const predefined = question.options || [];
           if (predefined.length) {
+            const hint = document.createElement('div');
+            hint.className = 'question-hint';
+            hint.innerHTML =
+              '<span class="hint-chip"><kbd>1-9</kbd><span>Choose an option</span></span>' +
+              '<span class="hint-chip"><kbd>Enter</kbd><span>Accept selected answer</span></span>';
+            wrapper.appendChild(hint);
+          }
+
+          if (predefined.length) {
             const options = document.createElement('div');
             options.className = 'options';
             predefined.forEach((option, optIdx) => {
@@ -1322,6 +1454,13 @@ export function renderInterviewPage(
         
         updateActiveQuestionFocus();
         questions.forEach(q => updateOptionsDOM(q.id));
+        const currentActiveQuestionId = questions[state.activeQuestionIndex]?.id;
+        if (
+          questions.length > 0 &&
+          previousActiveQuestionId !== currentActiveQuestionId
+        ) {
+          scrollToActiveQuestion('smooth');
+        }
       }
 
       function render(data) {
@@ -1395,13 +1534,17 @@ export function renderInterviewPage(
       }
 
       document.getElementById('submitButton').addEventListener('click', async () => {
-        if (!state.data) return;
+        if (!state.data || state.isSubmitting) return;
+        document.getElementById('submitButton').blur();
         const answers = (state.data.questions || []).map((question) => {
           return {
             questionId: question.id,
             answer: (state.answers[question.id] || '').trim(),
           };
         });
+
+        state.isSubmitting = true;
+        updateSubmitButton();
 
         const overlay = document.getElementById('loadingOverlay');
         const overlayText = document.getElementById('loadingText');
@@ -1420,6 +1563,8 @@ export function renderInterviewPage(
         } catch (err) {
           document.getElementById('submitStatus').textContent = 'Error submitting answers.';
         }
+        state.isSubmitting = false;
+        updateSubmitButton();
         try {
           await refresh();
         } catch (_error) {
