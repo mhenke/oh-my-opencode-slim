@@ -14,6 +14,7 @@ interface TaskArgs {
 }
 
 interface PendingTaskCall {
+  callId: string;
   parentSessionId: string;
   agentType: AgentName;
   label: string;
@@ -32,6 +33,8 @@ const AGENT_NAME_SET = new Set<AgentName>([
   'councillor',
 ]);
 
+const MAX_PENDING_TASK_CALLS = 100;
+
 function isAgentName(value: unknown): value is AgentName {
   return typeof value === 'string' && AGENT_NAME_SET.has(value as AgentName);
 }
@@ -49,13 +52,41 @@ export function createTaskSessionManagerHook(
 ) {
   const sessionManager = new SessionManager(options.maxSessionsPerAgent);
   const pendingCalls = new Map<string, PendingTaskCall>();
+  const pendingCallOrder: string[] = [];
 
   function isMissingRememberedSessionError(output: string): boolean {
-    const normalized = output.toLowerCase();
+    const firstLine = output.split(/\r?\n/, 1)[0]?.trim().toLowerCase() ?? '';
     return (
-      normalized.includes('session') &&
-      (normalized.includes('not found') || normalized.includes('no session'))
+      firstLine.startsWith('[error]') &&
+      firstLine.includes('session') &&
+      (firstLine.includes('not found') || firstLine.includes('no session'))
     );
+  }
+
+  function rememberPendingCall(call: PendingTaskCall): void {
+    pendingCalls.set(call.callId, call);
+    pendingCallOrder.push(call.callId);
+
+    while (pendingCallOrder.length > MAX_PENDING_TASK_CALLS) {
+      const evictedCallId = pendingCallOrder.shift();
+      if (!evictedCallId) {
+        break;
+      }
+      pendingCalls.delete(evictedCallId);
+    }
+  }
+
+  function takePendingCall(callId?: string): PendingTaskCall | undefined {
+    if (!callId) return undefined;
+    const pending = pendingCalls.get(callId);
+    pendingCalls.delete(callId);
+
+    const orderIndex = pendingCallOrder.indexOf(callId);
+    if (orderIndex >= 0) {
+      pendingCallOrder.splice(orderIndex, 1);
+    }
+
+    return pending;
   }
 
   return {
@@ -80,7 +111,8 @@ export function createTaskSessionManagerHook(
       });
 
       if (input.callID) {
-        pendingCalls.set(input.callID, {
+        rememberPendingCall({
+          callId: input.callID,
           parentSessionId: input.sessionID,
           agentType: args.subagent_type,
           label,
@@ -110,7 +142,8 @@ export function createTaskSessionManagerHook(
         remembered.taskId,
       );
       if (input.callID) {
-        pendingCalls.set(input.callID, {
+        rememberPendingCall({
+          callId: input.callID,
           parentSessionId: input.sessionID,
           agentType: args.subagent_type,
           label,
@@ -125,10 +158,7 @@ export function createTaskSessionManagerHook(
     ): Promise<void> => {
       if (input.tool.toLowerCase() !== 'task') return;
 
-      const pending = input.callID ? pendingCalls.get(input.callID) : undefined;
-      if (input.callID) {
-        pendingCalls.delete(input.callID);
-      }
+      const pending = takePendingCall(input.callID);
 
       if (!pending || typeof output.output !== 'string') return;
       const taskId = parseTaskIdFromTaskOutput(output.output);
@@ -144,6 +174,14 @@ export function createTaskSessionManagerHook(
           );
         }
         return;
+      }
+
+      if (pending.resumedTaskId && pending.resumedTaskId !== taskId) {
+        sessionManager.drop(
+          pending.parentSessionId,
+          pending.agentType,
+          pending.resumedTaskId,
+        );
       }
 
       sessionManager.remember({
@@ -180,6 +218,13 @@ export function createTaskSessionManagerHook(
 
       sessionManager.clearParent(sessionId);
       sessionManager.dropTask(sessionId);
+
+      for (const [callId, pending] of pendingCalls.entries()) {
+        if (pending.parentSessionId !== sessionId) {
+          continue;
+        }
+        takePendingCall(callId);
+      }
     },
   };
 }

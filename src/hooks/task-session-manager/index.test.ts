@@ -173,6 +173,132 @@ describe('task-session-manager hook', () => {
     expect(system.system.join('\n')).not.toContain('exp-1');
   });
 
+  test('drops resumed predecessor when success returns a new task id', async () => {
+    const { hook } = createHook();
+
+    await hook['tool.execute.before'](
+      {
+        tool: 'task',
+        sessionID: 'parent-1',
+        callID: 'call-1',
+      },
+      {
+        args: {
+          subagent_type: 'explorer',
+          description: 'config schema',
+        },
+      },
+    );
+    await hook['tool.execute.after'](
+      {
+        tool: 'task',
+        sessionID: 'parent-1',
+        callID: 'call-1',
+      },
+      {
+        output:
+          'task_id: child-1 (for resuming to continue this task if needed)',
+      },
+    );
+
+    await hook['tool.execute.before'](
+      {
+        tool: 'task',
+        sessionID: 'parent-1',
+        callID: 'call-2',
+      },
+      {
+        args: {
+          subagent_type: 'explorer',
+          description: 'continue schema work',
+          task_id: 'exp-1',
+        },
+      },
+    );
+    await hook['tool.execute.after'](
+      {
+        tool: 'task',
+        sessionID: 'parent-1',
+        callID: 'call-2',
+      },
+      {
+        output:
+          'task_id: child-2 (for resuming to continue this task if needed)',
+      },
+    );
+
+    const system = { system: ['base'] };
+    await hook['experimental.chat.system.transform'](
+      { sessionID: 'parent-1' },
+      system,
+    );
+
+    expect(system.system.join('\n')).toContain('continue schema work');
+    expect(system.system.join('\n')).not.toContain('config schema');
+  });
+
+  test('does not drop remembered session on non-runtime session text', async () => {
+    const { hook } = createHook();
+
+    await hook['tool.execute.before'](
+      {
+        tool: 'task',
+        sessionID: 'parent-1',
+        callID: 'call-1',
+      },
+      {
+        args: {
+          subagent_type: 'explorer',
+          description: 'config schema',
+        },
+      },
+    );
+    await hook['tool.execute.after'](
+      {
+        tool: 'task',
+        sessionID: 'parent-1',
+        callID: 'call-1',
+      },
+      {
+        output:
+          'task_id: child-1 (for resuming to continue this task if needed)',
+      },
+    );
+
+    await hook['tool.execute.before'](
+      {
+        tool: 'task',
+        sessionID: 'parent-1',
+        callID: 'call-2',
+      },
+      {
+        args: {
+          subagent_type: 'explorer',
+          description: 'continue schema work',
+          task_id: 'exp-1',
+        },
+      },
+    );
+    await hook['tool.execute.after'](
+      {
+        tool: 'task',
+        sessionID: 'parent-1',
+        callID: 'call-2',
+      },
+      {
+        output: 'Found no session cookies in fixtures, continuing analysis.',
+      },
+    );
+
+    const system = { system: ['base'] };
+    await hook['experimental.chat.system.transform'](
+      { sessionID: 'parent-1' },
+      system,
+    );
+
+    expect(system.system.join('\n')).toContain('exp-1 config schema');
+  });
+
   test('ignores sessions that are not orchestrator-managed', async () => {
     const { hook } = createHook({ shouldManageSession: () => false });
 
@@ -251,5 +377,50 @@ describe('task-session-manager hook', () => {
       afterChildDelete,
     );
     expect(afterChildDelete.system).toEqual(['base']);
+  });
+
+  test('cleans pending calls when parent session is deleted', async () => {
+    const { hook } = createHook();
+
+    await hook['tool.execute.before'](
+      {
+        tool: 'task',
+        sessionID: 'parent-1',
+        callID: 'call-1',
+      },
+      {
+        args: {
+          subagent_type: 'oracle',
+          description: 'architecture review',
+        },
+      },
+    );
+
+    await hook.event({
+      event: {
+        type: 'session.deleted',
+        properties: { sessionID: 'parent-1' },
+      },
+    });
+
+    await hook['tool.execute.after'](
+      {
+        tool: 'task',
+        sessionID: 'parent-1',
+        callID: 'call-1',
+      },
+      {
+        output:
+          'task_id: child-1 (for resuming to continue this task if needed)',
+      },
+    );
+
+    const system = { system: ['base'] };
+    await hook['experimental.chat.system.transform'](
+      { sessionID: 'parent-1' },
+      system,
+    );
+
+    expect(system.system).toEqual(['base']);
   });
 });
