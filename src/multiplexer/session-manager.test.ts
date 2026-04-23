@@ -48,9 +48,14 @@ const defaultMultiplexerConfig = {
 
 describe('MultiplexerSessionManager', () => {
   beforeEach(() => {
-    mockMultiplexer.spawnPane.mockClear();
-    mockMultiplexer.closePane.mockClear();
-    mockMultiplexer.isInsideSession.mockClear();
+    mockMultiplexer.spawnPane.mockReset();
+    mockMultiplexer.spawnPane.mockResolvedValue({
+      success: true,
+      paneId: '%mock-pane',
+    });
+    mockMultiplexer.closePane.mockReset();
+    mockMultiplexer.closePane.mockResolvedValue(true);
+    mockMultiplexer.isInsideSession.mockReset();
     mockMultiplexer.isInsideSession.mockReturnValue(true);
   });
 
@@ -274,6 +279,57 @@ describe('MultiplexerSessionManager', () => {
       });
 
       expect(mockMultiplexer.spawnPane).not.toHaveBeenCalled();
+    });
+
+    test('re-checks tracked sessions after async respawn guard', async () => {
+      const ctx = createMockContext();
+      const manager = new MultiplexerSessionManager(
+        ctx,
+        defaultMultiplexerConfig,
+      );
+
+      mockMultiplexer.spawnPane
+        .mockResolvedValueOnce({ success: true, paneId: 'p-1' })
+        .mockResolvedValueOnce({
+          success: true,
+          paneId: 'p-should-not-happen',
+        });
+
+      await manager.onSessionCreated({
+        type: 'session.created',
+        properties: {
+          info: {
+            id: 'child-999',
+            parentID: 'parent-999',
+            title: 'Worker',
+            directory: '/task/dir',
+          },
+        },
+      });
+
+      ctx.client.session.status.mockResolvedValue({
+        data: { 'child-999': { type: 'idle' } },
+      });
+      await (manager as any).pollSessions();
+
+      const respawnPromise = (manager as any).respawnIfKnown('child-999');
+
+      (manager as any).sessions.set('child-999', {
+        sessionId: 'child-999',
+        paneId: 'p-existing',
+        parentId: 'parent-999',
+        title: 'Worker',
+        directory: '/task/dir',
+        createdAt: Date.now(),
+        lastSeenAt: Date.now(),
+      });
+
+      await respawnPromise;
+
+      expect(mockMultiplexer.spawnPane).toHaveBeenCalledTimes(1);
+      expect((manager as any).sessions.get('child-999')?.paneId).toBe(
+        'p-existing',
+      );
     });
   });
 

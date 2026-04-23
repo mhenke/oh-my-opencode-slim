@@ -282,6 +282,8 @@ export class MultiplexerSessionManager {
       return;
     }
 
+    if (this.sessions.has(sessionId)) return;
+
     log(
       '[multiplexer-session-manager] child session busy again, respawning pane',
       {

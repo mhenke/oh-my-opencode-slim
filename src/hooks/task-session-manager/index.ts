@@ -64,6 +64,11 @@ export function createTaskSessionManagerHook(
   }
 
   function rememberPendingCall(call: PendingTaskCall): void {
+    const existingIndex = pendingCallOrder.indexOf(call.callId);
+    if (existingIndex >= 0) {
+      pendingCallOrder.splice(existingIndex, 1);
+    }
+
     pendingCalls.set(call.callId, call);
     pendingCallOrder.push(call.callId);
 

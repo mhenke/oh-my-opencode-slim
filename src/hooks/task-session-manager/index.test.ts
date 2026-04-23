@@ -423,4 +423,93 @@ describe('task-session-manager hook', () => {
 
     expect(system.system).toEqual(['base']);
   });
+
+  test('deduplicates pending call order when a resume call is recorded twice', async () => {
+    const { hook } = createHook();
+
+    await hook['tool.execute.before'](
+      {
+        tool: 'task',
+        sessionID: 'parent-1',
+        callID: 'call-1',
+      },
+      {
+        args: {
+          subagent_type: 'explorer',
+          description: 'config schema',
+        },
+      },
+    );
+    await hook['tool.execute.after'](
+      {
+        tool: 'task',
+        sessionID: 'parent-1',
+        callID: 'call-1',
+      },
+      {
+        output:
+          'task_id: child-1 (for resuming to continue this task if needed)',
+      },
+    );
+
+    await hook['tool.execute.before'](
+      {
+        tool: 'task',
+        sessionID: 'parent-1',
+        callID: 'call-2',
+      },
+      {
+        args: {
+          subagent_type: 'explorer',
+          description: 'continue schema work',
+          task_id: 'exp-1',
+        },
+      },
+    );
+    await hook['tool.execute.after'](
+      {
+        tool: 'task',
+        sessionID: 'parent-1',
+        callID: 'call-2',
+      },
+      {
+        output: '[ERROR] Session not found',
+      },
+    );
+
+    await hook['tool.execute.before'](
+      {
+        tool: 'task',
+        sessionID: 'parent-1',
+        callID: 'call-3',
+      },
+      {
+        args: {
+          subagent_type: 'oracle',
+          description: 'architecture review',
+        },
+      },
+    );
+    await hook['tool.execute.after'](
+      {
+        tool: 'task',
+        sessionID: 'parent-1',
+        callID: 'call-3',
+      },
+      {
+        output:
+          'task_id: child-3 (for resuming to continue this task if needed)',
+      },
+    );
+
+    const system = { system: ['base'] };
+    await hook['experimental.chat.system.transform'](
+      { sessionID: 'parent-1' },
+      system,
+    );
+
+    expect(system.system.join('\n')).toContain(
+      'oracle: ora-1 architecture review',
+    );
+  });
 });
