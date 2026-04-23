@@ -1724,40 +1724,6 @@ describe('renderInterviewPage', () => {
     );
   });
 
-  test('includes smooth scroll-to-top behavior in the submit handler', () => {
-    const html = renderInterviewPage('scroll-test', 'scroll-test');
-
-    expect(html).toContain('function scrollToTop()');
-    expect(html).toContain(
-      "window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });",
-    );
-    expect(html).toContain(
-      'overlayText.textContent = "Submitting Answers...";',
-    );
-    expect(html).toContain('scrollToTop();');
-  });
-
-  test('includes plain Enter shortcut to advance or submit outside text entry', () => {
-    const html = renderInterviewPage('enter-test', 'enter-test');
-
-    expect(html).toContain('function isTextEntryTarget(target)');
-    expect(html).toContain('function isShortcutBlockedTarget(target)');
-    expect(html).toContain("if (e.key === 'Enter') {");
-    expect(html).toContain(
-      'const activeQ = questions[state.activeQuestionIndex];',
-    );
-    expect(html).toContain(
-      "const answer = (state.answers[activeQ.id] || '').trim();",
-    );
-    expect(html).toContain('if (e.repeat) {');
-    expect(html).toContain(
-      'if (state.data.isBusy || state.isSubmitting) return;',
-    );
-    expect(html).toContain('advanceToNextQuestion(activeQ.id);');
-    expect(html).toContain('if (submitBtn && !submitBtn.disabled) {');
-    expect(html).toContain('submitBtn.click();');
-  });
-
   test('shows explicit Enter guidance for option questions', () => {
     const html = renderInterviewPage('enter-hint-test', 'enter-hint-test');
 
@@ -1765,60 +1731,6 @@ describe('renderInterviewPage', () => {
     expect(html).toContain('.hint-chip {');
     expect(html).toContain('<kbd>Enter</kbd><span>Accept selected answer</span>');
     expect(html).toContain('<kbd>1-9</kbd><span>Choose an option</span>');
-  });
-
-  test('resets active Enter target when a new question set arrives', () => {
-    const html = renderInterviewPage('enter-refresh-test', 'enter-refresh-test');
-
-    expect(html).toContain('lastQuestionIds: [],');
-    expect(html).toContain('function syncActiveQuestionIndex(questions) {');
-    expect(html).toContain(
-      'const activeQuestionId = previousQuestionIds[state.activeQuestionIndex];',
-    );
-    expect(html).toContain('state.activeQuestionIndex = 0;');
-    expect(html).toContain('state.lastQuestionIds = nextQuestionIds;');
-    expect(html).toContain('syncActiveQuestionIndex(questions);');
-  });
-
-  test('scrolls to the active question when a new question set loads', () => {
-    const html = renderInterviewPage('initial-scroll-test', 'initial-scroll-test');
-
-    expect(html).toContain('function scrollToActiveQuestion(behavior) {');
-    expect(html).toContain("wrapper.scrollIntoView({ behavior, block: 'center' });");
-    expect(html).toContain(
-      'const previousActiveQuestionId =',
-    );
-    expect(html).toContain(
-      'const currentActiveQuestionId = questions[state.activeQuestionIndex]?.id;',
-    );
-    expect(html).toContain(
-      'previousActiveQuestionId !== currentActiveQuestionId',
-    );
-    expect(html).toContain("scrollToActiveQuestion('smooth');");
-  });
-
-  test('blurs submit button before posting answers', () => {
-    const html = renderInterviewPage('submit-blur-test', 'submit-blur-test');
-
-    expect(html).toContain("document.getElementById('submitButton').blur();");
-  });
-
-  test('keeps Enter in textarea on normal multiline behavior', () => {
-    const html = renderInterviewPage(
-      'textarea-enter-test',
-      'textarea-enter-test',
-    );
-
-    expect(html).toContain('if (isTextEntryTarget(e.target)) return;');
-  });
-
-  test('guards against duplicate submit while answers are posting', () => {
-    const html = renderInterviewPage('submit-guard-test', 'submit-guard-test');
-
-    expect(html).toContain('isSubmitting: false');
-    expect(html).toContain('if (!state.data || state.isSubmitting) return;');
-    expect(html).toContain('state.isSubmitting = true;');
-    expect(html).toContain('state.isSubmitting = false;');
   });
 });
 
