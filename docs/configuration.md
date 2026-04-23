@@ -86,7 +86,9 @@ All config files support **JSONC** (JSON with Comments):
 ### Runtime Preset Switching
 
 Presets can also be switched at runtime without restarting using the `/preset` command. See [Preset Switching](preset-switching.md) for details.
+
 | `presets` | object | — | Named preset configurations |
+|-----------|--------|---|-----------------------------|
 | `presets.<name>.<agent>.model` | string | — | Model ID in `provider/model` format |
 | `presets.<name>.<agent>.temperature` | number | — | Temperature (0–2) |
 | `presets.<name>.<agent>.variant` | string | — | Reasoning effort: `"low"`, `"medium"`, `"high"` |
