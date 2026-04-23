@@ -380,6 +380,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "DenisBalan",
+      "name": "Denis Balan",
+      "avatar_url": "https://avatars.githubusercontent.com/u/33955091?v=4",
+      "profile": "https://github.com/DenisBalan",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commitConvention": "angular"
