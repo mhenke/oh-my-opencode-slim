@@ -398,6 +398,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "ThomasMldr",
+      "name": "Thomas Mulder",
+      "avatar_url": "https://avatars.githubusercontent.com/u/6631765?v=4",
+      "profile": "https://github.com/ThomasMldr",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commitConvention": "angular"
