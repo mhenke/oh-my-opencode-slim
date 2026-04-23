@@ -1618,8 +1618,49 @@ describe('renderInterviewPage', () => {
     expect(html).toContain(
       "window.scrollTo({ top: 0, left: 0, behavior: 'smooth' });",
     );
-    expect(html).toContain('overlayText.textContent = "Submitting Answers...";');
+    expect(html).toContain(
+      'overlayText.textContent = "Submitting Answers...";',
+    );
     expect(html).toContain('scrollToTop();');
+  });
+
+  test('includes plain Enter shortcut to advance or submit outside text entry', () => {
+    const html = renderInterviewPage('enter-test', 'enter-test');
+
+    expect(html).toContain('function isTextEntryTarget(target)');
+    expect(html).toContain('function isShortcutBlockedTarget(target)');
+    expect(html).toContain("if (e.key === 'Enter') {");
+    expect(html).toContain(
+      'const activeQ = questions[state.activeQuestionIndex];',
+    );
+    expect(html).toContain(
+      "const answer = (state.answers[activeQ.id] || '').trim();",
+    );
+    expect(html).toContain('if (e.repeat) {');
+    expect(html).toContain(
+      'if (state.data.isBusy || state.isSubmitting) return;',
+    );
+    expect(html).toContain('advanceToNextQuestion(activeQ.id);');
+    expect(html).toContain('if (submitBtn && !submitBtn.disabled) {');
+    expect(html).toContain('submitBtn.click();');
+  });
+
+  test('keeps Enter in textarea on normal multiline behavior', () => {
+    const html = renderInterviewPage(
+      'textarea-enter-test',
+      'textarea-enter-test',
+    );
+
+    expect(html).toContain('if (isTextEntryTarget(e.target)) return;');
+  });
+
+  test('guards against duplicate submit while answers are posting', () => {
+    const html = renderInterviewPage('submit-guard-test', 'submit-guard-test');
+
+    expect(html).toContain('isSubmitting: false');
+    expect(html).toContain('if (!state.data || state.isSubmitting) return;');
+    expect(html).toContain('state.isSubmitting = true;');
+    expect(html).toContain('state.isSubmitting = false;');
   });
 });
 
@@ -1657,7 +1698,13 @@ describe('interview server port configuration', () => {
           isBusy: false,
         }) as any,
     ),
+    listInterviewFiles: mock(async () => []),
+    listInterviews: mock(() => []),
     submitAnswers: mock(async (_id: string, _answers: InterviewAnswer[]) => {}),
+    handleNudgeAction: mock(
+      async (_id: string, _action: 'more-questions' | 'confirm-complete') => {},
+    ),
+    outputFolder: 'interview',
   };
 
   test('server starts on a specific port when port is non-zero', async () => {

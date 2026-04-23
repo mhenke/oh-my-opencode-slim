@@ -897,7 +897,14 @@ export function renderInterviewPage(
       ${clipboardHelperJs()}
       const interviewId = ${JSON.stringify(interviewId).replace(/</g, '\\u003c')};
       const resumeSlug = ${JSON.stringify(resumeSlug).replace(/</g, '\\u003c')};
-      const state = { data: null, answers: {}, activeQuestionIndex: 0, lastSig: null, customMode: {} };
+      const state = {
+        data: null,
+        answers: {},
+        activeQuestionIndex: 0,
+        lastSig: null,
+        customMode: {},
+        isSubmitting: false,
+      };
 
       function updateSubmitButton() {
         const button = document.getElementById('submitButton');
@@ -910,7 +917,11 @@ export function renderInterviewPage(
         const allAnswered = questions.every((question) =>
           (state.answers[question.id] || '').trim().length > 0,
         );
-        button.disabled = state.data.isBusy || !questions.length || !allAnswered;
+        button.disabled =
+          state.data.isBusy ||
+          state.isSubmitting ||
+          !questions.length ||
+          !allAnswered;
         const hideSubmit = ['completed', 'session-disconnected'];
         button.style.display = hideSubmit.includes(state.data.mode) ? 'none' : '';
         
@@ -1061,6 +1072,20 @@ export function renderInterviewPage(
          });
       }
 
+      function isTextEntryTarget(target) {
+        return target &&
+          (target.tagName === 'TEXTAREA' ||
+            target.tagName === 'INPUT' ||
+            target.isContentEditable);
+      }
+
+      function isShortcutBlockedTarget(target) {
+        if (!target) return false;
+        return !!target.closest(
+          'button, a, select, summary, textarea, input, [contenteditable="true"]',
+        );
+      }
+
       document.addEventListener('keydown', (e) => {
         const isSubmitShortcut =
           (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) ||
@@ -1074,11 +1099,40 @@ export function renderInterviewPage(
           return;
         }
 
-        if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'INPUT') return;
+        if (isTextEntryTarget(e.target)) return;
         if (e.ctrlKey || e.metaKey || e.altKey) return;
 
         const questions = state.data?.questions || [];
         if (!questions.length) return;
+
+        if (e.key === 'Enter') {
+          if (e.repeat) {
+            e.preventDefault();
+            return;
+          }
+          if (isShortcutBlockedTarget(e.target)) return;
+          if (state.data.isBusy || state.isSubmitting) return;
+
+          const activeQ = questions[state.activeQuestionIndex];
+          if (!activeQ) return;
+
+          const answer = (state.answers[activeQ.id] || '').trim();
+          if (!answer) return;
+
+          const isLastQuestion =
+            state.activeQuestionIndex === questions.length - 1;
+          if (isLastQuestion) {
+            const submitBtn = document.getElementById('submitButton');
+            if (submitBtn && !submitBtn.disabled) {
+              submitBtn.click();
+            }
+          } else {
+            advanceToNextQuestion(activeQ.id);
+          }
+
+          e.preventDefault();
+          return;
+        }
 
          const num = parseInt(e.key, 10);
          if (num >= 1 && num <= 9) {
@@ -1395,13 +1449,16 @@ export function renderInterviewPage(
       }
 
       document.getElementById('submitButton').addEventListener('click', async () => {
-        if (!state.data) return;
+        if (!state.data || state.isSubmitting) return;
         const answers = (state.data.questions || []).map((question) => {
           return {
             questionId: question.id,
             answer: (state.answers[question.id] || '').trim(),
           };
         });
+
+        state.isSubmitting = true;
+        updateSubmitButton();
 
         const overlay = document.getElementById('loadingOverlay');
         const overlayText = document.getElementById('loadingText');
@@ -1420,6 +1477,8 @@ export function renderInterviewPage(
         } catch (err) {
           document.getElementById('submitStatus').textContent = 'Error submitting answers.';
         }
+        state.isSubmitting = false;
+        updateSubmitButton();
         try {
           await refresh();
         } catch (_error) {
