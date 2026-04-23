@@ -46,6 +46,16 @@ const defaultMultiplexerConfig = {
   main_pane_size: 60,
 };
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
 describe('MultiplexerSessionManager', () => {
   beforeEach(() => {
     mockMultiplexer.spawnPane.mockReset();
@@ -160,6 +170,41 @@ describe('MultiplexerSessionManager', () => {
       });
 
       expect(mockMultiplexer.spawnPane).not.toHaveBeenCalled();
+    });
+
+    test('does not spawn twice for duplicate create events while spawning', async () => {
+      const ctx = createMockContext();
+      const manager = new MultiplexerSessionManager(
+        ctx,
+        defaultMultiplexerConfig,
+      );
+      const deferred = createDeferred<{ success: true; paneId: string }>();
+
+      mockMultiplexer.spawnPane.mockImplementationOnce(() => deferred.promise);
+
+      const event = {
+        type: 'session.created',
+        properties: {
+          info: {
+            id: 'child-race',
+            parentID: 'parent-race',
+            title: 'Race Worker',
+          },
+        },
+      };
+
+      const firstCreate = manager.onSessionCreated(event);
+      const secondCreate = manager.onSessionCreated(event);
+
+      await Promise.resolve();
+
+      expect(mockMultiplexer.spawnPane).toHaveBeenCalledTimes(1);
+
+      deferred.resolve({ success: true, paneId: 'p-race' });
+
+      await Promise.all([firstCreate, secondCreate]);
+
+      expect(mockMultiplexer.spawnPane).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -331,6 +376,45 @@ describe('MultiplexerSessionManager', () => {
         'p-existing',
       );
     });
+
+    test('does not respawn while initial pane spawn is still in progress', async () => {
+      const ctx = createMockContext();
+      const manager = new MultiplexerSessionManager(
+        ctx,
+        defaultMultiplexerConfig,
+      );
+      const deferred = createDeferred<{ success: true; paneId: string }>();
+
+      mockMultiplexer.spawnPane.mockImplementationOnce(() => deferred.promise);
+
+      const createPromise = manager.onSessionCreated({
+        type: 'session.created',
+        properties: {
+          info: {
+            id: 'child-busy-race',
+            parentID: 'parent-busy-race',
+            title: 'Busy Worker',
+            directory: '/task/dir',
+          },
+        },
+      });
+
+      await manager.onSessionStatus({
+        type: 'session.status',
+        properties: {
+          sessionID: 'child-busy-race',
+          status: { type: 'busy' },
+        },
+      });
+
+      expect(mockMultiplexer.spawnPane).toHaveBeenCalledTimes(1);
+
+      deferred.resolve({ success: true, paneId: 'p-busy-race' });
+
+      await createPromise;
+
+      expect(mockMultiplexer.spawnPane).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('cleanup', () => {
@@ -359,6 +443,40 @@ describe('MultiplexerSessionManager', () => {
       expect(mockMultiplexer.closePane).toHaveBeenCalledTimes(2);
       expect(mockMultiplexer.closePane).toHaveBeenCalledWith('p1');
       expect(mockMultiplexer.closePane).toHaveBeenCalledWith('p2');
+    });
+
+    test('clears spawning sessions during cleanup', async () => {
+      const ctx = createMockContext();
+      const manager = new MultiplexerSessionManager(
+        ctx,
+        defaultMultiplexerConfig,
+      );
+
+      const deferred = createDeferred<{ success: true; paneId: string }>();
+      mockMultiplexer.spawnPane.mockImplementationOnce(() => deferred.promise);
+      const event = {
+        type: 'session.created',
+        properties: {
+          info: {
+            id: 'cleanup-spawn',
+            parentID: 'parent-cleanup',
+            title: 'Cleanup Worker',
+          },
+        },
+      };
+
+      const createPromise = manager.onSessionCreated(event);
+
+      await Promise.resolve();
+
+      await manager.cleanup();
+
+      await manager.onSessionCreated(event);
+
+      deferred.resolve({ success: true, paneId: 'p-cleanup' });
+      await createPromise;
+
+      expect(mockMultiplexer.spawnPane).toHaveBeenCalledTimes(2);
     });
   });
 });
