@@ -8,6 +8,7 @@ import {
   hasInternalInitiatorMarker,
   log,
 } from '../utils';
+import { parseModelReference } from '../utils/session';
 import {
   appendInterviewAnswers,
   createInterviewDirectoryPath,
@@ -154,6 +155,7 @@ export function createInterviewService(
   const activeInterviewIds = new Map<string, string>();
   const interviewsById = new Map<string, InterviewRecord>();
   const sessionBusy = new Map<string, boolean>();
+  const sessionModel = new Map<string, string>();
   const browserOpened = new Set<string>(); // Track interviews that have opened browser
   let resolveBaseUrl: (() => Promise<string>) | null = null;
   let onStateChange:
@@ -520,10 +522,14 @@ export function createInterviewService(
 
       // Use promptAsync for non-blocking — returns immediately, LLM
       // processes in background. State push updates dashboard when done.
+      const model = sessionModel.get(interview.sessionID);
       await ctx.client.session.promptAsync({
         path: { id: interview.sessionID },
         body: {
           parts: [createInternalAgentTextPart(prompt)],
+          ...(model
+            ? { model: parseModelReference(model) ?? undefined }
+            : {}),
         },
       });
       promptSent = true;
@@ -603,6 +609,25 @@ export function createInterviewService(
       return;
     }
 
+    if (event.type === 'message.updated') {
+      const info = properties as
+        | {
+            info?: {
+              sessionID?: string;
+              providerID?: string;
+              modelID?: string;
+            };
+          }
+        | undefined;
+      const sessionID = info?.info?.sessionID;
+      const providerID = info?.info?.providerID;
+      const modelID = info?.info?.modelID;
+      if (sessionID && providerID && modelID) {
+        sessionModel.set(sessionID, `${providerID}/${modelID}`);
+      }
+      return;
+    }
+
     if (event.type === 'session.deleted') {
       const deletedSessionId =
         ((properties.info as { id?: string } | undefined)?.id ??
@@ -613,6 +638,7 @@ export function createInterviewService(
       }
 
       sessionBusy.delete(deletedSessionId);
+      sessionModel.delete(deletedSessionId);
       const interviewId = activeInterviewIds.get(deletedSessionId);
       if (!interviewId) {
         return;
@@ -731,10 +757,14 @@ export function createInterviewService(
         ].join('\n');
       }
 
+      const model = sessionModel.get(interview.sessionID);
       await ctx.client.session.promptAsync({
         path: { id: interview.sessionID },
         body: {
           parts: [createInternalAgentTextPart(prompt)],
+          ...(model
+            ? { model: parseModelReference(model) ?? undefined }
+            : {}),
         },
       });
       promptSent = true;
