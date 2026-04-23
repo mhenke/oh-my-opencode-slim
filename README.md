@@ -259,7 +259,7 @@ If any agent fails to respond, check your provider authentication and config fil
       <br><sub><i>Many minds, one verdict.</i></sub>
     </td>
     <td width="70%" valign="top">
-      The Council is not a lone being but a chamber of minds summoned when one answer is not enough. It sends your question to multiple models in parallel, gathers their competing judgments, and places them before a master who distills the strongest ideas into a single verdict. Where a solitary agent may miss a path, the Council cross-examines possibility itself.
+      The Council is not a lone being but a chamber of minds summoned when one answer is not enough. It sends your question to multiple models in parallel, gathers their competing judgments, and then the Council agent itself distills the strongest ideas into a single verdict. Where a solitary agent may miss a path, the Council cross-examines possibility itself.
     </td>
   </tr>
   <tr>
@@ -279,17 +279,17 @@ If any agent fails to respond, check your provider authentication and config fil
   </tr>
   <tr>
     <td colspan="2">
-      <b>Default Setup:</b> <code>Config-driven</code> — councillors are chosen from your configured preset and the council agent synthesizes their responses
+      <b>Default Setup:</b> <code>Config-driven</code> — councillors come from <code>council.presets</code> and the Council agent model comes from your normal <code>council</code> agent config
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Recommended Setup:</b> <code>Strong master</code> + <code>diverse councillors</code> across providers
+      <b>Recommended Setup:</b> <code>Strong Council model</code> + <code>diverse councillors</code> across providers
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Model Guidance:</b> Use a strong synthesis model as the master and diverse models as councillors. The value of Council comes from comparing different model perspectives, not just picking the single strongest model everywhere.
+      <b>Model Guidance:</b> Use a strong synthesis model for the Council agent and diverse models as councillors. The value of Council comes from comparing different model perspectives, not just picking the single strongest model everywhere.
     </td>
   </tr>
 </table>

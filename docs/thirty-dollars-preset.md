@@ -14,6 +14,7 @@ It uses Codex Plus for the OpenAI models and GitHub Copilot for the premium coun
     "presets": {
       "thirtydollars": { "orchestrator": { "model": "openai/gpt-5.4", "skills": [ "*" ], "mcps": [ "*", "websearch"] },
         "oracle": { "model": "openai/gpt-5.4", "variant": "high", "skills": [], "mcps": [] },
+        "council": { "model": "openai/gpt-5.4" },
         "librarian": { "model": "openai/gpt-5.4-mini", "variant": "low", "skills": [], "mcps": [ "websearch", "context7", "grep_app" ] },
         "explorer": { "model": "openai/gpt-5.4-mini", "variant": "low", "skills": [], "mcps": [] },
         "designer": { "model": "github-copilot/gemini-3.1-pro-preview", "skills": [ "agent-browser" ], "mcps": [] },
@@ -21,7 +22,6 @@ It uses Codex Plus for the OpenAI models and GitHub Copilot for the premium coun
       }
     },
    "council": {
-      "master": { "model": "openai/gpt-5.4" },
       "presets": {
         "default": {
           "alpha":  { "model": "github-copilot/claude-sonnet-4.6" },
