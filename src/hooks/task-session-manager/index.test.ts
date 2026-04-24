@@ -246,6 +246,51 @@ describe('task-session-manager hook', () => {
     expect(prompt).toContain('src/large.ts (12 lines)');
   });
 
+  test('counts overlapping repeated reads once per unique line', async () => {
+    const { hook } = createHook();
+
+    await hook.event({
+      event: {
+        type: 'session.created',
+        properties: { info: { id: 'child-1', parentID: 'parent-1' } },
+      },
+    });
+    for (const call of ['read-1', 'read-2']) {
+      await hook['tool.execute.after'](
+        { tool: 'read', sessionID: 'child-1', callID: call },
+        {
+          output: [
+            '<path>/tmp/src/repeat.ts</path>',
+            '<content>',
+            ...Array.from({ length: 12 }, (_, index) => `${index + 1}: line`),
+            '</content>',
+          ].join('\n'),
+        },
+      );
+    }
+
+    await hook['tool.execute.before'](
+      { tool: 'task', sessionID: 'parent-1', callID: 'call-1' },
+      { args: { subagent_type: 'explorer', description: 'repeat reads' } },
+    );
+    await hook['tool.execute.after'](
+      { tool: 'task', sessionID: 'parent-1', callID: 'call-1' },
+      {
+        output:
+          'task_id: child-1 (for resuming to continue this task if needed)',
+      },
+    );
+
+    const system = { system: ['base'] };
+    await hook['experimental.chat.system.transform'](
+      { sessionID: 'parent-1' },
+      system,
+    );
+
+    expect(system.system.join('\n')).toContain('src/repeat.ts (12 lines)');
+    expect(system.system.join('\n')).not.toContain('src/repeat.ts (24 lines)');
+  });
+
   test('uses configured read context thresholds', async () => {
     const { hook } = createHook({
       readContextMinLines: 5,

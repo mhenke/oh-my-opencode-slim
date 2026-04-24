@@ -39,7 +39,7 @@ const MAX_PENDING_TASK_CALLS = 100;
 
 interface PendingContextFile {
   path: string;
-  lineCount: number;
+  lines: Set<number>;
   lastReadAt: number;
 }
 
@@ -75,18 +75,19 @@ function extractReadFiles(
   return [
     {
       path: normalizePath(root, file),
-      lineCount: countReadLines(output.output),
+      lineCount: countReadLines(output.output).length,
+      lineNumbers: countReadLines(output.output),
       lastReadAt: Date.now(),
     },
   ];
 }
 
-function countReadLines(output: string): number {
+function countReadLines(output: string): number[] {
   const lines = new Set<number>();
   for (const match of output.matchAll(/^([0-9]+):/gm)) {
     lines.add(Number(match[1]));
   }
-  return lines.size;
+  return [...lines];
 }
 
 export function createTaskSessionManagerHook(
@@ -118,10 +119,12 @@ export function createTaskSessionManagerHook(
     for (const file of files) {
       const pending = context.get(file.path) ?? {
         path: file.path,
-        lineCount: 0,
+        lines: new Set<number>(),
         lastReadAt: file.lastReadAt,
       };
-      pending.lineCount += file.lineCount;
+      for (const line of file.lineNumbers ?? []) {
+        pending.lines.add(line);
+      }
       pending.lastReadAt = Math.max(pending.lastReadAt, file.lastReadAt);
       context.set(file.path, pending);
     }
@@ -135,7 +138,7 @@ export function createTaskSessionManagerHook(
     if (!context) return [];
     return [...context.values()].map((file) => ({
       path: file.path,
-      lineCount: file.lineCount,
+      lineCount: file.lines.size,
       lastReadAt: file.lastReadAt,
     }));
   }

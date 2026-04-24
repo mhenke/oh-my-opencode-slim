@@ -3,6 +3,7 @@ import type { AgentName } from '../config';
 export interface ContextFile {
   path: string;
   lineCount: number;
+  lineNumbers?: number[];
   lastReadAt: number;
 }
 
@@ -205,6 +206,7 @@ export class SessionManager {
           }
           match.contextFiles.push({ ...file });
         }
+        this.trimContextFiles(match);
       }
     }
   }
@@ -319,6 +321,18 @@ export class SessionManager {
     if (group.length > this.maxSessionsPerAgent) {
       group.length = this.maxSessionsPerAgent;
     }
+  }
+
+  private trimContextFiles(entry: RememberedTaskSession): void {
+    if (this.readContextMaxFiles === 0) {
+      entry.contextFiles = [];
+      return;
+    }
+
+    entry.contextFiles = entry.contextFiles
+      .filter((file) => file.lineCount >= this.readContextMinLines)
+      .sort((a, b) => b.lastReadAt - a.lastReadAt)
+      .slice(0, this.readContextMaxFiles + 1);
   }
 
   private nextOrder(): number {

@@ -119,6 +119,35 @@ describe('SessionManager', () => {
     expect(prompt).not.toContain('medium.ts');
     expect(prompt).toContain('(+1 more)');
   });
+
+  test('bounds stored read context files to the render cap plus overflow marker', () => {
+    const manager = new SessionManager(2, {
+      readContextMinLines: 1,
+      readContextMaxFiles: 2,
+    });
+
+    const remembered = manager.remember({
+      parentSessionId: 'parent-1',
+      taskId: 'task-1',
+      agentType: 'explorer',
+      label: 'bounded context',
+    });
+    manager.addContext(
+      'task-1',
+      Array.from({ length: 10 }, (_, index) => ({
+        path: `file-${index}.ts`,
+        lineCount: 10,
+        lastReadAt: index,
+      })),
+    );
+
+    expect(remembered.contextFiles).toHaveLength(3);
+    const prompt = manager.formatForPrompt('parent-1') ?? '';
+    expect(prompt).toContain('file-9.ts (10 lines)');
+    expect(prompt).toContain('file-8.ts (10 lines)');
+    expect(prompt).toContain('(+1 more)');
+    expect(prompt).not.toContain('file-0.ts');
+  });
 });
 
 describe('deriveTaskSessionLabel', () => {
