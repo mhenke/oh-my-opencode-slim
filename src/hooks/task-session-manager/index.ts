@@ -100,6 +100,7 @@ export function createTaskSessionManagerHook(
   const pendingCalls = new Map<string, PendingTaskCall>();
   const pendingCallOrder: string[] = [];
   const contextByTask = new Map<string, Map<string, PendingContextFile>>();
+  const pendingManagedTaskIds = new Set<string>();
 
   function addTaskContext(taskId: string, files: ContextFile[]): void {
     if (files.length === 0) return;
@@ -132,6 +133,21 @@ export function createTaskSessionManagerHook(
       lineCount: file.lineCount,
       lastReadAt: file.lastReadAt,
     }));
+  }
+
+  function canTrackTaskContext(taskId: string): boolean {
+    return (
+      pendingManagedTaskIds.has(taskId) || sessionManager.taskIds().has(taskId)
+    );
+  }
+
+  function pruneContext(): void {
+    const remembered = sessionManager.taskIds();
+    for (const taskId of contextByTask.keys()) {
+      if (!pendingManagedTaskIds.has(taskId) && !remembered.has(taskId)) {
+        contextByTask.delete(taskId);
+      }
+    }
   }
 
   function isMissingRememberedSessionError(output: string): boolean {
@@ -221,6 +237,7 @@ export function createTaskSessionManagerHook(
       }
 
       args.task_id = remembered.taskId;
+      pendingManagedTaskIds.add(remembered.taskId);
       sessionManager.markUsed(
         input.sessionID,
         args.subagent_type,
@@ -242,7 +259,7 @@ export function createTaskSessionManagerHook(
       output: { output: unknown; metadata?: unknown },
     ): Promise<void> => {
       if (input.tool.toLowerCase() === 'read') {
-        if (input.sessionID) {
+        if (input.sessionID && canTrackTaskContext(input.sessionID)) {
           addTaskContext(
             input.sessionID,
             extractReadFiles(_ctx.directory, output),
@@ -285,8 +302,10 @@ export function createTaskSessionManagerHook(
         agentType: pending.agentType,
         label: pending.label,
       });
+      pendingManagedTaskIds.delete(taskId);
       const contextFiles = contextFilesForPrompt(contextByTask.get(taskId));
       sessionManager.addContext(taskId, contextFiles);
+      pruneContext();
     },
 
     'experimental.chat.system.transform': async (
@@ -305,9 +324,24 @@ export function createTaskSessionManagerHook(
     event: async (input: {
       event: {
         type: string;
-        properties?: { info?: { id?: string }; sessionID?: string };
+        properties?: {
+          info?: { id?: string; parentID?: string };
+          sessionID?: string;
+        };
       };
     }): Promise<void> => {
+      if (input.event.type === 'session.created') {
+        const info = input.event.properties?.info;
+        if (
+          info?.id &&
+          info.parentID &&
+          options.shouldManageSession(info.parentID)
+        ) {
+          pendingManagedTaskIds.add(info.id);
+        }
+        return;
+      }
+
       if (input.event.type !== 'session.deleted') return;
       const sessionId =
         input.event.properties?.info?.id ?? input.event.properties?.sessionID;
@@ -316,6 +350,8 @@ export function createTaskSessionManagerHook(
       sessionManager.clearParent(sessionId);
       sessionManager.dropTask(sessionId);
       contextByTask.delete(sessionId);
+      pendingManagedTaskIds.delete(sessionId);
+      pruneContext();
 
       for (const [callId, pending] of pendingCalls.entries()) {
         if (pending.parentSessionId !== sessionId) {

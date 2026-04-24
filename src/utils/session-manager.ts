@@ -156,6 +156,18 @@ export class SessionManager {
     }
   }
 
+  taskIds(): Set<string> {
+    const ids = new Set<string>();
+    for (const groups of this.sessionsByParent.values()) {
+      for (const group of groups.values()) {
+        for (const entry of group) {
+          ids.add(entry.taskId);
+        }
+      }
+    }
+    return ids;
+  }
+
   addContext(taskId: string, files: ContextFile[]): void {
     if (files.length === 0) return;
 

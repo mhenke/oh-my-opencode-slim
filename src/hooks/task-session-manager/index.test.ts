@@ -111,6 +111,13 @@ describe('task-session-manager hook', () => {
   test('tracks files read by child sessions in resumable prompt context', async () => {
     const { hook } = createHook();
 
+    await hook.event({
+      event: {
+        type: 'session.created',
+        properties: { info: { id: 'child-1', parentID: 'parent-1' } },
+      },
+    });
+
     await hook['tool.execute.after'](
       {
         tool: 'read',
@@ -171,6 +178,13 @@ describe('task-session-manager hook', () => {
   test('accumulates multiple reads and hides tiny read context', async () => {
     const { hook } = createHook();
 
+    await hook.event({
+      event: {
+        type: 'session.created',
+        properties: { info: { id: 'child-1', parentID: 'parent-1' } },
+      },
+    });
+
     await hook['tool.execute.after'](
       { tool: 'read', sessionID: 'child-1', callID: 'read-1' },
       {
@@ -226,6 +240,102 @@ describe('task-session-manager hook', () => {
     const prompt = system.system.join('\n');
     expect(prompt).not.toContain('small.ts');
     expect(prompt).toContain('src/large.ts (12 lines)');
+  });
+
+  test('ignores reads from unmanaged child sessions', async () => {
+    const { hook } = createHook({
+      shouldManageSession: (sessionID) => sessionID === 'parent-1',
+    });
+
+    await hook.event({
+      event: {
+        type: 'session.created',
+        properties: { info: { id: 'child-1', parentID: 'other-parent' } },
+      },
+    });
+    await hook['tool.execute.after'](
+      { tool: 'read', sessionID: 'child-1', callID: 'read-1' },
+      {
+        output: [
+          '<path>/tmp/src/index.ts</path>',
+          '<content>',
+          ...Array.from({ length: 12 }, (_, index) => `${index + 1}: line`),
+          '</content>',
+        ].join('\n'),
+      },
+    );
+
+    await hook['tool.execute.before'](
+      { tool: 'task', sessionID: 'parent-1', callID: 'call-1' },
+      { args: { subagent_type: 'explorer', description: 'unmanaged read' } },
+    );
+    await hook['tool.execute.after'](
+      { tool: 'task', sessionID: 'parent-1', callID: 'call-1' },
+      {
+        output:
+          'task_id: child-1 (for resuming to continue this task if needed)',
+      },
+    );
+
+    const system = { system: ['base'] };
+    await hook['experimental.chat.system.transform'](
+      { sessionID: 'parent-1' },
+      system,
+    );
+
+    const prompt = system.system.join('\n');
+    expect(prompt).toContain('exp-1 unmanaged read');
+    expect(prompt).not.toContain('Context read by exp-1');
+  });
+
+  test('prunes read context when remembered sessions are evicted', async () => {
+    const { hook } = createHook();
+
+    for (const index of [1, 2, 3]) {
+      await hook.event({
+        event: {
+          type: 'session.created',
+          properties: {
+            info: { id: `child-${index}`, parentID: 'parent-1' },
+          },
+        },
+      });
+      await hook['tool.execute.after'](
+        { tool: 'read', sessionID: `child-${index}`, callID: `read-${index}` },
+        {
+          output: [
+            `<path>/tmp/src/file-${index}.ts</path>`,
+            '<content>',
+            ...Array.from({ length: 12 }, (_, line) => `${line + 1}: line`),
+            '</content>',
+          ].join('\n'),
+        },
+      );
+      await hook['tool.execute.before'](
+        { tool: 'task', sessionID: 'parent-1', callID: `call-${index}` },
+        { args: { subagent_type: 'explorer', description: `thread ${index}` } },
+      );
+      await hook['tool.execute.after'](
+        { tool: 'task', sessionID: 'parent-1', callID: `call-${index}` },
+        {
+          output: `task_id: child-${index} (for resuming to continue this task if needed)`,
+        },
+      );
+    }
+
+    const system = { system: ['base'] };
+    await hook['experimental.chat.system.transform'](
+      { sessionID: 'parent-1' },
+      system,
+    );
+
+    const prompt = system.system.join('\n');
+    expect(prompt).not.toContain('exp-1 thread 1');
+    expect(prompt).not.toContain('file-1.ts');
+    expect(prompt).toContain('exp-2 thread 2');
+    expect(prompt).toContain('file-2.ts (12 lines)');
+    expect(prompt).toContain('exp-3 thread 3');
+    expect(prompt).toContain('file-3.ts (12 lines)');
   });
 
   test('drops stale remembered sessions and falls back to fresh', async () => {
