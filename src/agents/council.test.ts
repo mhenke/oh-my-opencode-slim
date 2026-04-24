@@ -39,7 +39,10 @@ describe("formatCouncillorResults", () => {
     );
     expect(formatted).toContain("**Councillor Responses**:");
     expect(formatted).toContain(
-      "Synthesize the optimal response based on the above."
+      "Produce the required final response: include a synthesized Council Response"
+    );
+    expect(formatted).toContain(
+      "consensus confidence rating of unanimous, majority, or split."
     );
     expect(formatted).not.toContain("**Failed/Timed-out Councillors**:");
   });
@@ -144,7 +147,7 @@ describe("formatCouncillorResults", () => {
     expect(formatted).toContain("**beta** (gpt-5.5):");
     expect(formatted).toContain("Another valid response");
     expect(formatted).toContain(
-      "Synthesize the optimal response based on the above."
+      "preserve each individual councillor response in Councillor Details"
     );
   });
 });
