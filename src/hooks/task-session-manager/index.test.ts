@@ -3,6 +3,8 @@ import { createTaskSessionManagerHook } from './index';
 
 function createHook(options?: {
   shouldManageSession?: (sessionID: string) => boolean;
+  readContextMinLines?: number;
+  readContextMaxFiles?: number;
 }) {
   const hook = createTaskSessionManagerHook(
     {
@@ -12,6 +14,8 @@ function createHook(options?: {
     } as never,
     {
       maxSessionsPerAgent: 2,
+      readContextMinLines: options?.readContextMinLines,
+      readContextMaxFiles: options?.readContextMaxFiles,
       shouldManageSession: options?.shouldManageSession ?? (() => true),
     },
   );
@@ -240,6 +244,60 @@ describe('task-session-manager hook', () => {
     const prompt = system.system.join('\n');
     expect(prompt).not.toContain('small.ts');
     expect(prompt).toContain('src/large.ts (12 lines)');
+  });
+
+  test('uses configured read context thresholds', async () => {
+    const { hook } = createHook({
+      readContextMinLines: 5,
+      readContextMaxFiles: 1,
+    });
+
+    await hook.event({
+      event: {
+        type: 'session.created',
+        properties: { info: { id: 'child-1', parentID: 'parent-1' } },
+      },
+    });
+    for (const [file, lines] of [
+      ['small.ts', 4],
+      ['medium.ts', 5],
+      ['large.ts', 12],
+    ] as const) {
+      await hook['tool.execute.after'](
+        { tool: 'read', sessionID: 'child-1', callID: `read-${file}` },
+        {
+          output: [
+            `<path>/tmp/src/${file}</path>`,
+            '<content>',
+            ...Array.from({ length: lines }, (_, line) => `${line + 1}: line`),
+            '</content>',
+          ].join('\n'),
+        },
+      );
+    }
+
+    await hook['tool.execute.before'](
+      { tool: 'task', sessionID: 'parent-1', callID: 'call-1' },
+      { args: { subagent_type: 'explorer', description: 'configured caps' } },
+    );
+    await hook['tool.execute.after'](
+      { tool: 'task', sessionID: 'parent-1', callID: 'call-1' },
+      {
+        output:
+          'task_id: child-1 (for resuming to continue this task if needed)',
+      },
+    );
+
+    const system = { system: ['base'] };
+    await hook['experimental.chat.system.transform'](
+      { sessionID: 'parent-1' },
+      system,
+    );
+
+    const prompt = system.system.join('\n');
+    expect(prompt).not.toContain('small.ts');
+    expect(prompt).toContain('Context read by exp-1:');
+    expect(prompt).toContain('(+1 more)');
   });
 
   test('ignores reads from unmanaged child sessions', async () => {

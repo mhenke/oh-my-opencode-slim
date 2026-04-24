@@ -93,10 +93,15 @@ export function createTaskSessionManagerHook(
   _ctx: PluginInput,
   options: {
     maxSessionsPerAgent: number;
+    readContextMinLines?: number;
+    readContextMaxFiles?: number;
     shouldManageSession: (sessionID: string) => boolean;
   },
 ) {
-  const sessionManager = new SessionManager(options.maxSessionsPerAgent);
+  const sessionManager = new SessionManager(options.maxSessionsPerAgent, {
+    readContextMinLines: options.readContextMinLines,
+    readContextMaxFiles: options.readContextMaxFiles,
+  });
   const pendingCalls = new Map<string, PendingTaskCall>();
   const pendingCallOrder: string[] = [];
   const contextByTask = new Map<string, Map<string, PendingContextFile>>();

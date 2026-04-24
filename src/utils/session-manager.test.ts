@@ -94,6 +94,31 @@ describe('SessionManager', () => {
     expect(prompt).toContain('file-9.ts (29 lines)');
     expect(prompt).toContain('(+1 more)');
   });
+
+  test('uses configurable read context thresholds', () => {
+    const manager = new SessionManager(2, {
+      readContextMinLines: 5,
+      readContextMaxFiles: 1,
+    });
+
+    manager.remember({
+      parentSessionId: 'parent-1',
+      taskId: 'task-1',
+      agentType: 'explorer',
+      label: 'custom thresholds',
+    });
+    manager.addContext('task-1', [
+      { path: 'small.ts', lineCount: 4, lastReadAt: 1 },
+      { path: 'medium.ts', lineCount: 5, lastReadAt: 2 },
+      { path: 'large.ts', lineCount: 12, lastReadAt: 3 },
+    ]);
+
+    const prompt = manager.formatForPrompt('parent-1') ?? '';
+    expect(prompt).not.toContain('small.ts');
+    expect(prompt).toContain('large.ts (12 lines)');
+    expect(prompt).not.toContain('medium.ts');
+    expect(prompt).toContain('(+1 more)');
+  });
 });
 
 describe('deriveTaskSessionLabel', () => {

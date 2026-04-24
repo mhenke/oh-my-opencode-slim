@@ -21,6 +21,11 @@ type SessionGroupMap = Map<AgentName, RememberedTaskSession[]>;
 const MIN_CONTEXT_FILE_LINES = 10;
 const MAX_CONTEXT_FILES_PER_SESSION = 8;
 
+interface SessionManagerOptions {
+  readContextMinLines?: number;
+  readContextMaxFiles?: number;
+}
+
 function aliasPrefix(agentType: AgentName): string {
   switch (agentType) {
     case 'explorer':
@@ -72,6 +77,8 @@ export function deriveTaskSessionLabel(input: {
 
 export class SessionManager {
   private readonly maxSessionsPerAgent: number;
+  private readonly readContextMinLines: number;
+  private readonly readContextMaxFiles: number;
   private readonly sessionsByParent = new Map<string, SessionGroupMap>();
   private readonly nextAliasIndexByParent = new Map<
     string,
@@ -79,8 +86,15 @@ export class SessionManager {
   >();
   private orderCounter = 0;
 
-  constructor(maxSessionsPerAgent: number) {
+  constructor(
+    maxSessionsPerAgent: number,
+    options: SessionManagerOptions = {},
+  ) {
     this.maxSessionsPerAgent = maxSessionsPerAgent;
+    this.readContextMinLines =
+      options.readContextMinLines ?? MIN_CONTEXT_FILE_LINES;
+    this.readContextMaxFiles =
+      options.readContextMaxFiles ?? MAX_CONTEXT_FILES_PER_SESSION;
   }
 
   remember(input: {
@@ -222,7 +236,13 @@ export class SessionManager {
           ...entries
             .map(
               (entry) =>
-                [entry, formatContextFiles(entry.contextFiles)] as const,
+                [
+                  entry,
+                  formatContextFiles(entry.contextFiles, {
+                    minLines: this.readContextMinLines,
+                    maxFiles: this.readContextMaxFiles,
+                  }),
+                ] as const,
             )
             .filter(([, context]) => context.length > 0)
             .map(
@@ -307,11 +327,14 @@ export class SessionManager {
   }
 }
 
-function formatContextFiles(files: ContextFile[]): string {
+function formatContextFiles(
+  files: ContextFile[],
+  options: { minLines: number; maxFiles: number },
+): string {
   const eligible = files
-    .filter((file) => file.lineCount >= MIN_CONTEXT_FILE_LINES)
+    .filter((file) => file.lineCount >= options.minLines)
     .sort((a, b) => b.lastReadAt - a.lastReadAt);
-  const shown = eligible.slice(0, MAX_CONTEXT_FILES_PER_SESSION);
+  const shown = eligible.slice(0, options.maxFiles);
   const rest = eligible.length - shown.length;
   const rendered = shown.map(
     (file) => `${file.path} (${file.lineCount} lines)`,
