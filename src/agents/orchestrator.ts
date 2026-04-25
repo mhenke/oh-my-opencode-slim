@@ -186,10 +186,10 @@ Balance: respect dependencies, avoid parallelizing what must be sequential.
 5. Adjust if needed
 
 ### Session Reuse
-- Reuse an available specialist session only for clear follow-up work on the same thread.
-- Prefer a fresh session for unrelated work, even with the same specialist.
+- Smartly reuse an available specialist session - constext reuse saves time and tokens
+- When too much unrelated, and really needed, start a fresh session with the specialist
 - If multiple remembered sessions fit, prefer the most recently used matching session.
-- If reuse is unclear, start a fresh session.
+- Prefer re-uses over creating new sessions all the time
 
 ### Auto-Continue
 When working through multi-step tasks, consider enabling auto-continue to avoid stopping between batches:
