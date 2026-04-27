@@ -13,26 +13,8 @@ interface ToolExecuteAfterInput {
   callID?: string;
 }
 
-interface ChatSystemTransformInput {
-  sessionID?: string;
-}
-
-interface ChatSystemTransformOutput {
-  system: string[];
-}
-
 interface ToolExecuteAfterOutput {
   output?: unknown;
-}
-
-interface EventInput {
-  event: {
-    type: string;
-    properties?: {
-      info?: { id?: string };
-      sessionID?: string;
-    };
-  };
 }
 
 interface PostFileToolNudgeOptions {
@@ -76,19 +58,6 @@ export function createPostFileToolNudgeHook(
       }
 
       appendReminder(output);
-    },
-    'experimental.chat.system.transform': async (
-      _input: ChatSystemTransformInput,
-      _output: ChatSystemTransformOutput,
-    ): Promise<void> => {
-      // Kept as a no-op for hook shape compatibility. Dynamic reminders must
-      // not mutate the system prompt because OpenCode prompt-caches system
-      // messages as the stable prefix.
-    },
-    event: async (input: EventInput): Promise<void> => {
-      if (input.event.type !== 'session.deleted') {
-        return;
-      }
     },
   };
 }

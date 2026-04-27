@@ -51,19 +51,12 @@ describe('todo hygiene', () => {
     expect(freshOutput.output).toContain(TODO_HYGIENE_REMINDER);
   });
 
-  test('system transform is no-op (cache-safe)', async () => {
+  test('does not expose a system transform handler', async () => {
     const hook = createTodoHygiene({
       getTodoState: async () => createState(),
     });
-    const system = { system: ['base'] };
 
-    hook.handleRequestStart({ sessionID: 's1' });
-    await hook.handleToolExecuteAfter({ tool: 'todowrite', sessionID: 's1' });
-    await hook.handleToolExecuteAfter({ tool: 'read', sessionID: 's1' });
-    await hook.handleChatSystemTransform({ sessionID: 's1' }, system);
-
-    expect(system.system).toEqual(['base']);
-    expect(system.system.join('\n')).not.toContain(TODO_HYGIENE_REMINDER);
+    expect('handleChatSystemTransform' in hook).toBe(false);
   });
 
   test('does not arm before the current request calls todowrite', async () => {

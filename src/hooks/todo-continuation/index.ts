@@ -129,10 +129,6 @@ export function createTodoContinuationHook(
     },
     output?: { output?: unknown },
   ) => Promise<void>;
-  handleChatSystemTransform: (
-    input: { sessionID?: string },
-    output: { system: string[] },
-  ) => Promise<void>;
   handleMessagesTransform: (output: {
     messages: ChatTransformMessage[];
   }) => Promise<void>;
@@ -819,7 +815,6 @@ export function createTodoContinuationHook(
   return {
     tool: { auto_continue: autoContinue },
     handleToolExecuteAfter: hygiene.handleToolExecuteAfter,
-    handleChatSystemTransform: hygiene.handleChatSystemTransform,
     handleMessagesTransform,
     handleEvent,
     handleChatMessage,

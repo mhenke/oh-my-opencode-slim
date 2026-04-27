@@ -754,18 +754,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         },
       );
 
-      await postFileToolNudgeHook.event(
-        input as {
-          event: {
-            type: string;
-            properties?: {
-              info?: { id?: string };
-              sessionID?: string;
-            };
-          };
-        },
-      );
-
       await taskSessionManagerHook.event(
         input as {
           event: {

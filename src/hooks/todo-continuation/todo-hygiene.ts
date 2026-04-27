@@ -17,14 +17,6 @@ interface ToolOutput {
   output?: unknown;
 }
 
-interface SystemInput {
-  sessionID?: string;
-}
-
-interface SystemOutput {
-  system: string[];
-}
-
 interface EventInput {
   type: string;
   properties?: {
@@ -208,51 +200,6 @@ export function createTodoHygiene(options: Options) {
           {
             sessionID: input.sessionID,
             tool,
-            error: error instanceof Error ? error.message : String(error),
-          },
-        );
-      }
-    },
-
-    async handleChatSystemTransform(
-      input: SystemInput,
-      _output: SystemOutput,
-    ): Promise<void> {
-      if (!input.sessionID) {
-        return;
-      }
-
-      const reasons = pending.get(input.sessionID);
-      if (!reasons || reasons.size === 0) {
-        return;
-      }
-
-      const reminder = pick(reasons);
-
-      if (options.shouldInject && !options.shouldInject(input.sessionID)) {
-        clear(input.sessionID);
-        return;
-      }
-
-      try {
-        const state = await options.getTodoState(input.sessionID);
-        if (!state.hasOpenTodos) {
-          clear(input.sessionID);
-          return;
-        }
-
-        pending.delete(input.sessionID);
-        options.log?.('Injected todo hygiene reminder', {
-          sessionID: input.sessionID,
-          reminder,
-          reasons: Array.from(reasons),
-        });
-      } catch (error) {
-        pending.delete(input.sessionID);
-        options.log?.(
-          'Skipped todo hygiene reminder: failed to inspect todos',
-          {
-            sessionID: input.sessionID,
             error: error instanceof Error ? error.message : String(error),
           },
         );

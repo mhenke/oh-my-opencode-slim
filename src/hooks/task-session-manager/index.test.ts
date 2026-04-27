@@ -77,43 +77,9 @@ describe('task-session-manager hook', () => {
     expect(userMessage.parts[0].text).toContain('</resumable_sessions>');
   });
 
-  test('system transform is no-op (cache-safe)', async () => {
+  test('does not expose a system transform for resumable sessions', async () => {
     const { hook } = createHook();
-
-    await hook['tool.execute.before'](
-      {
-        tool: 'task',
-        sessionID: 'parent-1',
-        callID: 'call-1',
-      },
-      {
-        args: {
-          subagent_type: 'explorer',
-          description: 'config schema',
-        },
-      },
-    );
-
-    await hook['tool.execute.after'](
-      {
-        tool: 'task',
-        sessionID: 'parent-1',
-        callID: 'call-1',
-      },
-      {
-        output:
-          'task_id: child-1 (for resuming to continue this task if needed)',
-      },
-    );
-
-    const system = { system: ['base'] };
-    await hook['experimental.chat.system.transform'](
-      { sessionID: 'parent-1' },
-      system,
-    );
-
-    expect(system.system).toEqual(['base']);
-    expect(system.system.join('\n')).not.toContain('Resumable Sessions');
+    expect('experimental.chat.system.transform' in hook).toBe(false);
   });
 
   test('resolves remembered aliases to real task ids before execution', async () => {

@@ -28,19 +28,6 @@ describe('post-file-tool-nudge hook', () => {
     expect(output.output).toContain('</internal_reminder>');
   });
 
-  test('system transform is no-op (cache-safe)', async () => {
-    const hook = createPostFileToolNudgeHook();
-    const system = { system: ['base system prompt'] };
-
-    await hook['experimental.chat.system.transform'](
-      { sessionID: 's1' },
-      system,
-    );
-
-    expect(system.system).toEqual(['base system prompt']);
-    expect(system.system.join('\n')).not.toContain(PHASE_REMINDER_TEXT);
-  });
-
   test('does not duplicate reminder in same tool output', async () => {
     const hook = createPostFileToolNudgeHook();
     const output = createOutput();
@@ -103,33 +90,5 @@ describe('post-file-tool-nudge hook', () => {
 
     expect(output.output).toBe('real content');
     expect(output.output).not.toContain(PHASE_REMINDER_TEXT);
-  });
-
-  test('handles session.deleted event without error', async () => {
-    const hook = createPostFileToolNudgeHook();
-
-    await hook.event({
-      event: {
-        type: 'session.deleted',
-        properties: { info: { id: 's1' } },
-      },
-    });
-
-    // Should not throw
-    expect(true).toBe(true);
-  });
-
-  test('handles session.deleted with sessionID property', async () => {
-    const hook = createPostFileToolNudgeHook();
-
-    await hook.event({
-      event: {
-        type: 'session.deleted',
-        properties: { sessionID: 's1' },
-      },
-    });
-
-    // Should not throw
-    expect(true).toBe(true);
   });
 });

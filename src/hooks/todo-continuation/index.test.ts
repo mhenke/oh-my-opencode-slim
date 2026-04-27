@@ -129,7 +129,7 @@ describe('createTodoContinuationHook', () => {
       expect(toolOutput.output).not.toContain(TODO_HYGIENE_REMINDER);
     });
 
-    test('system transform is no-op (cache-safe)', async () => {
+    test('does not expose a system transform handler', async () => {
       const ctx = createMockContext({
         todoResult: {
           data: [
@@ -143,27 +143,8 @@ describe('createTodoContinuationHook', () => {
         },
       });
       const hook = createTodoContinuationHook(ctx);
-      const system = { system: ['base'] };
 
-      await hook.handleMessagesTransform(
-        userMessages(
-          'continue with the unfinished work',
-          'main1',
-          'orchestrator',
-        ),
-      );
-      await hook.handleToolExecuteAfter({
-        tool: 'todowrite',
-        sessionID: 'main1',
-      });
-      await hook.handleToolExecuteAfter({ tool: 'read', sessionID: 'main1' });
-      await hook.handleChatSystemTransform({ sessionID: 'main1' }, system);
-
-      expect(system.system).toEqual(['base']);
-      expect(system.system.join('\n')).not.toContain(TODO_HYGIENE_REMINDER);
-      expect(system.system.join('\n')).not.toContain(
-        TODO_FINAL_ACTIVE_REMINDER,
-      );
+      expect('handleChatSystemTransform' in hook).toBe(false);
     });
 
     test('injects hygiene reminder into tool output after todowrite activity', async () => {

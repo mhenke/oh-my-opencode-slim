@@ -335,18 +335,6 @@ export function createTaskSessionManagerHook(
       pruneContext();
     },
 
-    'experimental.chat.system.transform': async (
-      input: { sessionID?: string },
-      _output: { system: string[] },
-    ): Promise<void> => {
-      if (!input.sessionID || !options.shouldManageSession(input.sessionID)) {
-        return;
-      }
-      // Kept as a no-op for hook shape compatibility. Dynamic resumable
-      // sessions are injected into request-local message context instead of
-      // the cached system prompt.
-    },
-
     'experimental.chat.messages.transform': async (
       _input: Record<string, never>,
       output: { messages: ChatMessage[] },
