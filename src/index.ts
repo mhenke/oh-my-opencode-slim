@@ -956,11 +956,11 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       await todoContinuationHook.handleMessagesTransform({
         messages: typedOutput.messages,
       });
-      await phaseReminderHook['experimental.chat.messages.transform'](
+      await taskSessionManagerHook['experimental.chat.messages.transform'](
         input,
         typedOutput,
       );
-      await taskSessionManagerHook['experimental.chat.messages.transform'](
+      await phaseReminderHook['experimental.chat.messages.transform'](
         input,
         typedOutput,
       );
