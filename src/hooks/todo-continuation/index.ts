@@ -122,10 +122,13 @@ export function createTodoContinuationHook(
   },
 ): {
   tool: Record<string, unknown>;
-  handleToolExecuteAfter: (input: {
-    tool: string;
-    sessionID?: string;
-  }) => Promise<void>;
+  handleToolExecuteAfter: (
+    input: {
+      tool: string;
+      sessionID?: string;
+    },
+    output?: { output?: unknown },
+  ) => Promise<void>;
   handleChatSystemTransform: (
     input: { sessionID?: string },
     output: { system: string[] },

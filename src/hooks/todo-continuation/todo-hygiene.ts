@@ -13,6 +13,10 @@ interface ToolInput {
   sessionID?: string;
 }
 
+interface ToolOutput {
+  output?: unknown;
+}
+
 interface SystemInput {
   sessionID?: string;
 }
@@ -47,9 +51,11 @@ interface Options {
 export function createTodoHygiene(options: Options) {
   const pending = new Map<string, Set<Reason>>();
   const active = new Set<string>();
+  const injected = new Set<string>();
 
   function clearCycle(sessionID: string): void {
     pending.delete(sessionID);
+    injected.delete(sessionID);
   }
 
   function clear(sessionID: string): void {
@@ -83,12 +89,36 @@ export function createTodoHygiene(options: Options) {
     return TODO_HYGIENE_REMINDER;
   }
 
+  function appendReminder(
+    output: ToolOutput | undefined,
+    reminder: string,
+  ): void {
+    if (!output || typeof output.output !== 'string') {
+      return;
+    }
+
+    if (output.output.includes(reminder)) {
+      return;
+    }
+
+    output.output = [
+      output.output,
+      '',
+      '<internal_reminder>',
+      reminder,
+      '</internal_reminder>',
+    ].join('\n');
+  }
+
   return {
     handleRequestStart(input: RequestStartInput): void {
       clear(input.sessionID);
     },
 
-    async handleToolExecuteAfter(input: ToolInput): Promise<void> {
+    async handleToolExecuteAfter(
+      input: ToolInput,
+      output?: ToolOutput,
+    ): Promise<void> {
       if (!input.sessionID) {
         return;
       }
@@ -121,6 +151,9 @@ export function createTodoHygiene(options: Options) {
           }
 
           mark(input.sessionID, 'final_active');
+          appendReminder(output, TODO_FINAL_ACTIVE_REMINDER);
+          pending.delete(input.sessionID);
+          injected.add(input.sessionID);
           options.log?.('Armed final-active todo hygiene reminder', {
             sessionID: input.sessionID,
             tool,
@@ -129,6 +162,10 @@ export function createTodoHygiene(options: Options) {
         }
 
         if (!active.has(input.sessionID)) {
+          return;
+        }
+
+        if (injected.has(input.sessionID)) {
           return;
         }
 
@@ -153,6 +190,13 @@ export function createTodoHygiene(options: Options) {
           mark(input.sessionID, 'general');
         }
 
+        const reasons = pending.get(input.sessionID);
+        if (reasons) {
+          appendReminder(output, pick(reasons));
+          pending.delete(input.sessionID);
+          injected.add(input.sessionID);
+        }
+
         options.log?.('Armed todo hygiene reminder', {
           sessionID: input.sessionID,
           tool,
@@ -172,7 +216,7 @@ export function createTodoHygiene(options: Options) {
 
     async handleChatSystemTransform(
       input: SystemInput,
-      output: SystemOutput,
+      _output: SystemOutput,
     ): Promise<void> {
       if (!input.sessionID) {
         return;
@@ -198,7 +242,6 @@ export function createTodoHygiene(options: Options) {
         }
 
         pending.delete(input.sessionID);
-        output.system.push(reminder);
         options.log?.('Injected todo hygiene reminder', {
           sessionID: input.sessionID,
           reminder,
