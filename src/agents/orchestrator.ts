@@ -1,4 +1,5 @@
 import type { AgentConfig } from '@opencode-ai/sdk/v2';
+import { PHASE_REMINDER_TEXT } from '../config/constants';
 
 export interface AgentDefinition {
   name: string;
@@ -211,6 +212,10 @@ ${enabledValidationRouting}
 - Verify solution meets requirements
 
 </Workflow>
+
+<WorkflowReminder>
+${PHASE_REMINDER_TEXT}
+</WorkflowReminder>
 
 <Communication>
 

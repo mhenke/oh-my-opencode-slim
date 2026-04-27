@@ -1,15 +1,12 @@
 /**
- * Phase reminder to inject before each user message.
- * Keeps workflow instructions in the immediate attention window
- * to combat instruction-following degradation over long contexts.
+ * Phase reminder hook retained for backwards-compatible hook wiring.
  *
- * Research: "LLMs Get Lost In Multi-Turn Conversation" (arXiv:2505.06120)
- * shows ~40% compliance drop after 2-3 turns without reminders.
- *
- * Uses experimental.chat.messages.transform so it doesn't show in UI.
+ * The reminder now lives in the static orchestrator prompt. Injecting it into
+ * every latest user message changed request content unnecessarily and could
+ * interfere with provider prompt-cache reuse. Keeping this transform as a
+ * no-op preserves the hook shape without mutating chat messages.
  */
 import { PHASE_REMINDER_TEXT } from '../../config/constants';
-import { SLIM_INTERNAL_INITIATOR_MARKER } from '../../utils';
 
 export const PHASE_REMINDER = `<reminder>${PHASE_REMINDER_TEXT}</reminder>`;
 
@@ -41,50 +38,7 @@ export function createPhaseReminderHook() {
       _input: Record<string, never>,
       output: { messages: MessageWithParts[] },
     ): Promise<void> => {
-      const { messages } = output;
-
-      if (messages.length === 0) {
-        return;
-      }
-
-      // Find the last user message
-      let lastUserMessageIndex = -1;
-      for (let i = messages.length - 1; i >= 0; i--) {
-        if (messages[i].info.role === 'user') {
-          lastUserMessageIndex = i;
-          break;
-        }
-      }
-
-      if (lastUserMessageIndex === -1) {
-        return;
-      }
-
-      const lastUserMessage = messages[lastUserMessageIndex];
-
-      // Only inject for orchestrator (or if no agent specified = main session)
-      const agent = lastUserMessage.info.agent;
-      if (agent && agent !== 'orchestrator') {
-        return;
-      }
-
-      // Find the first text part
-      const textPartIndex = lastUserMessage.parts.findIndex(
-        (p) => p.type === 'text' && p.text !== undefined,
-      );
-
-      if (textPartIndex === -1) {
-        return;
-      }
-
-      const originalText = lastUserMessage.parts[textPartIndex].text ?? '';
-      if (originalText.includes(SLIM_INTERNAL_INITIATOR_MARKER)) {
-        return;
-      }
-
-      // Prepend the reminder to the existing text
-      lastUserMessage.parts[textPartIndex].text =
-        `${PHASE_REMINDER}\n\n---\n\n${originalText}`;
+      void output;
     },
   };
 }
