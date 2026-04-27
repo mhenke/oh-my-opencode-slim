@@ -1,8 +1,9 @@
 import { describe, expect, test } from 'bun:test';
+import { SLIM_INTERNAL_INITIATOR_MARKER } from '../../utils';
 import { createPhaseReminderHook, PHASE_REMINDER } from './index';
 
 describe('createPhaseReminderHook', () => {
-  test('does not mutate orchestrator messages', async () => {
+  test('appends reminder for orchestrator sessions', async () => {
     const hook = createPhaseReminderHook();
     const output = {
       messages: [
@@ -15,8 +16,9 @@ describe('createPhaseReminderHook', () => {
 
     await hook['experimental.chat.messages.transform']({}, output);
 
-    expect(output.messages[0].parts[0].text).toBe('hello');
-    expect(output.messages[0].parts[0].text).not.toContain(PHASE_REMINDER);
+    expect(output.messages[0].parts[0].text).toBe(
+      `hello\n\n---\n\n${PHASE_REMINDER}`,
+    );
   });
 
   test('skips non-orchestrator sessions', async () => {
@@ -37,8 +39,7 @@ describe('createPhaseReminderHook', () => {
 
   test('does not mutate internal notification turns', async () => {
     const hook = createPhaseReminderHook();
-    const text =
-      '[Background task "x" completed]\n<!-- slim-internal-initiator -->';
+    const text = `[Background task "x" completed]\n${SLIM_INTERNAL_INITIATOR_MARKER}`;
     const output = {
       messages: [
         {
@@ -52,5 +53,22 @@ describe('createPhaseReminderHook', () => {
 
     expect(output.messages[0].parts[0].text).toBe(text);
     expect(output.messages[0].parts[0].text).not.toContain(PHASE_REMINDER);
+  });
+
+  test('does not append duplicate reminder', async () => {
+    const hook = createPhaseReminderHook();
+    const text = `hello\n\n---\n\n${PHASE_REMINDER}`;
+    const output = {
+      messages: [
+        {
+          info: { role: 'user', agent: 'orchestrator' },
+          parts: [{ type: 'text', text }],
+        },
+      ],
+    };
+
+    await hook['experimental.chat.messages.transform']({}, output);
+
+    expect(output.messages[0].parts[0].text).toBe(text);
   });
 });
