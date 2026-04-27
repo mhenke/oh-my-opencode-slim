@@ -161,6 +161,11 @@ export function createPresetManager(ctx: PluginInput, config: PluginConfig) {
         if (resolvedOld in agentUpdates) continue; // new preset handles this agent
         const baseline = config.agents?.[resolvedOld];
         if (baseline) {
+          // Note: mapOverrideToAgentConfig(baseline) only emits fields
+          // the baseline defines. Scalar fields (variant/temperature/options)
+          // not in baseline are NOT cleared here. The config() hook in
+          // src/index.ts handles complete cleanup using the previous
+          // preset's override keys to drive deletion.
           resetUpdates[resolvedOld] = mapOverrideToAgentConfig(baseline);
         }
       }

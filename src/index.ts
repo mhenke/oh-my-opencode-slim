@@ -2,6 +2,7 @@ import type { Plugin } from '@opencode-ai/plugin';
 import { createAgents, getAgentConfigs, getDisabledAgents } from './agents';
 import { buildOrchestratorPrompt } from './agents/orchestrator';
 import {
+  type AgentOverrideConfig,
   deepMerge,
   loadPluginConfig,
   type MultiplexerConfig,
@@ -588,20 +589,31 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
               | Record<string, unknown>
               | undefined;
             if (!entry) continue;
-            // Reset to config-file baseline
+            // Reset to config-file baseline. Use the previous preset's
+            // override to identify which fields to clear even when the
+            // baseline doesn't define them.
             const baseline =
               config.agents?.[resolvedName];
+            const prevOverride = prevPreset[agentName] as
+              | AgentOverrideConfig
+              | undefined;
             if (typeof baseline?.model === 'string') {
               entry.model = baseline.model;
             }
             if (typeof baseline?.variant === 'string') {
               entry.variant = baseline.variant;
-            } else if (baseline && 'variant' in baseline) {
+            } else if (
+              prevOverride &&
+              'variant' in prevOverride
+            ) {
               delete entry.variant;
             }
             if (typeof baseline?.temperature === 'number') {
               entry.temperature = baseline.temperature;
-            } else if (baseline && 'temperature' in baseline) {
+            } else if (
+              prevOverride &&
+              'temperature' in prevOverride
+            ) {
               delete entry.temperature;
             }
             if (
@@ -610,7 +622,10 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
               !Array.isArray(baseline.options)
             ) {
               entry.options = baseline.options;
-            } else if (baseline && 'options' in baseline) {
+            } else if (
+              prevOverride &&
+              'options' in prevOverride
+            ) {
               delete entry.options;
             }
             log('[plugin] runtime preset reset from previous', {
