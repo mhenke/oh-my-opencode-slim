@@ -542,6 +542,9 @@ describe('createPresetManager', () => {
         output4,
       );
       expect(getOutputText(output4)).toContain('powerful ← active');
+
+      // Cleanup module state
+      setActiveRuntimePreset(null);
     });
   });
 
