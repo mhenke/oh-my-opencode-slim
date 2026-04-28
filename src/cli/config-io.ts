@@ -307,6 +307,36 @@ export function disableDefaultAgents(): ConfigMergeResult {
   }
 }
 
+export function enableLspByDefault(): ConfigMergeResult {
+  const configPath = getExistingConfigPath();
+
+  try {
+    ensureOpenCodeConfigDir();
+    const { config: parsedConfig, error } = parseConfig(configPath);
+    if (error) {
+      return {
+        success: false,
+        configPath,
+        error: `Failed to parse config: ${error}`,
+      };
+    }
+    const config = parsedConfig ?? {};
+
+    if (config.lsp === undefined) {
+      config.lsp = true;
+    }
+
+    writeConfig(configPath, config);
+    return { success: true, configPath };
+  } catch (err) {
+    return {
+      success: false,
+      configPath,
+      error: `Failed to enable LSP: ${err}`,
+    };
+  }
+}
+
 export function canModifyOpenCodeConfig(): boolean {
   try {
     const configPath = getExistingConfigPath();

@@ -129,6 +129,7 @@ bunx oh-my-opencode-slim@latest install --reset
 The installer automatically:
 - Adds the plugin to `~/.config/opencode/opencode.json`
 - Disables default OpenCode agents
+- Enables OpenCode LSP integration when no explicit `lsp` setting exists
 - Generates agent model mappings in `~/.config/opencode/oh-my-opencode-slim.json` (or `.jsonc`)
 
 ### Step 3: Authenticate with Providers

@@ -15,6 +15,7 @@ import {
   addPluginToOpenCodeConfig,
   detectCurrentConfig,
   disableDefaultAgents,
+  enableLspByDefault,
   parseConfig,
   parseConfigFile,
   stripJsonComments,
@@ -260,6 +261,31 @@ describe('config-io', () => {
     const saved = JSON.parse(readFileSync(configPath, 'utf-8'));
     expect(saved.agent.explore.disable).toBe(true);
     expect(saved.agent.general.disable).toBe(true);
+  });
+
+  test('enableLspByDefault sets lsp true when missing', () => {
+    const configPath = join(tmpDir, 'opencode', 'opencode.json');
+    paths.ensureConfigDir();
+    writeFileSync(configPath, JSON.stringify({ plugin: ['other'] }));
+
+    const result = enableLspByDefault();
+    expect(result.success).toBe(true);
+
+    const saved = JSON.parse(readFileSync(configPath, 'utf-8'));
+    expect(saved.lsp).toBe(true);
+    expect(saved.plugin).toEqual(['other']);
+  });
+
+  test('enableLspByDefault preserves explicit lsp config', () => {
+    const configPath = join(tmpDir, 'opencode', 'opencode.json');
+    paths.ensureConfigDir();
+    writeFileSync(configPath, JSON.stringify({ lsp: false }));
+
+    const result = enableLspByDefault();
+    expect(result.success).toBe(true);
+
+    const saved = JSON.parse(readFileSync(configPath, 'utf-8'));
+    expect(saved.lsp).toBe(false);
   });
 
   test('detectCurrentConfig detects installed status', () => {
