@@ -32,12 +32,12 @@ describe('todo hygiene', () => {
     await hook.handleToolExecuteAfter({ tool: 'read', sessionID: 's1' });
     hook.handleRequestStart({ sessionID: 's1' });
 
-    expect(hook.consumePendingReminder('s1')).toBeNull();
+    expect(hook.getPendingReminder('s1')).toBeNull();
 
     await hook.handleToolExecuteAfter({ tool: 'todowrite', sessionID: 's1' });
     await hook.handleToolExecuteAfter({ tool: 'read', sessionID: 's1' });
 
-    expect(hook.consumePendingReminder('s1')).toBe(TODO_HYGIENE_REMINDER);
+    expect(hook.getPendingReminder('s1')).toBe(TODO_HYGIENE_REMINDER);
   });
 
   test('does not arm before the current request calls todowrite', async () => {
@@ -48,7 +48,7 @@ describe('todo hygiene', () => {
     hook.handleRequestStart({ sessionID: 's1' });
     await hook.handleToolExecuteAfter({ tool: 'read', sessionID: 's1' });
 
-    expect(hook.consumePendingReminder('s1')).toBeNull();
+    expect(hook.getPendingReminder('s1')).toBeNull();
   });
 
   test('arms after the first relevant tool following todowrite', async () => {
@@ -60,8 +60,11 @@ describe('todo hygiene', () => {
     await hook.handleToolExecuteAfter({ tool: 'todowrite', sessionID: 's1' });
     await hook.handleToolExecuteAfter({ tool: 'read', sessionID: 's1' });
 
-    expect(hook.consumePendingReminder('s1')).toBe(TODO_HYGIENE_REMINDER);
-    expect(hook.consumePendingReminder('s1')).toBeNull();
+    expect(hook.getPendingReminder('s1')).toBe(TODO_HYGIENE_REMINDER);
+    expect(hook.getPendingReminder('s1')).toBe(TODO_HYGIENE_REMINDER);
+
+    hook.handleRequestStart({ sessionID: 's1' });
+    expect(hook.getPendingReminder('s1')).toBeNull();
   });
 
   test('upgrades to final-active on a later round', async () => {
@@ -81,12 +84,12 @@ describe('todo hygiene', () => {
     hook.handleRequestStart({ sessionID: 's1' });
     await hook.handleToolExecuteAfter({ tool: 'todowrite', sessionID: 's1' });
     await hook.handleToolExecuteAfter({ tool: 'read', sessionID: 's1' });
-    expect(hook.consumePendingReminder('s1')).toBe(TODO_HYGIENE_REMINDER);
+    expect(hook.getPendingReminder('s1')).toBe(TODO_HYGIENE_REMINDER);
 
     hook.handleRequestStart({ sessionID: 's1' });
     await hook.handleToolExecuteAfter({ tool: 'todowrite', sessionID: 's1' });
     await hook.handleToolExecuteAfter({ tool: 'read', sessionID: 's1' });
-    expect(hook.consumePendingReminder('s1')).toBe(TODO_FINAL_ACTIVE_REMINDER);
+    expect(hook.getPendingReminder('s1')).toBe(TODO_FINAL_ACTIVE_REMINDER);
   });
 
   test('todowrite can arm final-active immediately', async () => {
@@ -102,7 +105,7 @@ describe('todo hygiene', () => {
     hook.handleRequestStart({ sessionID: 's1' });
     await hook.handleToolExecuteAfter({ tool: 'todowrite', sessionID: 's1' });
 
-    expect(hook.consumePendingReminder('s1')).toBe(TODO_FINAL_ACTIVE_REMINDER);
+    expect(hook.getPendingReminder('s1')).toBe(TODO_FINAL_ACTIVE_REMINDER);
   });
 
   test('once final-active is armed, later tools skip extra todo lookups in the same round', async () => {
@@ -145,10 +148,10 @@ describe('todo hygiene', () => {
     await hook.handleToolExecuteAfter({ tool: 'read', sessionID: 's1' });
 
     expect(calls).toBe(0);
-    expect(hook.consumePendingReminder('s1')).toBeNull();
+    expect(hook.getPendingReminder('s1')).toBeNull();
   });
 
-  test('consuming a pending reminder does not inspect todos', async () => {
+  test('reading a pending reminder does not inspect todos', async () => {
     let fail = false;
     const hook = createTodoHygiene({
       getTodoState: async () => {
@@ -162,7 +165,7 @@ describe('todo hygiene', () => {
     await hook.handleToolExecuteAfter({ tool: 'read', sessionID: 's1' });
     fail = true;
 
-    expect(hook.consumePendingReminder('s1')).toBe(TODO_HYGIENE_REMINDER);
+    expect(hook.getPendingReminder('s1')).toBe(TODO_HYGIENE_REMINDER);
   });
 
   test('todowrite lookup failures do not disable the current request', async () => {
@@ -180,7 +183,7 @@ describe('todo hygiene', () => {
     fail = false;
     await hook.handleToolExecuteAfter({ tool: 'read', sessionID: 's1' });
 
-    expect(hook.consumePendingReminder('s1')).toBe(TODO_HYGIENE_REMINDER);
+    expect(hook.getPendingReminder('s1')).toBe(TODO_HYGIENE_REMINDER);
   });
 
   test('session.deleted clears all state', async () => {
@@ -196,6 +199,6 @@ describe('todo hygiene', () => {
       properties: { info: { id: 's1' } },
     });
 
-    expect(hook.consumePendingReminder('s1')).toBeNull();
+    expect(hook.getPendingReminder('s1')).toBeNull();
   });
 });

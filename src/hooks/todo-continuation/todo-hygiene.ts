@@ -170,7 +170,7 @@ export function createTodoHygiene(options: Options) {
       }
     },
 
-    consumePendingReminder(sessionID: string): string | null {
+    getPendingReminder(sessionID: string): string | null {
       const reasons = pending.get(sessionID);
       if (!reasons || reasons.size === 0) {
         return null;
@@ -182,8 +182,7 @@ export function createTodoHygiene(options: Options) {
       }
 
       const reminder = pick(reasons);
-      pending.delete(sessionID);
-      options.log?.('Consumed todo hygiene reminder', {
+      options.log?.('Read todo hygiene reminder', {
         sessionID,
         reminder,
         reasons: Array.from(reasons),

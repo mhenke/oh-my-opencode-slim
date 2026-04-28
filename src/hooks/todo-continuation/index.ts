@@ -362,9 +362,7 @@ export function createTodoContinuationHook(
       requestSignatureBySession.get(lastUserMessage.sessionID) ===
       lastUserMessage.signature
     ) {
-      const reminder = hygiene.consumePendingReminder(
-        lastUserMessage.sessionID,
-      );
+      const reminder = hygiene.getPendingReminder(lastUserMessage.sessionID);
       if (reminder) {
         appendTodoHygieneInstruction(lastUserMessage.message, reminder);
       } else {

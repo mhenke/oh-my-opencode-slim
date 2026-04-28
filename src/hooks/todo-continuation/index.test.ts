@@ -187,6 +187,32 @@ describe('createTodoContinuationHook', () => {
       );
     });
 
+    test('compaction-like transform does not consume pending reminder', async () => {
+      const ctx = createMockContext({
+        todoResult: {
+          data: [
+            { id: '1', content: 'todo1', status: 'pending', priority: 'high' },
+          ],
+        },
+      });
+      const hook = createTodoContinuationHook(ctx);
+      const live = userMessages('primera request', 'main1', 'orchestrator');
+      const compactionClone = structuredClone(live);
+
+      await hook.handleMessagesTransform(live);
+      await hook.handleToolExecuteAfter({
+        tool: 'todowrite',
+        sessionID: 'main1',
+      });
+      await hook.handleToolExecuteAfter({ tool: 'read', sessionID: 'main1' });
+
+      await hook.handleMessagesTransform(compactionClone);
+      expect(allMessageText(compactionClone)).toContain(TODO_HYGIENE_REMINDER);
+
+      await hook.handleMessagesTransform(live);
+      expect(allMessageText(live)).toContain(TODO_HYGIENE_REMINDER);
+    });
+
     test('new request clears stale pending reminder state', async () => {
       const ctx = createMockContext({
         todoResult: {
