@@ -246,6 +246,28 @@ describe('todo hygiene', () => {
     expect(output.output).not.toContain(TODO_HYGIENE_REMINDER);
   });
 
+  test('shouldInject rejection prevents immediate final-active reminder', async () => {
+    const hook = createTodoHygiene({
+      getTodoState: async () =>
+        createState({
+          openCount: 1,
+          inProgressCount: 1,
+          pendingCount: 0,
+        }),
+      shouldInject: () => false,
+    });
+    const output = createToolOutput();
+
+    hook.handleRequestStart({ sessionID: 's1' });
+    await hook.handleToolExecuteAfter(
+      { tool: 'todowrite', sessionID: 's1' },
+      output,
+    );
+
+    expect(output.output).toBe('tool result');
+    expect(output.output).not.toContain(TODO_FINAL_ACTIVE_REMINDER);
+  });
+
   test('final-active reminder wins when only one active todo remains', async () => {
     const hook = createTodoHygiene({
       getTodoState: async () =>
@@ -376,7 +398,7 @@ describe('todo hygiene', () => {
     );
     await hook.handleToolExecuteAfter({ tool: 'grep', sessionID: 's1' });
 
-    expect(calls).toBe(1);
+    expect(calls).toBe(0);
     expect(output.output).toBe('tool result');
     expect(output.output).not.toContain(TODO_HYGIENE_REMINDER);
   });

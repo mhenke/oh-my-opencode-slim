@@ -122,6 +122,11 @@ export function createTodoHygiene(options: Options) {
 
       try {
         if (RESET.has(tool)) {
+          if (options.shouldInject && !options.shouldInject(input.sessionID)) {
+            clear(input.sessionID);
+            return;
+          }
+
           active.add(input.sessionID);
           clearCycle(input.sessionID);
           const state = await options.getTodoState(input.sessionID);
