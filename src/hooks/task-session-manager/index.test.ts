@@ -23,8 +23,19 @@ function createHook(options?: {
   return { hook };
 }
 
+function createMessages(sessionID: string, text = 'user message') {
+  return {
+    messages: [
+      {
+        info: { role: 'user', agent: 'orchestrator', sessionID },
+        parts: [{ type: 'text', text }],
+      },
+    ],
+  };
+}
+
 describe('task-session-manager hook', () => {
-  test('stores task sessions and injects resumable-session prompt block', async () => {
+  test('stores task sessions and injects resumable-session block into user message', async () => {
     const { hook } = createHook();
 
     await hook['tool.execute.before'](
@@ -54,14 +65,21 @@ describe('task-session-manager hook', () => {
       },
     );
 
-    const system = { system: ['base'] };
-    await hook['experimental.chat.system.transform'](
-      { sessionID: 'parent-1' },
-      system,
-    );
+    const messages = createMessages('parent-1', 'do something');
+    await hook['experimental.chat.messages.transform']({}, messages);
 
-    expect(system.system.join('\n')).toContain('### Resumable Sessions');
-    expect(system.system.join('\n')).toContain('explorer: exp-1 config schema');
+    const userMessage = messages.messages[0];
+    expect(userMessage.parts[0].text).toContain('<resumable_sessions>');
+    expect(userMessage.parts[0].text).toContain('### Resumable Sessions');
+    expect(userMessage.parts[0].text).toContain(
+      'explorer: exp-1 config schema',
+    );
+    expect(userMessage.parts[0].text).toContain('</resumable_sessions>');
+  });
+
+  test('does not expose a system transform for resumable sessions', async () => {
+    const { hook } = createHook();
+    expect('experimental.chat.system.transform' in hook).toBe(false);
   });
 
   test('resolves remembered aliases to real task ids before execution', async () => {
@@ -112,7 +130,7 @@ describe('task-session-manager hook', () => {
     expect(next.args.task_id).toBe('child-1');
   });
 
-  test('tracks files read by child sessions in resumable prompt context', async () => {
+  test('tracks files read by child sessions in resumable message context', async () => {
     const { hook } = createHook();
 
     await hook.event({
@@ -167,14 +185,12 @@ describe('task-session-manager hook', () => {
       },
     );
 
-    const system = { system: ['base'] };
-    await hook['experimental.chat.system.transform'](
-      { sessionID: 'parent-1' },
-      system,
-    );
+    const messages = createMessages('parent-1', 'do something');
+    await hook['experimental.chat.messages.transform']({}, messages);
 
-    expect(system.system.join('\n')).toContain('exp-1 session files');
-    expect(system.system.join('\n')).toContain(
+    const userMessage = messages.messages[0];
+    expect(userMessage.parts[0].text).toContain('exp-1 session files');
+    expect(userMessage.parts[0].text).toContain(
       'Context read by exp-1: src/index.ts (12 lines)',
     );
   });
@@ -235,13 +251,10 @@ describe('task-session-manager hook', () => {
       },
     );
 
-    const system = { system: ['base'] };
-    await hook['experimental.chat.system.transform'](
-      { sessionID: 'parent-1' },
-      system,
-    );
+    const messages = createMessages('parent-1', 'do something');
+    await hook['experimental.chat.messages.transform']({}, messages);
 
-    const prompt = system.system.join('\n');
+    const prompt = messages.messages[0].parts[0].text;
     expect(prompt).not.toContain('small.ts');
     expect(prompt).toContain('src/large.ts (12 lines)');
   });
@@ -281,14 +294,12 @@ describe('task-session-manager hook', () => {
       },
     );
 
-    const system = { system: ['base'] };
-    await hook['experimental.chat.system.transform'](
-      { sessionID: 'parent-1' },
-      system,
-    );
+    const messages = createMessages('parent-1', 'do something');
+    await hook['experimental.chat.messages.transform']({}, messages);
 
-    expect(system.system.join('\n')).toContain('src/repeat.ts (12 lines)');
-    expect(system.system.join('\n')).not.toContain('src/repeat.ts (24 lines)');
+    const prompt = messages.messages[0].parts[0].text;
+    expect(prompt).toContain('src/repeat.ts (12 lines)');
+    expect(prompt).not.toContain('src/repeat.ts (24 lines)');
   });
 
   test('uses configured read context thresholds', async () => {
@@ -333,13 +344,10 @@ describe('task-session-manager hook', () => {
       },
     );
 
-    const system = { system: ['base'] };
-    await hook['experimental.chat.system.transform'](
-      { sessionID: 'parent-1' },
-      system,
-    );
+    const messages = createMessages('parent-1', 'do something');
+    await hook['experimental.chat.messages.transform']({}, messages);
 
-    const prompt = system.system.join('\n');
+    const prompt = messages.messages[0].parts[0].text;
     expect(prompt).not.toContain('small.ts');
     expect(prompt).toContain('Context read by exp-1:');
     expect(prompt).toContain('(+1 more)');
@@ -380,13 +388,10 @@ describe('task-session-manager hook', () => {
       },
     );
 
-    const system = { system: ['base'] };
-    await hook['experimental.chat.system.transform'](
-      { sessionID: 'parent-1' },
-      system,
-    );
+    const messages = createMessages('parent-1', 'do something');
+    await hook['experimental.chat.messages.transform']({}, messages);
 
-    const prompt = system.system.join('\n');
+    const prompt = messages.messages[0].parts[0].text;
     expect(prompt).toContain('exp-1 unmanaged read');
     expect(prompt).not.toContain('Context read by exp-1');
   });
@@ -426,13 +431,10 @@ describe('task-session-manager hook', () => {
       );
     }
 
-    const system = { system: ['base'] };
-    await hook['experimental.chat.system.transform'](
-      { sessionID: 'parent-1' },
-      system,
-    );
+    const messages = createMessages('parent-1', 'do something');
+    await hook['experimental.chat.messages.transform']({}, messages);
 
-    const prompt = system.system.join('\n');
+    const prompt = messages.messages[0].parts[0].text;
     expect(prompt).not.toContain('exp-1 thread 1');
     expect(prompt).not.toContain('file-1.ts');
     expect(prompt).toContain('exp-2 thread 2');
@@ -498,12 +500,9 @@ describe('task-session-manager hook', () => {
       },
     );
 
-    const system = { system: ['base'] };
-    await hook['experimental.chat.system.transform'](
-      { sessionID: 'parent-1' },
-      system,
-    );
-    expect(system.system.join('\n')).not.toContain('exp-1');
+    const messages = createMessages('parent-1', 'do something');
+    await hook['experimental.chat.messages.transform']({}, messages);
+    expect(messages.messages[0].parts[0].text).not.toContain('exp-1');
   });
 
   test('drops resumed predecessor when success returns a new task id', async () => {
@@ -560,14 +559,12 @@ describe('task-session-manager hook', () => {
       },
     );
 
-    const system = { system: ['base'] };
-    await hook['experimental.chat.system.transform'](
-      { sessionID: 'parent-1' },
-      system,
-    );
+    const messages = createMessages('parent-1', 'do something');
+    await hook['experimental.chat.messages.transform']({}, messages);
 
-    expect(system.system.join('\n')).toContain('continue schema work');
-    expect(system.system.join('\n')).not.toContain('config schema');
+    const prompt = messages.messages[0].parts[0].text;
+    expect(prompt).toContain('continue schema work');
+    expect(prompt).not.toContain('config schema');
   });
 
   test('does not drop remembered session on non-runtime session text', async () => {
@@ -623,13 +620,10 @@ describe('task-session-manager hook', () => {
       },
     );
 
-    const system = { system: ['base'] };
-    await hook['experimental.chat.system.transform'](
-      { sessionID: 'parent-1' },
-      system,
-    );
+    const messages = createMessages('parent-1', 'do something');
+    await hook['experimental.chat.messages.transform']({}, messages);
 
-    expect(system.system.join('\n')).toContain('exp-1 config schema');
+    expect(messages.messages[0].parts[0].text).toContain('exp-1 config schema');
   });
 
   test('ignores sessions that are not orchestrator-managed', async () => {
@@ -660,13 +654,11 @@ describe('task-session-manager hook', () => {
       },
     );
 
-    const system = { system: ['base'] };
-    await hook['experimental.chat.system.transform'](
-      { sessionID: 'manual-1' },
-      system,
-    );
+    const messages = createMessages('manual-1', 'do something');
+    await hook['experimental.chat.messages.transform']({}, messages);
 
-    expect(system.system).toEqual(['base']);
+    // Message should remain unchanged
+    expect(messages.messages[0].parts[0].text).toBe('do something');
   });
 
   test('cleans up remembered sessions when parent or child is deleted', async () => {
@@ -704,12 +696,10 @@ describe('task-session-manager hook', () => {
       },
     });
 
-    const afterChildDelete = { system: ['base'] };
-    await hook['experimental.chat.system.transform'](
-      { sessionID: 'parent-1' },
-      afterChildDelete,
-    );
-    expect(afterChildDelete.system).toEqual(['base']);
+    const messages = createMessages('parent-1', 'do something');
+    await hook['experimental.chat.messages.transform']({}, messages);
+    // Message should remain unchanged since session was deleted
+    expect(messages.messages[0].parts[0].text).toBe('do something');
   });
 
   test('cleans pending calls when parent session is deleted', async () => {
@@ -748,13 +738,11 @@ describe('task-session-manager hook', () => {
       },
     );
 
-    const system = { system: ['base'] };
-    await hook['experimental.chat.system.transform'](
-      { sessionID: 'parent-1' },
-      system,
-    );
+    const messages = createMessages('parent-1', 'do something');
+    await hook['experimental.chat.messages.transform']({}, messages);
 
-    expect(system.system).toEqual(['base']);
+    // Message should remain unchanged since session was deleted
+    expect(messages.messages[0].parts[0].text).toBe('do something');
   });
 
   test('deduplicates pending call order when a resume call is recorded twice', async () => {
@@ -835,13 +823,10 @@ describe('task-session-manager hook', () => {
       },
     );
 
-    const system = { system: ['base'] };
-    await hook['experimental.chat.system.transform'](
-      { sessionID: 'parent-1' },
-      system,
-    );
+    const messages = createMessages('parent-1', 'do something');
+    await hook['experimental.chat.messages.transform']({}, messages);
 
-    expect(system.system.join('\n')).toContain(
+    expect(messages.messages[0].parts[0].text).toContain(
       'oracle: ora-1 architecture review',
     );
   });

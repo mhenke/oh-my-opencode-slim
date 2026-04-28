@@ -1,17 +1,14 @@
 /**
- * Phase reminder to inject before each user message.
- * Keeps workflow instructions in the immediate attention window
- * to combat instruction-following degradation over long contexts.
+ * Phase reminder to append after each latest user message.
  *
- * Research: "LLMs Get Lost In Multi-Turn Conversation" (arXiv:2505.06120)
- * shows ~40% compliance drop after 2-3 turns without reminders.
- *
- * Uses experimental.chat.messages.transform so it doesn't show in UI.
+ * Keeping this at the tail preserves immediate workflow guidance without
+ * mutating the cached system prompt or prepending request-local content ahead
+ * of the user's actual turn.
  */
 import { PHASE_REMINDER_TEXT } from '../../config/constants';
 import { SLIM_INTERNAL_INITIATOR_MARKER } from '../../utils';
 
-export const PHASE_REMINDER = `<reminder>${PHASE_REMINDER_TEXT}</reminder>`;
+export const PHASE_REMINDER = `<internal_reminder>${PHASE_REMINDER_TEXT}</internal_reminder>`;
 
 interface MessageInfo {
   role: string;
@@ -47,7 +44,6 @@ export function createPhaseReminderHook() {
         return;
       }
 
-      // Find the last user message
       let lastUserMessageIndex = -1;
       for (let i = messages.length - 1; i >= 0; i--) {
         if (messages[i].info.role === 'user') {
@@ -61,14 +57,11 @@ export function createPhaseReminderHook() {
       }
 
       const lastUserMessage = messages[lastUserMessageIndex];
-
-      // Only inject for orchestrator (or if no agent specified = main session)
       const agent = lastUserMessage.info.agent;
       if (agent && agent !== 'orchestrator') {
         return;
       }
 
-      // Find the first text part
       const textPartIndex = lastUserMessage.parts.findIndex(
         (p) => p.type === 'text' && p.text !== undefined,
       );
@@ -81,10 +74,12 @@ export function createPhaseReminderHook() {
       if (originalText.includes(SLIM_INTERNAL_INITIATOR_MARKER)) {
         return;
       }
+      if (originalText.includes(PHASE_REMINDER)) {
+        return;
+      }
 
-      // Prepend the reminder to the existing text
       lastUserMessage.parts[textPartIndex].text =
-        `${PHASE_REMINDER}\n\n---\n\n${originalText}`;
+        `${originalText}\n\n---\n\n${PHASE_REMINDER}`;
     },
   };
 }

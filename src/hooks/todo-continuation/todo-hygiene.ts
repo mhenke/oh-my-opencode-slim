@@ -13,14 +13,6 @@ interface ToolInput {
   sessionID?: string;
 }
 
-interface SystemInput {
-  sessionID?: string;
-}
-
-interface SystemOutput {
-  system: string[];
-}
-
 interface EventInput {
   type: string;
   properties?: {
@@ -88,7 +80,10 @@ export function createTodoHygiene(options: Options) {
       clear(input.sessionID);
     },
 
-    async handleToolExecuteAfter(input: ToolInput): Promise<void> {
+    async handleToolExecuteAfter(
+      input: ToolInput,
+      _output?: unknown,
+    ): Promise<void> {
       if (!input.sessionID) {
         return;
       }
@@ -100,6 +95,11 @@ export function createTodoHygiene(options: Options) {
 
       try {
         if (RESET.has(tool)) {
+          if (options.shouldInject && !options.shouldInject(input.sessionID)) {
+            clear(input.sessionID);
+            return;
+          }
+
           active.add(input.sessionID);
           clearCycle(input.sessionID);
           const state = await options.getTodoState(input.sessionID);
@@ -170,50 +170,24 @@ export function createTodoHygiene(options: Options) {
       }
     },
 
-    async handleChatSystemTransform(
-      input: SystemInput,
-      output: SystemOutput,
-    ): Promise<void> {
-      if (!input.sessionID) {
-        return;
+    getPendingReminder(sessionID: string): string | null {
+      const reasons = pending.get(sessionID);
+      if (!reasons || reasons.size === 0) {
+        return null;
       }
 
-      const reasons = pending.get(input.sessionID);
-      if (!reasons || reasons.size === 0) {
-        return;
+      if (options.shouldInject && !options.shouldInject(sessionID)) {
+        clear(sessionID);
+        return null;
       }
 
       const reminder = pick(reasons);
-
-      if (options.shouldInject && !options.shouldInject(input.sessionID)) {
-        clear(input.sessionID);
-        return;
-      }
-
-      try {
-        const state = await options.getTodoState(input.sessionID);
-        if (!state.hasOpenTodos) {
-          clear(input.sessionID);
-          return;
-        }
-
-        pending.delete(input.sessionID);
-        output.system.push(reminder);
-        options.log?.('Injected todo hygiene reminder', {
-          sessionID: input.sessionID,
-          reminder,
-          reasons: Array.from(reasons),
-        });
-      } catch (error) {
-        pending.delete(input.sessionID);
-        options.log?.(
-          'Skipped todo hygiene reminder: failed to inspect todos',
-          {
-            sessionID: input.sessionID,
-            error: error instanceof Error ? error.message : String(error),
-          },
-        );
-      }
+      options.log?.('Read todo hygiene reminder', {
+        sessionID,
+        reminder,
+        reasons: Array.from(reasons),
+      });
+      return reminder;
     },
 
     handleEvent(event: EventInput): void {

@@ -754,18 +754,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         },
       );
 
-      await postFileToolNudgeHook.event(
-        input as {
-          event: {
-            type: string;
-            properties?: {
-              info?: { id?: string };
-              sessionID?: string;
-            };
-          };
-        },
-      );
-
       await taskSessionManagerHook.event(
         input as {
           event: {
@@ -914,17 +902,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         }
       }
 
-      await todoContinuationHook.handleChatSystemTransform(input, output);
-      await postFileToolNudgeHook['experimental.chat.system.transform'](
-        input,
-        output,
-      );
-
-      await taskSessionManagerHook['experimental.chat.system.transform'](
-        input,
-        output,
-      );
-
       // Collapse to single system message for provider compatibility.
       // Some providers (e.g. Qwen via VLLM/DashScope) reject multiple
       // system messages. Sub-hooks above may push additional entries; join
@@ -979,6 +956,10 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       await todoContinuationHook.handleMessagesTransform({
         messages: typedOutput.messages,
       });
+      await taskSessionManagerHook['experimental.chat.messages.transform'](
+        input,
+        typedOutput,
+      );
       await phaseReminderHook['experimental.chat.messages.transform'](
         input,
         typedOutput,
@@ -1015,6 +996,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           tool: string;
           sessionID?: string;
         },
+        output as { output?: unknown },
       );
 
       await postFileToolNudgeHook['tool.execute.after'](

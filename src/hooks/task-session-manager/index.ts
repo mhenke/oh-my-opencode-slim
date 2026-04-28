@@ -6,6 +6,7 @@ import {
   deriveTaskSessionLabel,
   parseTaskIdFromTaskOutput,
   SessionManager,
+  SLIM_INTERNAL_INITIATOR_MARKER,
 } from '../../utils';
 
 interface TaskArgs {
@@ -42,6 +43,24 @@ interface PendingContextFile {
   lines: Set<number>;
   lastReadAt: number;
 }
+
+interface ChatMessagePart {
+  type: string;
+  text?: string;
+  [key: string]: unknown;
+}
+
+interface ChatMessage {
+  info: {
+    role: string;
+    agent?: string;
+    sessionID?: string;
+  };
+  parts: ChatMessagePart[];
+}
+
+const RESUMABLE_SESSIONS_START = '<resumable_sessions>';
+const RESUMABLE_SESSIONS_END = '</resumable_sessions>';
 
 function isAgentName(value: unknown): value is AgentName {
   return typeof value === 'string' && AGENT_NAME_SET.has(value as AgentName);
@@ -316,17 +335,40 @@ export function createTaskSessionManagerHook(
       pruneContext();
     },
 
-    'experimental.chat.system.transform': async (
-      input: { sessionID?: string },
-      output: { system: string[] },
+    'experimental.chat.messages.transform': async (
+      _input: Record<string, never>,
+      output: { messages: ChatMessage[] },
     ): Promise<void> => {
-      if (!input.sessionID || !options.shouldManageSession(input.sessionID)) {
+      for (let i = output.messages.length - 1; i >= 0; i -= 1) {
+        const message = output.messages[i];
+        if (message.info.role !== 'user') continue;
+        if (message.info.agent && message.info.agent !== 'orchestrator') return;
+        if (
+          !message.info.sessionID ||
+          !options.shouldManageSession(message.info.sessionID)
+        ) {
+          return;
+        }
+
+        const reminder = sessionManager.formatForPrompt(message.info.sessionID);
+        if (!reminder) return;
+
+        const textPart = message.parts.find(
+          (part) => part.type === 'text' && typeof part.text === 'string',
+        );
+        if (!textPart) return;
+        if (textPart.text?.includes(SLIM_INTERNAL_INITIATOR_MARKER)) return;
+        if (textPart.text?.includes(RESUMABLE_SESSIONS_START)) return;
+
+        textPart.text = [
+          textPart.text ?? '',
+          '',
+          RESUMABLE_SESSIONS_START,
+          reminder,
+          RESUMABLE_SESSIONS_END,
+        ].join('\n');
         return;
       }
-
-      const reminder = sessionManager.formatForPrompt(input.sessionID);
-      if (!reminder) return;
-      output.system.push(reminder);
     },
 
     event: async (input: {

@@ -13,22 +13,8 @@ interface ToolExecuteAfterInput {
   callID?: string;
 }
 
-interface ChatSystemTransformInput {
-  sessionID?: string;
-}
-
-interface ChatSystemTransformOutput {
-  system: string[];
-}
-
-interface EventInput {
-  event: {
-    type: string;
-    properties?: {
-      info?: { id?: string };
-      sessionID?: string;
-    };
-  };
+interface ToolExecuteAfterOutput {
+  output?: unknown;
 }
 
 interface PostFileToolNudgeOptions {
@@ -40,25 +26,30 @@ const FILE_TOOLS = new Set(['Read', 'read', 'Write', 'write']);
 export function createPostFileToolNudgeHook(
   options: PostFileToolNudgeOptions = {},
 ) {
-  const pendingSessionIds = new Set<string>();
+  function appendReminder(output: ToolExecuteAfterOutput): void {
+    if (typeof output.output !== 'string') {
+      return;
+    }
+
+    if (output.output.includes(POST_FILE_TOOL_NUDGE)) {
+      return;
+    }
+
+    output.output = [
+      output.output,
+      '',
+      '<internal_reminder>',
+      POST_FILE_TOOL_NUDGE,
+      '</internal_reminder>',
+    ].join('\n');
+  }
 
   return {
     'tool.execute.after': async (
       input: ToolExecuteAfterInput,
-      _output: unknown,
+      output: ToolExecuteAfterOutput,
     ): Promise<void> => {
-      // Only nudge for Read/Write tools once the next model call is built.
       if (!FILE_TOOLS.has(input.tool) || !input.sessionID) {
-        return;
-      }
-
-      pendingSessionIds.add(input.sessionID);
-    },
-    'experimental.chat.system.transform': async (
-      input: ChatSystemTransformInput,
-      output: ChatSystemTransformOutput,
-    ): Promise<void> => {
-      if (!input.sessionID || !pendingSessionIds.delete(input.sessionID)) {
         return;
       }
 
@@ -66,20 +57,7 @@ export function createPostFileToolNudgeHook(
         return;
       }
 
-      output.system.push(POST_FILE_TOOL_NUDGE);
-    },
-    event: async (input: EventInput): Promise<void> => {
-      if (input.event.type !== 'session.deleted') {
-        return;
-      }
-
-      const sessionID =
-        input.event.properties?.sessionID ?? input.event.properties?.info?.id;
-      if (!sessionID) {
-        return;
-      }
-
-      pendingSessionIds.delete(sessionID);
+      appendReminder(output);
     },
   };
 }

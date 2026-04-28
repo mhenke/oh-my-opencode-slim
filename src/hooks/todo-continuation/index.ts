@@ -12,6 +12,8 @@ const COMMAND_NAME = 'auto-continue';
 
 const CONTINUATION_PROMPT =
   '[Auto-continue: enabled - there are incomplete todos remaining. Continue with the next uncompleted item. Press Esc to cancel. If you need user input or review for the next item, ask instead of proceeding.]';
+const TODO_HYGIENE_INSTRUCTION_OPEN = '<instruction name="todo_hygiene">';
+const TODO_HYGIENE_INSTRUCTION_CLOSE = '</instruction>';
 
 // Suppress window after user abort (Esc/Ctrl+C) to avoid immediately
 // re-continuing something the user explicitly stopped
@@ -90,6 +92,13 @@ interface ChatTransformMessage {
   parts: MessagePart[];
 }
 
+interface LastExternalUserMessage {
+  sessionID?: string;
+  agent?: string;
+  signature: string;
+  message: ChatTransformMessage;
+}
+
 interface Message {
   info?: MessageInfo;
   parts?: MessagePart[];
@@ -112,6 +121,45 @@ function resetState(state: ContinuationState): void {
   state.notificationBusyUntilBySession.clear();
 }
 
+function stripTodoHygieneInstruction(text: string): string {
+  const trimmed = text.trimEnd();
+  if (!trimmed.endsWith(TODO_HYGIENE_INSTRUCTION_CLOSE)) {
+    return trimmed;
+  }
+
+  const start = trimmed.lastIndexOf(TODO_HYGIENE_INSTRUCTION_OPEN);
+  if (start === -1) {
+    return trimmed;
+  }
+
+  return trimmed.slice(0, start).trimEnd();
+}
+
+function appendTodoHygieneInstruction(
+  message: ChatTransformMessage,
+  reminder: string,
+): void {
+  const textPart = [...message.parts]
+    .reverse()
+    .find((part) => part.type === 'text' && typeof part.text === 'string');
+  if (!textPart) return;
+
+  const baseText = stripTodoHygieneInstruction(textPart.text ?? '');
+  const instruction = `${TODO_HYGIENE_INSTRUCTION_OPEN}\n${reminder}\n${TODO_HYGIENE_INSTRUCTION_CLOSE}`;
+  textPart.text = baseText ? `${baseText}\n\n${instruction}` : instruction;
+}
+
+function stripTodoHygieneInstructionFromMessage(
+  message: ChatTransformMessage,
+): void {
+  const textPart = [...message.parts]
+    .reverse()
+    .find((part) => part.type === 'text' && typeof part.text === 'string');
+  if (!textPart) return;
+
+  textPart.text = stripTodoHygieneInstruction(textPart.text ?? '');
+}
+
 export function createTodoContinuationHook(
   ctx: PluginInput,
   config?: {
@@ -122,13 +170,12 @@ export function createTodoContinuationHook(
   },
 ): {
   tool: Record<string, unknown>;
-  handleToolExecuteAfter: (input: {
-    tool: string;
-    sessionID?: string;
-  }) => Promise<void>;
-  handleChatSystemTransform: (
-    input: { sessionID?: string },
-    output: { system: string[] },
+  handleToolExecuteAfter: (
+    input: {
+      tool: string;
+      sessionID?: string;
+    },
+    output?: { output?: unknown },
   ) => Promise<void>;
   handleMessagesTransform: (output: {
     messages: ChatTransformMessage[];
@@ -247,11 +294,9 @@ export function createTodoContinuationHook(
     );
   }
 
-  function getLastExternalUserMessage(messages: ChatTransformMessage[]): {
-    sessionID?: string;
-    agent?: string;
-    signature: string;
-  } | null {
+  function getLastExternalUserMessage(
+    messages: ChatTransformMessage[],
+  ): LastExternalUserMessage | null {
     for (let i = messages.length - 1; i >= 0; i--) {
       const message = messages[i];
       if (!isExternalUserMessage(message)) {
@@ -263,7 +308,8 @@ export function createTodoContinuationHook(
       const partSignature = message.parts
         .map((part) => {
           if (part.type === 'text' && typeof part.text === 'string') {
-            return `${part.type}:${part.text.includes(SLIM_INTERNAL_INITIATOR_MARKER) ? '<internal>' : part.text.trim()}`;
+            const text = stripTodoHygieneInstruction(part.text);
+            return `${part.type}:${text.includes(SLIM_INTERNAL_INITIATOR_MARKER) ? '<internal>' : text.trim()}`;
           }
           return part.type ?? 'unknown';
         })
@@ -275,6 +321,7 @@ export function createTodoContinuationHook(
       return {
         sessionID,
         agent: message.info.agent,
+        message,
         signature: message.info.id
           ? `${message.info.id}:${partSignature}`
           : `${ordinal}:${partSignature}`,
@@ -315,6 +362,12 @@ export function createTodoContinuationHook(
       requestSignatureBySession.get(lastUserMessage.sessionID) ===
       lastUserMessage.signature
     ) {
+      const reminder = hygiene.getPendingReminder(lastUserMessage.sessionID);
+      if (reminder) {
+        appendTodoHygieneInstruction(lastUserMessage.message, reminder);
+      } else {
+        stripTodoHygieneInstructionFromMessage(lastUserMessage.message);
+      }
       return;
     }
 
@@ -322,6 +375,7 @@ export function createTodoContinuationHook(
       lastUserMessage.sessionID,
       lastUserMessage.signature,
     );
+    stripTodoHygieneInstructionFromMessage(lastUserMessage.message);
     hygiene.handleRequestStart({ sessionID: lastUserMessage.sessionID });
   }
 
@@ -816,7 +870,6 @@ export function createTodoContinuationHook(
   return {
     tool: { auto_continue: autoContinue },
     handleToolExecuteAfter: hygiene.handleToolExecuteAfter,
-    handleChatSystemTransform: hygiene.handleChatSystemTransform,
     handleMessagesTransform,
     handleEvent,
     handleChatMessage,
