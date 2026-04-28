@@ -288,6 +288,17 @@ describe('config-io', () => {
     expect(saved.lsp).toBe(false);
   });
 
+  test('enableLspByDefault does not write when lsp exists', () => {
+    const configPath = join(tmpDir, 'opencode', 'opencode.json');
+    paths.ensureConfigDir();
+    writeFileSync(configPath, JSON.stringify({ lsp: false }));
+
+    const result = enableLspByDefault();
+    expect(result.success).toBe(true);
+
+    expect(existsSync(`${configPath}.bak`)).toBe(false);
+  });
+
   test('detectCurrentConfig detects installed status', () => {
     const configPath = join(tmpDir, 'opencode', 'opencode.json');
     const litePath = join(tmpDir, 'opencode', 'oh-my-opencode-slim.json');

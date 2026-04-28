@@ -324,9 +324,9 @@ export function enableLspByDefault(): ConfigMergeResult {
 
     if (config.lsp === undefined) {
       config.lsp = true;
+      writeConfig(configPath, config);
     }
 
-    writeConfig(configPath, config);
     return { success: true, configPath };
   } catch (err) {
     return {
