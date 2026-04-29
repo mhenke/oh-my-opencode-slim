@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import {
   addPluginToOpenCodeConfig,
+  addPluginToOpenCodeTuiConfig,
   detectCurrentConfig,
   disableDefaultAgents,
   enableLspByDefault,
@@ -105,7 +106,7 @@ async function runInstall(config: InstallConfig): Promise<number> {
 
   printHeader(isUpdate);
 
-  let totalSteps = 5;
+  let totalSteps = 6;
   if (config.installSkills) totalSteps += 1;
   if (config.installCustomSkills) totalSteps += 1;
 
@@ -125,6 +126,19 @@ async function runInstall(config: InstallConfig): Promise<number> {
     const pluginResult = await addPluginToOpenCodeConfig();
     if (!handleStepResult(pluginResult, 'Plugin added')) return 1;
   }
+
+  printStep(step++, totalSteps, 'Adding TUI version badge...');
+  if (config.dryRun) {
+    printInfo('Dry run mode - skipping TUI plugin installation');
+  } else {
+    const tuiResult = await addPluginToOpenCodeTuiConfig();
+    if (!tuiResult.success) {
+      printInfo(`Skipped TUI badge: ${tuiResult.error}`);
+    } else {
+      handleStepResult(tuiResult, 'TUI badge added');
+    }
+  }
+
   printStep(step++, totalSteps, 'Disabling OpenCode default agents...');
   if (config.dryRun) {
     printInfo('Dry run mode - skipping agent disabling');
