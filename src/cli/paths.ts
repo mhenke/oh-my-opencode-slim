@@ -100,7 +100,7 @@ export function getExistingTuiConfigPath(): string {
   const customConfigPath = getCustomTuiConfigPath();
   if (customConfigPath) return customConfigPath;
 
-  const jsonPath = getTuiConfig();
+  const jsonPath = join(getConfigDir(), 'tui.json');
   if (existsSync(jsonPath)) return jsonPath;
 
   const jsoncPath = getTuiConfigJsonc();
