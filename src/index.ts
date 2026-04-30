@@ -7,8 +7,8 @@ import {
   loadPluginConfig,
   type MultiplexerConfig,
 } from './config';
-import { AGENT_ALIASES } from './config/constants';
 import { parseList } from './config/agent-mcps';
+import { AGENT_ALIASES } from './config/constants';
 import {
   getActiveRuntimePreset,
   getPreviousRuntimePreset,
@@ -43,6 +43,7 @@ import {
   createPresetManager,
   createWebfetchTool,
 } from './tools';
+import { recordTuiAgentModel, recordTuiAgentModels } from './tui-state';
 import {
   createDisplayNameMentionRewriter,
   resolveRuntimeAgentName,
@@ -575,15 +576,11 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           // Build resolved key set from new preset for correct comparison
           // (handles alias keys like "explore" → "explorer")
           const newPresetResolved = new Set(
-            Object.keys(runtimePreset).map(
-              (k) => AGENT_ALIASES[k] ?? k,
-            ),
+            Object.keys(runtimePreset).map((k) => AGENT_ALIASES[k] ?? k),
           );
           for (const agentName of Object.keys(prevPreset)) {
-            const resolvedName =
-              AGENT_ALIASES[agentName] ?? agentName;
-            if (newPresetResolved.has(resolvedName))
-              continue; // new preset handles it
+            const resolvedName = AGENT_ALIASES[agentName] ?? agentName;
+            if (newPresetResolved.has(resolvedName)) continue; // new preset handles it
             const entry = configAgent[resolvedName] as
               | Record<string, unknown>
               | undefined;
@@ -591,8 +588,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
             // Reset to config-file baseline. Use the previous preset's
             // override to identify which fields to clear even when the
             // baseline doesn't define them.
-            const baseline =
-              config.agents?.[resolvedName];
+            const baseline = config.agents?.[resolvedName];
             const prevOverride = prevPreset[agentName] as
               | AgentOverrideConfig
               | undefined;
@@ -601,18 +597,12 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
             }
             if (typeof baseline?.variant === 'string') {
               entry.variant = baseline.variant;
-            } else if (
-              prevOverride &&
-              'variant' in prevOverride
-            ) {
+            } else if (prevOverride && 'variant' in prevOverride) {
               delete entry.variant;
             }
             if (typeof baseline?.temperature === 'number') {
               entry.temperature = baseline.temperature;
-            } else if (
-              prevOverride &&
-              'temperature' in prevOverride
-            ) {
+            } else if (prevOverride && 'temperature' in prevOverride) {
               delete entry.temperature;
             }
             if (
@@ -621,10 +611,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
               !Array.isArray(baseline.options)
             ) {
               entry.options = baseline.options;
-            } else if (
-              prevOverride &&
-              'options' in prevOverride
-            ) {
+            } else if (prevOverride && 'options' in prevOverride) {
               delete entry.options;
             }
             log('[plugin] runtime preset reset from previous', {
@@ -635,6 +622,26 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           }
         }
       }
+
+      const tuiAgentModels: Record<string, string> = {};
+      for (const agentDef of agentDefs) {
+        if (agentDef.name === 'councillor') continue;
+
+        const entry = configAgent[agentDef.name] as
+          | Record<string, unknown>
+          | undefined;
+        const resolvedModel =
+          typeof entry?.model === 'string'
+            ? entry.model
+            : runtimeChains[agentDef.name]?.[0]
+              ? runtimeChains[agentDef.name][0]
+              : typeof agentDef.config.model === 'string'
+                ? agentDef.config.model
+                : undefined;
+
+        tuiAgentModels[agentDef.name] = resolvedModel ?? 'default';
+      }
+      recordTuiAgentModels({ agentModels: tuiAgentModels });
 
       // Merge MCP configs
       const configMcp = opencodeConfig.mcp as
@@ -715,11 +722,33 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       const event = input.event as {
         type: string;
         properties?: {
-          info?: { id?: string; parentID?: string; title?: string };
+          info?: {
+            id?: string;
+            parentID?: string;
+            title?: string;
+            agent?: string;
+            providerID?: string;
+            modelID?: string;
+            sessionID?: string;
+          };
           sessionID?: string;
           status?: { type: string };
         };
       };
+
+      if (event.type === 'message.updated') {
+        const info = event.properties?.info;
+        if (
+          typeof info?.agent === 'string' &&
+          typeof info.providerID === 'string' &&
+          typeof info.modelID === 'string'
+        ) {
+          recordTuiAgentModel({
+            agentName: resolveRuntimeAgentName(config, info.agent),
+            model: `${info.providerID}/${info.modelID}`,
+          });
+        }
+      }
 
       if (event.type === 'session.created') {
         const childSessionId = event.properties?.info?.id;
