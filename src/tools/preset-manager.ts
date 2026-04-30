@@ -11,6 +11,7 @@ import {
   rollbackRuntimePreset,
   setActiveRuntimePresetWithPrevious,
 } from '../config/runtime-preset';
+import { readTuiSnapshot, recordTuiAgentModels } from '../tui-state';
 import { createInternalAgentTextPart } from '../utils';
 
 const COMMAND_NAME = 'preset';
@@ -189,6 +190,15 @@ export function createPresetManager(ctx: PluginInput, config: PluginConfig) {
       await ctx.client.config.update({
         body: { agent: allUpdates },
       });
+
+      const snapshot = readTuiSnapshot();
+      const agentModels = { ...snapshot.agentModels };
+      for (const [agentName, agentConfig] of Object.entries(allUpdates)) {
+        if (typeof agentConfig.model === 'string') {
+          agentModels[agentName] = agentConfig.model;
+        }
+      }
+      recordTuiAgentModels({ agentModels });
 
       activePreset = presetName;
 

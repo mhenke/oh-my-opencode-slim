@@ -1,9 +1,15 @@
 import type { TuiPluginModule } from '@opencode-ai/plugin/tui';
 import type { JSX } from '@opentui/solid';
 import { createElement, insert, setProp } from '@opentui/solid';
+import { DEFAULT_DISABLED_AGENTS, SUBAGENT_NAMES } from './config/constants';
+import { readTuiSnapshot, type TuiSnapshot } from './tui-state';
 
 const PLUGIN_NAME = 'oh-my-opencode-slim';
 const PLUGIN_LABEL = 'OMOS';
+const FALLBACK_SIDEBAR_AGENTS = SUBAGENT_NAMES.filter(
+  (agent) => agent !== 'councillor' && !DEFAULT_DISABLED_AGENTS.includes(agent),
+);
+const BORDER = { type: 'single' };
 
 type Child = JSX.Element | string | number | null | undefined | false;
 
@@ -44,11 +50,113 @@ function text(props: Record<string, unknown>, children: Child[]) {
   return element('text', props, children);
 }
 
+function box(props: Record<string, unknown>, children: Child[] = []) {
+  return element('box', props, children);
+}
+
+function truncate(value: string, max = 24): string {
+  return value.length > max ? `${value.slice(0, max - 1)}…` : value;
+}
+
+export function formatSidebarModelName(model: string): string {
+  const lastSlash = model.lastIndexOf('/');
+  return lastSlash === -1 ? model : model.slice(lastSlash + 1);
+}
+
+export function getSidebarAgentNames(snapshot: TuiSnapshot): string[] {
+  const configuredAgents = Object.keys(snapshot.agentModels);
+  return configuredAgents.length > 0
+    ? configuredAgents
+    : FALLBACK_SIDEBAR_AGENTS;
+}
+
+function row(
+  label: string,
+  value: string,
+  theme: { textMuted: unknown; text: unknown },
+  valueColor?: unknown,
+): JSX.Element {
+  return box(
+    { width: '100%', flexDirection: 'row', justifyContent: 'space-between' },
+    [
+      text({ fg: theme.textMuted }, [label]),
+      text({ fg: valueColor ?? theme.text }, [value]),
+    ],
+  );
+}
+
+function renderSidebar(
+  snapshot: TuiSnapshot,
+  versionText: string,
+  theme: {
+    accent: unknown;
+    background: unknown;
+    borderActive: unknown;
+    text: unknown;
+    textMuted: unknown;
+  },
+): JSX.Element {
+  return box(
+    {
+      width: '100%',
+      flexDirection: 'column',
+      border: BORDER,
+      borderColor: theme.borderActive,
+      paddingTop: 1,
+      paddingBottom: 1,
+      paddingLeft: 1,
+      paddingRight: 1,
+    },
+    [
+      box(
+        {
+          width: '100%',
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+        },
+        [
+          box(
+            { paddingLeft: 1, paddingRight: 1, backgroundColor: theme.accent },
+            [text({ fg: theme.background }, ['Oh My OpenCode Slim'])],
+          ),
+          text({ fg: theme.textMuted }, [
+            versionText.replace(`${PLUGIN_LABEL} `, 'v'),
+          ]),
+        ],
+      ),
+      box({ width: '100%', marginTop: 1 }, [
+        text({ fg: theme.text }, ['Agents']),
+      ]),
+      ...getSidebarAgentNames(snapshot).map((agentName) => {
+        const model = snapshot.agentModels[agentName] ?? 'pending';
+        return row(
+          agentName,
+          truncate(formatSidebarModelName(model), 26),
+          theme,
+          theme.textMuted,
+        );
+      }),
+    ],
+  );
+}
+
 const plugin: TuiPluginModule & { id: string } = {
   id: `${PLUGIN_NAME}:tui`,
   tui: async (api, _options, meta) => {
     const version = meta.version ?? (await readPackageVersion()) ?? 'dev';
     const versionText = `${PLUGIN_LABEL} ${version}`;
+    const renderTimer = setInterval(() => {
+      try {
+        api.renderer.requestRender();
+      } catch {
+        // Ignore render errors; this is best-effort live status.
+      }
+    }, 1000);
+
+    api.lifecycle.onDispose(() => {
+      clearInterval(renderTimer);
+    });
 
     api.slots.register({
       order: 900,
@@ -62,6 +170,13 @@ const plugin: TuiPluginModule & { id: string } = {
           const theme = api.theme.current;
 
           return text({ fg: theme.textMuted }, [versionText]);
+        },
+        sidebar_content() {
+          return renderSidebar(
+            readTuiSnapshot(),
+            versionText,
+            api.theme.current,
+          );
         },
       },
     });
