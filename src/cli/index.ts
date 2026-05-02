@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+import { doctor, parseDoctorArgs } from './doctor';
 import { install } from './install';
 import { getGeneratedPresetNames, isGeneratedPresetName } from './providers';
 import type { BooleanArg, InstallArgs } from './types';
@@ -40,7 +41,9 @@ function printHelp(): void {
   console.log(`
 oh-my-opencode-slim installer
 
-Usage: bunx oh-my-opencode-slim install [OPTIONS]
+Usage:
+  bunx oh-my-opencode-slim install [OPTIONS]
+  bunx oh-my-opencode-slim doctor [OPTIONS]
 
 Options:
   --skills=yes|no        Install recommended and bundled skills (default: yes)
@@ -49,6 +52,9 @@ Options:
   --dry-run              Simulate install without writing files
   --reset                Force overwrite of existing configuration
   -h, --help             Show this help message
+
+Doctor options:
+  --json                 Print diagnostics as JSON
 
 Available presets: ${getGeneratedPresetNames().join(', ')}
 
@@ -61,6 +67,7 @@ Examples:
   bunx oh-my-opencode-slim install --no-tui --skills=yes
   bunx oh-my-opencode-slim install --preset=opencode-go
   bunx oh-my-opencode-slim install --reset
+  bunx oh-my-opencode-slim doctor
 `);
 }
 
@@ -71,6 +78,10 @@ async function main(): Promise<void> {
     const hasSubcommand = args[0] === 'install';
     const installArgs = parseArgs(args.slice(hasSubcommand ? 1 : 0));
     const exitCode = await install(installArgs);
+    process.exit(exitCode);
+  } else if (args[0] === 'doctor') {
+    const doctorArgs = parseDoctorArgs(args.slice(1));
+    const exitCode = await doctor(doctorArgs);
     process.exit(exitCode);
   } else if (args[0] === '-h' || args[0] === '--help') {
     printHelp();
