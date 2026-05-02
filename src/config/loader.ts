@@ -81,6 +81,55 @@ function findConfigPathInDirs(
 }
 
 /**
+ * Find plugin config paths (user and project) for a given directory.
+ * User config uses getConfigSearchDirs() for lookup.
+ * Project config uses <directory>/.opencode/oh-my-opencode-slim.
+ *
+ * @param directory - Project directory to search for .opencode config
+ * @returns Object with userConfigPath and projectConfigPath (null if not found)
+ */
+export function findPluginConfigPaths(directory: string): {
+  userConfigPath: string | null;
+  projectConfigPath: string | null;
+} {
+  const userConfigPath = findConfigPathInDirs(
+    getConfigSearchDirs(),
+    'oh-my-opencode-slim',
+  );
+
+  const projectConfigBasePath = path.join(
+    directory,
+    '.opencode',
+    'oh-my-opencode-slim',
+  );
+
+  const projectConfigPath = findConfigPath(projectConfigBasePath);
+
+  return { userConfigPath, projectConfigPath };
+}
+
+/**
+ * Merge two plugin configs using the loader's merge rules.
+ * Project/override takes precedence over base.
+ */
+export function mergePluginConfigs(
+  base: PluginConfig,
+  override: PluginConfig,
+): PluginConfig {
+  return {
+    ...base,
+    ...override,
+    agents: deepMerge(base.agents, override.agents),
+    tmux: deepMerge(base.tmux, override.tmux),
+    multiplexer: deepMerge(base.multiplexer, override.multiplexer),
+    interview: deepMerge(base.interview, override.interview),
+    sessionManager: deepMerge(base.sessionManager, override.sessionManager),
+    fallback: deepMerge(base.fallback, override.fallback),
+    council: deepMerge(base.council, override.council),
+  };
+}
+
+/**
  * Recursively merge two objects, with override values taking precedence.
  * For nested objects, merges recursively. For arrays and primitives, override replaces base.
  *
@@ -135,19 +184,8 @@ export function deepMerge<T extends Record<string, unknown>>(
  * @returns Merged plugin configuration (empty object if no configs found)
  */
 export function loadPluginConfig(directory: string): PluginConfig {
-  const userConfigPath = findConfigPathInDirs(
-    getConfigSearchDirs(),
-    'oh-my-opencode-slim',
-  );
-
-  const projectConfigBasePath = path.join(
-    directory,
-    '.opencode',
-    'oh-my-opencode-slim',
-  );
-
-  // Find existing config files (preferring .jsonc over .json)
-  const projectConfigPath = findConfigPath(projectConfigBasePath);
+  const { userConfigPath, projectConfigPath } =
+    findPluginConfigPaths(directory);
 
   let config: PluginConfig = userConfigPath
     ? (loadConfigFromPath(userConfigPath) ?? {})
@@ -157,20 +195,7 @@ export function loadPluginConfig(directory: string): PluginConfig {
     ? loadConfigFromPath(projectConfigPath)
     : null;
   if (projectConfig) {
-    config = {
-      ...config,
-      ...projectConfig,
-      agents: deepMerge(config.agents, projectConfig.agents),
-      tmux: deepMerge(config.tmux, projectConfig.tmux),
-      multiplexer: deepMerge(config.multiplexer, projectConfig.multiplexer),
-      interview: deepMerge(config.interview, projectConfig.interview),
-      sessionManager: deepMerge(
-        config.sessionManager,
-        projectConfig.sessionManager,
-      ),
-      fallback: deepMerge(config.fallback, projectConfig.fallback),
-      council: deepMerge(config.council, projectConfig.council),
-    };
+    config = mergePluginConfigs(config, projectConfig);
   }
 
   // Migrate legacy tmux config to multiplexer config for backward compatibility
