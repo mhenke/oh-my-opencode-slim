@@ -19,7 +19,7 @@ export function parseDoctorArgs(args: string[]): DoctorArgs {
     } else if (arg === '--help' || arg === '-h') {
       result.help = true;
     } else {
-      result.error = `Unknown doctor option: ${arg}`;
+      result.error ??= `Unknown doctor option: ${arg}`;
     }
   }
 
@@ -118,7 +118,16 @@ function checkConfigFile(
       'code' in err &&
       (err as NodeJS.ErrnoException).code === 'ENOENT'
     ) {
-      return { scope, path: null, exists: false, ok: true };
+      return {
+        scope,
+        path: configPath,
+        exists: false,
+        ok: false,
+        error: {
+          kind: 'read-error',
+          message: 'File was not found while reading',
+        },
+      };
     }
 
     return {

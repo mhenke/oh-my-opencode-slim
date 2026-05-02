@@ -30,6 +30,14 @@ describe('parseDoctorArgs', () => {
     expect(result.error).toBe('Unknown doctor option: --project');
   });
 
+  test('multiple unknown options keeps first error', () => {
+    const result = parseDoctorArgs(['--bad1', '--json', '--bad2']);
+    expect(result).toEqual({
+      json: true,
+      error: 'Unknown doctor option: --bad1',
+    });
+  });
+
   test('positional arg returns error', () => {
     const result = parseDoctorArgs(['/my/project']);
     expect(result.error).toBe('Unknown doctor option: /my/project');
@@ -112,6 +120,33 @@ describe('runDoctorCheck', () => {
     expect(result.configs[1].ok).toBe(false);
     expect(result.configs[1].error?.kind).toBe('invalid-json');
     expect(result.presetCheck).toBeUndefined();
+  });
+
+  test('config deleted after discovery returns read error with path', () => {
+    const projectDir = path.join(tempDir, 'project');
+    const configDir = path.join(projectDir, '.opencode');
+    const configPath = path.join(configDir, 'oh-my-opencode-slim.json');
+    fs.mkdirSync(configDir, { recursive: true });
+    fs.writeFileSync(configPath, '{}');
+
+    const statSpy = spyOn(fs, 'statSync').mockImplementation(() => {
+      throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' });
+    });
+
+    try {
+      const result = runDoctorCheck(projectDir);
+
+      expect(result.ok).toBe(false);
+      expect(result.configs[1].path).toBe(configPath);
+      expect(result.configs[1].exists).toBe(false);
+      expect(result.configs[1].ok).toBe(false);
+      expect(result.configs[1].error?.kind).toBe('read-error');
+      expect(result.configs[1].error?.message).toBe(
+        'File was not found while reading',
+      );
+    } finally {
+      statSpy.mockRestore();
+    }
   });
 
   test('invalid schema returns not ok with schema issues', () => {
