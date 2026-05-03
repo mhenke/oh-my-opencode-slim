@@ -172,13 +172,21 @@ automatically.
 
 ### Divoom Display Integration
 
-Divoom integration is disabled by default. When enabled, the plugin sends bundled
-GIFs to the Divoom MiniToo app's bundled CLI:
+Divoom integration is disabled by default. Install and start the Divoom MiniToo
+macOS daemon from
+[`divoom-minitoo-osx`](https://github.com/alvinunreal/divoom-minitoo-osx)
+first, then enable this plugin integration. See the full
+**[Divoom guide](divoom.md)** for setup, daemon startup, and troubleshooting.
 
-- plugin load: `intro.gif`
+When enabled, the plugin sends bundled GIFs to the Divoom MiniToo app's bundled
+CLI:
+
+- plugin load / waiting for user input: `intro.gif`
+- orchestrator busy: `orchestrator.gif`
 - first active delegated agent: that agent's GIF
 - parallel delegated agents: the first agent keeps the display
-- all delegated agents complete: `orchestrator.gif`
+- all delegated agents complete while orchestrator keeps working: `orchestrator.gif`
+- orchestrator idle again: `intro.gif`
 
 ```jsonc
 {

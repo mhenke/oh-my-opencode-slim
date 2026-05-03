@@ -21,6 +21,17 @@ The main idea is simple: instead of forcing one model to do everything, the plug
 
 To explore the agents themselves, see **[Meet the Pantheon](#meet-the-pantheon)**. For the full feature set, see **[Features & Workflows](#features-and-workflows)** below.
 
+### Divoom MiniToo Status Display
+
+You can optionally mirror orchestrator and specialist-agent activity to a Divoom
+MiniToo Bluetooth display. Install and run the companion macOS daemon first,
+then enable `divoom.enabled` in the plugin config. See **[Divoom Display
+Integration](docs/divoom.md)**.
+
+<div align="center">
+  <video src="img/divoom-minitoo.mp4" controls width="720"></video>
+</div>
+
 ### Quick Start
 
 Copy and paste this prompt to your LLM agent (Claude Code, AmpCode, Cursor, etc.):
@@ -89,8 +100,8 @@ starter config. See **[Session Management](docs/session-management.md)** if you
 want to customize how many resumable child-agent sessions are remembered.
 
 Optional Divoom Bluetooth display status GIFs are available but disabled by
-default. Enable them with `"divoom": { "enabled": true }`; see
-**[Configuration](docs/configuration.md#divoom-display-integration)**.
+default. Install the companion daemon first, then enable them with
+`"divoom": { "enabled": true }`; see **[Divoom Display Integration](docs/divoom.md)**.
 
 ### For Alternative Providers
 
