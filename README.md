@@ -21,17 +21,6 @@ The main idea is simple: instead of forcing one model to do everything, the plug
 
 To explore the agents themselves, see **[Meet the Pantheon](#meet-the-pantheon)**. For the full feature set, see **[Features & Workflows](#features-and-workflows)** below.
 
-### Divoom MiniToo Status Display
-
-You can optionally mirror orchestrator and specialist-agent activity to a Divoom
-MiniToo Bluetooth display. Install and run the companion macOS daemon first,
-then enable `divoom.enabled` in the plugin config. See **[Divoom Display
-Integration](docs/divoom.md)**.
-
-<div align="center">
-  <video src="img/divoom-minitoo.mp4" controls width="720"></video>
-</div>
-
 ### Quick Start
 
 Copy and paste this prompt to your LLM agent (Claude Code, AmpCode, Cursor, etc.):
@@ -494,6 +483,7 @@ Use this section as a map: start with installation, then jump to features, confi
 | Doc | What it covers |
 |-----|----------------|
 | **[Council](docs/council.md)** | Run multiple models in parallel and synthesize a single answer with `@council` |
+| **[Divoom Display](docs/divoom.md)** | Mirror orchestrator and specialist-agent activity to a Divoom MiniToo Bluetooth display |
 | **[Interview](docs/interview.md)** | Turn rough ideas into a structured markdown spec through a browser-based Q&A flow |
 | **[Multiplexer Integration](docs/multiplexer-integration.md)** | Watch agents work live in Tmux or Zellij panes |
 | **[Session Management](docs/session-management.md)** | Reuse recent child-agent sessions with short aliases instead of starting over |

@@ -4,7 +4,8 @@ oh-my-opencode-slim can mirror agent activity to a Divoom MiniToo Bluetooth
 display. The integration is optional and disabled by default.
 
 <div align="center">
-  <video src="../img/divoom-minitoo.mp4" controls width="720"></video>
+  <video src="https://raw.githubusercontent.com/alvinunreal/oh-my-opencode-slim/master/img/divoom-minitoo.mp4" controls width="720"></video>
+  <p><a href="https://raw.githubusercontent.com/alvinunreal/oh-my-opencode-slim/master/img/divoom-minitoo.mp4">Open video preview</a></p>
 </div>
 
 ## What it shows
