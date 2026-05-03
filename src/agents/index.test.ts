@@ -16,6 +16,13 @@ import {
   isSubagent,
 } from "./index";
 
+function councilConfig() {
+  const parsed = CouncilConfigSchema.parse({
+    presets: { default: { alpha: { model: "test/councillor" } } },
+  });
+  return parsed;
+}
+
 describe("agent alias backward compatibility", () => {
   test("applies 'explore' config to 'explorer' agent", () => {
     const config: PluginConfig = {
@@ -272,7 +279,9 @@ describe("skill permissions", () => {
 
 describe("tool permissions", () => {
   test("council agent is allowed to invoke council_session", () => {
-    const agents = createAgents();
+    const agents = createAgents({
+      council: councilConfig(),
+    });
     const council = agents.find((a) => a.name === "council");
     expect((council?.config.permission as any).council_session).toBe("allow");
   });
@@ -334,7 +343,7 @@ describe("agent classification", () => {
     for (const name of SUBAGENT_NAMES) {
       // Council is a dual-mode agent ("all"), rest are subagents
       if (name === "council") {
-        expect(configs[name].mode).toBe("all");
+        expect(configs[name]).toBeUndefined();
       } else {
         expect(configs[name].mode).toBe("subagent");
       }
@@ -354,9 +363,29 @@ describe("createAgents", () => {
     expect(names).toContain("fixer");
   });
 
-  test("creates exactly 8 agents by default (1 orchestrator + 7 subagents, observer disabled)", () => {
+  test("creates exactly 7 agents by default (observer disabled, council unconfigured)", () => {
     const agents = createAgents();
-    expect(agents.length).toBe(8);
+    expect(agents.length).toBe(7);
+  });
+
+  test("does not create council when council is not configured", () => {
+    const agents = createAgents();
+    const names = agents.map((a) => a.name);
+    const orchestrator = agents.find((a) => a.name === "orchestrator");
+
+    expect(names).not.toContain("council");
+    expect(orchestrator?.config.prompt).not.toContain("@council");
+  });
+
+  test("creates council when council is configured", () => {
+    const agents = createAgents({
+      council: councilConfig(),
+    });
+    const names = agents.map((a) => a.name);
+    const orchestrator = agents.find((a) => a.name === "orchestrator");
+
+    expect(names).toContain("council");
+    expect(orchestrator?.config.prompt).toContain("@council");
   });
 });
 
@@ -379,7 +408,9 @@ describe("getAgentConfigs", () => {
 
 describe("council agent model resolution", () => {
   test("council agent uses default model", () => {
-    const agents = createAgents();
+    const agents = createAgents({
+      council: councilConfig(),
+    });
     const council = agents.find((a) => a.name === "council");
     expect(council?.config.model).toBe(DEFAULT_MODELS.council);
   });
@@ -398,11 +429,7 @@ describe("council agent model resolution", () => {
         oracle: { model: "openai/gpt-5.5" },
       },
       council: {
-        presets: {
-          default: {
-            alpha: { model: "openai/gpt-5.4-mini" },
-          },
-        },
+        ...councilConfig(),
         _legacyMasterModel: "anthropic/claude-opus-4-6",
       },
     };
@@ -418,11 +445,7 @@ describe("council agent model resolution", () => {
         council: { model: "google/gemini-3-pro" },
       },
       council: {
-        presets: {
-          default: {
-            alpha: { model: "openai/gpt-5.4-mini" },
-          },
-        },
+        ...councilConfig(),
         _legacyMasterModel: "anthropic/claude-opus-4-6",
       },
     };
@@ -434,13 +457,7 @@ describe("council agent model resolution", () => {
   test("council uses default when no legacy master and no preset override", () => {
     // No legacy master, no preset override → standard default
     const config: PluginConfig = {
-      council: {
-        presets: {
-          default: {
-            alpha: { model: "openai/gpt-5.4-mini" },
-          },
-        },
-      },
+      council: councilConfig(),
     };
     const agents = createAgents(config);
     const council = agents.find((a) => a.name === "council");
@@ -777,13 +794,13 @@ describe("disabled_agents", () => {
 
   test("agent count decreases when agents are disabled", () => {
     const agents = createAgents();
-    expect(agents.length).toBe(8); // 1 + 7 (observer disabled by default)
+    expect(agents.length).toBe(7); // observer disabled, council unconfigured
 
     const disabledConfig: PluginConfig = {
       disabled_agents: ["observer", "designer"],
     };
     const disabledAgents = createAgents(disabledConfig);
-    expect(disabledAgents.length).toBe(7);
+    expect(disabledAgents.length).toBe(6);
   });
 
   test("getDisabledAgents respects protection rules", () => {
@@ -821,13 +838,15 @@ describe("disabled_agents", () => {
     expect(enabled).not.toContain("janitor");
   });
 
-  test("empty disabled_agents creates all agents including observer", () => {
+  test("empty disabled_agents creates observer but not unconfigured council", () => {
     const config: PluginConfig = {
       disabled_agents: [],
     };
     const agents = createAgents(config);
-    expect(agents.length).toBe(9);
-    expect(agents.map((a) => a.name)).toContain("observer");
+    const names = agents.map((a) => a.name);
+    expect(agents.length).toBe(8);
+    expect(names).toContain("observer");
+    expect(names).not.toContain("council");
   });
 });
 

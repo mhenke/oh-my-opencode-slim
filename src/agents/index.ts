@@ -43,6 +43,10 @@ function normalizeDisplayName(displayName: string): string {
   return trimmed.startsWith('@') ? trimmed.slice(1) : trimmed;
 }
 
+function isSafeDisplayName(displayName: string): boolean {
+  return /^[a-z][a-z0-9_-]*$/i.test(displayName);
+}
+
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
@@ -219,6 +223,9 @@ const SUBAGENT_FACTORIES: Record<SubagentName, AgentFactory> = {
  */
 export function createAgents(config?: PluginConfig): AgentDefinition[] {
   const disabled = getDisabledAgents(config);
+  if (!config?.council) {
+    disabled.add('council');
+  }
 
   // TEMP: If fixer has no config, inherit from librarian's model to avoid breaking
   // existing users who don't have fixer in their config yet
@@ -364,6 +371,11 @@ export function createAgents(config?: PluginConfig): AgentDefinition[] {
   const usedDisplayNames = new Set<string>();
   for (const [, displayName] of displayNameMap) {
     const normalizedDisplayName = normalizeDisplayName(displayName);
+    if (!isSafeDisplayName(normalizedDisplayName)) {
+      throw new Error(
+        `displayName '${normalizedDisplayName}' must match /^[a-z][a-z0-9_-]*$/i`,
+      );
+    }
     if (usedDisplayNames.has(normalizedDisplayName)) {
       throw new Error(
         `Duplicate displayName '${normalizedDisplayName}' assigned to multiple agents`,
@@ -500,6 +512,9 @@ export function getDisabledAgents(config?: PluginConfig): Set<string> {
  */
 export function getEnabledAgentNames(config?: PluginConfig): string[] {
   const disabled = getDisabledAgents(config);
+  if (!config?.council) {
+    disabled.add('council');
+  }
   const customAgentNames = getCustomAgentNames(config).filter(
     (name) => !disabled.has(name),
   );

@@ -129,6 +129,18 @@ describe('displayName', () => {
     );
   });
 
+  test('throws when displayName is not a safe agent alias', () => {
+    const config: PluginConfig = {
+      agents: {
+        explorer: { displayName: 'senior reviewer' },
+      },
+    };
+
+    expect(() => createAgents(config)).toThrow(
+      "displayName 'senior reviewer' must match /^[a-z][a-z0-9_-]*$/i",
+    );
+  });
+
   test('resolves legacy alias for explorer displayName override', () => {
     const config: PluginConfig = {
       agents: {

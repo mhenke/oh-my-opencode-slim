@@ -76,6 +76,7 @@ export function createCouncillorAgent(
         lsp: 'allow',
         list: 'allow',
         codesearch: 'allow',
+        ast_grep_search: 'allow',
       },
     },
   };
