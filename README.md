@@ -88,6 +88,10 @@ Session management is enabled by default even though it is not shown in the
 starter config. See **[Session Management](docs/session-management.md)** if you
 want to customize how many resumable child-agent sessions are remembered.
 
+Optional Divoom Bluetooth display status GIFs are available but disabled by
+default. Install the companion daemon first, then enable them with
+`"divoom": { "enabled": true }`; see **[Divoom Display Integration](docs/divoom.md)**.
+
 ### For Alternative Providers
 
 To use OpenCode Go, Kimi, GitHub Copilot, ZAI Coding Plan, or a mixed-provider setup, use **[Configuration](docs/configuration.md)** for the full reference. If you want a ready-made starting point, check the **[Author's Preset](docs/authors-preset.md)** and **[$30 Preset](docs/thirty-dollars-preset.md)** - the `$30` preset is the best cheap setup.
@@ -479,6 +483,7 @@ Use this section as a map: start with installation, then jump to features, confi
 | Doc | What it covers |
 |-----|----------------|
 | **[Council](docs/council.md)** | Run multiple models in parallel and synthesize a single answer with `@council` |
+| **[Divoom Display](docs/divoom.md)** | Mirror orchestrator and specialist-agent activity to a Divoom MiniToo Bluetooth display |
 | **[Interview](docs/interview.md)** | Turn rough ideas into a structured markdown spec through a browser-based Q&A flow |
 | **[Multiplexer Integration](docs/multiplexer-integration.md)** | Watch agents work live in Tmux or Zellij panes |
 | **[Session Management](docs/session-management.md)** | Reuse recent child-agent sessions with short aliases instead of starting over |
