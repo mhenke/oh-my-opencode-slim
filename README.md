@@ -44,7 +44,7 @@ the `plugin` array in both `opencode.json` and `tui.json`.
 
 ### Getting Started
 
-The installer generates both OpenAI and OpenCode Go presets, with OpenAI active by default. OpenAI uses `openai/gpt-5.5` for the higher-judgment agents and `openai/gpt-5.4-mini` for the faster scoped agents. To make OpenCode Go active during install, run `bunx oh-my-opencode-slim@latest install --preset=opencode-go`.
+The installer generates both OpenAI and OpenCode Go presets, with OpenAI active by default. OpenAI uses `openai/gpt-5.5` for the higher-judgment agents and `openai/gpt-5.4-mini` for the faster scoped agents. To make OpenCode Go active during install, run `bunx oh-my-opencode-slim@latest install --preset=opencode-go` or change the default preset name in `~/.config/opencode/oh-my-opencode-slim.json` after installation.
 
 Then:
 
@@ -63,9 +63,9 @@ Then:
 4. **Update the models you want for each agent**
 
 > [!TIP]
-> Want to understand how automatic delegation works in practice? Review the **[Orchestrator prompt](https://github.com/alvinunreal/oh-my-opencode-slim/blob/master/src/agents/orchestrator.ts#L28)** — it contains the delegation rules, specialist routing logic, and the thresholds for when the main agent should hand work off to subagents.
+> It's **recommended** to understand how automatic delegation works. The **[Orchestrator prompt](https://github.com/alvinunreal/oh-my-opencode-slim/blob/master/src/agents/orchestrator.ts#L28)** contains the delegation rules, specialist routing logic, and the thresholds for when the main agent should hand work off to subagents. You can alway delegate manually by calling a subagent via: `@agentName <task>`
 
-The default generated configuration includes both `openai` and `opencode-go` presets. Abbreviated:
+The default generated configuration includes both `openai` and `opencode-go` presets.
 
 ```jsonc
 {
@@ -79,28 +79,29 @@ The default generated configuration includes both `openai` and `opencode-go` pre
       "explorer": { "model": "openai/gpt-5.4-mini", "variant": "low", "skills": [], "mcps": [] },
       "designer": { "model": "openai/gpt-5.4-mini", "variant": "medium", "skills": ["agent-browser"], "mcps": [] },
       "fixer": { "model": "openai/gpt-5.4-mini", "variant": "low", "skills": [], "mcps": [] }
+    },
+    "opencode-go": {
+      "orchestrator": { "model": "opencode-go/glm-5.1", "skills": [ "*" ], "mcps": [ "*", "!context7" ] },
+      "oracle": { "model": "opencode-go/deepseek-v4-pro", "variant": "max", "skills": ["simplify"], "mcps": [] },
+      "council": { "model": "opencode-go/deepseek-v4-pro", "variant": "high", "skills": [], "mcps": [] },
+      "librarian": { "model": "opencode-go/minimax-m2.7", "skills": [], "mcps": [ "websearch", "context7", "grep_app" ] },
+      "explorer": { "model": "opencode-go/minimax-m2.7", "skills": [], "mcps": [] },
+      "designer": { "model": "opencode-go/kimi-k2.6", "variant": "medium", "skills": [ "agent-browser" ], "mcps": [] },
+      "fixer": { "model": "opencode-go/deepseek-v4-flash", "variant": "high", "skills": [], "mcps": [] }
     }
   }
 }
 ```
 
-Session management is enabled by default even though it is not shown in the
-starter config. See **[Session Management](docs/session-management.md)** if you
-want to customize how many resumable child-agent sessions are remembered.
-
-Optional Divoom Bluetooth display status GIFs are available but disabled by
-default. Install the companion daemon first, then enable them with
-`"divoom": { "enabled": true }`; see **[Divoom Display Integration](docs/divoom.md)**.
-
 ### For Alternative Providers
 
-To use OpenCode Go, Kimi, GitHub Copilot, ZAI Coding Plan, or a mixed-provider setup, use **[Configuration](docs/configuration.md)** for the full reference. If you want a ready-made starting point, check the **[Author's Preset](docs/authors-preset.md)** and **[$30 Preset](docs/thirty-dollars-preset.md)** - the `$30` preset is the best cheap setup.
+To use custom providers or a mixed-provider setup, use **[Configuration](docs/configuration.md)** for the full reference. If you want a ready-made starting point, check the **[Author's Preset](docs/authors-preset.md)** and **[$30 Preset](docs/thirty-dollars-preset.md)** - the `$30` preset is the best cheap setup.
 
 The configuration guide also covers custom subagents via `agents.<name>`, where
 you can define both a normal `prompt` and an `orchestratorPrompt` block for
 delegation.
 
-You can also mix and match any models per agent. For model suggestions, see the **Recommended Models** listed under each agent below.
+For model suggestions, see the **Recommended Models** listed under each agent below.
 
 ### ✅ Verify Your Setup
 
@@ -483,13 +484,13 @@ Use this section as a map: start with installation, then jump to features, confi
 | Doc | What it covers |
 |-----|----------------|
 | **[Council](docs/council.md)** | Run multiple models in parallel and synthesize a single answer with `@council` |
-| **[Divoom Display](docs/divoom.md)** | Mirror orchestrator and specialist-agent activity to a Divoom MiniToo Bluetooth display |
-| **[Interview](docs/interview.md)** | Turn rough ideas into a structured markdown spec through a browser-based Q&A flow |
 | **[Multiplexer Integration](docs/multiplexer-integration.md)** | Watch agents work live in Tmux or Zellij panes |
 | **[Session Management](docs/session-management.md)** | Reuse recent child-agent sessions with short aliases instead of starting over |
 | **[Todo Continuation](docs/todo-continuation.md)** | Auto-continue orchestrator sessions with cooldowns and safety checks |
 | **[Preset Switching](docs/preset-switching.md)** | Switch agent model presets at runtime with `/preset` |
 | **[Codemap](docs/codemap.md)** | Generate hierarchical codemaps to understand large codebases faster |
+| **[Interview](docs/interview.md)** | Turn rough ideas into a structured markdown spec through a browser-based Q&A flow |
+| **[Divoom Display](docs/divoom.md)** | Mirror orchestrator and specialist-agent activity to a Divoom MiniToo Bluetooth display |
 
 ### ⚙️ Config & Reference
 
@@ -501,7 +502,7 @@ Use this section as a map: start with installation, then jump to features, confi
 | **[MCPs](docs/mcps.md)** | `websearch`, `context7`, `grep_app`, and how MCP permissions work per agent |
 | **[Tools](docs/tools.md)** | Built-in tool capabilities like `webfetch`, LSP tools, code search, and formatters |
 
-### 💡 Example Presets
+### 💡 Presets
 
 | Doc | What it covers |
 |-----|----------------|
