@@ -86,16 +86,17 @@ describe('councillor permissions', () => {
     expect(permission.lsp).toBe('allow');
   });
 
-  test('allows list and codesearch tools', () => {
+  test('allows list and code search tools', () => {
     const agent = createCouncillorAgent('test-model');
     const permission = agent.config.permission as Record<string, string>;
     expect(permission.list).toBe('allow');
     expect(permission.codesearch).toBe('allow');
+    expect(permission.ast_grep_search).toBe('allow');
   });
 
-  test('has exactly 8 permission entries', () => {
+  test('has exactly 9 permission entries', () => {
     const agent = createCouncillorAgent('test-model');
     const permission = agent.config.permission as Record<string, string>;
-    expect(Object.keys(permission)).toHaveLength(8);
+    expect(Object.keys(permission)).toHaveLength(9);
   });
 });

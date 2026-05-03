@@ -36,7 +36,7 @@ const AGENT_DESCRIPTIONS: Record<string, string> = {
 
   librarian: `@librarian
 - Role: Authoritative source for current library docs and API references
-- Permissions: None
+- Permissions: External docs/search MCPs; no file edits
 - Stats: 10x better finding up-to-date library docs than orchestrator, 1/2 cost of orchestrator
 - Capabilities: Fetches latest official docs, examples, API signatures, version-specific behavior via grep_app MCP
 - **Delegate when:** Libraries with frequent API changes (React, Next.js, AI SDKs) • Complex APIs needing official examples (ORMs, auth) • Version-specific behavior matters • Unfamiliar library • Edge cases or advanced features • Nuanced best practices
