@@ -7,6 +7,10 @@ The installer generates both `openai` and `opencode-go` presets. OpenAI stays
 active by default unless you select OpenCode Go during install or switch to it
 later.
 
+Because the `opencode-go` preset uses GLM-5.1 for Orchestrator and GLM is not
+multimodal, installing with `--preset=opencode-go` also enables the Observer
+agent and configures it with `opencode-go/kimi-k2.6` for visual analysis.
+
 ## Install with OpenCode Go Active
 
 ```bash
@@ -29,7 +33,13 @@ If both presets are already in your config, switch from inside OpenCode:
 ```
 
 See [Preset Switching](preset-switching.md) for the full runtime switching
-workflow.
+workflow. If you originally installed with the default OpenAI preset, also add
+`"disabled_agents": []` to your config and restart OpenCode so Observer is
+available before switching to `opencode-go`.
+
+`disabled_agents` is global, not per-preset. If you later switch back to OpenAI
+and restart while keeping `"disabled_agents": []`, Observer will remain enabled
+and use the default Observer model unless you configure one explicitly.
 
 ## Bundled Model Mapping
 
@@ -45,6 +55,7 @@ role:
 | Explorer | `opencode-go/minimax-m2.7` |
 | Designer | `opencode-go/kimi-k2.6` (`medium`) |
 | Fixer | `opencode-go/deepseek-v4-flash` (`high`) |
+| Observer | `opencode-go/kimi-k2.6` |
 
 ## Generated Config Shape
 
@@ -54,6 +65,7 @@ setting the top-level `preset` field:
 ```jsonc
 {
   "preset": "opencode-go",
+  "disabled_agents": [],
   "presets": {
     "opencode-go": {
       "orchestrator": { "model": "opencode-go/glm-5.1" },
@@ -74,7 +86,8 @@ setting the top-level `preset` field:
       "fixer": {
         "model": "opencode-go/deepseek-v4-flash",
         "variant": "high"
-      }
+      },
+      "observer": { "model": "opencode-go/kimi-k2.6" }
     }
   }
 }

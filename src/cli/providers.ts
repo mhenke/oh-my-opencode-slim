@@ -53,6 +53,7 @@ export const MODEL_MAPPINGS = {
     explorer: { model: 'opencode-go/minimax-m2.7' },
     designer: { model: 'opencode-go/kimi-k2.6', variant: 'medium' },
     fixer: { model: 'opencode-go/deepseek-v4-flash', variant: 'high' },
+    observer: { model: 'opencode-go/kimi-k2.6' },
   },
 } as const;
 
@@ -92,6 +93,10 @@ export function generateLiteConfig(
     preset,
     presets: {},
   };
+
+  if (preset === 'opencode-go') {
+    config.disabled_agents = [];
+  }
 
   const createAgentConfig = (
     agentName: string,

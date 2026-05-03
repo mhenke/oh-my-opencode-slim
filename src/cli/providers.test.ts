@@ -27,7 +27,11 @@ describe('providers', () => {
       'https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json',
     );
     expect(config.preset).toBe('openai');
+    expect(config.disabled_agents).toBeUndefined();
     expect((config.presets as any)['opencode-go']).toBeDefined();
+    expect((config.presets as any)['opencode-go'].observer.model).toBe(
+      'opencode-go/kimi-k2.6',
+    );
     const agents = (config.presets as any).openai;
     expect(agents).toBeDefined();
     expect(agents.orchestrator.model).toBe('openai/gpt-5.5');
@@ -68,6 +72,7 @@ describe('providers', () => {
     });
 
     expect(config.preset).toBe('opencode-go');
+    expect(config.disabled_agents).toEqual([]);
     expect((config.presets as any).openai).toBeDefined();
     const agents = (config.presets as any)['opencode-go'];
     expect(agents).toBeDefined();
@@ -81,6 +86,7 @@ describe('providers', () => {
     expect(agents.designer.model).toBe('opencode-go/kimi-k2.6');
     expect(agents.fixer.model).toBe('opencode-go/deepseek-v4-flash');
     expect(agents.fixer.variant).toBe('high');
+    expect(agents.observer.model).toBe('opencode-go/kimi-k2.6');
   });
 
   test('generateLiteConfig rejects unsupported preset', () => {
