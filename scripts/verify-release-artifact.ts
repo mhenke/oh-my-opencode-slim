@@ -28,6 +28,8 @@ const packagedRequiredFiles = [
   'dist/index.js',
   'dist/index.d.ts',
   'dist/cli/index.js',
+  'dist/divoom/intro.gif',
+  'dist/divoom/orchestrator.gif',
   'oh-my-opencode-slim.schema.json',
   'src/skills/simplify/SKILL.md',
   'src/skills/codemap/SKILL.md',

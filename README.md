@@ -88,6 +88,10 @@ Session management is enabled by default even though it is not shown in the
 starter config. See **[Session Management](docs/session-management.md)** if you
 want to customize how many resumable child-agent sessions are remembered.
 
+Optional Divoom Bluetooth display status GIFs are available but disabled by
+default. Enable them with `"divoom": { "enabled": true }`; see
+**[Configuration](docs/configuration.md#divoom-display-integration)**.
+
 ### For Alternative Providers
 
 To use OpenCode Go, Kimi, GitHub Copilot, ZAI Coding Plan, or a mixed-provider setup, use **[Configuration](docs/configuration.md)** for the full reference. If you want a ready-made starting point, check the **[Author's Preset](docs/authors-preset.md)** and **[$30 Preset](docs/thirty-dollars-preset.md)** - the `$30` preset is the best cheap setup.
