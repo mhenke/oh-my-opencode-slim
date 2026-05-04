@@ -6,6 +6,49 @@ import type { PluginInput } from '@opencode-ai/plugin';
 
 type OpencodeClient = PluginInput['client'];
 
+export const SESSION_ABORT_TIMEOUT_MS = 1_000;
+
+export class OperationTimeoutError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "OperationTimeoutError";
+  }
+}
+
+export async function withTimeout<T>(
+  operation: Promise<T>,
+  timeoutMs: number,
+  message: string
+): Promise<T> {
+  if (timeoutMs <= 0) return operation;
+
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(new OperationTimeoutError(message));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+export async function abortSessionWithTimeout(
+  client: OpencodeClient,
+  sessionId: string,
+  timeoutMs = SESSION_ABORT_TIMEOUT_MS
+): Promise<void> {
+  await withTimeout(
+    client.session.abort({ path: { id: sessionId } }),
+    timeoutMs,
+    `Session abort timed out after ${timeoutMs}ms`
+  );
+}
+
 /**
  * Extract the short model label from a "provider/model" string.
  * E.g. "openai/gpt-5.4-mini" → "gpt-5.4-mini"
@@ -72,11 +115,23 @@ export async function promptWithTimeout(
       promptPromise,
       new Promise<never>((_, reject) => {
         timer = setTimeout(() => {
-          client.session.abort({ path: { id: sessionId } }).catch(() => {});
-          reject(new Error(`Prompt timed out after ${timeoutMs}ms`));
+          reject(
+            new OperationTimeoutError(
+              `Prompt timed out after ${timeoutMs}ms`,
+            ),
+          );
         }, timeoutMs);
       }),
     ]);
+  } catch (error) {
+    if (error instanceof OperationTimeoutError) {
+      try {
+        await abortSessionWithTimeout(client, sessionId);
+      } catch {
+        // Best-effort cleanup: preserve the original prompt timeout error.
+      }
+    }
+    throw error;
   } finally {
     clearTimeout(timer);
   }
