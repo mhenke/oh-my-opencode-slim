@@ -3,6 +3,8 @@ import type { JSX } from '@opentui/solid';
 import { createElement, insert, setProp } from '@opentui/solid';
 import { DEFAULT_DISABLED_AGENTS, SUBAGENT_NAMES } from './config/constants';
 import {
+  createTuiProjectKey,
+  isTuiConfigInvalid,
   readTuiSnapshot,
   readTuiSnapshotAsync,
   type TuiSnapshot,
@@ -101,8 +103,9 @@ function renderSidebar(
     text: unknown;
     textMuted: unknown;
   },
+  projectKey?: string,
 ): JSX.Element {
-  const configStatusRow = buildConfigStatusRow(snapshot, theme);
+  const configStatusRow = buildConfigStatusRow(snapshot, theme, projectKey);
 
   return box(
     {
@@ -151,8 +154,9 @@ function renderSidebar(
 function buildConfigStatusRow(
   snapshot: TuiSnapshot,
   theme: { textMuted: unknown },
+  projectKey?: string,
 ): JSX.Element | null {
-  if (!snapshot.configInvalid) return null;
+  if (!isTuiConfigInvalid(snapshot, projectKey)) return null;
 
   return box(
     {
@@ -168,10 +172,17 @@ function buildConfigStatusRow(
   );
 }
 
+function resolveCurrentProjectKey(api: {
+  state?: { path?: { directory?: string } };
+}): string {
+  return createTuiProjectKey(api.state?.path?.directory ?? process.cwd());
+}
+
 const plugin: TuiPluginModule & { id: string } = {
   id: `${PLUGIN_NAME}:tui`,
   tui: async (api, _options, meta) => {
     const version = meta.version ?? (await readPackageVersion()) ?? 'dev';
+    const projectKey = resolveCurrentProjectKey(api);
     let snapshot = readTuiSnapshot();
     const renderTimer = setInterval(async () => {
       try {
@@ -190,7 +201,12 @@ const plugin: TuiPluginModule & { id: string } = {
       order: 900,
       slots: {
         sidebar_content() {
-          return renderSidebar(snapshot, version, api.theme.current);
+          return renderSidebar(
+            snapshot,
+            version,
+            api.theme.current,
+            projectKey,
+          );
         },
       },
     });

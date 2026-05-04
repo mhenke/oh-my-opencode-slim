@@ -45,6 +45,7 @@ import {
   createWebfetchTool,
 } from './tools';
 import {
+  createTuiProjectKey,
   recordTuiAgentModel,
   recordTuiAgentModels,
   recordTuiConfigStatus,
@@ -158,7 +159,10 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         configInvalid = true;
       },
     });
-    recordTuiConfigStatus({ invalid: configInvalid });
+    recordTuiConfigStatus({
+      invalid: configInvalid,
+      projectKey: createTuiProjectKey(ctx.directory),
+    });
 
     // Safety net: if a runtime preset was set via /preset command and
     // OpenCode ever fully re-runs the plugin function (not just the

@@ -1,3 +1,4 @@
+import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -7,6 +8,7 @@ export interface TuiSnapshot {
   updatedAt: number;
   agentModels: Record<string, string>;
   configInvalid: boolean;
+  configInvalidByProject: Record<string, boolean>;
 }
 
 const STATE_DIR = 'oh-my-opencode-slim';
@@ -22,12 +24,49 @@ export function getTuiStatePath(): string {
   return path.join(dataDir(), 'opencode', 'storage', STATE_DIR, STATE_FILE);
 }
 
+/**
+ * Create a normalized project key from a directory path.
+ * Uses SHA-256 hash of the resolved absolute path, truncated to 16 hex chars.
+ */
+export function createTuiProjectKey(directory: string): string {
+  const resolved = path.resolve(directory);
+  return crypto
+    .createHash('sha256')
+    .update(resolved)
+    .digest('hex')
+    .slice(0, 16);
+}
+
+function parseConfigInvalidByProject(value: unknown): Record<string, boolean> {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+
+  return Object.fromEntries(
+    Object.entries(value).filter(([, invalid]) => typeof invalid === 'boolean'),
+  ) as Record<string, boolean>;
+}
+
+/**
+ * Determine whether config is invalid for a given project.
+ * When projectKey is provided, checks configInvalidByProject[projectKey].
+ * Falls back to legacy snapshot.configInvalid when no projectKey is given.
+ */
+export function isTuiConfigInvalid(
+  snapshot: TuiSnapshot,
+  projectKey?: string,
+): boolean {
+  if (projectKey) {
+    return snapshot.configInvalidByProject[projectKey] ?? false;
+  }
+  return snapshot.configInvalid;
+}
+
 function emptySnapshot(): TuiSnapshot {
   return {
     version: 1,
     updatedAt: Date.now(),
     agentModels: {},
     configInvalid: false,
+    configInvalidByProject: {},
   };
 }
 
@@ -42,6 +81,9 @@ function parseSnapshot(value: string): TuiSnapshot {
     agentModels: parsed.agentModels ?? {},
     configInvalid:
       typeof parsed.configInvalid === 'boolean' ? parsed.configInvalid : false,
+    configInvalidByProject: parseConfigInvalidByProject(
+      parsed.configInvalidByProject,
+    ),
   };
 }
 
@@ -95,8 +137,15 @@ export function recordTuiAgentModel(input: {
   });
 }
 
-export function recordTuiConfigStatus(input: { invalid: boolean }): void {
+export function recordTuiConfigStatus(input: {
+  invalid: boolean;
+  projectKey?: string;
+}): void {
   updateSnapshot((snapshot) => {
-    snapshot.configInvalid = input.invalid;
+    if (input.projectKey) {
+      snapshot.configInvalidByProject[input.projectKey] = input.invalid;
+    } else {
+      snapshot.configInvalid = input.invalid;
+    }
   });
 }

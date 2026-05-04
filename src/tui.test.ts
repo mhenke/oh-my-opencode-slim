@@ -8,6 +8,7 @@ function createSnapshot(overrides: Partial<TuiSnapshot> = {}): TuiSnapshot {
     updatedAt: 0,
     agentModels: {},
     configInvalid: false,
+    configInvalidByProject: {},
     ...overrides,
   };
 }
