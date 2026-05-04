@@ -102,6 +102,8 @@ function renderSidebar(
     textMuted: unknown;
   },
 ): JSX.Element {
+  const configStatusRow = buildConfigStatusRow(snapshot, theme);
+
   return box(
     {
       width: '100%',
@@ -129,6 +131,7 @@ function renderSidebar(
           text({ fg: theme.textMuted }, [`v${version}`]),
         ],
       ),
+      configStatusRow,
       box({ width: '100%', marginTop: 1 }, [
         text({ fg: theme.text }, ['Agents']),
       ]),
@@ -141,6 +144,26 @@ function renderSidebar(
           theme.textMuted,
         );
       }),
+    ],
+  );
+}
+
+function buildConfigStatusRow(
+  snapshot: TuiSnapshot,
+  theme: { textMuted: unknown },
+): JSX.Element | null {
+  if (!snapshot.configInvalid) return null;
+
+  return box(
+    {
+      width: '100%',
+      flexDirection: 'column',
+      marginTop: 1,
+      marginBottom: 1,
+    },
+    [
+      text({ fg: 'yellow' }, ['Config invalid']),
+      text({ fg: theme.textMuted }, ['Run doctor for details']),
     ],
   );
 }

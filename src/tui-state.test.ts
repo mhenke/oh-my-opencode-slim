@@ -6,6 +6,7 @@ import {
   readTuiSnapshot,
   recordTuiAgentModel,
   recordTuiAgentModels,
+  recordTuiConfigStatus,
 } from './tui-state';
 
 let previousXdgDataHome: string | undefined;
@@ -61,5 +62,35 @@ describe('tui-state persistence', () => {
       orchestrator: 'openai/gpt-5.5',
       explorer: 'openai/gpt-5.4-mini',
     });
+  });
+
+  test('recordTuiConfigStatus sets configInvalid to true', () => {
+    recordTuiConfigStatus({ invalid: true });
+    expect(readTuiSnapshot().configInvalid).toBe(true);
+  });
+
+  test('recordTuiConfigStatus sets configInvalid to false', () => {
+    recordTuiConfigStatus({ invalid: true });
+    recordTuiConfigStatus({ invalid: false });
+    expect(readTuiSnapshot().configInvalid).toBe(false);
+  });
+
+  test('configInvalid defaults to false for old snapshots without the field', () => {
+    // Use suite-level tempDir; write old-format snapshot (no configInvalid field)
+    const filePath = path.join(
+      tempDir,
+      'opencode',
+      'storage',
+      'oh-my-opencode-slim',
+      'tui-state.json',
+    );
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
+    fs.writeFileSync(
+      filePath,
+      JSON.stringify({ version: 1, updatedAt: Date.now(), agentModels: {} }),
+    );
+
+    const snapshot = readTuiSnapshot();
+    expect(snapshot.configInvalid).toBe(false);
   });
 });

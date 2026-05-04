@@ -2,11 +2,13 @@ import { describe, expect, test } from 'bun:test';
 import { formatSidebarModelName, getSidebarAgentNames } from './tui';
 import type { TuiSnapshot } from './tui-state';
 
-function createSnapshot(agentModels: TuiSnapshot['agentModels']): TuiSnapshot {
+function createSnapshot(overrides: Partial<TuiSnapshot> = {}): TuiSnapshot {
   return {
     version: 1,
     updatedAt: 0,
-    agentModels,
+    agentModels: {},
+    configInvalid: false,
+    ...overrides,
   };
 }
 
@@ -14,8 +16,10 @@ describe('tui sidebar agents', () => {
   test('hides disabled agents when models are persisted explicitly', () => {
     const agentNames = getSidebarAgentNames(
       createSnapshot({
-        explorer: 'openai/gpt-5.4-mini',
-        fixer: 'openai/gpt-5.4-mini',
+        agentModels: {
+          explorer: 'openai/gpt-5.4-mini',
+          fixer: 'openai/gpt-5.4-mini',
+        },
       }),
     );
 

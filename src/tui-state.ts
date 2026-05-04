@@ -6,6 +6,7 @@ export interface TuiSnapshot {
   version: 1;
   updatedAt: number;
   agentModels: Record<string, string>;
+  configInvalid: boolean;
 }
 
 const STATE_DIR = 'oh-my-opencode-slim';
@@ -26,6 +27,7 @@ function emptySnapshot(): TuiSnapshot {
     version: 1,
     updatedAt: Date.now(),
     agentModels: {},
+    configInvalid: false,
   };
 }
 
@@ -38,6 +40,8 @@ function parseSnapshot(value: string): TuiSnapshot {
     updatedAt:
       typeof parsed.updatedAt === 'number' ? parsed.updatedAt : Date.now(),
     agentModels: parsed.agentModels ?? {},
+    configInvalid:
+      typeof parsed.configInvalid === 'boolean' ? parsed.configInvalid : false,
   };
 }
 
@@ -88,5 +92,11 @@ export function recordTuiAgentModel(input: {
 }): void {
   updateSnapshot((snapshot) => {
     snapshot.agentModels[input.agentName] = input.model;
+  });
+}
+
+export function recordTuiConfigStatus(input: { invalid: boolean }): void {
+  updateSnapshot((snapshot) => {
+    snapshot.configInvalid = input.invalid;
   });
 }
