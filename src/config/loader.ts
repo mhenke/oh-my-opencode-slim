@@ -32,6 +32,11 @@ export interface LoadPluginConfigOptions {
    * The loader still falls back to defaults and continues normally.
    */
   onWarning?: (warning: ConfigLoadWarning) => void;
+
+  /**
+   * Suppress console warnings while still invoking onWarning.
+   */
+  silent?: boolean;
 }
 
 const PROMPTS_DIR_NAME = 'oh-my-opencode-slim';
@@ -48,7 +53,7 @@ const PROMPTS_DIR_NAME = 'oh-my-opencode-slim';
  */
 function loadConfigFromPath(
   configPath: string,
-  onWarning?: (warning: ConfigLoadWarning) => void,
+  options?: LoadPluginConfigOptions,
 ): PluginConfig | null {
   try {
     const content = fs.readFileSync(configPath, 'utf-8');
@@ -59,28 +64,32 @@ function loadConfigFromPath(
     } catch (error) {
       // Empty file or JSON parse error is treated as invalid-json
       const message = error instanceof Error ? error.message : String(error);
-      onWarning?.({
+      options?.onWarning?.({
         path: configPath,
         kind: 'invalid-json',
         message,
       });
-      console.warn(
-        `[oh-my-opencode-slim] Invalid JSON in ${configPath}:`,
-        message,
-      );
+      if (!options?.silent) {
+        console.warn(
+          `[oh-my-opencode-slim] Invalid JSON in ${configPath}:`,
+          message,
+        );
+      }
       return null;
     }
     const result = PluginConfigSchema.safeParse(rawConfig);
 
     if (!result.success) {
-      onWarning?.({
+      options?.onWarning?.({
         path: configPath,
         kind: 'invalid-schema',
         message: 'Config does not match schema',
         formatted: result.error.format(),
       });
-      console.warn(`[oh-my-opencode-slim] Invalid config at ${configPath}:`);
-      console.warn(result.error.format());
+      if (!options?.silent) {
+        console.warn(`[oh-my-opencode-slim] Invalid config at ${configPath}:`);
+        console.warn(result.error.format());
+      }
       return null;
     }
 
@@ -92,15 +101,17 @@ function loadConfigFromPath(
       'code' in error &&
       (error as NodeJS.ErrnoException).code !== 'ENOENT'
     ) {
-      onWarning?.({
+      options?.onWarning?.({
         path: configPath,
         kind: 'read-error',
         message: error.message,
       });
-      console.warn(
-        `[oh-my-opencode-slim] Error reading config from ${configPath}:`,
-        error.message,
-      );
+      if (!options?.silent) {
+        console.warn(
+          `[oh-my-opencode-slim] Error reading config from ${configPath}:`,
+          error.message,
+        );
+      }
     }
     return null;
   }
@@ -254,11 +265,11 @@ export function loadPluginConfig(
     findPluginConfigPaths(directory);
 
   let config: PluginConfig = userConfigPath
-    ? (loadConfigFromPath(userConfigPath, options?.onWarning) ?? {})
+    ? (loadConfigFromPath(userConfigPath, options) ?? {})
     : {};
 
   const projectConfig = projectConfigPath
-    ? loadConfigFromPath(projectConfigPath, options?.onWarning)
+    ? loadConfigFromPath(projectConfigPath, options)
     : null;
   if (projectConfig) {
     config = mergePluginConfigs(config, projectConfig);
@@ -292,7 +303,9 @@ export function loadPluginConfig(
         kind: 'missing-preset',
         message,
       });
-      console.warn(`[oh-my-opencode-slim] ${message}`);
+      if (!options?.silent) {
+        console.warn(`[oh-my-opencode-slim] ${message}`);
+      }
     }
   }
 

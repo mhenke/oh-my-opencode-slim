@@ -1,5 +1,12 @@
 import { describe, expect, test } from 'bun:test';
-import { formatSidebarModelName, getSidebarAgentNames } from './tui';
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import {
+  formatSidebarModelName,
+  getSidebarAgentNames,
+  readConfigInvalid,
+} from './tui';
 import type { TuiSnapshot } from './tui-state';
 
 function createSnapshot(overrides: Partial<TuiSnapshot> = {}): TuiSnapshot {
@@ -7,8 +14,6 @@ function createSnapshot(overrides: Partial<TuiSnapshot> = {}): TuiSnapshot {
     version: 1,
     updatedAt: 0,
     agentModels: {},
-    configInvalid: false,
-    configInvalidByProject: {},
     ...overrides,
   };
 }
@@ -52,5 +57,41 @@ describe('formatSidebarModelName', () => {
 
   test('leaves model names without slashes unchanged', () => {
     expect(formatSidebarModelName('pending')).toBe('pending');
+  });
+});
+
+describe('readConfigInvalid', () => {
+  test('detects invalid config from the current directory without persisted state', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'omos-tui-'));
+    try {
+      const projectDir = path.join(tempDir, 'project');
+      const configDir = path.join(projectDir, '.opencode');
+      fs.mkdirSync(configDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(configDir, 'oh-my-opencode-slim.json'),
+        JSON.stringify({ agents: { oracle: { temperature: 5 } } }),
+      );
+
+      expect(readConfigInvalid(projectDir)).toBe(true);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('returns false for valid config', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'omos-tui-'));
+    try {
+      const projectDir = path.join(tempDir, 'project');
+      const configDir = path.join(projectDir, '.opencode');
+      fs.mkdirSync(configDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(configDir, 'oh-my-opencode-slim.json'),
+        JSON.stringify({ agents: { oracle: { model: 'valid/model' } } }),
+      );
+
+      expect(readConfigInvalid(projectDir)).toBe(false);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 });

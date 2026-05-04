@@ -2,9 +2,8 @@ import type { TuiPluginModule } from '@opencode-ai/plugin/tui';
 import type { JSX } from '@opentui/solid';
 import { createElement, insert, setProp } from '@opentui/solid';
 import { DEFAULT_DISABLED_AGENTS, SUBAGENT_NAMES } from './config/constants';
+import { loadPluginConfig } from './config/loader';
 import {
-  createTuiProjectKey,
-  isTuiConfigInvalid,
   readTuiSnapshot,
   readTuiSnapshotAsync,
   type TuiSnapshot,
@@ -103,9 +102,9 @@ function renderSidebar(
     text: unknown;
     textMuted: unknown;
   },
-  projectKey?: string,
+  configInvalid: boolean,
 ): JSX.Element {
-  const configStatusRow = buildConfigStatusRow(snapshot, theme, projectKey);
+  const configStatusRow = buildConfigStatusRow(configInvalid, theme);
 
   return box(
     {
@@ -152,11 +151,10 @@ function renderSidebar(
 }
 
 function buildConfigStatusRow(
-  snapshot: TuiSnapshot,
+  configInvalid: boolean,
   theme: { textMuted: unknown },
-  projectKey?: string,
 ): JSX.Element | null {
-  if (!isTuiConfigInvalid(snapshot, projectKey)) return null;
+  if (!configInvalid) return null;
 
   return box(
     {
@@ -172,21 +170,32 @@ function buildConfigStatusRow(
   );
 }
 
-function resolveCurrentProjectKey(api: {
-  state?: { path?: { directory?: string } };
-}): string {
-  return createTuiProjectKey(api.state?.path?.directory ?? process.cwd());
+export function readConfigInvalid(directory: string): boolean {
+  let configInvalid = false;
+  loadPluginConfig(directory, {
+    silent: true,
+    onWarning: () => {
+      configInvalid = true;
+    },
+  });
+  return configInvalid;
 }
 
 const plugin: TuiPluginModule & { id: string } = {
   id: `${PLUGIN_NAME}:tui`,
   tui: async (api, _options, meta) => {
     const version = meta.version ?? (await readPackageVersion()) ?? 'dev';
-    const projectKey = resolveCurrentProjectKey(api);
+    let configDirectory = api.state.path.directory;
+    let configInvalid = readConfigInvalid(configDirectory);
     let snapshot = readTuiSnapshot();
     const renderTimer = setInterval(async () => {
       try {
         snapshot = await readTuiSnapshotAsync();
+        const currentDirectory = api.state.path.directory;
+        if (currentDirectory !== configDirectory) {
+          configDirectory = currentDirectory;
+          configInvalid = readConfigInvalid(configDirectory);
+        }
         api.renderer.requestRender();
       } catch {
         // Ignore render errors; this is best-effort live status.
@@ -205,7 +214,7 @@ const plugin: TuiPluginModule & { id: string } = {
             snapshot,
             version,
             api.theme.current,
-            projectKey,
+            configInvalid,
           );
         },
       },

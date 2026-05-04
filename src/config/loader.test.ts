@@ -301,6 +301,31 @@ describe('onWarning callback', () => {
     expect(config).toEqual({});
   });
 
+  test('silent option suppresses console warnings', () => {
+    const projectDir = path.join(tempDir, 'project');
+    const projectConfigDir = path.join(projectDir, '.opencode');
+    fs.mkdirSync(projectConfigDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(projectConfigDir, 'oh-my-opencode-slim.json'),
+      '{ invalid json }',
+    );
+
+    const warnSpy = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const warnings: ConfigLoadWarning[] = [];
+      const config = loadPluginConfig(projectDir, {
+        silent: true,
+        onWarning: (warning) => warnings.push(warning),
+      });
+
+      expect(warnings).toHaveLength(1);
+      expect(config).toEqual({});
+      expect(warnSpy).not.toHaveBeenCalled();
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
   test('read error calls onWarning with read-error', () => {
     const projectDir = path.join(tempDir, 'project');
     const projectConfigDir = path.join(projectDir, '.opencode');

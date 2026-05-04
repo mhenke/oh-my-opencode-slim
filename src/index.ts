@@ -44,12 +44,7 @@ import {
   createPresetManager,
   createWebfetchTool,
 } from './tools';
-import {
-  createTuiProjectKey,
-  recordTuiAgentModel,
-  recordTuiAgentModels,
-  recordTuiConfigStatus,
-} from './tui-state';
+import { recordTuiAgentModel, recordTuiAgentModels } from './tui-state';
 import {
   createDisplayNameMentionRewriter,
   resolveRuntimeAgentName,
@@ -152,17 +147,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
   let toolCount = 0;
 
   try {
-    let configInvalid = false;
-
-    config = loadPluginConfig(ctx.directory, {
-      onWarning: () => {
-        configInvalid = true;
-      },
-    });
-    recordTuiConfigStatus({
-      invalid: configInvalid,
-      projectKey: createTuiProjectKey(ctx.directory),
-    });
+    config = loadPluginConfig(ctx.directory);
 
     // Safety net: if a runtime preset was set via /preset command and
     // OpenCode ever fully re-runs the plugin function (not just the
