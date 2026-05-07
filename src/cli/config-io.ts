@@ -1,12 +1,15 @@
 import {
   copyFileSync,
   existsSync,
+  mkdirSync,
   readFileSync,
   renameSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
+import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { crossSpawn } from '../utils/compat';
 import {
   ensureConfigDir,
   ensureOpenCodeConfigDir,
@@ -79,11 +82,6 @@ function findPackageRoot(startPath: string): string | null {
   }
 }
 
-function isPackageManagerInstall(path: string): boolean {
-  const normalizedPath = normalizePathForMatch(path);
-  return normalizedPath.includes(`/node_modules/${PACKAGE_NAME}`);
-}
-
 function isLocalPackageRootEntry(entry: string): boolean {
   if (!entry || entry.startsWith('file://')) {
     return false;
@@ -102,6 +100,11 @@ function isLocalPackageRootEntry(entry: string): boolean {
   } catch {
     return false;
   }
+}
+
+function isPackageManagerInstall(path: string): boolean {
+  const normalizedPath = normalizePathForMatch(path);
+  return normalizedPath.includes(`/node_modules/${PACKAGE_NAME}`);
 }
 
 function isPluginEntry(entry: string): boolean {
@@ -135,6 +138,80 @@ function getPluginEntry(): string {
     return packageRoot;
   } catch {
     return PACKAGE_NAME;
+  }
+}
+
+function getOpenCodePluginCacheDir(): string {
+  const cacheDir =
+    process.env.XDG_CACHE_HOME?.trim() || join(homedir(), '.cache');
+  return join(cacheDir, 'opencode', 'packages', `${PACKAGE_NAME}@latest`);
+}
+
+export async function warmOpenCodePluginCache(): Promise<ConfigMergeResult | null> {
+  const cliEntryPath = process.argv[1];
+  if (!cliEntryPath) {
+    return null;
+  }
+
+  const packageRoot = findPackageRoot(cliEntryPath);
+  if (!packageRoot || !isPackageManagerInstall(packageRoot)) {
+    return null;
+  }
+
+  const cacheDir = getOpenCodePluginCacheDir();
+
+  try {
+    mkdirSync(cacheDir, { recursive: true });
+  } catch (err) {
+    return {
+      success: false,
+      configPath: cacheDir,
+      error: `Failed to create OpenCode cache directory: ${err}`,
+    };
+  }
+
+  const packageJsonPath = join(cacheDir, 'package.json');
+  if (!existsSync(packageJsonPath)) {
+    writeFileSync(
+      packageJsonPath,
+      JSON.stringify(
+        {
+          name: `${PACKAGE_NAME}-cache`,
+          private: true,
+          dependencies: {
+            [PACKAGE_NAME]: 'latest',
+          },
+        },
+        null,
+        2,
+      ),
+    );
+  }
+
+  try {
+    const proc = crossSpawn(['bun', 'install'], {
+      cwd: cacheDir,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    await proc.exited;
+
+    if (proc.exitCode === 0) {
+      return { success: true, configPath: cacheDir };
+    }
+
+    const stderr = (await proc.stderr()).trim();
+    return {
+      success: false,
+      configPath: cacheDir,
+      error: stderr || `bun install exited with code ${proc.exitCode}`,
+    };
+  } catch (err) {
+    return {
+      success: false,
+      configPath: cacheDir,
+      error: `Failed to warm OpenCode cache: ${err}`,
+    };
   }
 }
 
