@@ -172,20 +172,28 @@ export async function warmOpenCodePluginCache(): Promise<ConfigMergeResult | nul
 
   const packageJsonPath = join(cacheDir, 'package.json');
   if (!existsSync(packageJsonPath)) {
-    writeFileSync(
-      packageJsonPath,
-      JSON.stringify(
-        {
-          name: `${PACKAGE_NAME}-cache`,
-          private: true,
-          dependencies: {
-            [PACKAGE_NAME]: 'latest',
+    try {
+      writeFileSync(
+        packageJsonPath,
+        JSON.stringify(
+          {
+            name: `${PACKAGE_NAME}-cache`,
+            private: true,
+            dependencies: {
+              [PACKAGE_NAME]: 'latest',
+            },
           },
-        },
-        null,
-        2,
-      ),
-    );
+          null,
+          2,
+        ),
+      );
+    } catch (err) {
+      return {
+        success: false,
+        configPath: cacheDir,
+        error: `Failed to write cache package.json: ${err}`,
+      };
+    }
   }
 
   try {

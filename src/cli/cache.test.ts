@@ -1,6 +1,14 @@
 /// <reference types="bun-types" />
 
-import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  mock,
+  spyOn,
+  test,
+} from 'bun:test';
 import {
   mkdirSync,
   mkdtempSync,
@@ -110,6 +118,59 @@ describe('warmOpenCodePluginCache', () => {
     });
 
     rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  test('returns a failed result when cache package.json cannot be written', async () => {
+    const tmpDir = mkdirTemp();
+    const cacheHome = join(tmpDir, 'cache');
+    process.env.XDG_CACHE_HOME = cacheHome;
+
+    const packageRoot = join(
+      tmpDir,
+      'bunx-1000-oh-my-opencode-slim@latest',
+      'node_modules',
+      'oh-my-opencode-slim',
+    );
+    mkdirSync(join(packageRoot, 'dist', 'cli'), { recursive: true });
+    writeFileSync(
+      join(packageRoot, 'package.json'),
+      JSON.stringify({ name: 'oh-my-opencode-slim' }),
+    );
+    process.argv[1] = join(packageRoot, 'dist', 'cli', 'index.js');
+
+    const packageJsonSuffix = join(
+      'oh-my-opencode-slim@latest',
+      'package.json',
+    );
+    const fs = await import('node:fs');
+    const originalWriteFileSync = fs.writeFileSync;
+    const writeSpy = spyOn(fs, 'writeFileSync').mockImplementation(
+      (path, data, options) => {
+        if (String(path).endsWith(packageJsonSuffix)) {
+          throw new Error('disk full');
+        }
+        return originalWriteFileSync(path, data, options);
+      },
+    );
+    try {
+      const { warmOpenCodePluginCache } = await importFreshConfigIo();
+      const result = await warmOpenCodePluginCache();
+
+      expect(result).toEqual({
+        success: false,
+        configPath: join(
+          cacheHome,
+          'opencode',
+          'packages',
+          'oh-my-opencode-slim@latest',
+        ),
+        error: 'Failed to write cache package.json: Error: disk full',
+      });
+      expect(crossSpawnMock).not.toHaveBeenCalled();
+    } finally {
+      writeSpy.mockRestore();
+      rmSync(tmpDir, { recursive: true, force: true });
+    }
   });
 
   test('skips cache warm-up for local repo installs', async () => {
