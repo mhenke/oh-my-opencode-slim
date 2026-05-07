@@ -27,6 +27,22 @@ interface ToolExecuteBeforeOutput {
   };
 }
 
+function replacePatchArgs(
+  output: ToolExecuteBeforeOutput,
+  args: NonNullable<ToolExecuteBeforeOutput['args']>,
+  patchText: string,
+): boolean {
+  const nextArgs = { ...args, patchText };
+
+  try {
+    output.args = nextArgs;
+  } catch {
+    return false;
+  }
+
+  return output.args?.patchText === patchText;
+}
+
 export function createApplyPatchHook(ctx: PluginInput) {
   function logHookStatus(
     state:
@@ -68,8 +84,16 @@ export function createApplyPatchHook(ctx: PluginInput) {
         );
 
         if (result.changed) {
-          args.patchText = result.patchText;
-          logHookStatus('rewrite');
+          if (replacePatchArgs(output, args, result.patchText)) {
+            logHookStatus('rewrite');
+          } else {
+            logHookStatus('skipped', {
+              reason: 'readonly output args',
+              failOpen: true,
+              rescueOptions: APPLY_PATCH_RESCUE_OPTIONS,
+              rewriteStage: 'before-native',
+            });
+          }
           return;
         }
 

@@ -228,6 +228,62 @@ PATCH`,
     );
   });
 
+  test('rewrites by replacing readonly args instead of mutating them', async () => {
+    const root = await createTempDir('apply-patch-hook-');
+    await writeFixture(root, 'sample.txt', 'prefix\nstale-value\nsuffix\n');
+    const hook = createHook();
+    const patchText = `*** Begin Patch
+*** Update File: sample.txt
+@@
+ prefix
+-old-value
++new-value
+ suffix
+*** End Patch`;
+    const args = Object.freeze({ patchText });
+    const output = { args };
+
+    await hook['tool.execute.before'](
+      { tool: 'apply_patch', directory: root },
+      output,
+    );
+
+    expect(output.args).not.toBe(args);
+    expect(output.args.patchText).toContain('-stale-value');
+    expect(output.args.patchText).toContain('+new-value');
+  });
+
+  test('fails open when output args cannot be replaced', async () => {
+    const root = await createTempDir('apply-patch-hook-');
+    await writeFixture(root, 'sample.txt', 'prefix\nstale-value\nsuffix\n');
+    const hook = createHook();
+    const patchText = `*** Begin Patch
+*** Update File: sample.txt
+@@
+ prefix
+-old-value
++new-value
+ suffix
+*** End Patch`;
+    const args = Object.freeze({ patchText });
+    const output = {} as { args?: typeof args };
+    Object.defineProperty(output, 'args', {
+      configurable: false,
+      enumerable: true,
+      get: () => args,
+    });
+
+    await expect(
+      hook['tool.execute.before'](
+        { tool: 'apply_patch', directory: root },
+        output,
+      ),
+    ).resolves.toBeUndefined();
+
+    expect(output.args).toBe(args);
+    expect(output.args?.patchText).toBe(patchText);
+  });
+
   test('does not alter new_lines during rewrite', async () => {
     const root = await createTempDir('apply-patch-hook-');
     await writeFixture(
