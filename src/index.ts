@@ -304,7 +304,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     taskSessionManagerHook = createTaskSessionManagerHook(ctx, {
       maxSessionsPerAgent: config.sessionManager?.maxSessionsPerAgent ?? 2,
       readContextMinLines: config.sessionManager?.readContextMinLines ?? 10,
-      readContextMaxFiles: config.sessionManager?.readContextMaxFiles ?? 8,
+      readContextMaxFiles: config.sessionManager?.readContextMaxFiles ?? 4,
       shouldManageSession: (sessionID) =>
         sessionAgentMap.get(sessionID) === 'orchestrator',
     });

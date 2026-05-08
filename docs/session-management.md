@@ -39,8 +39,7 @@ The orchestrator sees a compact reminder in its system context, for example:
 
 ```text
 ### Resumable Sessions
-- explorer: exp-1 Search routing files
-  Context read by exp-1: src/router.ts (120 lines), src/routes/api.ts (74 lines)
+- explorer: exp-1 Search routing files — files: src/router.ts (120 lines), src/routes/api.ts (74 lines)
 - oracle: ora-1 Review auth architecture
 ```
 
@@ -50,7 +49,7 @@ orchestrator choose the right session to resume for related follow-up work.
 
 To keep the prompt small, read context only shows files where at least 10 lines
 were read, includes line counts, and caps each remembered session to the most
-recent 8 files by default. Both thresholds are configurable.
+recent 4 files by default. Both thresholds are configurable.
 
 On a related follow-up, the orchestrator can reuse that session instead of
 launching a fresh one. If the remembered child session no longer exists, the
@@ -109,7 +108,7 @@ Only add `sessionManager` if you want to change the default limits:
   "sessionManager": {
     "maxSessionsPerAgent": 2,
     "readContextMinLines": 10,
-    "readContextMaxFiles": 8
+    "readContextMaxFiles": 4
   }
 }
 ```
@@ -133,12 +132,12 @@ the prompt focused on substantial file reads.
 
 | Type | Default | Range | Meaning |
 |------|---------|-------|---------|
-| integer | `8` | `0`–`50` | Maximum number of recent read-context files shown per remembered child session |
+| integer | `4` | `0`–`50` | Maximum number of recent read-context files shown per remembered child session |
 
 Set this to `0` to keep session aliases but hide read-context file lists.
 
-Use a higher value if you often run several parallel threads per specialist. Use
-a lower value if you want fewer aliases in the orchestrator context.
+Use a higher value if you need more file hints per specialist thread. Use a
+lower value if you want fewer file hints in the orchestrator context.
 
 ---
 

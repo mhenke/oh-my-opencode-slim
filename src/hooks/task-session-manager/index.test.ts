@@ -130,7 +130,7 @@ describe('task-session-manager hook', () => {
     expect(next.args.task_id).toBe('child-1');
   });
 
-  test('keeps file context out of resumable message context', async () => {
+  test('keeps compact file context in resumable message context', async () => {
     const { hook } = createHook();
 
     await hook.event({
@@ -191,10 +191,12 @@ describe('task-session-manager hook', () => {
     const userMessage = messages.messages[0];
     expect(userMessage.parts[0].text).toContain('exp-1 session files');
     expect(userMessage.parts[0].text).not.toContain('Context read by exp-1');
-    expect(userMessage.parts[0].text).not.toContain('src/index.ts');
+    expect(userMessage.parts[0].text).toContain(
+      'files: src/index.ts (12 lines)',
+    );
   });
 
-  test('tracks read context internally without rendering file paths', async () => {
+  test('renders compact tracked read context', async () => {
     const { hook } = createHook();
 
     await hook.event({
@@ -256,7 +258,7 @@ describe('task-session-manager hook', () => {
     const prompt = messages.messages[0].parts[0].text;
     expect(prompt).toContain('exp-1 line counts');
     expect(prompt).not.toContain('small.ts');
-    expect(prompt).not.toContain('large.ts');
+    expect(prompt).toContain('large.ts (12 lines)');
     expect(prompt).not.toContain('Context read by');
   });
 
@@ -300,7 +302,7 @@ describe('task-session-manager hook', () => {
 
     const prompt = messages.messages[0].parts[0].text;
     expect(prompt).toContain('exp-1 repeat reads');
-    expect(prompt).not.toContain('src/repeat.ts');
+    expect(prompt).toContain('src/repeat.ts (12 lines)');
     expect(prompt).not.toContain('Context read by');
   });
 
@@ -352,10 +354,10 @@ describe('task-session-manager hook', () => {
     const prompt = messages.messages[0].parts[0].text;
     expect(prompt).toContain('exp-1 configured caps');
     expect(prompt).not.toContain('small.ts');
-    expect(prompt).not.toContain('medium.ts');
+    expect(prompt).toContain('medium.ts (5 lines)');
     expect(prompt).not.toContain('large.ts');
     expect(prompt).not.toContain('Context read by exp-1:');
-    expect(prompt).not.toContain('(+1 more)');
+    expect(prompt).toContain('(+1 more)');
   });
 
   test('ignores reads from unmanaged child sessions', async () => {
@@ -443,9 +445,9 @@ describe('task-session-manager hook', () => {
     expect(prompt).not.toContain('exp-1 thread 1');
     expect(prompt).not.toContain('file-1.ts');
     expect(prompt).toContain('exp-2 thread 2');
-    expect(prompt).not.toContain('file-2.ts');
+    expect(prompt).toContain('file-2.ts');
     expect(prompt).toContain('exp-3 thread 3');
-    expect(prompt).not.toContain('file-3.ts');
+    expect(prompt).toContain('file-3.ts');
   });
 
   test('drops stale remembered sessions and falls back to fresh', async () => {

@@ -121,7 +121,7 @@ Presets can also be switched at runtime without restarting using the `/preset` c
 | `tmux.main_pane_size` | number | `60` | Legacy alias for `multiplexer.main_pane_size` |
 | `sessionManager.maxSessionsPerAgent` | integer | `2` | Maximum remembered resumable child sessions per specialist type in the current orchestrator session (1–10). See [Session Management](session-management.md) |
 | `sessionManager.readContextMinLines` | integer | `10` | Minimum number of lines read from a file before it appears in resumable-session context (0–1000) |
-| `sessionManager.readContextMaxFiles` | integer | `8` | Maximum number of recent read-context files shown per remembered child session (0–50) |
+| `sessionManager.readContextMaxFiles` | integer | `4` | Maximum number of recent read-context files shown per remembered child session (0–50) |
 | `disabled_mcps` | string[] | `[]` | MCP server IDs to disable globally |
 | `fallback.enabled` | boolean | `false` | Enable model failover on timeout/error |
 | `fallback.timeoutMs` | number | `15000` | Time before aborting and trying next model |

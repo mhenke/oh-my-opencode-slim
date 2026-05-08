@@ -20,7 +20,7 @@ export interface RememberedTaskSession {
 type SessionGroupMap = Map<AgentName, RememberedTaskSession[]>;
 
 const MIN_CONTEXT_FILE_LINES = 10;
-const MAX_CONTEXT_FILES_PER_SESSION = 8;
+const MAX_CONTEXT_FILES_PER_SESSION = 4;
 
 interface SessionManagerOptions {
   readContextMinLines?: number;
@@ -233,7 +233,13 @@ export class SessionManager {
       .map(
         ([agentType, entries]) =>
           `- ${agentType}: ${entries
-            .map((entry) => `${entry.alias} ${entry.label}`)
+            .map((entry) => {
+              const context = formatContextFiles(entry.contextFiles, {
+                minLines: this.readContextMinLines,
+                maxFiles: this.readContextMaxFiles,
+              });
+              return `${entry.alias} ${entry.label}${context ? ` — files: ${context}` : ''}`;
+            })
             .join('; ')}`,
       );
 
@@ -322,4 +328,19 @@ export class SessionManager {
     this.orderCounter += 1;
     return this.orderCounter;
   }
+}
+
+function formatContextFiles(
+  files: ContextFile[],
+  options: { minLines: number; maxFiles: number },
+): string {
+  const eligible = files
+    .filter((file) => file.lineCount >= options.minLines)
+    .sort((a, b) => b.lastReadAt - a.lastReadAt);
+  const shown = eligible.slice(0, options.maxFiles);
+  const rest = eligible.length - shown.length;
+  const rendered = shown.map(
+    (file) => `${file.path} (${file.lineCount} lines)`,
+  );
+  return `${rendered.join(', ')}${rest > 0 ? ` (+${rest} more)` : ''}`;
 }
