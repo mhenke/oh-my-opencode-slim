@@ -43,6 +43,7 @@ import {
   createCouncilTool,
   createHandoffCommandManager,
   createHandoffSessionTool,
+  createHandoffState,
   createPresetManager,
   createReadSessionTool,
   createWebfetchTool,
@@ -146,6 +147,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     typeof createDisplayNameMentionRewriter
   >;
   let handoffCommandManager: ReturnType<typeof createHandoffCommandManager>;
+  let handoffState: ReturnType<typeof createHandoffState>;
 
   // Counters for post-init health check (set inside try, checked outside)
   let toolCount = 0;
@@ -316,7 +318,8 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     presetManager = createPresetManager(ctx, config);
     divoomManager = createDivoomManager(config.divoom);
 
-    handoffCommandManager = createHandoffCommandManager(ctx);
+    handoffState = createHandoffState();
+    handoffCommandManager = createHandoffCommandManager(ctx, handoffState);
 
     toolCount =
       Object.keys(councilTools).length +
@@ -393,8 +396,12 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       ...todoContinuationHook.tool,
       ast_grep_search,
       ast_grep_replace,
-      handoff_session: createHandoffSessionTool(ctx),
-      read_session: createReadSessionTool(ctx.client),
+      handoff_session: createHandoffSessionTool(
+        ctx,
+        handoffState,
+        depthTracker,
+      ),
+      read_session: createReadSessionTool(ctx.client, handoffState),
     },
 
     mcp: mcps,
@@ -804,6 +811,18 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           event: {
             type: string;
             properties?: { info?: { id?: string }; sessionID?: string };
+          };
+        },
+      );
+
+      handoffCommandManager.handleEvent(
+        input as {
+          event: {
+            type: string;
+            properties?: {
+              info?: { id?: string; parentID?: string };
+              sessionID?: string;
+            };
           };
         },
       );

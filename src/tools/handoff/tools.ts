@@ -9,7 +9,9 @@
 import type { PluginInput, ToolDefinition } from '@opencode-ai/plugin';
 import { tool } from '@opencode-ai/plugin';
 import { extractSessionResult, promptWithTimeout } from '../../utils/session';
+import type { SubagentDepthTracker } from '../../utils/subagent-depth';
 import { buildSyntheticFileParts, parseFileReferences } from './files';
+import type { HandoffState } from './state';
 
 export type OpencodeClient = PluginInput['client'];
 const HANDOFF_TIMEOUT_MS = 5 * 60 * 1000;
@@ -19,9 +21,12 @@ const HANDOFF_TIMEOUT_MS = 5 * 60 * 1000;
  *
  * Takes the OpenCode client as a dependency for TUI and session operations.
  */
-export function createHandoffSessionTool(ctx: PluginInput): ToolDefinition {
+export function createHandoffSessionTool(
+  ctx: PluginInput,
+  state: HandoffState,
+  depthTracker?: SubagentDepthTracker,
+): ToolDefinition {
   const client = ctx.client;
-  const activeHandoffSessions = new Set<string>();
 
   return tool({
     description:
@@ -45,8 +50,15 @@ export function createHandoffSessionTool(ctx: PluginInput): ToolDefinition {
         context && typeof context === 'object' && 'sessionID' in context
           ? (context as { sessionID: string }).sessionID
           : 'unknown';
-      if (activeHandoffSessions.has(sessionID)) {
+      if (state.isHandoffSession(sessionID)) {
         return 'Nested handoff is disabled: this session is already a handoff worker. Finish this worker and return its summary to the parent session instead.';
+      }
+      if (
+        sessionID !== 'unknown' &&
+        depthTracker &&
+        depthTracker.getDepth(sessionID) + 1 > depthTracker.maxDepth
+      ) {
+        return `Handoff worker blocked: max subagent depth ${depthTracker.maxDepth} would be exceeded.`;
       }
 
       const sessionReference = `Work on behalf of parent session ${sessionID}. When you lack specific information you can use read_session to get it.`;
@@ -78,7 +90,18 @@ export function createHandoffSessionTool(ctx: PluginInput): ToolDefinition {
         if (!childSessionID) {
           throw new Error('Handoff worker session did not return an id');
         }
-        activeHandoffSessions.add(childSessionID);
+        if (sessionID !== 'unknown' && depthTracker) {
+          const registered = depthTracker.registerChild(
+            sessionID,
+            childSessionID,
+          );
+          if (!registered) {
+            throw new Error(
+              'Handoff worker blocked: max subagent depth exceeded',
+            );
+          }
+        }
+        state.markSession(childSessionID, sessionID);
 
         await promptWithTimeout(
           client,
@@ -118,10 +141,16 @@ export function createHandoffSessionTool(ctx: PluginInput): ToolDefinition {
         ].join('\n');
       } finally {
         if (childSessionID) {
-          activeHandoffSessions.delete(childSessionID);
-          client.session
-            .abort({ path: { id: childSessionID }, query: { directory } })
-            .catch(() => {});
+          try {
+            await client.session.abort({
+              path: { id: childSessionID },
+              query: { directory },
+            });
+            state.unmarkSession(childSessionID);
+          } catch {
+            // Keep the handoff marker if abort fails; session.deleted cleanup
+            // will remove it when OpenCode eventually deletes the session.
+          }
         }
       }
     },
@@ -204,7 +233,10 @@ function formatTranscript(
  *
  * Takes the OpenCode client as a dependency for session.messages() calls.
  */
-export function createReadSessionTool(client: OpencodeClient): ToolDefinition {
+export function createReadSessionTool(
+  client: OpencodeClient,
+  state: HandoffState,
+): ToolDefinition {
   return tool({
     description:
       "Read the conversation transcript from a previous session. Use this when you need specific information from the source session that wasn't included in the handoff summary.",
@@ -228,6 +260,16 @@ export function createReadSessionTool(client: OpencodeClient): ToolDefinition {
         typeof (context as { directory?: unknown }).directory === 'string'
           ? (context as { directory: string }).directory
           : undefined;
+      const callerSessionID =
+        context && typeof context === 'object' && 'sessionID' in context
+          ? (context as { sessionID?: string }).sessionID
+          : undefined;
+      if (!callerSessionID || !state.isHandoffSession(callerSessionID)) {
+        return 'read_session is only available from handoff worker sessions.';
+      }
+      if (state.sourceFor(callerSessionID) !== args.sessionID) {
+        return 'read_session can only read the source session for this handoff worker.';
+      }
 
       try {
         const response = (await client.session.messages({

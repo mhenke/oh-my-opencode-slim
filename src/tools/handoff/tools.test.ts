@@ -2,6 +2,8 @@ import { describe, expect, mock, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import { SubagentDepthTracker } from '../../utils/subagent-depth';
+import { createHandoffState } from './state';
 import { createHandoffSessionTool, createReadSessionTool } from './tools';
 
 function makeTempDir() {
@@ -26,17 +28,22 @@ describe('handoff_session tool', () => {
         ],
       }));
       const sessionAbort = mock(async () => ({}));
-      const tool = createHandoffSessionTool({
-        directory,
-        client: {
-          session: {
-            abort: sessionAbort,
-            create: sessionCreate,
-            messages: sessionMessages,
-            prompt: sessionPrompt,
+      const state = createHandoffState();
+      const tool = createHandoffSessionTool(
+        {
+          directory,
+          client: {
+            session: {
+              abort: sessionAbort,
+              create: sessionCreate,
+              messages: sessionMessages,
+              prompt: sessionPrompt,
+            },
           },
-        },
-      } as any);
+        } as any,
+        state,
+        new SubagentDepthTracker(),
+      );
 
       const result = await tool.execute(
         { prompt: 'Continue implementation', files: ['src/index.ts'] },
@@ -93,30 +100,35 @@ describe('handoff_session tool', () => {
     const directory = makeTempDir();
     try {
       let nestedResult = '';
-      const tool = createHandoffSessionTool({
-        directory,
-        client: {
-          session: {
-            abort: mock(async () => ({})),
-            create: mock(async () => ({ data: { id: 'ses_handoff' } })),
-            messages: mock(async () => ({
-              data: [
-                {
-                  info: { role: 'assistant' },
-                  parts: [{ type: 'text', text: 'done' }],
-                },
-              ],
-            })),
-            prompt: mock(async () => {
-              nestedResult = String(
-                await tool.execute({ prompt: 'nested handoff' }, {
-                  sessionID: 'ses_handoff',
-                } as any),
-              );
-            }),
+      const state = createHandoffState();
+      const tool = createHandoffSessionTool(
+        {
+          directory,
+          client: {
+            session: {
+              abort: mock(async () => ({})),
+              create: mock(async () => ({ data: { id: 'ses_handoff' } })),
+              messages: mock(async () => ({
+                data: [
+                  {
+                    info: { role: 'assistant' },
+                    parts: [{ type: 'text', text: 'done' }],
+                  },
+                ],
+              })),
+              prompt: mock(async () => {
+                nestedResult = String(
+                  await tool.execute({ prompt: 'nested handoff' }, {
+                    sessionID: 'ses_handoff',
+                  } as any),
+                );
+              }),
+            },
           },
-        },
-      } as any);
+        } as any,
+        state,
+        new SubagentDepthTracker(),
+      );
 
       await tool.execute({ prompt: 'outer handoff' }, {
         sessionID: 'ses_old',
@@ -147,13 +159,31 @@ describe('read_session tool', () => {
         },
       ],
     }));
-    const tool = createReadSessionTool({ session: { messages } } as any);
+    const state = createHandoffState();
+    state.markSession('ses_worker', 'ses_old');
 
-    const result = await tool.execute({ sessionID: 'ses_old' }, {} as any);
+    const result = await createReadSessionTool(
+      { session: { messages } } as any,
+      state,
+    ).execute({ sessionID: 'ses_old' }, { sessionID: 'ses_worker' } as any);
 
     expect(result).toContain('## User');
     expect(result).toContain('Hi');
     expect(result).toContain('## Assistant');
     expect(result).toContain('[Tool: read] Read file');
+  });
+
+  test('blocks reads outside the source session', async () => {
+    const state = createHandoffState();
+    state.markSession('ses_worker', 'ses_old');
+    const messages = mock(async () => ({ data: [] }));
+
+    const result = await createReadSessionTool(
+      { session: { messages } } as any,
+      state,
+    ).execute({ sessionID: 'ses_other' }, { sessionID: 'ses_worker' } as any);
+
+    expect(result).toContain('can only read the source session');
+    expect(messages).not.toHaveBeenCalled();
   });
 });

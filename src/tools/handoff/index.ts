@@ -14,6 +14,7 @@ export {
   FILE_REGEX,
   parseFileReferences,
 } from './files';
+export { createHandoffState, type HandoffState } from './state';
 export {
   createHandoffSessionTool,
   createReadSessionTool,

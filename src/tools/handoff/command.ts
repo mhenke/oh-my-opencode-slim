@@ -6,6 +6,7 @@
  */
 
 import type { PluginInput } from '@opencode-ai/plugin';
+import type { HandoffState } from './state';
 
 const COMMAND_NAME = 'handoff';
 
@@ -30,6 +31,7 @@ Call handoff_session with the worker prompt and any clearly relevant files:
  */
 export function createHandoffCommandManager(
   _ctx: PluginInput,
+  state: HandoffState,
   _processedSessions?: Set<string>,
 ) {
   /**
@@ -52,6 +54,29 @@ export function createHandoffCommandManager(
 
   return {
     registerCommand,
+    handleEvent(input: {
+      event: {
+        type: string;
+        properties?: {
+          info?: { id?: string; parentID?: string };
+          sessionID?: string;
+        };
+      };
+    }): void {
+      if (input.event.type === 'session.created') {
+        const info = input.event.properties?.info;
+        if (!info?.id || !info.parentID) return;
+
+        const source = state.sourceFor(info.parentID);
+        if (source) state.markSession(info.id, source);
+        return;
+      }
+
+      if (input.event.type !== 'session.deleted') return;
+      const sessionID =
+        input.event.properties?.info?.id ?? input.event.properties?.sessionID;
+      if (sessionID) state.unmarkSession(sessionID);
+    },
   };
 }
 

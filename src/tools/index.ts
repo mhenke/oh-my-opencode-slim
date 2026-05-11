@@ -5,6 +5,7 @@ export type { HandoffCommandManager } from './handoff';
 export {
   createHandoffCommandManager,
   createHandoffSessionTool,
+  createHandoffState,
   createReadSessionTool,
 } from './handoff';
 export type { PresetManager } from './preset-manager';
