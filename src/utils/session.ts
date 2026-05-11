@@ -157,12 +157,13 @@ export interface SessionExtractionResult {
 export async function extractSessionResult(
   client: OpencodeClient,
   sessionId: string,
-  options?: { includeReasoning?: boolean },
+  options?: { directory?: string; includeReasoning?: boolean },
 ): Promise<SessionExtractionResult> {
   const includeReasoning = options?.includeReasoning ?? true;
 
   const messagesResult = await client.session.messages({
     path: { id: sessionId },
+    ...(options?.directory ? { query: { directory: options.directory } } : {}),
   });
   const messages = (messagesResult.data ?? []) as Array<{
     info?: { role: string };

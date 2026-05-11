@@ -41,7 +41,10 @@ import {
   ast_grep_replace,
   ast_grep_search,
   createCouncilTool,
+  createHandoffCommandManager,
+  createHandoffSessionTool,
   createPresetManager,
+  createReadSessionTool,
   createWebfetchTool,
 } from './tools';
 import { recordTuiAgentModel, recordTuiAgentModels } from './tui-state';
@@ -142,6 +145,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
   let rewriteDisplayNameMentions: ReturnType<
     typeof createDisplayNameMentionRewriter
   >;
+  let handoffCommandManager: ReturnType<typeof createHandoffCommandManager>;
 
   // Counters for post-init health check (set inside try, checked outside)
   let toolCount = 0;
@@ -312,11 +316,14 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     presetManager = createPresetManager(ctx, config);
     divoomManager = createDivoomManager(config.divoom);
 
+    handoffCommandManager = createHandoffCommandManager(ctx);
+
     toolCount =
       Object.keys(councilTools).length +
       Object.keys(todoContinuationHook.tool).length +
       1 + // webfetch
-      2; // ast_grep_search, ast_grep_replace
+      2 + // ast_grep_search, ast_grep_replace
+      2; // handoff_session, read_session
   } catch (err) {
     // Plugin init failed: log visibly before re-throwing so the user
     // sees something actionable instead of a silent "loaded but empty".
@@ -386,6 +393,8 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       ...todoContinuationHook.tool,
       ast_grep_search,
       ast_grep_replace,
+      handoff_session: createHandoffSessionTool(ctx),
+      read_session: createReadSessionTool(ctx.client),
     },
 
     mcp: mcps,
@@ -721,6 +730,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
       interviewManager.registerCommand(opencodeConfig);
       presetManager.registerCommand(opencodeConfig);
+      handoffCommandManager.registerCommand(opencodeConfig);
     },
 
     event: async (input) => {
