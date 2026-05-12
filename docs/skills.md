@@ -20,6 +20,7 @@ Skills are installed via the `oh-my-opencode-slim` installer or manually with `n
 |-------|-------------|----------------------|
 | [`simplify`](#simplify) | Behavior-preserving code simplification | `oracle` |
 | [`codemap`](#codemap) | Repository codemap generation | `orchestrator` |
+| [`clonedeps`](#clonedeps) | Local dependency source cloning | `orchestrator` |
 
 ---
 
@@ -58,6 +59,29 @@ Source: adapted from Addy Osmani's `code-simplification` skill and bundled local
 - **Timeless documentation** — focuses on high-level design, not implementation details
 
 See **[Codemap Skill](codemap.md)** for full documentation including manual commands and technical details.
+
+---
+
+## clonedeps
+
+**Local source mirroring for important project dependencies.**
+
+`clonedeps` helps the Orchestrator clone a small, approved set of dependency
+source repositories into `.slim/clonedeps/repos/` so OpenCode can inspect library
+internals while keeping cloned code out of git.
+
+The skill is assigned to `orchestrator`. The orchestrator may ask `@librarian`
+to identify important dependencies and resolve official repository URLs/tags,
+then asks for approval before running the bundled sync script.
+
+Safety defaults:
+
+- direct, important dependencies only;
+- max 3-5 clones by default;
+- HTTPS repositories only;
+- pinned tags/commits only;
+- no dependency scripts are executed;
+- ignore-file edits are limited to managed marker blocks.
 
 ---
 
