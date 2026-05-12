@@ -91,6 +91,8 @@ Safety defaults:
 - no dependency scripts are executed;
 - ignore-file edits are limited to managed marker blocks.
 
+See **[Clonedeps](clonedeps.md)** for the full workflow and file layout.
+
 ---
 
 ## Skills Assignment

@@ -27,7 +27,8 @@ directly.
 2. Orchestrator asks librarian for a small source-resolution plan across the
    repository's actual languages/ecosystems.
 3. Orchestrator verifies refs where possible and asks the user to approve.
-4. Orchestrator clones/fetches each approved repo into `.slim/clonedeps/repos/`.
+4. Orchestrator clones/fetches each approved source repo once into
+   `.slim/clonedeps/repos/<safe-repo-name>/`.
 5. Orchestrator writes `.slim/clonedeps.json` with paths, refs, and reasons.
 6. Orchestrator updates `.gitignore`, `.ignore`, and root `AGENTS.md`; the
    AGENTS section lists each read-only clone path directly with a one-sentence

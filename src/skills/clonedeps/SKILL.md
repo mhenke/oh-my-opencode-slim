@@ -102,16 +102,23 @@ The orchestrator owns final approval. Before cloning:
 
 ### Step 4: Clone Sources Manually
 
-Create one folder per dependency under:
+Create one folder per source repository under:
 
 ```text
-.slim/clonedeps/repos/<safe-dependency-name>/
+.slim/clonedeps/repos/<safe-repo-name>/
 ```
 
-Use a safe name by replacing `/` with `__` and other unsafe path characters with
-`_`. Do not create ecosystem folders or per-version folders. If two dependencies
-normalize to the same safe name, disambiguate manually and record the chosen path
-in `.slim/clonedeps.json`.
+Derive the safe name from the repository owner/name, not from the package name.
+For example, `https://github.com/opencode-ai/opencode.git` becomes
+`opencode-ai__opencode`. Replace `/` with `__`, strip common `.git` suffixes,
+and replace other unsafe path characters with `_`.
+
+If multiple packages come from the same monorepo, clone the repository once and
+point each manifest entry at the same repo path with different `packagePath`
+values as needed. Do not create ecosystem folders, per-package clone folders, or
+per-version folders. If two different source repositories normalize to the same
+safe name, disambiguate manually and record the chosen path in
+`.slim/clonedeps.json`.
 
 Clone/fetch with normal git commands. For an existing clone, first verify that
 `git remote get-url origin` matches the approved repo URL. If it does not match,
@@ -138,13 +145,22 @@ Write `.slim/clonedeps.json` so future agents know what exists:
   "updatedAt": "2026-05-12T00:00:00.000Z",
   "dependencies": [
     {
+      "name": "@opencode-ai/plugin",
+      "resolvedVersion": "1.3.17",
+      "repoUrl": "https://github.com/opencode-ai/opencode.git",
+      "ref": "v1.3.17",
+      "path": ".slim/clonedeps/repos/opencode-ai__opencode",
+      "packagePath": "packages/plugin",
+      "reason": "Plugin API source used by the project"
+    },
+    {
       "name": "@opencode-ai/sdk",
       "resolvedVersion": "1.3.17",
-      "repoUrl": "https://github.com/example/repo.git",
+      "repoUrl": "https://github.com/opencode-ai/opencode.git",
       "ref": "v1.3.17",
-      "path": ".slim/clonedeps/repos/@opencode-ai__sdk",
+      "path": ".slim/clonedeps/repos/opencode-ai__opencode",
       "packagePath": "packages/sdk/js",
-      "reason": "Core runtime SDK used by the project"
+      "reason": "Core SDK source used to inspect runtime behavior"
     }
   ]
 }
