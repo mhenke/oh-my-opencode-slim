@@ -22,12 +22,16 @@ directly.
 
 ## Flow
 
-1. Orchestrator asks librarian for a small source-resolution plan across the
+1. Orchestrator checks `.slim/clonedeps.json` first and reuses existing clones
+   when they satisfy the current task.
+2. Orchestrator asks librarian for a small source-resolution plan across the
    repository's actual languages/ecosystems.
-2. Orchestrator verifies refs where possible and asks the user to approve.
-3. Orchestrator clones/fetches each approved repo into `.slim/clonedeps/repos/`.
-4. Orchestrator writes `.slim/clonedeps.json` with paths, refs, and reasons.
-5. Orchestrator updates `.gitignore`, `.ignore`, and root `AGENTS.md`.
+3. Orchestrator verifies refs where possible and asks the user to approve.
+4. Orchestrator clones/fetches each approved repo into `.slim/clonedeps/repos/`.
+5. Orchestrator writes `.slim/clonedeps.json` with paths, refs, and reasons.
+6. Orchestrator updates `.gitignore`, `.ignore`, and root `AGENTS.md`; the
+   AGENTS section lists each read-only clone path directly with a one-sentence
+   purpose.
 
 ## Integration
 
