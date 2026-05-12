@@ -1,8 +1,8 @@
 /**
- * Tool definitions for handoff functionality.
+ * Tool definitions for subtask functionality.
  *
  * Factory functions that create tool definitions with injected dependencies:
- * - createHandoffSessionTool: Create a new session with handoff prompt
+ * - createSubtaskTool: Create a new session with subtask prompt
  * - createReadSessionTool: Read conversation transcript from a session
  */
 
@@ -11,19 +11,19 @@ import { tool } from '@opencode-ai/plugin';
 import { extractSessionResult, promptWithTimeout } from '../../utils/session';
 import type { SubagentDepthTracker } from '../../utils/subagent-depth';
 import { buildSyntheticFileParts, parseFileReferences } from './files';
-import type { HandoffState } from './state';
+import type { SubtaskState } from './state';
 
 export type OpencodeClient = PluginInput['client'];
-const HANDOFF_TIMEOUT_MS = 5 * 60 * 1000;
+const SUBTASK_TIMEOUT_MS = 5 * 60 * 1000;
 
 /**
- * Create the handoff_session tool.
+ * Create the subtask tool.
  *
  * Takes the OpenCode client as a dependency for TUI and session operations.
  */
-export function createHandoffSessionTool(
+export function createSubtaskTool(
   ctx: PluginInput,
-  state: HandoffState,
+  state: SubtaskState,
   depthTracker?: SubagentDepthTracker,
 ): ToolDefinition {
   const client = ctx.client;
@@ -32,7 +32,7 @@ export function createHandoffSessionTool(
     description:
       'Run a child worker session and return its completion summary to the caller',
     args: {
-      prompt: tool.schema.string().describe('The generated handoff prompt'),
+      prompt: tool.schema.string().describe('The generated subtask prompt'),
       files: tool.schema
         .array(tool.schema.string())
         .optional()
@@ -50,15 +50,15 @@ export function createHandoffSessionTool(
         context && typeof context === 'object' && 'sessionID' in context
           ? (context as { sessionID: string }).sessionID
           : 'unknown';
-      if (state.isHandoffSession(sessionID)) {
-        return 'Nested handoff is disabled: this session is already a handoff worker. Finish this worker and return its summary to the parent session instead.';
+      if (state.isSubtaskSession(sessionID)) {
+        return 'Nested subtask is disabled: this session is already a subtask worker. Finish this worker and return its summary to the parent session instead.';
       }
       if (
         sessionID !== 'unknown' &&
         depthTracker &&
         depthTracker.getDepth(sessionID) + 1 > depthTracker.maxDepth
       ) {
-        return `Handoff worker blocked: max subagent depth ${depthTracker.maxDepth} would be exceeded.`;
+        return `Subtask worker blocked: max subagent depth ${depthTracker.maxDepth} would be exceeded.`;
       }
 
       const sessionReference = `Work on behalf of parent session ${sessionID}. When you lack specific information you can use read_session to get it.`;
@@ -80,7 +80,7 @@ export function createHandoffSessionTool(
           query: { directory },
           body: {
             parentID: sessionID === 'unknown' ? undefined : sessionID,
-            title: `Handoff worker from ${sessionID}`,
+            title: `Subtask worker from ${sessionID}`,
           },
         });
 
@@ -88,7 +88,7 @@ export function createHandoffSessionTool(
           (session as { data?: { id?: string }; id?: string })?.data?.id ??
           (session as { data?: { id?: string }; id?: string })?.id;
         if (!childSessionID) {
-          throw new Error('Handoff worker session did not return an id');
+          throw new Error('Subtask worker session did not return an id');
         }
         if (sessionID !== 'unknown' && depthTracker) {
           const registered = depthTracker.registerChild(
@@ -97,7 +97,7 @@ export function createHandoffSessionTool(
           );
           if (!registered) {
             throw new Error(
-              'Handoff worker blocked: max subagent depth exceeded',
+              'Subtask worker blocked: max subagent depth exceeded',
             );
           }
         }
@@ -121,7 +121,7 @@ export function createHandoffSessionTool(
               ],
             },
           },
-          HANDOFF_TIMEOUT_MS,
+          SUBTASK_TIMEOUT_MS,
         );
 
         const extraction = await extractSessionResult(client, childSessionID, {
@@ -129,15 +129,15 @@ export function createHandoffSessionTool(
           includeReasoning: false,
         });
         if (extraction.empty) {
-          throw new Error('Handoff worker returned no summary');
+          throw new Error('Subtask worker returned no summary');
         }
 
         return [
           `task_id: ${childSessionID}`,
           '',
-          '<handoff_summary>',
+          '<subtask_summary>',
           extraction.text,
-          '</handoff_summary>',
+          '</subtask_summary>',
         ].join('\n');
       } finally {
         if (childSessionID) {
@@ -148,7 +148,7 @@ export function createHandoffSessionTool(
             });
             state.unmarkSession(childSessionID);
           } catch {
-            // Keep the handoff marker if abort fails; session.deleted cleanup
+            // Keep the subtask marker if abort fails; session.deleted cleanup
             // will remove it when OpenCode eventually deletes the session.
           }
         }
@@ -235,11 +235,11 @@ function formatTranscript(
  */
 export function createReadSessionTool(
   client: OpencodeClient,
-  state: HandoffState,
+  state: SubtaskState,
 ): ToolDefinition {
   return tool({
     description:
-      "Read the conversation transcript from a previous session. Use this when you need specific information from the source session that wasn't included in the handoff summary.",
+      "Read the conversation transcript from a previous session. Use this when you need specific information from the source session that wasn't included in the subtask summary.",
     args: {
       sessionID: tool.schema
         .string()
@@ -264,11 +264,11 @@ export function createReadSessionTool(
         context && typeof context === 'object' && 'sessionID' in context
           ? (context as { sessionID?: string }).sessionID
           : undefined;
-      if (!callerSessionID || !state.isHandoffSession(callerSessionID)) {
-        return 'read_session is only available from handoff worker sessions.';
+      if (!callerSessionID || !state.isSubtaskSession(callerSessionID)) {
+        return 'read_session is only available from subtask worker sessions.';
       }
       if (state.sourceFor(callerSessionID) !== args.sessionID) {
-        return 'read_session can only read the source session for this handoff worker.';
+        return 'read_session can only read the source session for this subtask worker.';
       }
 
       try {

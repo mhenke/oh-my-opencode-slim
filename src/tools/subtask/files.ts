@@ -1,7 +1,7 @@
 /**
- * File reference parsing and synthetic file parts for handoff sessions.
+ * File reference parsing and synthetic file parts for subtask sessions.
  *
- * Handles extraction of @file references from handoff prompts and
+ * Handles extraction of @file references from subtask prompts and
  * building synthetic text parts that match OpenCode's Read tool output
  * format.
  */

@@ -1,23 +1,23 @@
 /**
- * Handoff functionality for session continuation.
+ * Subtask functionality for session continuation.
  *
- * Provides tools and commands for creating handoff prompts that allow
+ * Provides tools and commands for creating subtask prompts that allow
  * work to continue seamlessly in new sessions with preloaded context.
  */
 
 export {
-  createHandoffCommandManager,
-  type HandoffCommandManager,
+  createSubtaskCommandManager,
+  type SubtaskCommandManager,
 } from './command';
 export {
   buildSyntheticFileParts,
   FILE_REGEX,
   parseFileReferences,
 } from './files';
-export { createHandoffState, type HandoffState } from './state';
+export { createSubtaskState, type SubtaskState } from './state';
 export {
-  createHandoffSessionTool,
   createReadSessionTool,
+  createSubtaskTool,
   type OpencodeClient,
 } from './tools';
 export {

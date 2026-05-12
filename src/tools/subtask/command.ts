@@ -1,41 +1,41 @@
 /**
- * Command registration manager for handoff functionality.
+ * Command registration manager for subtask functionality.
  *
- * Manages the /handoff slash command registration and the HANDOFF_COMMAND
- * template that guides the AI in generating handoff prompts.
+ * Manages the /subtask slash command registration and the SUBTASK_COMMAND
+ * template that guides the AI in generating subtask prompts.
  */
 
 import type { PluginInput } from '@opencode-ai/plugin';
-import type { HandoffState } from './state';
+import type { SubtaskState } from './state';
 
-const COMMAND_NAME = 'handoff';
+const COMMAND_NAME = 'subtask';
 
 /**
- * The handoff command template that guides the AI in generating handoff
+ * The subtask command template that guides the AI in generating subtask
  * prompts.
  */
-const HANDOFF_COMMAND_TEMPLATE = `Start a handoff worker session.
+const SUBTASK_COMMAND_TEMPLATE = `Start a subtask worker session.
 
 Use the user's request below as the source of truth for what the worker should do. Keep scope and emphasis exactly aligned with the user's request.
 
 USER: $ARGUMENTS
 
-Call handoff_session with the worker prompt and any clearly relevant files:
-\`handoff_session(prompt="...", files=["src/foo.ts", "src/bar.ts", ...])\``;
+Call subtask with the worker prompt and any clearly relevant files:
+\`subtask(prompt="...", files=["src/foo.ts", "src/bar.ts", ...])\``;
 
 /**
- * Creates a handoff command manager.
+ * Creates a subtask command manager.
  *
- * Handles registration of the /handoff command and processing of chat
- * messages to inject synthetic file parts for handoff sessions.
+ * Handles registration of the /subtask command and processing of chat
+ * messages to inject synthetic file parts for subtask sessions.
  */
-export function createHandoffCommandManager(
+export function createSubtaskCommandManager(
   _ctx: PluginInput,
-  state: HandoffState,
+  state: SubtaskState,
   _processedSessions?: Set<string>,
 ) {
   /**
-   * Register the /handoff command in the OpenCode config.
+   * Register the /subtask command in the OpenCode config.
    */
   function registerCommand(opencodeConfig: Record<string, unknown>): void {
     const configCommand = opencodeConfig.command as
@@ -46,8 +46,8 @@ export function createHandoffCommandManager(
         opencodeConfig.command = {};
       }
       (opencodeConfig.command as Record<string, unknown>)[COMMAND_NAME] = {
-        description: 'Create a focused handoff prompt for a new session',
-        template: HANDOFF_COMMAND_TEMPLATE,
+        description: 'Create a focused subtask prompt for a new session',
+        template: SUBTASK_COMMAND_TEMPLATE,
       };
     }
   }
@@ -80,6 +80,6 @@ export function createHandoffCommandManager(
   };
 }
 
-export type HandoffCommandManager = ReturnType<
-  typeof createHandoffCommandManager
+export type SubtaskCommandManager = ReturnType<
+  typeof createSubtaskCommandManager
 >;
