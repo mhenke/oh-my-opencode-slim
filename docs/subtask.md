@@ -1,59 +1,108 @@
 # Subtask
 
-`/subtask` starts a boomerang-style worker session for the user’s requested
-goal, then returns a compact completion summary to the original session.
+`/subtask` lets the current agent spin up a separate, bounded worker session for
+one specific piece of work. The worker runs as an orchestrator in a real child
+session, completes the requested task, and sends a structured summary back to
+the original conversation.
+
+Use it when you want to offload a focused task without losing the main thread.
 
 ## Usage
 
 ```text
-/subtask <what the worker should do>
+/subtask <focused task for the worker>
 ```
 
-The command asks the current orchestrator to call `subtask` with the
-worker prompt and any clearly relevant files.
-
-## Flow
-
-1. The main session calls `subtask`.
-2. Slim creates a real child session with `parentID` set to the main session.
-3. The child runs as `orchestrator`, so it can use the normal specialist-agent
-   workflow and delegate through `task` when useful.
-4. Referenced files are loaded into the child as synthetic Read-tool context.
-5. When the child finishes, Slim extracts its assistant output and returns it to
-   the main session inside `<subtask_summary>`.
-6. The child session is aborted for cleanup after the summary is extracted.
-
-In tmux or zellij, the child appears like other delegated work because it is a
-real child session. Existing session-depth and pane cleanup handling apply.
-
-## What to put in the prompt
-
-The user prompt controls scope. Keep it direct:
+Examples:
 
 ```text
-/subtask finish the docs for subtask and run the relevant checks
-/subtask investigate the flaky auth test and report what changed
-/subtask implement the small UI polish we discussed
+/subtask update the subtask docs and run the relevant checks
+/subtask investigate why the auth retry test is flaky and report findings
+/subtask implement the small button spacing polish in the settings panel
 ```
 
-The subtask prompt intentionally avoids prescribing extra actions. It should do
-what the user asks, then summarize what happened, files changed, validation run,
-and any remaining risks or follow-up.
+Keep the request narrow. A good subtask has a clear finish line.
+
+## What happens
+
+1. The `/subtask` command asks the current agent to prepare a self-contained
+   worker prompt.
+2. The agent calls the `subtask` tool with that prompt and any clearly relevant
+   files.
+3. Slim creates a real child session with `parentID` pointing at the current
+   session.
+4. The child session runs as `orchestrator`, so it can use normal tools and
+   specialist delegation when useful.
+5. Referenced files are injected as synthetic Read-tool context before the
+   worker starts.
+6. If the worker needs missing conversation details, it can call `read_session`
+   to inspect only the source session that spawned it.
+7. When finished, the worker returns a `<subtask_summary>` with status, changes,
+   files touched, validation, and follow-up notes.
+8. Slim extracts the summary, returns it to the original session, and aborts the
+   child session for cleanup.
+
+In tmux or zellij, the subtask appears like other child-agent work because it is
+a real child session. Existing depth limits and pane cleanup handling apply.
+
+## Worker scope
+
+The worker prompt is intentionally bounded:
+
+- complete only the requested task,
+- do not broaden scope,
+- do not spawn another subtask,
+- use `read_session` only when needed context is missing,
+- run the most relevant validation checks when practical,
+- stop when the requested task is done.
+
+This keeps subtasks useful for focused execution rather than turning them into a
+second open-ended conversation.
 
 ## Tools
 
 | Tool | Purpose |
 |------|---------|
-| `subtask` | Creates the child worker session and returns its summary |
-| `read_session` | Lets a subtask worker read details from the parent/source session |
+| `subtask` | Creates a child worker session and returns its summary |
+| `read_session` | Lets a subtask worker read the source session that spawned it |
 
-## Safety
+`read_session` is restricted to subtask workers and only allows reading the
+source session. It is not a general transcript-reading tool.
 
-- Nested subtasks are blocked: a subtask worker should finish its current task
-  and return a summary instead of spawning another subtask worker.
-- File context is restricted to the workspace real path, including symlink
-  checks.
-- Binary files are skipped.
-- Large files are capped before being injected as context.
-- Child sessions use normal OpenCode session lifecycle events, so multiplexer
-  cleanup remains consistent with other delegated agents.
+## File context
+
+Files can be passed explicitly with the `files` argument or referenced in the
+worker prompt with `@path` syntax. Slim resolves those paths inside the current
+workspace and injects readable text files as synthetic context.
+
+Safety rules:
+
+- paths must stay inside the workspace real path,
+- symlinks that resolve outside the workspace are skipped,
+- binary files are skipped,
+- large files are capped before injection,
+- unreadable or missing files are skipped.
+
+## Summary format
+
+The worker is instructed to finish with:
+
+```text
+<subtask_summary>
+Status: completed | blocked | partial
+
+What changed:
+- ...
+
+Files touched:
+- ...
+
+Validation:
+- ...
+
+Risks / follow-up:
+- ...
+</subtask_summary>
+```
+
+The parent session receives that summary as normal tool output.

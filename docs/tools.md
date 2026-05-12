@@ -36,19 +36,20 @@ Fast, structural code search and refactoring — more powerful than plain text g
 
 ## Session Subtask
 
-Run a boomerang-style worker session and return its summary to the caller.
+Run a focused child worker session for a bounded task and return its summary to
+the caller.
 
 | Command / Tool | Description |
 |----------------|-------------|
-| `/subtask <goal>` | Ask the current agent to run a focused child worker for the requested goal |
-| `subtask` | Runs a child subtask worker session and returns its summary to the caller |
-| `read_session` | Reads transcript details from the source session when the subtask summary is missing specifics |
+| `/subtask <goal>` | Ask the current agent to prepare and start a bounded worker for the requested task |
+| `subtask` | Creates a child orchestrator session and returns its structured summary |
+| `read_session` | Lets a subtask worker inspect the source session when needed context is missing |
 
-Subtask prompts include `@file` references. Slim creates a real child session
-with the current session as `parentID`, lets the subtask worker read the provided
-context and files, then returns the worker's `<subtask_summary>` back to the
-main session as normal tool output. In tmux/zellij this appears like other child
-agent work: a pane can open for the worker and close when the summary returns.
+Slim creates a real child session with the current session as `parentID`, injects
+relevant file context, and asks the worker to complete only the requested task.
+The worker returns a `<subtask_summary>` with status, changes, files touched,
+validation, and follow-up notes. In tmux/zellij this appears like other child
+agent work: a pane can open for the worker and close after cleanup.
 
 See [Subtask](subtask.md) for the full workflow.
 
