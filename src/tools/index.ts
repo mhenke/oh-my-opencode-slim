@@ -4,3 +4,10 @@ export { createCouncilTool } from './council';
 export type { PresetManager } from './preset-manager';
 export { createPresetManager } from './preset-manager';
 export { createWebfetchTool } from './smartfetch';
+export type { SubtaskCommandManager } from './subtask';
+export {
+  createReadSessionTool,
+  createSubtaskCommandManager,
+  createSubtaskState,
+  createSubtaskTool,
+} from './subtask';

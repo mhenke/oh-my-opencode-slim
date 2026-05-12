@@ -42,6 +42,10 @@ import {
   ast_grep_search,
   createCouncilTool,
   createPresetManager,
+  createReadSessionTool,
+  createSubtaskCommandManager,
+  createSubtaskState,
+  createSubtaskTool,
   createWebfetchTool,
 } from './tools';
 import { recordTuiAgentModel, recordTuiAgentModels } from './tui-state';
@@ -142,6 +146,8 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
   let rewriteDisplayNameMentions: ReturnType<
     typeof createDisplayNameMentionRewriter
   >;
+  let subtaskCommandManager: ReturnType<typeof createSubtaskCommandManager>;
+  let subtaskState: ReturnType<typeof createSubtaskState>;
 
   // Counters for post-init health check (set inside try, checked outside)
   let toolCount = 0;
@@ -312,11 +318,15 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     presetManager = createPresetManager(ctx, config);
     divoomManager = createDivoomManager(config.divoom);
 
+    subtaskState = createSubtaskState();
+    subtaskCommandManager = createSubtaskCommandManager(ctx, subtaskState);
+
     toolCount =
       Object.keys(councilTools).length +
       Object.keys(todoContinuationHook.tool).length +
       1 + // webfetch
-      2; // ast_grep_search, ast_grep_replace
+      2 + // ast_grep_search, ast_grep_replace
+      2; // subtask, read_session
   } catch (err) {
     // Plugin init failed: log visibly before re-throwing so the user
     // sees something actionable instead of a silent "loaded but empty".
@@ -386,6 +396,8 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       ...todoContinuationHook.tool,
       ast_grep_search,
       ast_grep_replace,
+      subtask: createSubtaskTool(ctx, subtaskState, depthTracker),
+      read_session: createReadSessionTool(ctx.client, subtaskState),
     },
 
     mcp: mcps,
@@ -721,6 +733,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
       interviewManager.registerCommand(opencodeConfig);
       presetManager.registerCommand(opencodeConfig);
+      subtaskCommandManager.registerCommand(opencodeConfig);
     },
 
     event: async (input) => {
@@ -794,6 +807,18 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           event: {
             type: string;
             properties?: { info?: { id?: string }; sessionID?: string };
+          };
+        },
+      );
+
+      subtaskCommandManager.handleEvent(
+        input as {
+          event: {
+            type: string;
+            properties?: {
+              info?: { id?: string; parentID?: string };
+              sessionID?: string;
+            };
           };
         },
       );
