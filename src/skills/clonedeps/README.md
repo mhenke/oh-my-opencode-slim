@@ -15,5 +15,8 @@ safer than a brittle cross-ecosystem script.
 Cloned repositories live under `.slim/clonedeps/repos/<safe-name>/` and are
 ignored by git. `.slim/clonedeps.json` is intentionally trackable project
 metadata. After cloning, the orchestrator should add or update a concise
-`## Cloned Dependency Source` section in root `AGENTS.md` that points future
-agents to the JSON manifest and read-only cloned repos.
+`## Cloned Dependency Source` section in root `AGENTS.md` that lists each
+read-only cloned repo path directly with a one-sentence purpose.
+
+If `.slim/clonedeps.json` already exists, read it first and reuse those clones
+before asking `@librarian` for new recommendations.

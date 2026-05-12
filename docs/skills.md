@@ -77,9 +77,10 @@ There is intentionally no helper script; dependency discovery and ref validation
 are handled by the orchestrator/librarian workflow so the skill works across
 languages and repository types.
 
-After cloning, the orchestrator also adds or updates a concise
-`## Cloned Dependency Source` section in root `AGENTS.md`, pointing future agents
-to `.slim/clonedeps.json` and `.slim/clonedeps/repos/`.
+Before planning, the orchestrator checks `.slim/clonedeps.json` and reuses
+existing clones when possible. After cloning, it adds or updates a concise
+`## Cloned Dependency Source` section in root `AGENTS.md` that lists each
+read-only cloned repo path directly with a one-sentence purpose.
 
 Safety defaults:
 

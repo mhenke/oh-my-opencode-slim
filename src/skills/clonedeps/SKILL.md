@@ -15,7 +15,21 @@ performs the approved filesystem/git operations directly.
 
 ## Workflow
 
-### Step 1: Ask Librarian for the Clone Plan
+### Step 1: Check Existing State
+
+First check whether `.slim/clonedeps.json` exists.
+
+If it exists:
+
+1. Read it before asking librarian for a new plan.
+2. Check whether each listed `path` exists under `.slim/clonedeps/repos/`.
+3. Reuse existing cloned repos when they already satisfy the user's task.
+4. Only ask librarian for new recommendations if the existing manifest is
+   missing, stale, or insufficient for the current task.
+
+Do not rescan/re-plan from scratch when the manifest already has useful entries.
+
+### Step 2: Ask Librarian for the Clone Plan
 
 Delegate dependency discovery and source resolution to `@librarian`.
 
@@ -71,7 +85,7 @@ central frameworks, SDKs, ORMs, runtime/plugin APIs, or build/runtime tools. Do
 not clone tiny utilities, transitive dependencies, or dev-only tools unless they
 are directly relevant to the active task.
 
-### Step 2: Verify and Confirm the Plan
+### Step 3: Verify and Confirm the Plan
 
 The orchestrator owns final approval. Before cloning:
 
@@ -86,7 +100,7 @@ The orchestrator owns final approval. Before cloning:
 5. Ask for confirmation before network cloning unless the user explicitly asked
    to clone immediately.
 
-### Step 3: Clone Sources Manually
+### Step 4: Clone Sources Manually
 
 Create one folder per dependency under:
 
@@ -114,7 +128,7 @@ Safe manual git pattern:
 
 Do not run dependency install/build/test scripts from cloned repositories.
 
-### Step 4: Write Local State
+### Step 5: Write Local State
 
 Write `.slim/clonedeps.json` so future agents know what exists:
 
@@ -143,7 +157,7 @@ Do not add `.slim/clonedeps.json` to `.gitignore`. It is small, reviewable
 project metadata that can be committed. Only the cloned repository contents
 under `.slim/clonedeps/repos/` should be ignored.
 
-### Step 5: Update Ignore Files
+### Step 6: Update Ignore Files
 
 Update `.gitignore` with an idempotent marker block:
 
@@ -170,7 +184,7 @@ it:
 
 Only edit content inside these marker blocks.
 
-### Step 6: Register Dependency Source in AGENTS.md
+### Step 7: Register Dependency Source in AGENTS.md
 
 After successful cloning, update the repository root `AGENTS.md` so future
 agents know why the dependency source exists and where to look.
@@ -178,20 +192,23 @@ agents know why the dependency source exists and where to look.
 If `AGENTS.md` already has a `## Cloned Dependency Source` section, update that
 section. Otherwise append this section:
 
+Use this format and list the actual repos directly. Keep each item to one short
+sentence so future agents do not need an extra read just to know what is there:
+
 ```markdown
 ## Cloned Dependency Source
 
-Read-only dependency source repositories are available for inspection under
-`.slim/clonedeps/repos/`.
+Read-only dependency source repositories are available under
+`.slim/clonedeps/repos/` for inspection. Do not edit these clones.
 
-See `.slim/clonedeps.json` for the list of cloned repositories, their refs,
-paths, and why they were added.
-
-Treat these repositories as read-only reference source. Do not edit them.
+- `.slim/clonedeps/repos/<safe-name>/` — `<repo>` at `<ref>`; <one sentence on
+  why this source is useful>.
+- `.slim/clonedeps/repos/<safe-name-2>/` — `<repo>` at `<ref>`; <one sentence on
+  why this source is useful>.
 ```
 
-Keep the section concise. Do not paste the full clone plan into `AGENTS.md`; the
-detailed source of truth is `.slim/clonedeps.json`.
+Also keep `.slim/clonedeps.json` updated as the structured manifest, but do not
+make agents read it for the basic repo list.
 
 ## Cleanup
 
