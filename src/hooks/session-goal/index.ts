@@ -19,16 +19,16 @@ interface GoalState {
   createdAt: number;
 }
 
-interface StoredGoalState extends GoalState {
-  inheritedFrom?: string;
-}
-
 interface SystemTransformOutput {
   system: string[];
 }
 
 function normalizeGoalText(text: string): string {
   return text.trim().replace(/\s+/g, ' ').slice(0, MAX_GOAL_LENGTH);
+}
+
+function trimGoalText(text: string): string {
+  return text.trim().slice(0, MAX_GOAL_LENGTH);
 }
 
 function pushText(
@@ -62,7 +62,7 @@ async function readInterviewGoal(
     const content = await fs.readFile(sourcePath, 'utf8');
     const title = extractTitle(content);
     const summary = extractSummarySection(content);
-    const text = normalizeGoalText(
+    const text = trimGoalText(
       [title ? `From interview: ${title}` : '', summary]
         .filter(Boolean)
         .join('\n\n'),
@@ -74,19 +74,33 @@ async function readInterviewGoal(
 }
 
 function resolveGoal(
-  goals: Map<string, StoredGoalState>,
+  goals: Map<string, GoalState>,
   sessionID: string,
 ): { goal: GoalState; inherited: boolean } | null {
-  const goal = goals.get(sessionID);
-  if (!goal) return null;
-  if (!goal.inheritedFrom) return { goal, inherited: false };
+  const seen = new Set<string>();
+  let currentSessionID = sessionID;
+  let inherited = false;
 
-  const parentGoal = goals.get(goal.inheritedFrom);
-  if (!parentGoal) {
-    goals.delete(sessionID);
-    return null;
+  while (true) {
+    if (seen.has(currentSessionID)) {
+      goals.delete(sessionID);
+      return null;
+    }
+    seen.add(currentSessionID);
+
+    const goal = goals.get(currentSessionID);
+    if (!goal) {
+      goals.delete(sessionID);
+      return null;
+    }
+
+    if (!goal.inheritedFrom) {
+      return { goal, inherited };
+    }
+
+    inherited = true;
+    currentSessionID = goal.inheritedFrom;
   }
-  return { goal: parentGoal, inherited: true };
 }
 
 export function createSessionGoalHook(
@@ -108,7 +122,7 @@ export function createSessionGoalHook(
   ) => void;
   getGoal: (sessionID: string) => GoalState | undefined;
 } {
-  const goals = new Map<string, StoredGoalState>();
+  const goals = new Map<string, GoalState>();
   const outputFolder = config.interview?.outputFolder ?? 'interview';
 
   return {

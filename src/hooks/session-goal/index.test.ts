@@ -114,6 +114,37 @@ describe('createSessionGoalHook', () => {
     expect(output.system.join('\n')).not.toContain('Original.');
   });
 
+  test('grandchild sessions inherit the root goal', async () => {
+    const hook = createSessionGoalHook(
+      { directory: '.' } as Parameters<typeof createSessionGoalHook>[0],
+      {} as Parameters<typeof createSessionGoalHook>[1],
+      { getAgentName: () => 'explorer' },
+    );
+    await hook.handleCommandExecuteBefore(
+      { command: 'goal', sessionID: 'root', arguments: 'Root objective.' },
+      { parts: [] },
+    );
+    hook.handleEvent({
+      event: {
+        type: 'session.created',
+        properties: { info: { id: 'child', parentID: 'root' } },
+      },
+    });
+    hook.handleEvent({
+      event: {
+        type: 'session.created',
+        properties: { info: { id: 'grandchild', parentID: 'child' } },
+      },
+    });
+
+    const output = { system: [] as string[] };
+    hook.handleSystemTransform({ sessionID: 'grandchild' }, output);
+
+    expect(output.system.join('\n')).toContain('<parent_goal>');
+    expect(output.system.join('\n')).toContain('Root objective.');
+    expect(output.system.join('\n')).not.toContain('Objective: \n');
+  });
+
   test('child sessions stop inheriting after parent goal is cleared', async () => {
     const hook = createSessionGoalHook(
       { directory: '.' } as Parameters<typeof createSessionGoalHook>[0],
@@ -171,9 +202,8 @@ describe('createSessionGoalHook', () => {
     );
 
     expect(output.parts[0].text).toContain('Set active goal from interview');
-    expect(hook.getGoal('ses_1')?.text).toContain('Feature Goal');
-    expect(hook.getGoal('ses_1')?.text).toContain(
-      'Build the feature with minimal scope.',
+    expect(hook.getGoal('ses_1')?.text).toBe(
+      'From interview: Feature Goal\n\nBuild the feature with minimal scope.',
     );
   });
 
