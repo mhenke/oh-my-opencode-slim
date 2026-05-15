@@ -70,6 +70,58 @@ const BACKGROUND_COMPLETION_COMPLETED = /^Background task completed: /;
 const BACKGROUND_COMPLETION_FAILED = /^Background task failed: /;
 const MAX_PROCESSED_INJECTED_COMPLETIONS = 500;
 
+/**
+ * Simple deterministic string hash for stable occurrence IDs.
+ * Uses DJB2 algorithm - fast and good distribution for short strings.
+ */
+function djb2Hash(str: string): string {
+  let hash = 5381;
+  for (let i = 0; i < str.length; i++) {
+    hash = (hash << 5) + hash + str.charCodeAt(i); // hash * 33 + char
+  }
+  // Convert to unsigned 32-bit and then to hex
+  return (hash >>> 0).toString(16).padStart(8, '0');
+}
+
+/**
+ * Create a stable occurrence ID for synthetic completion deduplication.
+ * Prefers part.id, then message.info.id + partIndex, then content-derived hash.
+ */
+function createOccurrenceId(
+  part: ChatMessagePart,
+  message: ChatMessage,
+  partIndex: number,
+): string {
+  // Prefer explicit part.id if available
+  if (typeof part.id === 'string') {
+    return part.id;
+  }
+
+  // Fall back to message.info.id + partIndex
+  if (typeof message.info.id === 'string') {
+    return `${message.info.id}:${partIndex}`;
+  }
+
+  // Final fallback: content-derived hash from sessionID + parsed taskID/state/result
+  // This ensures the same anonymous synthetic completion is deduped
+  // even when its message index changes between transform calls
+  const sessionID = message.info.sessionID ?? 'unknown';
+  const content = typeof part.text === 'string' ? part.text : '';
+
+  // Parse task status to get stable identifiers
+  const status = parseTaskStatusOutput(content);
+  if (status) {
+    // Use taskID + state + result for a stable hash
+    const stableKey = `${sessionID}:${status.taskID}:${status.state}:${status.result ?? ''}`;
+    const hash = djb2Hash(stableKey);
+    return `anon:${hash}`;
+  }
+
+  // Fallback to hashing the full content if parsing fails
+  const hash = djb2Hash(`${sessionID}:${content}`);
+  return `anon:${hash}`;
+}
+
 function isAgentName(value: unknown): value is AgentName {
   return typeof value === 'string' && AGENT_NAME_SET.has(value as AgentName);
 }
@@ -220,7 +272,7 @@ export function createTaskSessionManagerHook(
   function updateFromInjectedCompletion(
     part: ChatMessagePart,
     message: ChatMessage,
-    messageIndex: number,
+    _messageIndex: number,
     partIndex: number,
   ): BackgroundJobRecord | undefined {
     if (part.type !== 'text' || typeof part.text !== 'string') {
@@ -243,14 +295,8 @@ export function createTaskSessionManagerHook(
     if (isCompleted && status.state !== 'completed') return undefined;
     if (isFailed && status.state !== 'error') return undefined;
 
-    // Dedupe by synthetic message occurrence using part.id if available,
-    // fallback to message.info.id + part index, then message/part index.
-    const occurrenceId =
-      typeof part.id === 'string'
-        ? part.id
-        : typeof message.info.id === 'string'
-          ? `${message.info.id}:${partIndex}`
-          : `${message.info.sessionID ?? 'unknown'}:${messageIndex}:${partIndex}`;
+    // Dedupe by synthetic message occurrence using stable occurrence ID
+    const occurrenceId = createOccurrenceId(part, message, partIndex);
 
     if (processedInjectedCompletions.has(occurrenceId)) return undefined;
 
@@ -612,7 +658,6 @@ export function createTaskSessionManagerHook(
       if (!sessionId) return;
 
       sessionManager.dropTask(sessionId);
-      backgroundJobBoard.drop(sessionId);
       sessionManager.clearParent(sessionId);
       backgroundJobBoard.clearParent(sessionId);
       terminalJobsInjectedByParent.delete(sessionId);

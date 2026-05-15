@@ -100,6 +100,11 @@ export class BackgroundJobBoard {
     const existing = this.jobs.get(input.taskID);
     if (!existing) return undefined;
 
+    // Guard: stale status updates cannot reopen already reconciled jobs
+    if (existing.state === 'reconciled') {
+      return existing;
+    }
+
     const now = input.now ?? Date.now();
     const terminal = TERMINAL_STATES.has(input.state);
     const updated: BackgroundJobRecord = {

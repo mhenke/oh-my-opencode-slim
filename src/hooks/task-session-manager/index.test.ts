@@ -440,7 +440,7 @@ describe('task-session-manager hook', () => {
     });
   });
 
-  test('dedupes anonymous synthetic completions by session message and part index', async () => {
+  test('dedupes anonymous synthetic completions by content hash even when message index changes', async () => {
     const board = new BackgroundJobBoard();
     const { hook } = createHook({ backgroundJobBoard: board });
 
@@ -464,16 +464,26 @@ describe('task-session-manager hook', () => {
         '</task_result>',
       ].join('\n'),
     };
-    const firstMessage = {
-      info: { role: 'user', agent: 'orchestrator', sessionID: 'parent-1' },
-      parts: [completionPart],
+
+    // First transform - message at index 0
+    const firstMessages = {
+      messages: [
+        {
+          info: { role: 'user', agent: 'orchestrator', sessionID: 'parent-1' },
+          parts: [completionPart],
+        },
+      ],
     };
 
-    await hook['experimental.chat.messages.transform'](
-      {},
-      { messages: [firstMessage] },
-    );
+    await hook['experimental.chat.messages.transform']({}, firstMessages);
 
+    expect(board.get('child-1')).toMatchObject({
+      state: 'completed',
+      terminalUnreconciled: true,
+      resultSummary: 'same result',
+    });
+
+    // Relaunch the task
     board.registerLaunch({
       taskID: 'child-1',
       parentSessionID: 'parent-1',
@@ -481,20 +491,37 @@ describe('task-session-manager hook', () => {
       description: 'map hooks again',
     });
 
-    const secondMessage = {
-      info: { role: 'user', agent: 'orchestrator', sessionID: 'parent-1' },
-      parts: [completionPart],
+    expect(board.get('child-1')).toMatchObject({
+      state: 'running',
+      terminalUnreconciled: false,
+    });
+
+    // Second transform - same completion content but at different message index (1 instead of 0)
+    // With stable content hash, this should still be deduped (not processed again)
+    const secondMessages = {
+      messages: [
+        {
+          info: {
+            role: 'assistant',
+            agent: 'orchestrator',
+            sessionID: 'parent-1',
+          },
+          parts: [{ type: 'text', text: 'some other message' }],
+        }, // New message at index 0
+        {
+          info: { role: 'user', agent: 'orchestrator', sessionID: 'parent-1' },
+          parts: [completionPart], // Same completion now at index 1
+        },
+      ],
     };
 
-    await hook['experimental.chat.messages.transform'](
-      {},
-      { messages: [firstMessage, secondMessage] },
-    );
+    await hook['experimental.chat.messages.transform']({}, secondMessages);
 
+    // Should still be running because the same anonymous completion was deduped
+    // (not re-processed just because message index changed)
     expect(board.get('child-1')).toMatchObject({
-      state: 'completed',
-      terminalUnreconciled: true,
-      resultSummary: 'same result',
+      state: 'running',
+      terminalUnreconciled: false,
     });
   });
 
