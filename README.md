@@ -41,12 +41,18 @@ Install and configure oh-my-opencode-slim: https://raw.githubusercontent.com/alv
 bunx oh-my-opencode-slim@latest install
 ```
 
-The installer also registers the companion TUI plugin in OpenCode's
-`tui.json`, which adds a small sidebar showing specialist-agent status plus
-active/reusable task sessions. It also warms OpenCode's plugin cache so bunx
-installs keep loading even after temporary directories are cleaned up. For
-manual setups, add `oh-my-opencode-slim` to the `plugin` array in both
-`opencode.json` and `tui.json`.
+### V2 Background-Orchestration Beta
+
+V2 changes the orchestrator from the default execution worker into a scheduler:
+it plans work, dispatches specialists as background tasks, polls their status,
+then reconciles results before continuing. This requires OpenCode's native
+background subagent support, so beta users must start OpenCode with the
+experimental flag enabled.
+
+```bash
+bunx oh-my-opencode-slim@beta install
+OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=1 opencode
+```
 
 ### Getting Started
 
