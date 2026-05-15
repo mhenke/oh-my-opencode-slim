@@ -28,6 +28,15 @@
       "path": ".slim/clonedeps/repos/modelcontextprotocol__typescript-sdk",
       "packagePath": ".",
       "reason": "MCP protocol/server implementation details used by built-in MCP integrations."
+    },
+    {
+      "name": "anomalyco/opencode",
+      "resolvedVersion": "dev",
+      "repoUrl": "https://github.com/anomalyco/opencode.git",
+      "ref": "dev@356f6841865d68adf6d0123c37357ad50814497a",
+      "path": ".slim/clonedeps/repos/opencode",
+      "packagePath": "packages/opencode",
+      "reason": "Latest OpenCode TypeScript runtime source with experimental background subagent support."
     }
   ]
 }
