@@ -15,7 +15,6 @@ import {
 } from './config-manager';
 import { CUSTOM_SKILLS, installCustomSkill } from './custom-skills';
 import { getExistingLiteConfigPath } from './paths';
-import { installSkill, RECOMMENDED_SKILLS } from './skills';
 import type { ConfigMergeResult, InstallArgs, InstallConfig } from './types';
 
 // Colors
@@ -152,7 +151,6 @@ async function runInstall(config: InstallConfig): Promise<number> {
   printHeader(isUpdate);
 
   let totalSteps = 6;
-  if (config.installSkills) totalSteps += 1;
   if (config.installCustomSkills) totalSteps += 1;
   totalSteps += 1;
 
@@ -244,31 +242,6 @@ async function runInstall(config: InstallConfig): Promise<number> {
     }
   }
 
-  // Install skills if requested
-  if (config.installSkills) {
-    printStep(step++, totalSteps, 'Installing recommended skills...');
-    if (config.dryRun) {
-      printInfo('Dry run mode - would install skills:');
-      for (const skill of RECOMMENDED_SKILLS) {
-        printInfo(`  - ${skill.name}`);
-      }
-    } else {
-      let skillsInstalled = 0;
-      for (const skill of RECOMMENDED_SKILLS) {
-        printInfo(`Installing ${skill.name}...`);
-        if (installSkill(skill)) {
-          printSuccess(`Installed: ${skill.name}`);
-          skillsInstalled++;
-        } else {
-          printInfo(`Skipped: ${skill.name} (already installed)`);
-        }
-      }
-      printSuccess(
-        `${skillsInstalled}/${RECOMMENDED_SKILLS.length} skills processed`,
-      );
-    }
-  }
-
   // Install custom skills if requested
   if (config.installCustomSkills) {
     printStep(step++, totalSteps, 'Installing custom skills...');
@@ -342,7 +315,6 @@ async function runInstall(config: InstallConfig): Promise<number> {
 export async function install(args: InstallArgs): Promise<number> {
   const config: InstallConfig = {
     hasTmux: false,
-    installSkills: args.skills === 'yes',
     installCustomSkills: args.skills === 'yes',
     preset: args.preset,
     promptForStar: args.tui,

@@ -18,7 +18,6 @@ describe('providers', () => {
   test('generateLiteConfig defaults to openai and includes generated presets', () => {
     const config = generateLiteConfig({
       hasTmux: false,
-      installSkills: false,
       installCustomSkills: false,
       reset: false,
     });
@@ -43,7 +42,6 @@ describe('providers', () => {
   test('generateLiteConfig uses correct OpenAI models', () => {
     const config = generateLiteConfig({
       hasTmux: false,
-      installSkills: false,
       installCustomSkills: false,
       reset: false,
     });
@@ -65,7 +63,6 @@ describe('providers', () => {
   test('generateLiteConfig can set opencode-go as active preset', () => {
     const config = generateLiteConfig({
       hasTmux: false,
-      installSkills: false,
       installCustomSkills: false,
       preset: 'opencode-go',
       reset: false,
@@ -93,7 +90,6 @@ describe('providers', () => {
     expect(() =>
       generateLiteConfig({
         hasTmux: false,
-        installSkills: false,
         installCustomSkills: false,
         preset: 'not-real',
         reset: false,
@@ -105,7 +101,6 @@ describe('providers', () => {
     expect(() =>
       generateLiteConfig({
         hasTmux: false,
-        installSkills: false,
         installCustomSkills: false,
         preset: 'kimi',
         reset: false,
@@ -117,7 +112,6 @@ describe('providers', () => {
     expect(() =>
       generateLiteConfig({
         hasTmux: false,
-        installSkills: false,
         installCustomSkills: false,
         preset: 'toString',
         reset: false,
@@ -128,7 +122,6 @@ describe('providers', () => {
   test('generateLiteConfig enables tmux when requested', () => {
     const config = generateLiteConfig({
       hasTmux: true,
-      installSkills: false,
       installCustomSkills: false,
       reset: false,
     });
@@ -141,7 +134,6 @@ describe('providers', () => {
   test('generateLiteConfig includes default skills', () => {
     const config = generateLiteConfig({
       hasTmux: false,
-      installSkills: true,
       installCustomSkills: false,
       reset: false,
     });
@@ -156,8 +148,8 @@ describe('providers', () => {
     // Orchestrator should implicitly cover bundled codemap via '*'
     expect(agents.orchestrator.skills).toContain('*');
 
-    // Designer should have 'agent-browser'
-    expect(agents.designer.skills).toContain('agent-browser');
+    // Designer should have no bundled skills by default
+    expect(agents.designer.skills).toEqual([]);
 
     // Explorer should have no bundled skills by default
     expect(agents.explorer.skills).toEqual([]);
@@ -169,7 +161,6 @@ describe('providers', () => {
   test('generateLiteConfig includes mcps field', () => {
     const config = generateLiteConfig({
       hasTmux: false,
-      installSkills: false,
       installCustomSkills: false,
       reset: false,
     });
@@ -184,7 +175,6 @@ describe('providers', () => {
   test('generateLiteConfig openai includes correct mcps', () => {
     const config = generateLiteConfig({
       hasTmux: false,
-      installSkills: false,
       installCustomSkills: false,
       reset: false,
     });

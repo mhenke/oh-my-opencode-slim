@@ -12,10 +12,10 @@ describe('skills permissions', () => {
     expect(permissions['*']).toBe('deny');
   });
 
-  it('should allow recommended skills for specific agents', () => {
-    // Designer should have agent-browser allowed
+  it('should allow bundled skills for specific agents', () => {
+    // Designer should only inherit the default non-orchestrator deny rule
     const designerPerms = getSkillPermissionsForAgent('designer');
-    expect(designerPerms['agent-browser']).toBe('allow');
+    expect(Object.keys(designerPerms)).toEqual(['*']);
 
     // Oracle should have simplify allowed by default
     const oraclePerms = getSkillPermissionsForAgent('oracle');

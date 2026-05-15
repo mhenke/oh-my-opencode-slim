@@ -33,7 +33,7 @@ The installer supports the following options:
 
 | Option | Description |
 |--------|-------------|
-| `--skills=yes|no` | Install recommended and bundled skills (default: yes) |
+| `--skills=yes|no` | Install bundled skills (default: yes) |
 | `--preset=<name>` | Active generated config preset: `openai` or `opencode-go` (default: `openai`) |
 | `--no-tui` | Non-interactive mode |
 | `--dry-run` | Simulate install without writing files |
@@ -114,10 +114,10 @@ bunx oh-my-opencode-slim@latest install --no-tui --skills=yes
 
 **Examples:**
 ```bash
-# Interactive install (asks about tmux and skills)
+# Interactive install
 bunx oh-my-opencode-slim@latest install
 
-# Non-interactive with default skills
+# Non-interactive with bundled skills
 bunx oh-my-opencode-slim@latest install --no-tui --skills=yes
 
 # Make the generated OpenCode Go preset active
@@ -261,7 +261,7 @@ See the [Multiplexer Integration Guide](multiplexer-integration.md) for more det
 
 3. **Remove skills (optional)**:
    ```bash
-   npx skills remove agent-browser
    rm -rf ~/.config/opencode/skills/simplify
    rm -rf ~/.config/opencode/skills/codemap
+   rm -rf ~/.config/opencode/skills/clonedeps
    ```
