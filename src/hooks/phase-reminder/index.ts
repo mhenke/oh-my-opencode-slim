@@ -74,12 +74,19 @@ export function createPhaseReminderHook() {
       if (originalText.includes(SLIM_INTERNAL_INITIATOR_MARKER)) {
         return;
       }
-      if (originalText.includes(PHASE_REMINDER)) {
+      // Prevent duplicate injection: check if any existing part already contains
+      // the phase reminder (either merged into text or as a standalone part).
+      if (lastUserMessage.parts.some((p) => p.text?.includes(PHASE_REMINDER))) {
         return;
       }
 
-      lastUserMessage.parts[textPartIndex].text =
-        `${originalText}\n\n---\n\n${PHASE_REMINDER}`;
+      // Append reminder as a new, separate message part instead of mutating
+      // the user-authored text. This prevents the reminder from leaking into
+      // the UI display and chat history (issue #448).
+      lastUserMessage.parts.push({
+        type: 'text',
+        text: PHASE_REMINDER,
+      });
     },
   };
 }

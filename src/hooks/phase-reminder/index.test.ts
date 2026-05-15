@@ -3,7 +3,7 @@ import { SLIM_INTERNAL_INITIATOR_MARKER } from '../../utils';
 import { createPhaseReminderHook, PHASE_REMINDER } from './index';
 
 describe('createPhaseReminderHook', () => {
-  test('appends reminder for orchestrator sessions', async () => {
+  test('appends reminder as a separate part for orchestrator sessions', async () => {
     const hook = createPhaseReminderHook();
     const output = {
       messages: [
@@ -16,9 +16,10 @@ describe('createPhaseReminderHook', () => {
 
     await hook['experimental.chat.messages.transform']({}, output);
 
-    expect(output.messages[0].parts[0].text).toBe(
-      `hello\n\n---\n\n${PHASE_REMINDER}`,
-    );
+    // Reminder is appended as a new part, not merged into the original text
+    expect(output.messages[0].parts.length).toBe(2);
+    expect(output.messages[0].parts[0].text).toBe('hello');
+    expect(output.messages[0].parts[1].text).toBe(PHASE_REMINDER);
   });
 
   test('skips non-orchestrator sessions', async () => {
@@ -34,6 +35,7 @@ describe('createPhaseReminderHook', () => {
 
     await hook['experimental.chat.messages.transform']({}, output);
 
+    expect(output.messages[0].parts.length).toBe(1);
     expect(output.messages[0].parts[0].text).toBe('hello');
   });
 
@@ -52,23 +54,86 @@ describe('createPhaseReminderHook', () => {
     await hook['experimental.chat.messages.transform']({}, output);
 
     expect(output.messages[0].parts[0].text).toBe(text);
-    expect(output.messages[0].parts[0].text).not.toContain(PHASE_REMINDER);
+    expect(output.messages[0].parts.length).toBe(1);
   });
 
   test('does not append duplicate reminder', async () => {
     const hook = createPhaseReminderHook();
-    const text = `hello\n\n---\n\n${PHASE_REMINDER}`;
     const output = {
       messages: [
         {
           info: { role: 'user', agent: 'orchestrator' },
-          parts: [{ type: 'text', text }],
+          parts: [
+            { type: 'text', text: 'hello' },
+            { type: 'text', text: PHASE_REMINDER },
+          ],
         },
       ],
     };
 
     await hook['experimental.chat.messages.transform']({}, output);
 
-    expect(output.messages[0].parts[0].text).toBe(text);
+    expect(output.messages[0].parts.length).toBe(2);
+    expect(output.messages[0].parts[0].text).toBe('hello');
+  });
+
+  test('does not modify original user message text (bug #448)', async () => {
+    const hook = createPhaseReminderHook();
+    const originalText = 'Hello world';
+    const output = {
+      messages: [
+        {
+          info: { role: 'user', agent: 'orchestrator' },
+          parts: [{ type: 'text', text: originalText }],
+        },
+      ],
+    };
+
+    await hook['experimental.chat.messages.transform']({}, output);
+
+    // The original text part must remain unchanged so it doesn't leak into UI/history
+    expect(output.messages[0].parts[0].text).toBe(originalText);
+    expect(output.messages[0].parts[1].text).toBe(PHASE_REMINDER);
+  });
+
+  test('handles messages without text parts', async () => {
+    const hook = createPhaseReminderHook();
+    const output = {
+      messages: [
+        {
+          info: { role: 'user', agent: 'orchestrator' },
+          parts: [{ type: 'image', url: 'http://example.com/img.png' }],
+        },
+      ],
+    };
+
+    await hook['experimental.chat.messages.transform']({}, output);
+
+    expect(output.messages[0].parts.length).toBe(1);
+  });
+
+  test('handles empty messages array', async () => {
+    const hook = createPhaseReminderHook();
+    const output = { messages: [] };
+
+    await hook['experimental.chat.messages.transform']({}, output);
+
+    expect(output.messages).toEqual([]);
+  });
+
+  test('handles no user messages', async () => {
+    const hook = createPhaseReminderHook();
+    const output = {
+      messages: [
+        {
+          info: { role: 'assistant' },
+          parts: [{ type: 'text', text: 'Hi' }],
+        },
+      ],
+    };
+
+    await hook['experimental.chat.messages.transform']({}, output);
+
+    expect(output.messages[0].parts[0].text).toBe('Hi');
   });
 });
