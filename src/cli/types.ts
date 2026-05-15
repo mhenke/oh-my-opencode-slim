@@ -17,7 +17,6 @@ export interface OpenCodeConfig {
 
 export interface InstallConfig {
   hasTmux: boolean;
-  installSkills: boolean;
   installCustomSkills: boolean;
   preset?: string;
   promptForStar?: boolean;

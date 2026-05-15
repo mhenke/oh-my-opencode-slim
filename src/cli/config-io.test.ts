@@ -399,7 +399,6 @@ describe('config-io', () => {
 
     const result = writeLiteConfig({
       hasTmux: true,
-      installSkills: false,
       installCustomSkills: false,
       reset: false,
     });
@@ -421,7 +420,6 @@ describe('config-io', () => {
 
     const result = writeLiteConfig({
       hasTmux: false,
-      installSkills: false,
       installCustomSkills: false,
       preset: 'opencode-go',
       reset: false,

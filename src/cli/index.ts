@@ -46,7 +46,7 @@ Usage:
   bunx oh-my-opencode-slim doctor [OPTIONS]
 
 Options:
-  --skills=yes|no        Install recommended and bundled skills (default: yes)
+  --skills=yes|no        Install bundled skills (default: yes)
   --preset=<name>        Active generated config preset (default: openai)
   --no-tui               Non-interactive mode
   --dry-run              Simulate install without writing files

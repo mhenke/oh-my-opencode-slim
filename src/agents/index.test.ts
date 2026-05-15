@@ -243,7 +243,7 @@ describe('skill permissions', () => {
     const skillPerm = (
       orchestrator?.config.permission as Record<string, unknown>
     )?.skill as Record<string, string>;
-    // orchestrator gets wildcard allow (from RECOMMENDED_SKILLS wildcard entry)
+    // orchestrator gets wildcard allow by default
     expect(skillPerm?.['*']).toBe('allow');
     // CUSTOM_SKILLS loop must also add a named codemap entry for orchestrator
     expect(skillPerm?.codemap).toBe('allow');
