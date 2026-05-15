@@ -208,6 +208,7 @@ describe('BackgroundJobBoard', () => {
       [
         'task_id: ses_1',
         'state: cancelled',
+        '',
         '<task_error>',
         'cancelled by user',
         '</task_error>',
@@ -218,6 +219,81 @@ describe('BackgroundJobBoard', () => {
       state: 'cancelled',
       terminalUnreconciled: true,
       resultSummary: 'cancelled by user',
+    });
+  });
+
+  test('stale status updates cannot reopen already reconciled jobs', () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'ses_1',
+      parentSessionID: 'parent-1',
+      agent: 'oracle',
+      description: 'review plan',
+    });
+    board.updateStatus({ taskID: 'ses_1', state: 'completed' });
+    board.markReconciled('ses_1', 300);
+
+    // Stale status updates should not reopen the reconciled job
+    const staleCompleted = board.updateStatus({
+      taskID: 'ses_1',
+      state: 'completed',
+      resultSummary: 'stale result',
+    });
+    expect(staleCompleted).toMatchObject({
+      state: 'reconciled',
+      terminalUnreconciled: false,
+    });
+
+    const staleError = board.updateStatus({
+      taskID: 'ses_1',
+      state: 'error',
+      resultSummary: 'stale error',
+    });
+    expect(staleError).toMatchObject({
+      state: 'reconciled',
+      terminalUnreconciled: false,
+    });
+
+    const staleCancelled = board.updateStatus({
+      taskID: 'ses_1',
+      state: 'cancelled',
+    });
+    expect(staleCancelled).toMatchObject({
+      state: 'reconciled',
+      terminalUnreconciled: false,
+    });
+
+    // Job should remain hidden from prompt
+    expect(board.formatForPrompt('parent-1')).toBeUndefined();
+  });
+
+  test('registerLaunch can reset a reconciled job to running', () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'ses_1',
+      parentSessionID: 'parent-1',
+      agent: 'oracle',
+      description: 'review plan',
+      now: 100,
+    });
+    board.updateStatus({ taskID: 'ses_1', state: 'completed' });
+    board.markReconciled('ses_1', 300);
+
+    // Relaunch should reset the reconciled job to running
+    const relaunched = board.registerLaunch({
+      taskID: 'ses_1',
+      parentSessionID: 'parent-1',
+      agent: 'oracle',
+      description: 'review plan again',
+      now: 400,
+    });
+
+    expect(relaunched).toMatchObject({
+      state: 'running',
+      terminalUnreconciled: false,
+      completedAt: undefined,
+      resultSummary: undefined,
+      updatedAt: 400,
     });
   });
 });
