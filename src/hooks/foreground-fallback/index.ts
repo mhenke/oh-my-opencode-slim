@@ -35,7 +35,7 @@ const RATE_LIMIT_PATTERNS = [
   /usage limit/i,
   /overloaded/i,
   /resource.?exhausted/i,
-  /insufficient.?quota/i,
+  /insufficient.?(quota|balance)/i,
   /high concurrency/i,
   /reduce concurrency/i,
 ];

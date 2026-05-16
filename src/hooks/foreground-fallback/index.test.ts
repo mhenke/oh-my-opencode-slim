@@ -85,6 +85,10 @@ describe('isRateLimitError', () => {
     expect(isRateLimitError({ message: 'overloaded_error' })).toBe(true);
   });
 
+  test('returns true for "Insufficient balance."', () => {
+    expect(isRateLimitError({ message: 'Insufficient balance.' })).toBe(true);
+  });
+
   test('returns false for non-rate-limit error', () => {
     expect(isRateLimitError({ message: 'invalid API key' })).toBe(false);
   });
