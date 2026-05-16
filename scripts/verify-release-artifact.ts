@@ -42,6 +42,7 @@ const packagedRequiredFiles = [
   'src/skills/simplify/SKILL.md',
   'src/skills/codemap/SKILL.md',
   'src/skills/clonedeps/SKILL.md',
+  'src/skills/deepwork/SKILL.md',
 ];
 
 function fail(message: string): never {

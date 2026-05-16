@@ -23,6 +23,7 @@ describe('skills permissions', () => {
 
     const orchestratorPerms = getSkillPermissionsForAgent('orchestrator');
     expect(orchestratorPerms.clonedeps).toBe('allow');
+    expect(orchestratorPerms.deepwork).toBe('allow');
   });
 
   it('should honor explicit skill list overrides', () => {

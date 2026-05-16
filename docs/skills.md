@@ -15,6 +15,7 @@ Bundled skills are installed by the `oh-my-opencode-slim` installer.
 | [`simplify`](#simplify) | Behavior-preserving code simplification | `oracle` |
 | [`codemap`](#codemap) | Repository codemap generation | `orchestrator` |
 | [`clonedeps`](#clonedeps) | Local dependency source cloning | `orchestrator` |
+| [`deepwork`](#deepwork) | Heavy/complex coding sessions workflow | `orchestrator` |
 
 ---
 
@@ -78,6 +79,32 @@ Safety defaults:
 - ignore-file edits are limited to managed marker blocks.
 
 See **[Clonedeps](clonedeps.md)** for the full workflow and file layout.
+
+---
+
+## deepwork
+
+**Heavy/complex coding sessions and large modifications workflow.**
+
+`deepwork` is an orchestrator-only workflow skill for managing deep architectural work, multi-phase implementations, and complex refactoring. It provides a structured approach with mandatory review gates while maintaining flexibility in planning.
+
+**How it works:**
+1. Orchestrator creates a session artifact at `.slim/deepwork/<task>.md`
+2. Draft plan → Oracle review → Revise until acceptable
+3. Create phased implementation plan → Oracle review
+4. Execute phase by phase with validation
+5. After each phase: validate → Oracle review → fix issues → continue
+
+**Key features:**
+- Persistent session state in markdown files
+- Mandatory oracle reviews at plan and phase boundaries
+- V2 scheduler integration (dispatch specialists, poll task_status, reconcile)
+- OpenCode todo lists for progress tracking
+- Flexible structure - orchestrator adapts format to task needs
+
+**When to use:** Large-scale refactoring, multi-file architectural changes, complex feature development spanning modules.
+
+**When NOT to use:** Simple single-file edits, trivial bug fixes, quick one-off changes.
 
 ---
 

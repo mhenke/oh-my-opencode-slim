@@ -90,3 +90,6 @@ captures/
 
 # Local git worktrees for parallel feature work
 .slim/worktrees/
+
+# Deepwork session artifacts
+.slim/deepwork/
