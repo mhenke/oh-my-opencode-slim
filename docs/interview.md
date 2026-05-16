@@ -42,7 +42,7 @@ You can also resume by basename if it exists in the configured output folder:
 /interview kanban-design-tool
 ```
 
-Promote an interview spec into the current session goal:
+Promote an interview spec into the current goal:
 
 ```text
 /goal from kanban-design-tool

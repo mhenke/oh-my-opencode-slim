@@ -103,7 +103,7 @@ function resolveGoal(
   }
 }
 
-export function createSessionGoalHook(
+export function createGoalHook(
   ctx: PluginInput,
   config: PluginConfig,
   options?: { getAgentName?: (sessionID: string) => string | undefined },
@@ -133,7 +133,7 @@ export function createSessionGoalHook(
       if (commandConfig?.[COMMAND_NAME]) return;
       if (!opencodeConfig.command) opencodeConfig.command = {};
       (opencodeConfig.command as Record<string, unknown>)[COMMAND_NAME] = {
-        template: 'Set or show the current session goal',
+        template: 'Set or show the current goal',
         description:
           'Pin a session objective that keeps todos, delegation, and verification aligned',
       };

@@ -8,10 +8,10 @@ export {
   ForegroundFallbackManager,
   isRateLimitError,
 } from './foreground-fallback';
+export { createGoalHook } from './goal';
 export { processImageAttachments } from './image-hook';
 export { createJsonErrorRecoveryHook } from './json-error-recovery';
 export { createPhaseReminderHook } from './phase-reminder';
 export { createPostFileToolNudgeHook } from './post-file-tool-nudge';
-export { createSessionGoalHook } from './session-goal';
 export { createTaskSessionManagerHook } from './task-session-manager';
 export { createTodoContinuationHook } from './todo-continuation';

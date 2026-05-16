@@ -2,20 +2,20 @@ import { describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { createSessionGoalHook } from './index';
+import { createGoalHook } from './index';
 
 function createHook(directory = '.') {
-  return createSessionGoalHook(
-    { directory } as Parameters<typeof createSessionGoalHook>[0],
+  return createGoalHook(
+    { directory } as Parameters<typeof createGoalHook>[0],
     { interview: { outputFolder: 'interview' } } as Parameters<
-      typeof createSessionGoalHook
+      typeof createGoalHook
     >[1],
     { getAgentName: () => 'orchestrator' },
   );
 }
 
-describe('createSessionGoalHook', () => {
-  test('sets and shows a manual session goal', async () => {
+describe('createGoalHook', () => {
+  test('sets and shows a manual goal', async () => {
     const hook = createHook();
     const output = { parts: [] as Array<{ type: string; text?: string }> };
 
@@ -61,9 +61,9 @@ describe('createSessionGoalHook', () => {
   });
 
   test('inherits parent goal for child sessions', async () => {
-    const hook = createSessionGoalHook(
-      { directory: '.' } as Parameters<typeof createSessionGoalHook>[0],
-      {} as Parameters<typeof createSessionGoalHook>[1],
+    const hook = createGoalHook(
+      { directory: '.' } as Parameters<typeof createGoalHook>[0],
+      {} as Parameters<typeof createGoalHook>[1],
       { getAgentName: () => 'explorer' },
     );
     await hook.handleCommandExecuteBefore(
@@ -87,9 +87,9 @@ describe('createSessionGoalHook', () => {
   });
 
   test('child sessions resolve updated parent goal live', async () => {
-    const hook = createSessionGoalHook(
-      { directory: '.' } as Parameters<typeof createSessionGoalHook>[0],
-      {} as Parameters<typeof createSessionGoalHook>[1],
+    const hook = createGoalHook(
+      { directory: '.' } as Parameters<typeof createGoalHook>[0],
+      {} as Parameters<typeof createGoalHook>[1],
       { getAgentName: () => 'explorer' },
     );
     await hook.handleCommandExecuteBefore(
@@ -115,9 +115,9 @@ describe('createSessionGoalHook', () => {
   });
 
   test('grandchild sessions inherit the root goal', async () => {
-    const hook = createSessionGoalHook(
-      { directory: '.' } as Parameters<typeof createSessionGoalHook>[0],
-      {} as Parameters<typeof createSessionGoalHook>[1],
+    const hook = createGoalHook(
+      { directory: '.' } as Parameters<typeof createGoalHook>[0],
+      {} as Parameters<typeof createGoalHook>[1],
       { getAgentName: () => 'explorer' },
     );
     await hook.handleCommandExecuteBefore(
@@ -146,9 +146,9 @@ describe('createSessionGoalHook', () => {
   });
 
   test('child sessions stop inheriting after parent goal is cleared', async () => {
-    const hook = createSessionGoalHook(
-      { directory: '.' } as Parameters<typeof createSessionGoalHook>[0],
-      {} as Parameters<typeof createSessionGoalHook>[1],
+    const hook = createGoalHook(
+      { directory: '.' } as Parameters<typeof createGoalHook>[0],
+      {} as Parameters<typeof createGoalHook>[1],
       { getAgentName: () => 'explorer' },
     );
     await hook.handleCommandExecuteBefore(

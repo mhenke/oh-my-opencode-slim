@@ -22,10 +22,10 @@ import {
   createChatHeadersHook,
   createDelegateTaskRetryHook,
   createFilterAvailableSkillsHook,
+  createGoalHook,
   createJsonErrorRecoveryHook,
   createPhaseReminderHook,
   createPostFileToolNudgeHook,
-  createSessionGoalHook,
   createTaskSessionManagerHook,
   createTodoContinuationHook,
   ForegroundFallbackManager,
@@ -139,7 +139,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
   let jsonErrorRecoveryHook: ReturnType<typeof createJsonErrorRecoveryHook>;
   let foregroundFallback: ForegroundFallbackManager;
   let todoContinuationHook: ReturnType<typeof createTodoContinuationHook>;
-  let sessionGoalHook: ReturnType<typeof createSessionGoalHook>;
+  let goalHook: ReturnType<typeof createGoalHook>;
   let taskSessionManagerHook: ReturnType<typeof createTaskSessionManagerHook>;
   let backgroundJobBoard: BackgroundJobBoard;
   let interviewManager: ReturnType<typeof createInterviewManager>;
@@ -314,7 +314,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       autoEnableThreshold: config.todoContinuation?.autoEnableThreshold ?? 4,
       backgroundJobBoard,
     });
-    sessionGoalHook = createSessionGoalHook(ctx, config, {
+    goalHook = createGoalHook(ctx, config, {
       getAgentName: (sessionID) => sessionAgentMap.get(sessionID),
     });
     taskSessionManagerHook = createTaskSessionManagerHook(ctx, {
@@ -743,7 +743,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       }
 
       interviewManager.registerCommand(opencodeConfig);
-      sessionGoalHook.registerCommand(opencodeConfig);
+      goalHook.registerCommand(opencodeConfig);
       presetManager.registerCommand(opencodeConfig);
       subtaskCommandManager.registerCommand(opencodeConfig);
     },
@@ -806,7 +806,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       // Todo-continuation: auto-continue orchestrator on incomplete todos
       await todoContinuationHook.handleEvent(input);
 
-      sessionGoalHook.handleEvent(
+      goalHook.handleEvent(
         input as {
           event: { type: string; properties?: Record<string, unknown> };
         },
@@ -972,7 +972,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         output as { parts: Array<{ type: string; text?: string }> },
       );
 
-      await sessionGoalHook.handleCommandExecuteBefore(
+      await goalHook.handleCommandExecuteBefore(
         input as {
           command: string;
           sessionID: string;
@@ -1052,7 +1052,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         }
       }
 
-      sessionGoalHook.handleSystemTransform(input, output);
+      goalHook.handleSystemTransform(input, output);
 
       // Collapse to single system message for provider compatibility.
       // Some providers (e.g. Qwen via VLLM/DashScope) reject multiple

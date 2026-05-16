@@ -1,4 +1,4 @@
-# Session Goal
+# Goal
 
 `/goal` pins a session-scoped objective so long work keeps a clear north star.
 
@@ -9,15 +9,15 @@ but you do not want a separate project-management system.
 
 | Command | Description |
 |---------|-------------|
-| `/goal <objective>` | Set the current session goal |
+| `/goal <objective>` | Set the current goal |
 | `/goal` | Show the active goal and how it relates to todos and auto-continuation |
-| `/goal clear` | Clear the current session goal |
+| `/goal clear` | Clear the current goal |
 | `/goal from <interview>` | Set the goal from an existing interview markdown spec |
 
 Examples:
 
 ```text
-/goal Add lightweight session goals. Done when UX, docs, and tests are complete.
+/goal Add lightweight goals. Done when UX, docs, and tests are complete.
 /goal from kanban-design-tool
 /goal clear
 ```
