@@ -24,6 +24,13 @@ Required behavior:
 - ask `@oracle` to review the plan and revise it until acceptable;
 - create a phased implementation/delegation plan;
 - ask `@oracle` to review that implementation plan before execution;
+- before oracle reviews, add relevant confirmed research findings and file
+  references to the deepwork file so oracle can review the plan or phase from
+  accepted context instead of redoing discovery;
+- after oracle review and before each implementation phase, decide the execution
+  path: what can run in parallel, what must be sequential, which specialists to
+  delegate to, and whether to call the same agent multiple times for separate
+  bounded lanes;
 - execute phase by phase with specialist delegation where useful;
 - after each phase, validate, update the deepwork file, ask `@oracle` to review
   the phase result, fix actionable issues, then continue;
