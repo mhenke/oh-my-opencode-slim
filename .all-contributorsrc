@@ -443,6 +443,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "zackslash",
+      "name": "Luke Hines",
+      "avatar_url": "https://avatars.githubusercontent.com/u/2040617?v=4",
+      "profile": "https://github.com/zackslash",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commitConvention": "angular"
