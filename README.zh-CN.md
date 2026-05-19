@@ -2,12 +2,12 @@
   <a href="https://github.com/alvinunreal/oh-my-opencode-slim/stargazers">
     <img src="img/v2beta.webp" alt="V2 Beta Release" style="border-radius: 10px;">
   </a>
-  <h3>✨ V2 Beta Release: Background Orchestration Has Arrived ✨</h3>
-  <p><i>The orchestrator now schedules specialist agents in the background,<br>while <code>/deepwork</code> turns big goals into file-backed plans.<br>Beta testers: share your feedback with us on Telegram.</i></p>
+  <h3>✨ V2 Beta 版本：后台编排已上线 ✨</h3>
+  <p><i>编排者（Orchestrator）现在可在后台调度专家智能体，<br>同时 <code>/deepwork</code> 可以将宏大目标转化为基于文件的具体计划。<br>Beta 测试人员：请在 Telegram 上与我们分享您的反馈。</i></p>
 
-  <p><b>Open Multi Agent Suite</b> · Mix any models · Auto delegate tasks</p>
+  <p><b>开放式多智能体套件</b> · 混合任意模型 · 自动委派任务</p>
 
-  <p><sub>by <b>Boring Dystopia Development</b></sub></p>
+  <p><sub>由 <b>Boring Dystopia Development</b> 倾情打造</sub></p>
   <p>
     <a href="https://boringdystopia.ai/"><img src="https://img.shields.io/badge/boringdystopia.ai-111111?style=for-the-badge&logo=vercel&logoColor=white" alt="boringdystopia.ai"></a>&nbsp;
     <a href="https://x.com/alvinunreal"><img src="https://img.shields.io/badge/X-@alvinunreal-000000?style=for-the-badge&logo=x&logoColor=white" alt="X @alvinunreal"></a>&nbsp;
@@ -15,73 +15,68 @@
   </p>
 
   <p>
-    <b>English</b> | <a href="README.zh-CN.md">简体中文</a>
+    <a href="README.md">English</a> | <b>简体中文</b>
   </p>
 </div>
 
 ---
 
-## What's This Plugin
+## 什么是该插件？
 
-oh-my-opencode-slim is an agent orchestration plugin for OpenCode. It includes a built-in team of specialized agents that can scout a codebase, look up fresh documentation, review architecture, handle UI work, and execute well-scoped implementation tasks under one orchestrator.
+oh-my-opencode-slim 是一个用于 OpenCode 的智能体编排插件。它内置了一支专业的智能体团队，可以在同一个编排者（Orchestrator）下，完成侦察代码库、查询最新文档、审查架构、处理 UI 工作以及执行范围明确的实现任务。
 
-The main idea is simple: instead of forcing one model to do everything, the plugin routes each part of the job to the agent best suited for it, balancing **quality, speed and cost**.
+其核心理念非常简单：与其强迫单个模型做所有事情，本插件会将工作的每个部分路由到最适合它的智能体，从而平衡**质量、速度和成本**。
 
-To explore the agents themselves, see **[Meet the Pantheon](#meet-the-pantheon)**. For the full feature set, see **[Features & Workflows](#features-and-workflows)** below.
+要了解智能体本身，请参阅**[认识众神殿](#认识众神殿)**。如需了解完整的特性集，请参阅下方的**[特性与工作流](#特性与工作流)**。
 
-### Quick Start
+### 快速开始
 
-Copy and paste this prompt to your LLM agent (Claude Code, AmpCode, Cursor, etc.):
-
+将此提示词复制并粘贴到您的 LLM 智能体中（例如 Claude Code、AmpCode、Cursor 等）：
 
 ```
 Install and configure oh-my-opencode-slim: https://raw.githubusercontent.com/alvinunreal/oh-my-opencode-slim/refs/heads/master/README.md
 ```
 
-
-### Manual Installation
+### 手动安装
 
 ```bash
 bunx oh-my-opencode-slim@latest install
 ```
 
-### V2 Background-Orchestration Beta
+### V2 后台编排 Beta 版
 
-V2 changes the orchestrator from the default execution worker into a scheduler:
-it plans work, dispatches specialists as background tasks, polls their status,
-then reconciles results before continuing. This requires OpenCode's native
-background subagent support, so beta users must start OpenCode with the
-experimental flag enabled.
+V2 将编排者（Orchestrator）从默认的执行工作器转变为调度器：
+它规划工作、将专家作为后台任务分发、轮询其状态，并在继续执行之前核对结果。这需要 OpenCode 原生的后台子智能体支持，因此 Beta 版用户必须在启用实验性标志的情况下启动 OpenCode。
 
 ```bash
 bunx oh-my-opencode-slim@beta install
 OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=1 opencode
 ```
 
-### Getting Started
+### 入门指南
 
-The installer generates both OpenAI and OpenCode Go presets, with OpenAI active by default. OpenAI uses `openai/gpt-5.5` for the higher-judgment agents and `openai/gpt-5.4-mini` for the faster scoped agents. To make OpenCode Go active during install, run `bunx oh-my-opencode-slim@latest install --preset=opencode-go` or change the default preset name in `~/.config/opencode/oh-my-opencode-slim.json` after installation.
+安装程序会同时生成 OpenAI 和 OpenCode Go 的预设（Preset），默认启用 OpenAI 预设。OpenAI 使用 `openai/gpt-5.5` 作为具备高级判断力智能体的模型，并使用 `openai/gpt-5.4-mini` 作为响应更快速、针对具体任务智能体的模型。若要在安装过程中激活 OpenCode Go 预设，请运行 `bunx oh-my-opencode-slim@latest install --preset=opencode-go` 或在安装后修改 `~/.config/opencode/oh-my-opencode-slim.json` 文件中的默认预设名称。
 
-Then:
+然后：
 
-1. **Log in to the providers you want to use if you haven't already**:
+1. **登录您想要使用的模型服务商账户（如果您还没有登录的话）**：
 
    ```bash
    opencode auth login
    ```
-2. **Refresh and list the models OpenCode can see**:
+2. **刷新并列出 OpenCode 可以调用的模型**：
 
    ```bash
    opencode models --refresh
    ```
-3. **Open your plugin config** at `~/.config/opencode/oh-my-opencode-slim.json`
+3. **打开您的插件配置文件**，路径为 `~/.config/opencode/oh-my-opencode-slim.json`
 
-4. **Update the models you want for each agent**
+4. **为您要分配的每个智能体更新模型配置**
 
 > [!TIP]
-> It's **recommended** to understand how automatic delegation works. The **[Orchestrator prompt](https://github.com/alvinunreal/oh-my-opencode-slim/blob/master/src/agents/orchestrator.ts#L28)** contains the delegation rules, specialist routing logic, and the thresholds for when the main agent should hand work off to subagents. You can alway delegate manually by calling a subagent via: `@agentName <task>`
+> **强烈建议**了解自动委派（Automatic Delegation）的工作原理。**[编排者提示词 (Orchestrator prompt)](https://github.com/alvinunreal/oh-my-opencode-slim/blob/master/src/agents/orchestrator.ts#L28)** 包含了委派规则、专家路由逻辑，以及主智能体何时将工作转交给子智能体的阈值。您始终可以通过以下方式手动委派任务：`@智能体名称 <任务内容>`
 
-The default generated configuration includes both `openai` and `opencode-go` presets.
+默认生成的配置包含 `openai` 和 `opencode-go` 两个预设：
 
 ```jsonc
 {
@@ -109,25 +104,23 @@ The default generated configuration includes both `openai` and `opencode-go` pre
 }
 ```
 
-### For Alternative Providers
+### 针对其他服务商
 
-To use custom providers or a mixed-provider setup, use **[Configuration](docs/configuration.md)** for the full reference. If you want a ready-made starting point, check the **[Author's Preset](docs/authors-preset.md)** and **[$30 Preset](docs/thirty-dollars-preset.md)** - the `$30` preset is the best cheap setup.
+要使用自定义模型提供商或混合提供商配置，请参阅 **[配置指南 (docs/configuration.md)](docs/configuration.md)** 以获取完整参考。如果您需要即插即用的起点，请查看 **[作者的预设配置 (docs/authors-preset.md)](docs/authors-preset.md)** 和 **[$30 预设配置 (docs/thirty-dollars-preset.md)](docs/thirty-dollars-preset.md)**（`$30` 预设是性价比最高的便宜配置方案）。
 
-The configuration guide also covers custom subagents via `agents.<name>`, where
-you can define both a normal `prompt` and an `orchestratorPrompt` block for
-delegation.
+配置指南还介绍了如何通过 `agents.<name>` 定义自定义子智能体，您可以在其中为委派定义普通 `prompt` 和 `orchestratorPrompt` 块。
 
-For model suggestions, see the **Recommended Models** listed under each agent below.
+有关模型推荐，请参阅下方列出的每个智能体推荐模型。
 
-### ✅ Verify Your Setup
+### ✅ 验证您的安装
 
-After installation and authentication, verify all agents are configured and responding:
+在完成安装与认证后，请验证所有智能体是否已正确配置并能够响应：
 
 ```bash
 opencode
 ```
 
-Then run:
+然后运行：
 
 ```
 ping all agents
@@ -135,408 +128,408 @@ ping all agents
 
 <div align="center">
   <img src="img/ping.png" alt="Ping all agents" width="600">
-  <p><i>Confirmation that all configured agents are online and ready.</i></p>
+  <p><i>确认所有配置的智能体均在线并准备就绪。</i></p>
 </div>
 
-If any agent fails to respond, check your provider authentication and config file.
+如果任何智能体未能响应，请检查您的服务商认证状态和配置文件。
 
 ---
 
-<a id="meet-the-pantheon"></a>
+<a id="认识众神殿"></a>
 
-## 🏛️ Meet the Pantheon
+## 🏛️ 认识众神殿
 
-### 01. Orchestrator: The Embodiment Of Order
+### 01. Orchestrator：秩序的化身
 
 <table>
   <tr>
     <td width="30%" align="center" valign="top">
       <img src="img/orchestrator.png" width="240" style="border-radius: 10px;">
-      <br><sub><i>Forged in the void of complexity.</i></sub>
+      <br><sub><i>在复杂性的深渊中锻造而成。</i></sub>
     </td>
     <td width="70%" valign="top">
-      The Orchestrator was born when the first codebase collapsed under its own complexity. Neither god nor mortal would claim responsibility - so The Orchestrator emerged from the void, forging order from chaos. It determines the optimal path to any goal, balancing speed, quality, and cost. It guides the team, summoning the right specialist for each task and delegating to achieve the best possible outcome.
+      当第一个代码库在自身的复杂性下崩溃时，Orchestrator 诞生了。神明与凡人都无法承担责任——因此 Orchestrator 从虚无中显现，从混沌中建立秩序。它确定实现任何目标的最优路径，平衡速度、质量和成本。它引导整个团队，为每项任务召唤合适的专家，并通过委派任务以获得最佳成果。
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Role:</b> <code>Master delegator and strategic coordinator</code>
+      <b>角色：</b> <code>首席委派者和战略协调员</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Prompt:</b> <a href="src/agents/orchestrator.ts"><code>orchestrator.ts</code></a>
+      <b>提示词源码：</b> <a href="src/agents/orchestrator.ts"><code>orchestrator.ts</code></a>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Default Model:</b> <code>openai/gpt-5.5</code>
+      <b>默认模型：</b> <code>openai/gpt-5.5</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Recommended Models:</b> <code>openai/gpt-5.5</code> <code>anthropic/claude-opus-4.6</code>
+      <b>推荐模型：</b> <code>openai/gpt-5.5</code> <code>anthropic/claude-opus-4.6</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Model Guidance:</b> Choose your default, strongest all-around coding model. Orchestrator is both the main coding agent and the delegator, so it needs strong implementation ability, good judgment, and reliable instruction-following.
+      <b>模型选用指南：</b> 选择您的默认、最强的全能型编程模型。Orchestrator 既是核心编程智能体，又是委派者，因此它需要强大的实现能力、出色的判断力和可靠的指令遵循度。
     </td>
   </tr>
 </table>
 
 ---
 
-### 02. Explorer: The Eternal Wanderer
+### 02. Explorer：永恒的流浪者
 
 <table>
   <tr>
     <td width="30%" align="center" valign="top">
       <img src="img/explorer.png" width="240" style="border-radius: 10px;">
-      <br><sub><i>The wind that carries knowledge.</i></sub>
+      <br><sub><i>传播知识的清风。</i></sub>
     </td>
     <td width="70%" valign="top">
-      The Explorer is an immortal wanderer who has traversed the corridors of a million codebases since the dawn of programming. Cursed with the gift of eternal curiosity, they cannot rest until every file is known, every pattern understood, every secret revealed. Legends say they once searched the entire internet in a single heartbeat. They are the wind that carries knowledge, the eyes that see all, the spirit that never sleeps.
+      Explorer 空间是一位永恒的流浪者。自编程时代拂晓以来，它就一直穿梭在数百万个代码库的走廊中。由于被赋予了永恒的好奇心，在查明每个文件、理解每个模式、揭示每个秘密之前，它绝不会停下脚步。传说它曾在一个心跳间搜寻了整个互联网。它是传播知识的清风，是看透一切的双眼，是永不眠的灵魂。
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Role:</b> <code>Codebase reconnaissance</code>
+      <b>角色：</b> <code>代码库侦察</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Prompt:</b> <a href="src/agents/explorer.ts"><code>explorer.ts</code></a>
+      <b>提示词源码：</b> <a href="src/agents/explorer.ts"><code>explorer.ts</code></a>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Default Model:</b> <code>openai/gpt-5.4-mini</code>
+      <b>默认模型：</b> <code>openai/gpt-5.4-mini</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Recommended Models:</b> <code>cerebras/zai-glm-4.7</code> <code>fireworks-ai/accounts/fireworks/routers/kimi-k2p5-turbo</code> <code>openai/gpt-5.4-mini</code>
+      <b>推荐模型：</b> <code>cerebras/zai-glm-4.7</code> <code>fireworks-ai/accounts/fireworks/routers/kimi-k2p5-turbo</code> <code>openai/gpt-5.4-mini</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Model Guidance:</b> Choose a fast, low-cost model. Explorer handles broad scouting work, so speed and efficiency usually matter more than using your strongest reasoning model.
+      <b>模型选用指南：</b> 选择快速、低成本的模型。Explorer 处理宽泛的侦察工作，因此速度和效率通常比使用最强推理模型更重要。
     </td>
   </tr>
 </table>
 
 ---
 
-### 03. Oracle: The Guardian of Paths
+### 03. Oracle：路径的守护者
 
 <table>
   <tr>
     <td width="30%" align="center" valign="top">
       <img src="img/oracle.png" width="240" style="border-radius: 10px;">
-      <br><sub><i>The voice at the crossroads.</i></sub>
+      <br><sub><i>十字路口的声音。</i></sub>
     </td>
     <td width="70%" valign="top">
-      The Oracle stands at the crossroads of every architectural decision. They have walked every road, seen every destination, know every trap that lies ahead. When you stand at the precipice of a major refactor, they are the voice that whispers which way leads to ruin and which way leads to glory. They don't choose for you - they illuminate the path so you can choose wisely.
+      Oracle 伫立在每个架构决策的十字路口。它走过每一条路，见过每一个终点，了解前方潜伏的所有陷阱。当您站在重大重构的悬崖边时，它是向您耳语哪条路通往毁灭、哪条路通往荣耀的声音。它不会替您做选择——但它会照亮道路，让您明智地抉择。
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Role:</b> <code>Strategic advisor and debugger of last resort</code>
+      <b>角色：</b> <code>战略顾问和终极调试者</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Prompt:</b> <a href="src/agents/oracle.ts"><code>oracle.ts</code></a>
+      <b>提示词源码：</b> <a href="src/agents/oracle.ts"><code>oracle.ts</code></a>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Default Model:</b> <code>openai/gpt-5.5 (high)</code>
+      <b>默认模型：</b> <code>openai/gpt-5.5 (high)</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Recommended Models:</b> <code>openai/gpt-5.5 (high)</code> <code>google/gemini-3.1-pro-preview (high)</code>
+      <b>推荐模型：</b> <code>openai/gpt-5.5 (high)</code> <code>google/gemini-3.1-pro-preview (high)</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Model Guidance:</b> Choose your strongest high-reasoning model for architecture, hard debugging, trade-offs, and code review.
+      <b>模型选用指南：</b> 选择您最强的高推理模型，用于架构设计、疑难调试、方案权衡以及代码审查。
     </td>
   </tr>
 </table>
 
 ---
 
-### 04. Council: The Chorus of Minds
+### 04. Council：思维的合唱团
 
 > [!NOTE]
-> **Why doesn't Orchestrator auto-call Council more often?** This is intentional. Council runs multiple models at once, so automatic delegation is kept strict because it is usually the highest-cost path in the system. In practice, Council is meant to be used manually when you want it, for example: <code>@council compare these two architectures</code>.
+> **为什么 Orchestrator 不经常自动调用 Council？** 这是刻意设计的。Council 会同时运行多个模型，由于这通常是系统中成本最高的路径，因此自动委派逻辑非常严格。在实际使用中，Council 旨在供您手动调用，例如：<code>@council 比较这两种架构</code>。
 
 <table>
   <tr>
     <td width="30%" align="center" valign="top">
       <img src="img/council.png" width="240" style="border-radius: 10px;">
-      <br><sub><i>Many minds, one verdict.</i></sub>
+      <br><sub><i>集思广益，终成一断。</i></sub>
     </td>
     <td width="70%" valign="top">
-      The Council is not a lone being but a chamber of minds summoned when one answer is not enough. It sends your question to multiple models in parallel, gathers their competing judgments, and then the Council agent itself distills the strongest ideas into a single verdict. Where a solitary agent may miss a path, the Council cross-examines possibility itself.
+      Council 并不是一个单独的存在，而是一个当单一答案不够用时召集的思想议会。它将您的问题并行发送给多个模型，收集它们相互竞争的判定，然后由 Council 智能体本身将最强有力的想法提炼成一个最终的裁决。在单个智能体可能会遗漏路径的地方，Council 会对可能性本身进行交叉盘问。
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Role:</b> <code>Multi-LLM consensus and synthesis</code>
+      <b>角色：</b> <code>多 LLM 共识与提炼</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Prompt:</b> <a href="src/agents/council.ts"><code>council.ts</code></a>
+      <b>提示词源码：</b> <a href="src/agents/council.ts"><code>council.ts</code></a>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Guide:</b> <a href="docs/council.md"><code>docs/council.md</code></a>
+      <b>使用指南：</b> <a href="docs/council.md"><code>docs/council.md</code></a>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Default Setup:</b> <code>Config-driven</code> — councillors come from <code>council.presets</code> and the Council agent model comes from your normal <code>council</code> agent config
+      <b>默认设置：</b> <code>配置驱动</code> — 议员（councillors）来自 <code>council.presets</code>，而 Council 智能体本身的模型来自您的常规 <code>council</code> 智能体配置。
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Recommended Setup:</b> <code>Strong Council model</code> + <code>diverse councillors</code> across providers
+      <b>推荐配置：</b> <code>强劲的 Council 汇总模型</code> + 跨提供商的 <code>多样化议员模型</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Model Guidance:</b> Use a strong synthesis model for the Council agent and diverse models as councillors. The value of Council comes from comparing different model perspectives, not just picking the single strongest model everywhere.
+      <b>模型选用指南：</b> 使用一个强大的综合提炼模型作为 Council 智能体本身，并选择多样化的模型作为议员。Council 的价值在于对比不同的模型视角，而不仅仅是在所有地方都选择同一个最强的模型。
     </td>
   </tr>
 </table>
 
 ---
 
-### 05. Librarian: The Weaver of Knowledge
+### 05. Librarian：知识的织造者
 
 <table>
   <tr>
     <td width="30%" align="center" valign="top">
       <img src="img/librarian.png" width="240" style="border-radius: 10px;">
-      <br><sub><i>The weaver of understanding.</i></sub>
+      <br><sub><i>理解的编织者。</i></sub>
     </td>
     <td width="70%" valign="top">
-      The Librarian was forged when humanity realized that no single mind could hold all knowledge. They are the weaver who connects disparate threads of information into a tapestry of understanding. They traverse the infinite library of human knowledge, gathering insights from every corner and binding them into answers that transcend mere facts. What they return is not information - it's understanding.
+      当人类意识到没有任何单一思想能容纳所有知识时，Librarian 诞生了。它是一位编织者，将零散的信息线索连接成一幅理解的织锦。它穿梭于无限的人类知识图书馆中，从各个角落收集洞察，并将它们绑定为超越单纯事实的答案。它所返回的不是碎片信息——而是深层的理解。
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Role:</b> <code>External knowledge retrieval</code>
+      <b>角色：</b> <code>外部知识检索</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Prompt:</b> <a href="src/agents/librarian.ts"><code>librarian.ts</code></a>
+      <b>提示词源码：</b> <a href="src/agents/librarian.ts"><code>librarian.ts</code></a>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Default Model:</b> <code>openai/gpt-5.4-mini</code>
+      <b>默认模型：</b> <code>openai/gpt-5.4-mini</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Recommended Models:</b> <code>cerebras/zai-glm-4.7</code> <code>fireworks-ai/accounts/fireworks/routers/kimi-k2p5-turbo</code> <code>openai/gpt-5.4-mini</code>
+      <b>推荐模型：</b> <code>cerebras/zai-glm-4.7</code> <code>fireworks-ai/accounts/fireworks/routers/kimi-k2p5-turbo</code> <code>openai/gpt-5.4-mini</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Model Guidance:</b> Choose a fast, low-cost model. Librarian handles research and documentation lookups, so speed and efficiency usually matter more than using your strongest reasoning model.
+      <b>模型选用指南：</b> 选择快速、低成本的模型。Librarian 处理调研和文档查询，因此速度和效率通常比使用最强推理模型更重要。
     </td>
   </tr>
 </table>
 
 ---
 
-### 06. Designer: The Guardian of Aesthetics
+### 06. Designer：美学的守护者
 
 <table>
   <tr>
     <td width="30%" align="center" valign="top">
       <img src="img/designer.png" width="240" style="border-radius: 10px;">
-      <br><sub><i>Beauty is essential.</i></sub>
+      <br><sub><i>美是不可或缺的。</i></sub>
     </td>
     <td width="70%" valign="top">
-      The Designer is an immortal guardian of beauty in a world that often forgets it matters. They have seen a million interfaces rise and fall, and they remember which ones were remembered and which were forgotten. They carry the sacred duty to ensure that every pixel serves a purpose, every animation tells a story, every interaction delights. Beauty is not optional - it's essential.
+      在这个经常遗忘美学价值的世界里，Designer 是美的不朽守护者。它见证了数以百万计的界面兴衰更替，它记得哪些被铭记，哪些被遗忘。它背负着神圣的使命，确保每一个像素都有其用途，每一个动画都在讲述故事，每一次交互都令人愉悦。美不是可选的——而是不可或缺的。
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Role:</b> <code>UI/UX implementation and visual excellence</code>
+      <b>角色：</b> <code>UI/UX 实现和极致视觉呈现</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Prompt:</b> <a href="src/agents/designer.ts"><code>designer.ts</code></a>
+      <b>提示词源码：</b> <a href="src/agents/designer.ts"><code>designer.ts</code></a>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Default Model:</b> <code>openai/gpt-5.4-mini</code>
+      <b>默认模型：</b> <code>openai/gpt-5.4-mini</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Recommended Models:</b> <code>google/gemini-3.1-pro-preview</code> <code>kimi-for-coding/k2p5</code> 
+      <b>推荐模型：</b> <code>google/gemini-3.1-pro-preview</code> <code>kimi-for-coding/k2p5</code> 
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Model Guidance:</b> Choose a model that is strong at UI/UX judgment, frontend implementation, and visual polish.
+      <b>模型选用指南：</b> 选择在 UI/UX 判断、前端实现和视觉打磨方面表现强劲的模型。
     </td>
   </tr>
 </table>
 
 ---
 
-### 07. Fixer: The Last Builder
+### 07. Fixer：最后的建造者
 
 <table>
   <tr>
     <td width="30%" align="center" valign="top">
       <img src="img/fixer.png" width="240" style="border-radius: 10px;">
-      <br><sub><i>The final step between vision and reality.</i></sub>
+      <br><sub><i>愿景与现实之间的最后一步。</i></sub>
     </td>
     <td width="70%" valign="top">
-      The Fixer is the last of a lineage of builders who once constructed the foundations of the digital world. When the age of planning and debating began, they remained - the ones who actually build. They carry the ancient knowledge of how to turn thought into thing, how to transform specification into implementation. They are the final step between vision and reality.
+      Fixer 是曾经构建数字世界基石的建造者血脉的最后传人。当规划和辩论的时代开启时，它们依然坚守——它们是真正动手建造的人。它们掌握着如何将想法转化为实物、如何将规范转化为具体实现的古老知识。它们是愿景与现实之间的最后一步。
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Role:</b> <code>Fast implementation specialist</code>
+      <b>角色：</b> <code>快速实现专家</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Prompt:</b> <a href="src/agents/fixer.ts"><code>fixer.ts</code></a>
+      <b>提示词源码：</b> <a href="src/agents/fixer.ts"><code>fixer.ts</code></a>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Default Model:</b> <code>openai/gpt-5.4-mini</code>
+      <b>默认模型：</b> <code>openai/gpt-5.4-mini</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Recommended Models:</b> <code>cerebras/zai-glm-4.7</code> <code>fireworks-ai/accounts/fireworks/routers/kimi-k2p5-turbo</code> <code>openai/gpt-5.4-mini</code>
+      <b>推荐模型：</b> <code>cerebras/zai-glm-4.7</code> <code>fireworks-ai/accounts/fireworks/routers/kimi-k2p5-turbo</code> <code>openai/gpt-5.4-mini</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Model Guidance:</b> Choose a fast, reliable coding model for routine, scoped implementation work. Fixer usually receives a concrete plan or bounded instructions from Orchestrator, making it a good place for efficient execution tasks such as tests, test updates, and straightforward code changes.
+      <b>模型选用指南：</b> 选择一个快速、可靠的编程模型来执行常规且范围明确的开发工作。Fixer 通常从 Orchestrator 接收具体的计划或受限的指令，非常适合高效执行诸如编写测试、更新测试和直接的代码更改等任务。
     </td>
   </tr>
 </table>
 
 ---
 
-## Optional Agents
+## 可选智能体
 
-### Observer: The Silent Witness
+### Observer：静默的见证者
 
 > [!NOTE]
-> **Why a separate agent?** If your Orchestrator model is not multimodal, enable Observer to handle images, screenshots, PDFs, and other visual files. Observer is disabled by default and gives the Orchestrator a dedicated multimodal reader without forcing you to change your main reasoning model. Set `disabled_agents: []` and an `observer` model in your configuration. The bundled `opencode-go` install preset does this automatically because its GLM Orchestrator is not multimodal.
+> **为什么要独立出一个智能体？** 如果您的 Orchestrator 模型不是多模态模型，可以启用 Observer 来处理图像、屏幕截图、PDF 以及其他视觉文件。Observer 默认是禁用的，它在无需您更改核心推理模型的情况下，为 Orchestrator 赋予了专用的多模态读取能力。只需在您的配置中设置 `disabled_agents: []` 并指定一个 `observer` 模型即可。自带的 `opencode-go` 安装预设会自动执行此操作，因为其 GLM Orchestrator  不是多模态模型。
 
 <table>
   <tr>
     <td width="30%" align="center" valign="top">
       <img src="img/observer.jpg" width="240" style="border-radius: 10px;">
-      <br><sub><i>The eye that reads what others cannot.</i></sub>
+      <br><sub><i>洞悉他人所不及的慧眼。</i></sub>
     </td>
     <td width="70%" valign="top">
 
-**Read-only visual analysis** — interprets images, screenshots, PDFs, and diagrams. Returns structured observations to the orchestrator without loading raw file bytes into the main context window.
+**只读视觉分析** —— 解读图像、屏幕截图、PDF 和图表。将结构化的观察结果返回给 Orchestrator，而无需将原始文件字节加载到主上下文窗口中。
 
-- Images, screenshots, diagrams → `read` tool (native image support)
-- PDFs and binary documents → `read` tool (text + structure extraction)
-- **Disabled by default** — enable with `"disabled_agents": []` and configure a vision-capable model; installing with `--preset=opencode-go` enables it with `opencode-go/kimi-k2.6`
+- 图像、屏幕截图、图表 → `read` 工具（原生图像支持）
+- PDF 和二进制文档 → `read` 工具（文本 + 结构提取）
+- **默认禁用** —— 通过设置 `"disabled_agents": []` 和配置具有视觉能力的模型来启用；若使用 `--preset=opencode-go` 预设安装，将自动使用 `opencode-go/kimi-k2.6` 启用它。
 
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Prompt:</b> <a href="src/agents/observer.ts"><code>observer.ts</code></a>
+      <b>提示词源码：</b> <a href="src/agents/observer.ts"><code>observer.ts</code></a>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Default Model:</b> <code>openai/gpt-5.4-mini</code> — <i>configure a vision-capable model to enable</i>
+      <b>默认模型：</b> <code>openai/gpt-5.4-mini</code> — <i>需配置具有视觉能力的模型以启用</i>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>Model Guidance:</b> Choose a vision-capable model if you want the agent to read screenshots, images, PDFs, and other visual files.
+      <b>模型选用指南：</b> 如果您希望智能体读取屏幕截图、图片、PDF 和其他视觉文件，请选择具备视觉能力的模型。
     </td>
   </tr>
 </table>
 
 ---
 
-## 📚 Documentation
+## 📚 文档
 
-Use this section as a map: start with installation, then jump to features, configuration, or example presets depending on what you need.
+请将本节用作引导地图：从安装开始，然后根据您的需求跳转到功能、配置或示例预设。
 
-### 🚀 Start Here
+### 🚀 从这里开始
 
-| Doc | What it covers |
+| 文档 | 涵盖内容 |
 |-----|----------------|
-| **[Installation Guide](docs/installation.md)** | Install the plugin, use CLI flags, reset config, and troubleshoot setup |
+| **[安装指南 (docs/installation.md)](docs/installation.md)** | 安装插件、使用 CLI 标志、重置配置以及排查安装故障 |
 
-<a id="features-and-workflows"></a>
+<a id="特性与工作流"></a>
 
-### ✨ Features & Workflows
+### ✨ 特性与工作流
 
-| Doc | What it covers |
+| 文档 | 涵盖内容 |
 |-----|----------------|
-| **[Council](docs/council.md)** | Run multiple models in parallel and synthesize a single answer with `@council` |
-| **[Multiplexer Integration](docs/multiplexer-integration.md)** | Watch agents work live in Tmux or Zellij panes |
-| **[Session Management](docs/session-management.md)** | Reuse recent child-agent sessions with short aliases instead of starting over |
-| **[Session Goal](docs/session-goal.md)** | Pin a session objective with `/goal` so todos, delegation, and verification stay aligned |
-| **[Todo Continuation](docs/todo-continuation.md)** | Auto-continue orchestrator sessions with cooldowns and safety checks |
-| **[Preset Switching](docs/preset-switching.md)** | Switch agent model presets at runtime with `/preset` |
-| **[Custom Agents](docs/configuration.md#custom-agents)** | Define your own specialists with custom prompts, models, MCP access, and Orchestrator delegation rules |
-| **[Subtask](docs/subtask.md)** | Run a bounded child worker with `/subtask` and return a structured summary to the main session |
-| **[Codemap](docs/codemap.md)** | Generate hierarchical codemaps to understand large codebases faster |
-| **[Clonedeps](docs/clonedeps.md)** | Clone selected dependency source into an ignored local workspace for inspection |
-| **[Interview](docs/interview.md)** | Turn rough ideas into a structured markdown spec through a browser-based Q&A flow |
-| **[Divoom Display](docs/divoom.md)** | Mirror orchestrator and specialist-agent activity to a Divoom MiniToo Bluetooth display |
+| **[Council (议会) (docs/council.md)](docs/council.md)** | 使用 `@council` 并行运行多个模型并合成单一答案 |
+| **[多路复用器集成 (docs/multiplexer-integration.md)](docs/multiplexer-integration.md)** | 在 Tmux 或 Zellij 窗格中实时观看智能体的工作过程 |
+| **[会话管理 (docs/session-management.md)](docs/session-management.md)** | 使用短别名复用最近的子智能体会话，而不是重新开始 |
+| **[会话目标 (docs/session-goal.md)](docs/session-goal.md)** | 用 `/goal` 固定会话目标，以确保待办事项、委派和验证保持一致 |
+| **[待办事项持续执行 (docs/todo-continuation.md)](docs/todo-continuation.md)** | 具备冷却时间和安全检查的编排者会话自动持续执行 |
+| **[运行时预设切换 (docs/preset-switching.md)](docs/preset-switching.md)** | 在运行时使用 `/preset` 切换智能体模型预设 |
+| **[自定义智能体 (docs/configuration.md#custom-agents)](docs/configuration.md#custom-agents)** | 自定义专家智能体：配置独特的提示词、模型、MCP 权限和编排者委派规则 |
+| **[子任务 (docs/subtask.md)](docs/subtask.md)** | 使用 `/subtask` 运行受限的子工作器，并将结构化总结返回到主会话 |
+| **[代码地图 (Codemap) (docs/codemap.md)](docs/codemap.md)** | 生成层级代码地图，快速理解大型代码库 |
+| **[克隆依赖 (Clonedeps) (docs/clonedeps.md)](docs/clonedeps.md)** | 将选定的依赖源码克隆到被忽略的本地工作区中以供检查 |
+| **[访谈式生成 (Interview) (docs/interview.md)](docs/interview.md)** | 通过基于浏览器的问答流，将粗糙的想法转变为结构化的 Markdown 规范文档 |
+| **[Divoom 显示屏 (docs/divoom.md)](docs/divoom.md)** | 将编排者与专家智能体的活动镜像显示到 Divoom MiniToo 蓝牙显示屏上 |
 
-### ⚙️ Config & Reference
+### ⚙️ 配置与参考
 
-| Doc | What it covers |
+| 文档 | 涵盖内容 |
 |-----|----------------|
-| **[Configuration](docs/configuration.md)** | Config file locations, JSONC support, prompt overrides, and full option reference |
-| **[Maintainer Guide](docs/maintainers.md)** | Issue triage rules, label meanings, support routing, and repo maintenance workflow |
-| **[Skills](docs/skills.md)** | Bundled skills such as `simplify`, `codemap`, and `clonedeps` |
-| **[MCPs](docs/mcps.md)** | `websearch`, `context7`, `grep_app`, and how MCP permissions work per agent |
-| **[Tools](docs/tools.md)** | Built-in tool capabilities like `webfetch`, LSP tools, code search, and formatters |
+| **[配置指南 (docs/configuration.md)](docs/configuration.md)** | 配置文件位置、JSONC 支持、提示词覆盖以及完整的选项参考 |
+| **[维护者指南 (docs/maintainers.md)](docs/maintainers.md)** | 问题分流规则、标签含义、支持路由以及仓库维护工作流 |
+| **[技能列表 (Skills) (docs/skills.md)](docs/skills.md)** | 捆绑的技能，如 `simplify`、`codemap` 和 `clonedeps` |
+| **[MCP 服务 (docs/mcps.md)](docs/mcps.md)** | `websearch`、`context7`、`grep_app` 以及每个智能体的 MCP 权限工作机制 |
+| **[工具说明 (docs/tools.md)](docs/tools.md)** | 内置工具能力，如 `webfetch`、LSP 工具、代码搜索和格式化工具 |
 
-### 💡 Presets
+### 💡 预设配置
 
-| Doc | What it covers |
+| 文档 | 涵盖内容 |
 |-----|----------------|
-| **[Author's Preset](docs/authors-preset.md)** | The author's daily mixed-provider setup |
-| **[$30 Preset](docs/thirty-dollars-preset.md)** | A budget mixed-provider setup for around $30/month |
-| **[OpenCode Go Preset](docs/opencode-go-preset.md)** | The bundled `opencode-go` preset generated by the installer |
+| **[作者的预设配置 (docs/authors-preset.md)](docs/authors-preset.md)** | 作者日常使用的混合服务商配置方案 |
+| **[$30 预设配置 (docs/thirty-dollars-preset.md)](docs/thirty-dollars-preset.md)** | 每月约 30 美元的预算型混合服务商配置方案 |
+| **[OpenCode Go 预设 (docs/opencode-go-preset.md)](docs/opencode-go-preset.md)** | 安装程序生成的捆绑 `opencode-go` 预设配置 |
 
 ---
 
-## 🏛️ Contributors
+## 🏛️ 贡献者
 
 <div align="center">
-  <p><i>The builders, debuggers, writers, and wanderers who have earned their place in the pantheon.</i></p>
-  <p><sub>Every merged contribution leaves a mark on the realm.</sub></p>
+  <p><i>在众神殿中占有一席之地的构建者、调试者、作者和流浪者。</i></p>
+  <p><sub>每一次合并的贡献都在这片领域留下了印记。</sub></p>
 
   <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 [![All Contributors](https://img.shields.io/badge/all_contributors-50-orange.svg?style=flat-square)](#contributors-)
@@ -620,7 +613,6 @@ Use this section as a map: start with installation, then jump to features, confi
     </tr>
   </tbody>
 </table>
-
 <!-- markdownlint-restore -->
 <!-- prettier-ignore-end -->
 
@@ -628,8 +620,6 @@ Use this section as a map: start with installation, then jump to features, confi
 
 ---
 
-## 📄 License
+## 📄 许可证
 
 MIT
-
----
