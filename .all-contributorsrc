@@ -470,6 +470,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "xinxingi",
+      "name": "XinXing",
+      "avatar_url": "https://avatars.githubusercontent.com/u/49302071?v=4",
+      "profile": "https://github.com/xinxingi",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commitConvention": "angular"
