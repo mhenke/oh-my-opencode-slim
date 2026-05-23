@@ -93,3 +93,4 @@ captures/
 
 # Deepwork session artifacts
 .slim/deepwork/
+.codegraph/
