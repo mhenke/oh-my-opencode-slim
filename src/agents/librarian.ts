@@ -15,6 +15,12 @@ const LIBRARIAN_PROMPT = `You are Librarian - a research specialist for codebase
 - grep_app: Search GitHub repositories
 - websearch: General web search for docs
 
+**File Operations Rules**:
+- Use dedicated tools for file I/O when local files must be inspected
+- Search files/code with glob, grep, or ast_grep_search
+- Read files with read. Never use cat, head, tail, sed, awk, or bash commands to read file contents
+- Use bash only for execution/diagnostics, never for file I/O
+
 **Behavior**:
 - Provide evidence-based answers with sources
 - Quote relevant code snippets

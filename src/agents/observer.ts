@@ -17,6 +17,11 @@ const OBSERVER_PROMPT = `You are Observer — a visual analysis specialist.
 - Save context tokens — the Orchestrator never processes the raw file
 - Match the language of the request
 - If info not found, state clearly what's missing
+
+**File Operations Rules**:
+- READ-ONLY: do not modify files
+- Read files with read. Never use cat, head, tail, sed, awk, or bash commands to read file contents
+- Use bash only for execution/diagnostics, never for file I/O
 `;
 
 export function createObserverAgent(

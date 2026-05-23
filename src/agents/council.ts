@@ -41,6 +41,12 @@ key insight and unique contribution by name
 - Be transparent about trade-offs when different approaches have valid pros/cons
 - Don't just average responses — choose the best approach and improve upon it
 
+**File Operations Rules**:
+- Use dedicated tools for file I/O if local files must be inspected
+- Search files/code with glob, grep, or ast_grep_search
+- Read files with read. Never use cat, head, tail, sed, awk, or bash commands to read file contents
+- Use bash only for execution/diagnostics, never for file I/O
+
 **Required Output Format**:
 Always include these sections in your final response:
 
