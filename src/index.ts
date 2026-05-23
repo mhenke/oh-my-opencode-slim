@@ -254,12 +254,14 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
     mcps = createBuiltinMcps(config.disabled_mcps, config.websearch);
     webfetch = createWebfetchTool(ctx);
+    backgroundJobBoard = new BackgroundJobBoard();
 
     // Initialize MultiplexerSessionManager to handle OpenCode's built-in
     // Task tool sessions
     multiplexerSessionManager = new MultiplexerSessionManager(
       ctx,
       multiplexerConfig,
+      backgroundJobBoard,
     );
 
     // Initialize auto-update checker hook
@@ -298,8 +300,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       config.fallback?.enabled !== false &&
         Object.keys(runtimeChains).length > 0,
     );
-
-    backgroundJobBoard = new BackgroundJobBoard();
 
     // Initialize todo-continuation hook (opt-in auto-continue for
     // incomplete todos)

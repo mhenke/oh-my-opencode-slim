@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { BackgroundJobBoard } from '../utils/background-job-board';
 import {
   MultiplexerSessionManager,
   resetMultiplexerSessionManagerState,
@@ -390,31 +391,6 @@ describe('MultiplexerSessionManager', () => {
       expect(mockMultiplexer.closePane).not.toHaveBeenCalled();
     });
 
-    test('does not close missing session that was never seen in status', async () => {
-      const ctx = createMockContext();
-      mockMultiplexer.spawnPane.mockResolvedValue({
-        success: true,
-        paneId: 'p-never-seen',
-      });
-      const manager = new MultiplexerSessionManager(
-        ctx,
-        defaultMultiplexerConfig,
-      );
-
-      await manager.onSessionCreated({
-        type: 'session.created',
-        properties: { info: { id: 'never-seen', parentID: 'p1' } },
-      });
-
-      const tracked = (manager as any).sessions.get('never-seen');
-      tracked.missingSince = Date.now() - 60_000;
-
-      setMockSessionStatuses({});
-      await (manager as any).pollSessions();
-
-      expect(mockMultiplexer.closePane).not.toHaveBeenCalled();
-    });
-
     test('keeps background child pane open while status is running until deleted', async () => {
       const ctx = createMockContext();
       const manager = new MultiplexerSessionManager(
@@ -453,6 +429,120 @@ describe('MultiplexerSessionManager', () => {
       expect(mockMultiplexer.closePane).toHaveBeenCalledWith(
         'p-background-child',
       );
+    });
+
+    test('does not close long-running pane based on age alone', async () => {
+      const ctx = createMockContext();
+      mockMultiplexer.spawnPane.mockResolvedValue({
+        success: true,
+        paneId: 'p-long-running',
+      });
+      const manager = new MultiplexerSessionManager(
+        ctx,
+        defaultMultiplexerConfig,
+      );
+
+      await manager.onSessionCreated({
+        type: 'session.created',
+        properties: { info: { id: 'long-running', parentID: 'p1' } },
+      });
+
+      const tracked = (manager as any).sessions.get('long-running');
+      tracked.createdAt = Date.now() - 11 * 60 * 1000;
+
+      setMockSessionStatuses({ 'long-running': { type: 'running' } });
+      await (manager as any).pollSessions();
+
+      expect(mockMultiplexer.closePane).not.toHaveBeenCalled();
+    });
+
+    test('keeps missing running background job pane open', async () => {
+      const ctx = createMockContext();
+      const board = new BackgroundJobBoard();
+      board.registerLaunch({
+        taskID: 'running-background-job',
+        parentSessionID: 'parent-1',
+        agent: 'explorer',
+      });
+      mockMultiplexer.spawnPane.mockResolvedValue({
+        success: true,
+        paneId: 'p-running-background-job',
+      });
+      const manager = new MultiplexerSessionManager(
+        ctx,
+        defaultMultiplexerConfig,
+        board,
+      );
+
+      await manager.onSessionCreated({
+        type: 'session.created',
+        properties: {
+          info: { id: 'running-background-job', parentID: 'parent-1' },
+        },
+      });
+
+      const tracked = (manager as any).sessions.get('running-background-job');
+      tracked.missingSince = Date.now() - 60_000;
+
+      setMockSessionStatuses({});
+      await (manager as any).pollSessions();
+
+      expect(mockMultiplexer.closePane).not.toHaveBeenCalled();
+    });
+
+    test('closes never-seen pane when no running background job exists', async () => {
+      const ctx = createMockContext();
+      mockMultiplexer.spawnPane.mockResolvedValue({
+        success: true,
+        paneId: 'p-never-seen-orphan',
+      });
+      const manager = new MultiplexerSessionManager(
+        ctx,
+        defaultMultiplexerConfig,
+      );
+
+      await manager.onSessionCreated({
+        type: 'session.created',
+        properties: { info: { id: 'never-seen-orphan', parentID: 'p1' } },
+      });
+
+      const tracked = (manager as any).sessions.get('never-seen-orphan');
+      tracked.missingSince = Date.now() - 60_000;
+
+      setMockSessionStatuses({});
+      await (manager as any).pollSessions();
+
+      expect(mockMultiplexer.closePane).toHaveBeenCalledWith(
+        'p-never-seen-orphan',
+      );
+    });
+
+    test('ignores empty session status response without closing panes', async () => {
+      const ctx = createMockContext();
+      mockMultiplexer.spawnPane.mockResolvedValue({
+        success: true,
+        paneId: 'p-empty-status',
+      });
+      const manager = new MultiplexerSessionManager(
+        ctx,
+        defaultMultiplexerConfig,
+      );
+
+      await manager.onSessionCreated({
+        type: 'session.created',
+        properties: { info: { id: 'empty-status', parentID: 'p1' } },
+      });
+
+      const tracked = (manager as any).sessions.get('empty-status');
+      tracked.seenInStatus = true;
+      tracked.missingSince = Date.now() - 60_000;
+      mockFetch.mockImplementationOnce(
+        async () => new Response('', { status: 200 }),
+      );
+
+      await (manager as any).pollSessions();
+
+      expect(mockMultiplexer.closePane).not.toHaveBeenCalled();
     });
 
     test('keeps missing cleanup for sessions previously seen in status', async () => {

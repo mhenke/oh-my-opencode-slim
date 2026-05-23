@@ -6,6 +6,7 @@ import {
   isServerRunning,
   type Multiplexer,
 } from '../multiplexer';
+import type { BackgroundJobBoard } from '../utils/background-job-board';
 import { log } from '../utils/logger';
 
 interface TrackedSession {
@@ -47,9 +48,8 @@ interface SessionEvent {
   };
 }
 
-type CloseReason = 'idle' | 'deleted' | 'missing' | 'timeout';
+type CloseReason = 'idle' | 'deleted' | 'missing';
 
-const SESSION_TIMEOUT_MS = 10 * 60 * 1000;
 const SESSION_MISSING_GRACE_MS = POLL_INTERVAL_BACKGROUND_MS * 3;
 const SHARED_STATE_KEY = Symbol.for(
   'oh-my-opencode-slim.multiplexer-session-manager.state',
@@ -96,7 +96,11 @@ export class MultiplexerSessionManager {
   private pollInterval?: ReturnType<typeof setInterval>;
   private enabled = false;
 
-  constructor(ctx: PluginInput, config: MultiplexerConfig) {
+  constructor(
+    ctx: PluginInput,
+    config: MultiplexerConfig,
+    private readonly backgroundJobBoard?: BackgroundJobBoard,
+  ) {
     const sharedState = getSharedState();
     this.sessions = sharedState.sessions;
     this.knownSessions = sharedState.knownSessions;
@@ -339,15 +343,27 @@ export class MultiplexerSessionManager {
         }
 
         const missingTooLong =
-          tracked.seenInStatus &&
           !!tracked.missingSince &&
           now - tracked.missingSince >= SESSION_MISSING_GRACE_MS;
-        const isTimedOut = now - tracked.createdAt > SESSION_TIMEOUT_MS;
+        const shouldKeepRunningBackgroundJob =
+          missingTooLong && this.isRunningBackgroundJob(sessionId);
+        if (isIdle || missingTooLong) {
+          if (shouldKeepRunningBackgroundJob) {
+            log(
+              '[multiplexer-session-manager] keeping running background pane',
+              {
+                instanceId: this.instanceId,
+                sessionId,
+                paneId: tracked.paneId,
+                seenInStatus: tracked.seenInStatus,
+              },
+            );
+            continue;
+          }
 
-        if (isIdle || missingTooLong || isTimedOut) {
           sessionsToClose.push({
             sessionId,
-            reason: isIdle ? 'idle' : isTimedOut ? 'timeout' : 'missing',
+            reason: isIdle ? 'idle' : 'missing',
           });
         }
       }
@@ -372,7 +388,16 @@ export class MultiplexerSessionManager {
       );
     }
 
-    return (await response.json()) as Record<string, { type: string }>;
+    const body = await response.text();
+    if (body.trim() === '') {
+      throw new Error('session status response was empty');
+    }
+
+    try {
+      return JSON.parse(body) as Record<string, { type: string }>;
+    } catch (err) {
+      throw new Error(`session status response was not valid JSON: ${err}`);
+    }
   }
 
   private async closeSession(
@@ -538,6 +563,10 @@ export class MultiplexerSessionManager {
 
   private getSessionId(event: SessionEvent): string | undefined {
     return event.properties?.info?.id ?? event.properties?.sessionID;
+  }
+
+  private isRunningBackgroundJob(sessionId: string): boolean {
+    return this.backgroundJobBoard?.get(sessionId)?.state === 'running';
   }
 
   async cleanup(): Promise<void> {
