@@ -69,7 +69,7 @@ describe('deepwork command hook', () => {
     const output = { parts: [{ type: 'text', text: 'template' }] };
 
     await hook.handleCommandExecuteBefore(
-      { command: 'goal', sessionID: 's1', arguments: 'x' },
+      { command: 'preset', sessionID: 's1', arguments: 'x' },
       output,
     );
 

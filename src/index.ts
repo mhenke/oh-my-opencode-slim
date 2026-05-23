@@ -23,7 +23,6 @@ import {
   createDeepworkCommandHook,
   createDelegateTaskRetryHook,
   createFilterAvailableSkillsHook,
-  createGoalHook,
   createJsonErrorRecoveryHook,
   createPhaseReminderHook,
   createPostFileToolNudgeHook,
@@ -138,7 +137,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
   let foregroundFallback: ForegroundFallbackManager;
   let todoContinuationHook: ReturnType<typeof createTodoContinuationHook>;
   let deepworkCommandHook: ReturnType<typeof createDeepworkCommandHook>;
-  let goalHook: ReturnType<typeof createGoalHook>;
   let taskSessionManagerHook: ReturnType<typeof createTaskSessionManagerHook>;
   let backgroundJobBoard: BackgroundJobBoard;
   let interviewManager: ReturnType<typeof createInterviewManager>;
@@ -313,9 +311,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       backgroundJobBoard,
     });
     deepworkCommandHook = createDeepworkCommandHook();
-    goalHook = createGoalHook(ctx, config, {
-      getAgentName: (sessionID) => sessionAgentMap.get(sessionID),
-    });
     taskSessionManagerHook = createTaskSessionManagerHook(ctx, {
       maxSessionsPerAgent: config.sessionManager?.maxSessionsPerAgent ?? 2,
       readContextMinLines: config.sessionManager?.readContextMinLines ?? 10,
@@ -744,7 +739,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       }
 
       interviewManager.registerCommand(opencodeConfig);
-      goalHook.registerCommand(opencodeConfig);
       deepworkCommandHook.registerCommand(opencodeConfig);
       presetManager.registerCommand(opencodeConfig);
     },
@@ -806,12 +800,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
       // Todo-continuation: auto-continue orchestrator on incomplete todos
       await todoContinuationHook.handleEvent(input);
-
-      goalHook.handleEvent(
-        input as {
-          event: { type: string; properties?: Record<string, unknown> };
-        },
-      );
 
       // Handle auto-update checking
       await autoUpdateChecker.event(input);
@@ -961,15 +949,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         output as { parts: Array<{ type: string; text?: string }> },
       );
 
-      await goalHook.handleCommandExecuteBefore(
-        input as {
-          command: string;
-          sessionID: string;
-          arguments: string;
-        },
-        output as { parts: Array<{ type: string; text?: string }> },
-      );
-
       await deepworkCommandHook.handleCommandExecuteBefore(
         input as {
           command: string;
@@ -1049,8 +1028,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
             (output.system[0] ? `\n\n${output.system[0]}` : '');
         }
       }
-
-      goalHook.handleSystemTransform(input, output);
 
       // Collapse to single system message for provider compatibility.
       // Some providers (e.g. Qwen via VLLM/DashScope) reject multiple
