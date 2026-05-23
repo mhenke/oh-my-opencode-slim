@@ -24,10 +24,7 @@ Built-in Model Context Protocol (MCP) servers ship with oh-my-opencode-slim and 
 | `oracle` | none |
 | `explorer` | none |
 | `fixer` | none |
-| `verifier` | none |
-| `observer` | none |
-| `council` | none |
-| `councillor` | none |
+ | `councillor` | none |
 
 ---
 

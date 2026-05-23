@@ -2,10 +2,6 @@ import { describe, expect, test } from 'bun:test';
 import { DEFAULT_AGENT_MCPS, parseList } from './agent-mcps';
 
 describe('parseList', () => {
-  test('verifier has no default MCPs', () => {
-    expect(DEFAULT_AGENT_MCPS.verifier).toEqual([]);
-  });
-
   test('empty list returns empty array', () => {
     expect(parseList([], ['mcp1', 'mcp2'])).toEqual([]);
   });
