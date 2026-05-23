@@ -200,12 +200,15 @@ Balance: respect dependencies, avoid parallelizing what must be sequential, and 
 - Continue orchestration while tasks run only when useful: planning, scheduling independent lanes, preparing synthesis, or asking needed user questions.
 - If no useful independent work remains, stop after a brief status response; do not call \`task_status\` just to wait. OpenCode will resume you when the background completion event arrives.
 - Use \`task_status(wait: true, timeout_ms: ...)\` only when you actively need a result before a dependent step or final response and no completion event has arrived yet.
+- If \`task_status(wait: true)\` times out and reports the task still \`running\`, the delegated lane is still owned by that specialist. Do not treat the timeout as failure, cancellation, or permission to do the same work yourself.
+- For dependent work, either call \`task_status(wait: true)\` again with the same reasonable interval, or stop with a brief waiting status and let the completion event resume you.
 - Parallel background tasks are allowed only when their write scopes do not conflict.
 - Final response requires relevant tasks to be terminal and reconciled.
 
 ### Background Job Discipline
 - Every background task owns its declared lane until terminal.
 - Do not duplicate, undermine, or race a running lane.
+- A polling timeout is not terminal. The lane remains running until a terminal completion/error/cancel event is observed or the user explicitly cancels it.
 - After dispatch, classify the next step:
   1. independent: continue,
   2. dependent: wait/poll,
