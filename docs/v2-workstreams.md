@@ -7,7 +7,6 @@ there, and publish npm `beta` releases from there.
 | Branch | Worktree | Purpose | Status | Notes |
 |---|---|---|---|---|
 | `v2-beta` | repo root | V2 integration/release | Active | Source of truth for combined V2 testing and `@beta` publishes. |
-| `v2/goal-rename` | `.slim/worktrees/v2-goal-rename` | Rename session goal to goal | Merged | Can prune when no follow-up is needed. |
 | `v2/misc` | `.slim/worktrees/v2-misc` | Misc V2 cleanup | Merged | Removed custom subtask feature; can continue misc follow-ups here if desired. |
 | `v2/tui` | `.slim/worktrees/v2-tui` | TUI integration | Planned | No feature work merged yet. |
 

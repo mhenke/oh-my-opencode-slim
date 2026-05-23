@@ -9,7 +9,6 @@ export {
   ForegroundFallbackManager,
   isRateLimitError,
 } from './foreground-fallback';
-export { createGoalHook } from './goal';
 export { processImageAttachments } from './image-hook';
 export { createJsonErrorRecoveryHook } from './json-error-recovery';
 export { createPhaseReminderHook } from './phase-reminder';
