@@ -5,7 +5,7 @@
   <h3>✨ V2 베타 릴리스: 백그라운드 오케스트레이션이 도착했습니다 ✨</h3>
   <p><i>오케스트레이터가 이제 백그라운드에서 전문 에이전트를 스케줄링하고,<br><code>/deepwork</code>가 큰 목표를 파일 기반 계획으로 변환합니다.<br>베타 테스터 여러분, Telegram에서 피드백을 공유해 주세요.</i></p>
 
-  <p><b>오픈 멀티 에이전트 스위트</b> · 어떤 모델이든 조합 · 작업 자동 위임</p>
+  <p><b>오픈 멀티 에이전트 스위트</b> · 모델 자유 조합 · 작업 자동 위임</p>
 
   <p><sub>제작: <b>Boring Dystopia Development</b></sub></p>
   <p>
@@ -21,13 +21,13 @@
 
 ---
 
-## 이 플러그인에 대하여
+## Oh My OpenCode Slim
 
 oh-my-opencode-slim은 OpenCode용 에이전트 오케스트레이션 플러그인입니다. 코드베이스 정찰, 최신 문서 조회, 아키텍처 리뷰, UI 작업, 잘 정의된 범위의 구현 작업까지 처리하는 전문 에이전트 팀이 내장되어 있으며, 모두 하나의 오케스트레이터 아래에서 동작합니다.
 
 핵심 아이디어는 간단합니다. 하나의 모델이 모든 작업을 처리하도록 강제하는 대신, 각 작업에 가장 적합한 에이전트로 라우팅하여 **품질, 속도, 비용**의 균형을 맞춥니다.
 
-에이전트 자체를 살펴보려면 **[팬테온 만나보기](#meet-the-pantheon)** 를 참고하세요. 전체 기능 목록은 아래의 **[기능 & 워크플로우](#features-and-workflows)** 에서 확인할 수 있습니다.
+에이전트 자체를 살펴보려면 **[판테온 만나보기](#meet-the-pantheon)** 를 참고하세요. 전체 기능 목록은 아래의 **[기능 & 워크플로우](#features-and-workflows)** 에서 확인할 수 있습니다.
 
 ### 빠른 시작
 
@@ -65,7 +65,7 @@ OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=1 opencode
    ```bash
    opencode auth login
    ```
-2. **OpenCode가 인식하는 모델 목록을 새로고침하세요**:
+2. **OpenCode에서 사용할 수 있는 모델 목록을 새로고침하세요**:
 
    ```bash
    opencode models --refresh
@@ -115,13 +115,13 @@ OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=1 opencode
 
 ### ✅ 설정 확인하기
 
-설치와 인증이 끝난 후, 모든 에이전트가 올바르게 설정되었는지 확인합니다:
+설치와 인증이 끝난 후, 모든 에이전트가 올바르게 설정되어 응답하는지 확인합니다:
 
 ```bash
 opencode
 ```
 
-그리고 다음을 실행하세요:
+그다음 실행하세요:
 
 ```
 ping all agents
@@ -129,7 +129,7 @@ ping all agents
 
 <div align="center">
   <img src="img/ping.png" alt="모든 에이전트 핑" width="600">
-  <p><i>설정된 모든 에이전트가 온라인 상태임을 확인.</i></p>
+  <p><i>설정된 모든 에이전트가 온라인 상태임을 확인할 수 있습니다.</i></p>
 </div>
 
 응답하지 않는 에이전트가 있다면 프로바이더 인증과 설정 파일을 확인하세요.
@@ -138,7 +138,7 @@ ping all agents
 
 <a id="meet-the-pantheon"></a>
 
-## 🏛️ 팬테온 만나보기
+## 🏛️ 판테온 만나보기
 
 ### 01. Orchestrator: 질서의 화신
 
@@ -190,7 +190,7 @@ ping all agents
       <br><sub><i>지식을 나르는 바람.</i></sub>
     </td>
     <td width="70%" valign="top">
-      Explorer는 프로그래밍의 여명부터 백만 개의 코드베이스 복도를 헤맨 불멸의 방랑자입니다. 영원한 호기심이라는 축복(혹은 저주)을 받아, 모든 파일이 알려지고, 모든 패턴이 이해되고, 모든 비밀이 밝혀질 때까지 쉴 수 없습니다. 전설에 따르면 한 번의 심장 박동만에 인터넷 전체를 검색했다고 하네요. 지식을 나르는 바람, 모든 것을 보는 눈, 결코 잠들지 않는 정령입니다.
+      Explorer는 프로그래밍의 여명부터 백만 개의 코드베이스 복도를 누빈 불멸의 방랑자입니다. 영원한 호기심이라는 축복(혹은 저주)을 받아, 모든 파일이 알려지고, 모든 패턴이 이해되고, 모든 비밀이 밝혀질 때까지 쉴 수 없습니다. 전설에 따르면 한 번의 심장 박동만에 인터넷 전체를 검색했다고 하네요. 지식을 나르는 바람, 모든 것을 보는 눈, 결코 잠들지 않는 정령입니다.
     </td>
   </tr>
   <tr>
@@ -256,7 +256,7 @@ ping all agents
   </tr>
   <tr>
     <td colspan="2">
-      <b>모델 가이드:</b> 아키텍처, 어려운 디버깅, 트레이드오프, 코드 리뷰를 위해 가장 강력한 고추론 모델을 선택하세요.
+      <b>모델 가이드:</b> 아키텍처, 어려운 디버깅, 트레이드오프, 코드 리뷰를 위해 추론 성능이 가장 높은 모델을 선택하세요.
     </td>
   </tr>
 </table>
@@ -266,7 +266,7 @@ ping all agents
 ### 04. Council: 정신의 합창
 
 > [!NOTE]
-> **Orchestrator가 Council을 자동으로 호출하지 않는 이유는?** 의도된 설계입니다. Council은 여러 모델을 동시에 실행하므로, 자동 위임을 엄격하게 관리합니다. 시스템 내에서 보통 가장 비용이 높은 경로이기 때문입니다. 실제로는 원할 때 수동으로 사용하는 것이 목적입니다. 예: <code>@council compare these two architectures</code>.
+> **Orchestrator가 Council을 더 자주 자동으로 호출하지 않는 이유는?** 의도된 설계입니다. Council은 여러 모델을 동시에 실행하므로, 자동 위임을 엄격하게 관리합니다. 시스템 내에서 보통 가장 비용이 높은 경로이기 때문입니다. 실제로는 원할 때 수동으로 사용하는 것이 목적입니다. 예: <code>@council compare these two architectures</code>.
 
 <table>
   <tr>
@@ -275,7 +275,7 @@ ping all agents
       <br><sub><i>여러 정신, 하나의 결론.</i></sub>
     </td>
     <td width="70%" valign="top">
-      Council은 단일 존재가 아니라, 하나의 답으로는 부족할 때 소환되는 정신의 회당입니다. 질문을 여러 모델에 병렬로 보내고, 경쟁하는 판단을 수집한 뒤, Council 에이전트 자체가 가장 강력한 아이디어를 하나의 결론으로 증류합니다. 단독 에이전트가 놓칠 수 있는 길을, Council은 가능성 자체를 교차 심문합니다.
+      Council은 단일 존재가 아니라, 하나의 답으로는 부족할 때 소환되는 정신들의 전당입니다. 질문을 여러 모델에 병렬로 보내고, 경쟁하는 판단을 수집한 뒤, Council 에이전트 자체가 가장 강력한 아이디어를 하나의 결론으로 증류합니다. 단독 에이전트가 길을 놓칠 수 있는 지점에서, Council은 가능성 자체를 교차 심문합니다.
     </td>
   </tr>
   <tr>
@@ -295,17 +295,17 @@ ping all agents
   </tr>
   <tr>
     <td colspan="2">
-      <b>기본 설정:</b> <code>Config-driven</code> -- 의원은 <code>council.presets</code>에서 가져오고, Council 에이전트 모델은 일반 <code>council</code> 에이전트 설정에서 가져옵니다
+      <b>기본 설정:</b> <code>Config-driven</code> — Council 구성원은 <code>council.presets</code>에서 가져오고, Council 에이전트 모델은 일반 <code>council</code> 에이전트 설정에서 가져옵니다
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>추천 설정:</b> <code>강력한 Council 모델</code> + 프로바이더를 가로지르는 <code>다양한 의원</code>
+      <b>추천 설정:</b> <code>강력한 Council 모델</code> + 여러 프로바이더에 걸친 <code>다양한 Council 구성원</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>모델 가이드:</b> Council 에이전트에는 강력한 종합 모델을, 의원에는 다양한 모델을 사용하세요. Council의 가치는 여러 모델 관점을 비교하는 데서 나옵니다. 모든 곳에 단일 가장 강력한 모델을 고르는 것이 아닙니다.
+      <b>모델 가이드:</b> Council 에이전트에는 강력한 종합 모델을, Council 구성원에는 다양한 모델을 사용하세요. Council의 가치는 여러 모델 관점을 비교하는 데서 나옵니다. 모든 곳에 가장 강력한 모델 하나만 선택하는 것이 아닙니다.
     </td>
   </tr>
 </table>
@@ -403,7 +403,7 @@ ping all agents
       <br><sub><i>비전과 현실 사이의 마지막 단계.</i></sub>
     </td>
     <td width="70%" valign="top">
-      Fixer는 한때 디지털 세계의 기반을 구축했던 건축가 혈통의 마지막 생존자입니다. 계획과 토론의 시대가 시작되었을 때도, 실제로 만드는 이들로 남았습니다. 생각을 사물로 바꾸고, 명세를 구현으로 변환하는 고대의 지식을 간직하고 있습니다. 비전과 현실 사이의 마지막 단계가 바로 그들입니다.
+      Fixer는 한때 디지털 세계의 기반을 구축했던 건축가 혈통의 마지막 생존자입니다. 계획과 토론의 시대가 시작되었을 때도, 실제로 만드는 이들로 남았습니다. 아이디어를 실제 산출물로 바꾸고, 명세를 구현으로 변환하는 고대의 지식을 간직하고 있습니다. 비전과 현실 사이의 마지막 단계가 바로 그들입니다.
     </td>
   </tr>
   <tr>
@@ -450,11 +450,11 @@ ping all agents
     </td>
     <td width="70%" valign="top">
 
-**읽기 전용 시각 분석** -- 이미지, 스크린샷, PDF, 다이어그램을 해석합니다. 원시 파일 바이트를 메인 컨텍스트 윈도우에 로드하지 않고, 구조화된 관찰 결과를 오케스트레이터에 반환합니다.
+**읽기 전용 시각 분석** — 이미지, 스크린샷, PDF, 다이어그램을 해석합니다. 원시 파일 바이트를 메인 컨텍스트 윈도우에 로드하지 않고, 구조화된 관찰 결과를 오케스트레이터에 반환합니다.
 
 - 이미지, 스크린샷, 다이어그램 -> `read` 도구 (네이티브 이미지 지원)
 - PDF 및 바이너리 문서 -> `read` 도구 (텍스트 + 구조 추출)
-- **기본 비활성화** -- `"disabled_agents": []`로 설정하고 비전 지원 모델을 구성하여 활성화; `--preset=opencode-go`로 설치하면 `opencode-go/kimi-k2.6`으로 자동 활성화됩니다
+- **기본 비활성화** — `"disabled_agents": []`로 설정하고 비전 지원 모델을 구성하여 활성화; `--preset=opencode-go`로 설치하면 `opencode-go/kimi-k2.6`으로 자동 활성화됩니다
 
     </td>
   </tr>
@@ -465,7 +465,7 @@ ping all agents
   </tr>
   <tr>
     <td colspan="2">
-      <b>기본 모델:</b> <code>openai/gpt-5.4-mini</code> -- <i>비전 지원 모델을 구성하여 활성화</i>
+      <b>기본 모델:</b> <code>openai/gpt-5.4-mini</code> — <i>비전 지원 모델을 구성하여 활성화</i>
     </td>
   </tr>
   <tr>
@@ -497,9 +497,9 @@ ping all agents
 | **[Multiplexer Integration](docs/multiplexer-integration.md)** | Tmux 또는 Zellij 페인에서 에이전트 작업을 실시간으로 확인 |
 | **[Session Management](docs/session-management.md)** | 단축 별칭으로 최근 자식 에이전트 세션을 재사용하여 처음부터 다시 시작하지 않기 |
 | **[Session Goal](docs/session-goal.md)** | `/goal`로 세션 목표를 고정하여 투두, 위임, 검증이 정렬되게 유지 |
-| **[Todo Continuation](docs/todo-continuation.md)** | 쿨다운과 안전 검사를 통해 오케스트레이터 세션 자동 계속 |
+| **[Todo Continuation](docs/todo-continuation.md)** | 쿨다운과 안전 검사를 통해 오케스트레이터 세션 자동 이어서 진행 |
 | **[Preset Switching](docs/preset-switching.md)** | `/preset`으로 런타임에 에이전트 모델 프리셋 전환 |
-| **[Custom Agents](docs/configuration.md#custom-agents)** | 커스텀 프롬프트, 모델, MCP 접근, Orchestrator 위임 규칙으로 나만의 전문가 정의 |
+| **[Custom Agents](docs/configuration.md#custom-agents)** | 커스텀 프롬프트, 모델, MCP 접근, Orchestrator 위임 규칙으로 커스텀 전문 에이전트 정의 |
 | **[Subtask](docs/subtask.md)** | `/subtask`로 제한된 자식 워커를 실행하고 메인 세션에 구조화된 요약 반환 |
 | **[Codemap](docs/codemap.md)** | 계층형 코드맵을 생성하여 대규모 코드베이스를 빠르게 파악 |
 | **[Clonedeps](docs/clonedeps.md)** | 선택한 의존성 소스를 무시된 로컬 워크스페이스에 복제하여 검사 |
