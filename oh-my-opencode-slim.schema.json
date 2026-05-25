@@ -603,7 +603,6 @@
       "type": "object",
       "properties": {
         "timeoutMs": {
-          "default": 300000,
           "description": "Subtask worker timeout in ms. 0 disables the timeout. Defaults to 300000 (5 minutes).",
           "type": "integer",
           "minimum": 0,

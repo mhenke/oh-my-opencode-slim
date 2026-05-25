@@ -253,12 +253,15 @@ export type TodoContinuationConfig = z.infer<
 >;
 
 export const SubtaskConfigSchema = z.object({
+  // Intentionally no .default(): an empty `subtask: {}` block must parse to
+  // `{}` so it cannot shallow-overwrite an inherited value during config
+  // merging. The runtime fallback in createSubtaskTool applies the default.
   timeoutMs: z
     .number()
     .int()
     .min(0)
     .max(24 * 60 * 60 * 1000)
-    .default(5 * 60 * 1000)
+    .optional()
     .describe(
       'Subtask worker timeout in ms. 0 disables the timeout. Defaults to 300000 (5 minutes).',
     ),
