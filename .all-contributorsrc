@@ -497,6 +497,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "OmerFarukOruc",
+      "name": "Omer Faruk Oruc",
+      "avatar_url": "https://avatars.githubusercontent.com/u/7347742?v=4",
+      "profile": "https://github.com/OmerFarukOruc",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commitConvention": "angular"
