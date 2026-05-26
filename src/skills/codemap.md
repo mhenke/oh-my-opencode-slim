@@ -19,6 +19,7 @@
   - `src/skills/clonedeps/` (workflow skill for dependency source mirroring)
   - `src/skills/simplify/` (readability/refactor guidance skill)
   - `src/skills/deepwork/` (orchestrator-only workflow for heavy coding sessions)
+  - `src/skills/oh-my-opencode-slim/` (orchestrator-only plugin configuration and self-improvement guidance)
 - Files are considered static runtime payload. No plugin TS module in `src/` imports these files directly; they
   are loaded by OpenCode via filesystem installation.
 
@@ -40,5 +41,6 @@
 - `verify-release-artifact.ts` enforces artifact completeness by asserting key
   bundled skill payloads such as `src/skills/simplify/SKILL.md`,
   `src/skills/codemap/SKILL.md`, `src/skills/clonedeps/SKILL.md`, and
-  `src/skills/deepwork/SKILL.md` are present in the tarball.
+  `src/skills/deepwork/SKILL.md`, plus `src/skills/oh-my-opencode-slim/SKILL.md`,
+  are present in the tarball.
 - `package.json` scripts (`verify:release`, `build`) rely on these assets to ensure install-time skill availability.

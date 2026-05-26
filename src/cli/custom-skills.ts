@@ -53,6 +53,13 @@ export const CUSTOM_SKILLS: CustomSkill[] = [
     allowedAgents: ['orchestrator'],
     sourcePath: 'src/skills/deepwork',
   },
+  {
+    name: 'oh-my-opencode-slim',
+    description:
+      'Configure, customize, and safely improve oh-my-opencode-slim setups',
+    allowedAgents: ['orchestrator'],
+    sourcePath: 'src/skills/oh-my-opencode-slim',
+  },
 ];
 
 /**
