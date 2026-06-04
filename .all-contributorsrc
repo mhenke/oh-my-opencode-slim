@@ -506,6 +506,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "omar-mohamed-khallaf",
+      "name": "Omar Mohamed Khallaf",
+      "avatar_url": "https://avatars.githubusercontent.com/u/51155980?v=4",
+      "profile": "https://khallaf.uk/",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commitConvention": "angular"
