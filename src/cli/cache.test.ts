@@ -18,6 +18,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import * as pathsMod from './paths';
 
 type SpawnResult = {
   exited: Promise<number>;
@@ -41,25 +42,9 @@ mock.module('../utils/compat', () => ({
 }));
 
 const nonexistentPath = '/nonexistent/opencode.json';
-mock.module('./paths', () => ({
-  getConfigDir: () => '/nonexistent',
-  getConfigSearchDirs: () => ['/nonexistent'],
-  getOpenCodeConfigPaths: () => [],
-  getConfigJson: () => nonexistentPath,
-  getConfigJsonc: () => nonexistentPath,
-  getLiteConfig: () => nonexistentPath,
-  getLiteConfigJsonc: () => nonexistentPath,
-  getTuiConfig: () => nonexistentPath,
-  getTuiConfigJsonc: () => nonexistentPath,
-  getExistingLiteConfigPath: () => nonexistentPath,
-  getExistingTuiConfigPath: () => nonexistentPath,
-  getExistingConfigPath: () => nonexistentPath,
-  ensureConfigDir: () => {},
-  ensureTuiConfigDir: () => {},
-  ensureOpenCodeConfigDir: () => {},
-}));
 
 let importCounter = 0;
+let getExistingConfigPathSpy: ReturnType<typeof spyOn>;
 
 function createSpawnResult(exitCode = 0): SpawnResult {
   return {
@@ -89,6 +74,10 @@ describe('warmOpenCodePluginCache', () => {
       },
     );
     delete process.env.XDG_CACHE_HOME;
+    getExistingConfigPathSpy = spyOn(
+      pathsMod,
+      'getExistingConfigPath',
+    ).mockReturnValue(nonexistentPath);
   });
 
   afterEach(() => {
@@ -98,6 +87,7 @@ describe('warmOpenCodePluginCache', () => {
     } else {
       process.env.XDG_CACHE_HOME = originalXdgCacheHome;
     }
+    getExistingConfigPathSpy.mockRestore();
   });
 
   test('prewarms the OpenCode cache for bunx installs', async () => {
@@ -375,11 +365,7 @@ describe('warmOpenCodePluginCache', () => {
     );
 
     // Override getExistingConfigPath to return our test config
-    const pathsMod = await import('./paths');
-    const configPathSpy = spyOn(
-      pathsMod,
-      'getExistingConfigPath',
-    ).mockReturnValue(configPath);
+    getExistingConfigPathSpy.mockReturnValue(configPath);
 
     try {
       const packageRoot = join(
@@ -419,7 +405,6 @@ describe('warmOpenCodePluginCache', () => {
         },
       });
     } finally {
-      configPathSpy.mockRestore();
       rmSync(tmpDir, { recursive: true, force: true });
     }
   });
@@ -485,11 +470,7 @@ describe('warmOpenCodePluginCache', () => {
       }),
     );
 
-    const pathsMod = await import('./paths');
-    const configPathSpy = spyOn(
-      pathsMod,
-      'getExistingConfigPath',
-    ).mockReturnValue(configPath);
+    getExistingConfigPathSpy.mockReturnValue(configPath);
 
     try {
       const packageRoot = join(
@@ -529,7 +510,6 @@ describe('warmOpenCodePluginCache', () => {
         },
       });
     } finally {
-      configPathSpy.mockRestore();
       rmSync(tmpDir, { recursive: true, force: true });
     }
   });
@@ -564,11 +544,7 @@ describe('warmOpenCodePluginCache', () => {
       }),
     );
 
-    const pathsMod = await import('./paths');
-    const configPathSpy = spyOn(
-      pathsMod,
-      'getExistingConfigPath',
-    ).mockReturnValue(configPath);
+    getExistingConfigPathSpy.mockReturnValue(configPath);
 
     try {
       const { warmOpenCodePluginCache } = await importFreshConfigIo();
@@ -595,7 +571,6 @@ describe('warmOpenCodePluginCache', () => {
         },
       });
     } finally {
-      configPathSpy.mockRestore();
       rmSync(tmpDir, { recursive: true, force: true });
     }
   });
