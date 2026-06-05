@@ -12,10 +12,14 @@ import { createPresetManager } from './preset-manager';
 
 function createMockContext() {
   const configUpdate = mock(async () => ({}));
+  const instanceDispose = mock(async () => ({}));
   return {
     client: {
       config: {
         update: configUpdate,
+      },
+      instance: {
+        dispose: instanceDispose,
       },
     },
     directory: '/tmp/test',
@@ -133,7 +137,7 @@ describe('createPresetManager', () => {
       expect(text).toContain('No presets configured');
     });
 
-    test('switches preset and calls config.update', async () => {
+    test('switches preset state without config.update or instance.dispose', async () => {
       const ctx = createMockContext();
       const config: PluginConfig = {
         presets: {
@@ -152,19 +156,14 @@ describe('createPresetManager', () => {
       );
 
       const text = getOutputText(output);
-      expect(text).toContain('Switched to preset "cheap"');
+      expect(text).toContain('Saved preset "cheap"');
       expect(text).toContain('orchestrator');
       expect(text).toContain('anthropic/claude-3.5-haiku');
       expect(text).toContain('explorer');
-      expect(ctx.client.config.update).toHaveBeenCalledTimes(1);
-      expect(ctx.client.config.update).toHaveBeenCalledWith({
-        body: {
-          agent: {
-            orchestrator: { model: 'anthropic/claude-3.5-haiku' },
-            explorer: { model: 'openai/gpt-5.4-mini' },
-          },
-        },
-      });
+      expect(text).toContain('Restart or reload OpenCode');
+      expect(getActiveRuntimePreset()).toBe('cheap');
+      expect(ctx.client.config.update).not.toHaveBeenCalled();
+      expect(ctx.client.instance.dispose).not.toHaveBeenCalled();
     });
 
     test('updates the TUI snapshot after a successful preset switch', async () => {
@@ -199,7 +198,7 @@ describe('createPresetManager', () => {
       });
     });
 
-    test('passes temperature in config update', async () => {
+    test('shows temperature in preset summary without runtime config update', async () => {
       const ctx = createMockContext();
       const config: PluginConfig = {
         presets: {
@@ -216,16 +215,15 @@ describe('createPresetManager', () => {
         output,
       );
 
-      expect(ctx.client.config.update).toHaveBeenCalledWith({
-        body: {
-          agent: {
-            orchestrator: { model: 'openai/o3', temperature: 0.1 },
-          },
-        },
-      });
+      const text = getOutputText(output);
+      expect(text).toContain('orchestrator');
+      expect(text).toContain('model: openai/o3');
+      expect(text).toContain('temp: 0.1');
+      expect(ctx.client.config.update).not.toHaveBeenCalled();
+      expect(ctx.client.instance.dispose).not.toHaveBeenCalled();
     });
 
-    test('passes variant in config update', async () => {
+    test('shows variant in preset summary without runtime config update', async () => {
       const ctx = createMockContext();
       const config: PluginConfig = {
         presets: {
@@ -245,16 +243,12 @@ describe('createPresetManager', () => {
         output,
       );
 
-      expect(ctx.client.config.update).toHaveBeenCalledWith({
-        body: {
-          agent: {
-            oracle: {
-              model: 'anthropic/claude-sonnet-4-6',
-              variant: 'thinking',
-            },
-          },
-        },
-      });
+      const text = getOutputText(output);
+      expect(text).toContain('oracle');
+      expect(text).toContain('model: anthropic/claude-sonnet-4-6');
+      expect(text).toContain('variant: thinking');
+      expect(ctx.client.config.update).not.toHaveBeenCalled();
+      expect(ctx.client.instance.dispose).not.toHaveBeenCalled();
     });
 
     test('shows error for unknown preset name', async () => {
@@ -276,6 +270,7 @@ describe('createPresetManager', () => {
       expect(text).toContain('not found');
       expect(text).toContain('cheap');
       expect(ctx.client.config.update).not.toHaveBeenCalled();
+      expect(ctx.client.instance.dispose).not.toHaveBeenCalled();
     });
 
     test('shows error when no presets configured but argument given', async () => {
@@ -294,7 +289,8 @@ describe('createPresetManager', () => {
       expect(text).toContain('No presets configured');
     });
 
-    test('handles config.update error gracefully', async () => {
+    test('unknown preset does not change active state or dispose instance', async () => {
+      setActiveRuntimePreset('cheap');
       recordTuiAgentModels({
         agentModels: {
           explorer: 'openai/gpt-5.4-mini',
@@ -302,9 +298,6 @@ describe('createPresetManager', () => {
       });
 
       const ctx = createMockContext();
-      ctx.client.config.update = mock(async () => {
-        throw new Error('Server unavailable');
-      });
       const config: PluginConfig = {
         presets: {
           cheap: { orchestrator: { model: 'anthropic/claude-3.5-haiku' } },
@@ -314,16 +307,15 @@ describe('createPresetManager', () => {
       const output = createOutput();
 
       await manager.handleCommandExecuteBefore(
-        { command: 'preset', sessionID: 's1', arguments: 'cheap' },
+        { command: 'preset', sessionID: 's1', arguments: 'nonexistent' },
         output,
       );
 
       const text = getOutputText(output);
-      expect(text).toContain('Failed to switch preset');
-      expect(text).toContain('Server unavailable');
-      expect(readTuiSnapshot().agentModels).toEqual({
-        explorer: 'openai/gpt-5.4-mini',
-      });
+      expect(text).toContain('not found');
+      expect(getActiveRuntimePreset()).toBe('cheap');
+      expect(ctx.client.config.update).not.toHaveBeenCalled();
+      expect(ctx.client.instance.dispose).not.toHaveBeenCalled();
     });
 
     test('shows empty preset message when preset has no valid overrides', async () => {
@@ -348,7 +340,7 @@ describe('createPresetManager', () => {
       expect(ctx.client.config.update).not.toHaveBeenCalled();
     });
 
-    test('forwards options field in config update', async () => {
+    test('shows options in preset summary without runtime config update', async () => {
       const ctx = createMockContext();
       const config: PluginConfig = {
         presets: {
@@ -370,18 +362,11 @@ describe('createPresetManager', () => {
         output,
       );
 
-      expect(ctx.client.config.update).toHaveBeenCalledWith({
-        body: {
-          agent: {
-            oracle: {
-              model: 'anthropic/claude-sonnet-4-6',
-              options: {
-                thinking: { type: 'enabled', budgetTokens: 10000 },
-              },
-            },
-          },
-        },
-      });
+      const text = getOutputText(output);
+      expect(text).toContain('oracle');
+      expect(text).toContain('options: yes');
+      expect(ctx.client.config.update).not.toHaveBeenCalled();
+      expect(ctx.client.instance.dispose).not.toHaveBeenCalled();
     });
 
     test('trims whitespace from preset name argument', async () => {
@@ -400,8 +385,9 @@ describe('createPresetManager', () => {
       );
 
       const text = getOutputText(output);
-      expect(text).toContain('Switched to preset "cheap"');
-      expect(ctx.client.config.update).toHaveBeenCalledTimes(1);
+      expect(text).toContain('Saved preset "cheap"');
+      expect(ctx.client.config.update).not.toHaveBeenCalled();
+      expect(ctx.client.instance.dispose).not.toHaveBeenCalled();
     });
 
     test('shows suggestion for multi-word arguments', async () => {
@@ -465,16 +451,11 @@ describe('createPresetManager', () => {
       );
 
       const text = getOutputText(output);
-      expect(text).toContain('Switched to preset "mixed"');
-      // Only orchestrator and oracle should be forwarded
-      expect(ctx.client.config.update).toHaveBeenCalledWith({
-        body: {
-          agent: {
-            orchestrator: { model: 'anthropic/claude-3.5-haiku' },
-            oracle: { temperature: 0.3 },
-          },
-        },
-      });
+      expect(text).toContain('Saved preset "mixed"');
+      expect(text).toContain('orchestrator');
+      expect(text).toContain('oracle');
+      expect(ctx.client.config.update).not.toHaveBeenCalled();
+      expect(ctx.client.instance.dispose).not.toHaveBeenCalled();
     });
 
     test('resolves array-form model to first entry', async () => {
@@ -497,14 +478,11 @@ describe('createPresetManager', () => {
       );
 
       const text = getOutputText(output);
-      expect(text).toContain('Switched to preset "fallback"');
-      expect(ctx.client.config.update).toHaveBeenCalledWith({
-        body: {
-          agent: {
-            orchestrator: { model: 'anthropic/claude-3.5-haiku' },
-          },
-        },
-      });
+      expect(text).toContain('Saved preset "fallback"');
+      expect(text).toContain('orchestrator');
+      expect(text).toContain('anthropic/claude-3.5-haiku');
+      expect(ctx.client.config.update).not.toHaveBeenCalled();
+      expect(ctx.client.instance.dispose).not.toHaveBeenCalled();
     });
 
     test('resolves array-form model with object entries', async () => {
@@ -529,16 +507,12 @@ describe('createPresetManager', () => {
         output,
       );
 
-      expect(ctx.client.config.update).toHaveBeenCalledWith({
-        body: {
-          agent: {
-            oracle: {
-              model: 'anthropic/claude-sonnet-4-6',
-              variant: 'thinking',
-            },
-          },
-        },
-      });
+      const text = getOutputText(output);
+      expect(text).toContain('Saved preset "thinker"');
+      expect(text).toContain('oracle');
+      expect(text).toContain('variant: thinking');
+      expect(ctx.client.config.update).not.toHaveBeenCalled();
+      expect(ctx.client.instance.dispose).not.toHaveBeenCalled();
     });
 
     test('shows variant and options in switch summary', async () => {
@@ -583,7 +557,7 @@ describe('createPresetManager', () => {
         { command: 'preset', sessionID: 's1', arguments: 'cheap' },
         output1,
       );
-      expect(getOutputText(output1)).toContain('Switched');
+      expect(getOutputText(output1)).toContain('Saved preset');
 
       // List presets should now show cheap as active
       const output2 = createOutput();
@@ -599,7 +573,7 @@ describe('createPresetManager', () => {
         { command: 'preset', sessionID: 's1', arguments: 'powerful' },
         output3,
       );
-      expect(getOutputText(output3)).toContain('Switched to preset "powerful"');
+      expect(getOutputText(output3)).toContain('Saved preset "powerful"');
 
       // List should now show powerful as active
       const output4 = createOutput();
@@ -648,7 +622,7 @@ describe('createPresetManager', () => {
   });
 
   describe('preset switching stale state', () => {
-    test('reset updates for agents removed when switching presets', async () => {
+    test('switching presets updates active preset without runtime config update', async () => {
       const ctx = createMockContext();
       const config: PluginConfig = {
         presets: {
@@ -671,16 +645,9 @@ describe('createPresetManager', () => {
         { command: 'preset', sessionID: 's1', arguments: 'cheap' },
         output1,
       );
-      expect(ctx.client.config.update).toHaveBeenCalledWith({
-        body: {
-          agent: {
-            oracle: { model: 'cheap-model', temperature: 0.3 },
-          },
-        },
-      });
-
-      // Reset mock for next call
-      ctx.client.config.update.mockClear();
+      expect(getOutputText(output1)).toContain('Saved preset "cheap"');
+      expect(ctx.client.config.update).not.toHaveBeenCalled();
+      expect(ctx.client.instance.dispose).not.toHaveBeenCalled();
 
       const output2 = createOutput();
       await manager.handleCommandExecuteBefore(
@@ -688,21 +655,13 @@ describe('createPresetManager', () => {
         output2,
       );
 
-      // Second update should reset oracle to baseline and set orchestrator
-      expect(ctx.client.config.update).toHaveBeenCalledWith({
-        body: {
-          agent: {
-            oracle: { model: 'baseline-model' },
-            orchestrator: { model: 'powerful-model' },
-          },
-        },
-      });
-
-      // Cleanup
-      setActiveRuntimePreset(null);
+      expect(getOutputText(output2)).toContain('Saved preset "powerful"');
+      expect(getActiveRuntimePreset()).toBe('powerful');
+      expect(ctx.client.config.update).not.toHaveBeenCalled();
+      expect(ctx.client.instance.dispose).not.toHaveBeenCalled();
     });
 
-    test('no reset updates when new preset covers same agents', async () => {
+    test('new preset with same agents still avoids runtime config update', async () => {
       const ctx = createMockContext();
       const config: PluginConfig = {
         presets: {
@@ -722,16 +681,9 @@ describe('createPresetManager', () => {
         { command: 'preset', sessionID: 's1', arguments: 'cheap' },
         output1,
       );
-      expect(ctx.client.config.update).toHaveBeenCalledWith({
-        body: {
-          agent: {
-            oracle: { model: 'a' },
-          },
-        },
-      });
-
-      // Reset mock for next call
-      ctx.client.config.update.mockClear();
+      expect(getOutputText(output1)).toContain('Saved preset "cheap"');
+      expect(ctx.client.config.update).not.toHaveBeenCalled();
+      expect(ctx.client.instance.dispose).not.toHaveBeenCalled();
 
       const output2 = createOutput();
       await manager.handleCommandExecuteBefore(
@@ -739,24 +691,13 @@ describe('createPresetManager', () => {
         output2,
       );
 
-      // Second update should only have oracle, no reset updates
-      expect(ctx.client.config.update).toHaveBeenCalledWith({
-        body: {
-          agent: {
-            oracle: { model: 'b' },
-          },
-        },
-      });
-
-      // Cleanup
-      setActiveRuntimePreset(null);
+      expect(getOutputText(output2)).toContain('Saved preset "cheaper"');
+      expect(ctx.client.config.update).not.toHaveBeenCalled();
+      expect(ctx.client.instance.dispose).not.toHaveBeenCalled();
     });
 
-    test('preset state rolled back on config.update error', async () => {
+    test('preset state persists across successive switches without runtime update', async () => {
       const ctx = createMockContext();
-      ctx.client.config.update = mock(async () => {
-        throw new Error('Server unavailable');
-      });
       const config: PluginConfig = {
         presets: {
           cheap: {
@@ -769,9 +710,6 @@ describe('createPresetManager', () => {
       };
       const manager = createPresetManager(ctx, config);
 
-      // Reset mock for successful switch
-      ctx.client.config.update = mock(async () => ({}));
-
       // Switch to cheap successfully
       const output1 = createOutput();
       await manager.handleCommandExecuteBefore(
@@ -780,24 +718,17 @@ describe('createPresetManager', () => {
       );
       expect(getActiveRuntimePreset()).toBe('cheap');
 
-      // Reset mock to throw error
-      ctx.client.config.update = mock(async () => {
-        throw new Error('Server unavailable');
-      });
-
-      // Try to switch to expensive but it fails
+      // Try to switch to expensive
       const output2 = createOutput();
       await manager.handleCommandExecuteBefore(
         { command: 'preset', sessionID: 's1', arguments: 'expensive' },
         output2,
       );
 
-      // Active preset should still be "cheap" after error
-      expect(getActiveRuntimePreset()).toBe('cheap');
-      expect(getOutputText(output2)).toContain('Failed to switch preset');
-
-      // Cleanup
-      setActiveRuntimePreset(null);
+      expect(getActiveRuntimePreset()).toBe('expensive');
+      expect(getOutputText(output2)).toContain('Saved preset "expensive"');
+      expect(ctx.client.config.update).not.toHaveBeenCalled();
+      expect(ctx.client.instance.dispose).not.toHaveBeenCalled();
     });
 
     test('activePreset syncs from runtime-preset state on factory creation', async () => {
