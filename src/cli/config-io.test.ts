@@ -438,7 +438,7 @@ describe('config-io', () => {
     );
   });
 
-  test('disableDefaultAgents disables explore and general agents', () => {
+  test('disableDefaultAgents disables OpenCode built-in agents', () => {
     const configPath = join(tmpDir, 'opencode', 'opencode.json');
     paths.ensureConfigDir();
     writeFileSync(configPath, JSON.stringify({}));
@@ -449,6 +449,35 @@ describe('config-io', () => {
     const saved = JSON.parse(readFileSync(configPath, 'utf-8'));
     expect(saved.agent.explore.disable).toBe(true);
     expect(saved.agent.general.disable).toBe(true);
+    expect(saved.agent.build.disable).toBe(true);
+    expect(saved.agent.plan.disable).toBe(true);
+  });
+
+  test('disableDefaultAgents preserves existing built-in agent config', () => {
+    const configPath = join(tmpDir, 'opencode', 'opencode.json');
+    paths.ensureConfigDir();
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        agent: {
+          build: { description: 'custom build agent' },
+          plan: { permission: { edit: 'deny' } },
+        },
+      }),
+    );
+
+    const result = disableDefaultAgents();
+    expect(result.success).toBe(true);
+
+    const saved = JSON.parse(readFileSync(configPath, 'utf-8'));
+    expect(saved.agent.build).toEqual({
+      description: 'custom build agent',
+      disable: true,
+    });
+    expect(saved.agent.plan).toEqual({
+      permission: { edit: 'deny' },
+      disable: true,
+    });
   });
 
   test('enableLspByDefault sets lsp true when missing', () => {
