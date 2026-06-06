@@ -27,6 +27,12 @@ import type {
 } from './types';
 
 const PACKAGE_NAME = 'oh-my-opencode-slim';
+const DEFAULT_OPENCODE_AGENTS_TO_DISABLE = [
+  'build',
+  'explore',
+  'general',
+  'plan',
+] as const;
 
 function isString(value: unknown): value is string {
   return typeof value === 'string';
@@ -533,8 +539,15 @@ export function disableDefaultAgents(): ConfigMergeResult {
     const config = parsedConfig ?? {};
 
     const agent = (config.agent ?? {}) as Record<string, unknown>;
-    agent.explore = { disable: true };
-    agent.general = { disable: true };
+    for (const agentName of DEFAULT_OPENCODE_AGENTS_TO_DISABLE) {
+      const existing = agent[agentName];
+      agent[agentName] = {
+        ...(existing && typeof existing === 'object' && !Array.isArray(existing)
+          ? existing
+          : {}),
+        disable: true,
+      };
+    }
     config.agent = agent;
 
     writeConfig(configPath, config);
