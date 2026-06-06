@@ -50,6 +50,8 @@ bunx oh-my-opencode-slim@latest install
 V2는 오케스트레이터를 기본 실행 워커에서 스케줄러로 변경합니다. 작업을 계획하고, 전문 에이전트를 백그라운드 작업으로 디스패치한 다음, 상태를 폴링하여 결과를 조정한 뒤 계속 진행합니다. 이를 위해 OpenCode의 네이티브 백그라운드 서브에이전트 지원이 필요하므로, 베타 사용자는 실험적 플래그를 활성화한 상태로 OpenCode를 시작해야 합니다.
 
 ```bash
+# 기존 사용자: 먼저 OpenCode의 캐시된 패키지를 삭제해 beta를 새로 받으세요.
+rm -rf ~/.cache/opencode/packages/oh-my-opencode-slim
 bunx oh-my-opencode-slim@beta install
 OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=1 opencode
 ```

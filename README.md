@@ -54,6 +54,8 @@ background subagent support, so beta users must start OpenCode with the
 experimental flag enabled.
 
 ```bash
+# Existing users: clear OpenCode's cached package first so beta is fetched fresh.
+rm -rf ~/.cache/opencode/packages/oh-my-opencode-slim
 bunx oh-my-opencode-slim@beta install
 OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=1 opencode
 ```
