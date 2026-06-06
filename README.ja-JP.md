@@ -12,7 +12,7 @@
   </p>
 
   <p>
-    <a href="README.md">English</a> | <a href="README.zh-CN.md">简体中文</a> | <b>日本語</b>
+    <a href="README.md">English</a> | <a href="README.zh-CN.md">简体中文</a> | <b>日本語</b> | <a href="README.ko-KR.md">한국어</a>
   </p>
 </div>
 
@@ -52,7 +52,7 @@ bunx oh-my-opencode-slim@latest install
 バックグラウンドサブエージェントサポートが必要です。下記の環境変数を有効にして OpenCode を起動してください。
 
 ```bash
-bunx oh-my-opencode-slim@latest install --background-subagents=yes
+bunx oh-my-opencode-slim@beta install --background-subagents=yes
 ```
 
 インストール後はターミナルを再起動するか、更新された shell ファイルを source してから `opencode` を実行してください。一回限りなら `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true opencode` でも起動できます。

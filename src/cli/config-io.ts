@@ -27,6 +27,12 @@ import type {
 } from './types';
 
 const PACKAGE_NAME = 'oh-my-opencode-slim';
+const DEFAULT_OPENCODE_AGENTS_TO_DISABLE = [
+  'build',
+  'explore',
+  'general',
+  'plan',
+] as const;
 
 function isString(value: unknown): value is string {
   return typeof value === 'string';
@@ -141,14 +147,57 @@ function getPluginEntry(): string {
   }
 }
 
-function getOpenCodePluginCacheDir(): string {
+/**
+ * Reads the OpenCode config to find the pinned version for this plugin.
+ * Returns the version string (e.g. "1.2.3") if pinned, or undefined
+ * if the plugin is unpinned (bare name or @latest).
+ */
+function getPinnedVersionFromConfig(): string | undefined {
+  try {
+    const { config } = parseConfig(getExistingConfigPath());
+    if (!config) return undefined;
+    for (const entry of getPlugins(config)) {
+      const spec = getPluginSpec(entry);
+      if (!spec) continue;
+      if (spec === PACKAGE_NAME) return undefined;
+      if (spec.startsWith(`${PACKAGE_NAME}@`)) {
+        const version = spec.slice(PACKAGE_NAME.length + 1);
+        if (version && version !== 'latest') return version;
+      }
+    }
+  } catch {}
+  return undefined;
+}
+
+/**
+ * Reads the version from the package.json at the given package root.
+ * Used as a fallback when the config entry is unpinned (e.g. bunx @beta install).
+ */
+function getVersionFromPackageRoot(packageRoot: string): string | undefined {
+  try {
+    const packageJsonPath = join(packageRoot, 'package.json');
+    if (!existsSync(packageJsonPath)) return undefined;
+    const pkg = JSON.parse(readFileSync(packageJsonPath, 'utf-8')) as {
+      version?: string;
+    };
+    return pkg.version;
+  } catch {
+    return undefined;
+  }
+}
+
+function getOpenCodePluginCacheDir(version?: string): string {
   const cacheDir =
     process.env.XDG_CACHE_HOME?.trim() || join(homedir(), '.cache');
-  return join(cacheDir, 'opencode', 'packages', `${PACKAGE_NAME}@latest`);
+  const suffix = version
+    ? `${PACKAGE_NAME}@${version}`
+    : `${PACKAGE_NAME}@latest`;
+  return join(cacheDir, 'opencode', 'packages', suffix);
 }
 
 function writeOpenCodePluginCacheManifest(
   cacheDir: string,
+  version: string = 'latest',
 ): ConfigMergeResult | null {
   try {
     writeFileSync(
@@ -158,7 +207,7 @@ function writeOpenCodePluginCacheManifest(
           name: `${PACKAGE_NAME}-cache`,
           private: true,
           dependencies: {
-            [PACKAGE_NAME]: 'latest',
+            [PACKAGE_NAME]: version,
           },
         },
         null,
@@ -227,7 +276,10 @@ export async function warmOpenCodePluginCache(): Promise<ConfigMergeResult | nul
     return null;
   }
 
-  const cacheDir = getOpenCodePluginCacheDir();
+  const pinnedVersion = getPinnedVersionFromConfig();
+  const runningVersion = getVersionFromPackageRoot(packageRoot);
+  const cacheVersion = pinnedVersion ?? runningVersion;
+  const cacheDir = getOpenCodePluginCacheDir(cacheVersion);
 
   try {
     mkdirSync(cacheDir, { recursive: true });
@@ -239,7 +291,10 @@ export async function warmOpenCodePluginCache(): Promise<ConfigMergeResult | nul
     };
   }
 
-  const manifestError = writeOpenCodePluginCacheManifest(cacheDir);
+  const manifestError = writeOpenCodePluginCacheManifest(
+    cacheDir,
+    cacheVersion,
+  );
   if (manifestError) return manifestError;
 
   try {
@@ -484,8 +539,15 @@ export function disableDefaultAgents(): ConfigMergeResult {
     const config = parsedConfig ?? {};
 
     const agent = (config.agent ?? {}) as Record<string, unknown>;
-    agent.explore = { disable: true };
-    agent.general = { disable: true };
+    for (const agentName of DEFAULT_OPENCODE_AGENTS_TO_DISABLE) {
+      const existing = agent[agentName];
+      agent[agentName] = {
+        ...(existing && typeof existing === 'object' && !Array.isArray(existing)
+          ? existing
+          : {}),
+        disable: true,
+      };
+    }
     config.agent = agent;
 
     writeConfig(configPath, config);

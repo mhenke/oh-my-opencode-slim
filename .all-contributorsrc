@@ -488,6 +488,51 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "dev-wantap",
+      "name": "GWANWOO KIM",
+      "avatar_url": "https://avatars.githubusercontent.com/u/69743540?v=4",
+      "profile": "https://github.com/dev-wantap",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "OmerFarukOruc",
+      "name": "Omer Faruk Oruc",
+      "avatar_url": "https://avatars.githubusercontent.com/u/7347742?v=4",
+      "profile": "https://github.com/OmerFarukOruc",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "omar-mohamed-khallaf",
+      "name": "Omar Mohamed Khallaf",
+      "avatar_url": "https://avatars.githubusercontent.com/u/51155980?v=4",
+      "profile": "https://khallaf.uk/",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "Qesire",
+      "name": "Knowingthesea_Qesire",
+      "avatar_url": "https://avatars.githubusercontent.com/u/102657430?v=4",
+      "profile": "https://github.com/Qesire",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "flyinghail",
+      "name": "FENG Hao",
+      "avatar_url": "https://avatars.githubusercontent.com/u/157430?v=4",
+      "profile": "http://www.flyinghail.net/",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commitConvention": "angular"

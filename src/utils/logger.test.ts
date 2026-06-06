@@ -187,7 +187,7 @@ describe('logger', () => {
     delete process.env.OPENCODE_LOG_DIR;
     try {
       expect(getLogDir()).toBe(
-        path.join(os.homedir(), '.local/share/opencode'),
+        path.join(os.homedir(), '.local/share/opencode/log'),
       );
     } finally {
       if (origLogDir === undefined) {

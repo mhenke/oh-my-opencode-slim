@@ -135,6 +135,32 @@ describe('config-io', () => {
     expect(saved.plugin.length).toBe(2);
   });
 
+  test('addPluginToOpenCodeConfig respects OPENCODE_CONFIG_DIR', async () => {
+    const customConfigDir = join(tmpDir, 'custom-opencode');
+    const defaultConfigDir = join(tmpDir, 'opencode');
+    const customConfigPath = join(customConfigDir, 'opencode.jsonc');
+    const defaultConfigPath = join(defaultConfigDir, 'opencode.json');
+
+    process.env.OPENCODE_CONFIG_DIR = customConfigDir;
+    mkdirSync(customConfigDir, { recursive: true });
+    mkdirSync(defaultConfigDir, { recursive: true });
+    writeFileSync(
+      customConfigPath,
+      JSON.stringify({ plugin: ['other', 'oh-my-opencode-slim@1.0.0'] }),
+    );
+    writeFileSync(defaultConfigPath, JSON.stringify({ plugin: ['default'] }));
+    process.argv[1] = '';
+
+    const result = await addPluginToOpenCodeConfig();
+
+    expect(result.success).toBe(true);
+    expect(result.configPath).toBe(customConfigPath);
+    const customSaved = JSON.parse(readFileSync(customConfigPath, 'utf-8'));
+    const defaultSaved = JSON.parse(readFileSync(defaultConfigPath, 'utf-8'));
+    expect(customSaved.plugin).toEqual(['other', 'oh-my-opencode-slim']);
+    expect(defaultSaved.plugin).toEqual(['default']);
+  });
+
   test('addPluginToOpenCodeConfig stores package name for bunx temp paths', async () => {
     const configPath = join(tmpDir, 'opencode', 'opencode.json');
     const packageRoot = join(
@@ -438,7 +464,7 @@ describe('config-io', () => {
     );
   });
 
-  test('disableDefaultAgents disables explore and general agents', () => {
+  test('disableDefaultAgents disables OpenCode built-in agents', () => {
     const configPath = join(tmpDir, 'opencode', 'opencode.json');
     paths.ensureConfigDir();
     writeFileSync(configPath, JSON.stringify({}));
@@ -449,6 +475,35 @@ describe('config-io', () => {
     const saved = JSON.parse(readFileSync(configPath, 'utf-8'));
     expect(saved.agent.explore.disable).toBe(true);
     expect(saved.agent.general.disable).toBe(true);
+    expect(saved.agent.build.disable).toBe(true);
+    expect(saved.agent.plan.disable).toBe(true);
+  });
+
+  test('disableDefaultAgents preserves existing built-in agent config', () => {
+    const configPath = join(tmpDir, 'opencode', 'opencode.json');
+    paths.ensureConfigDir();
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        agent: {
+          build: { description: 'custom build agent' },
+          plan: { permission: { edit: 'deny' } },
+        },
+      }),
+    );
+
+    const result = disableDefaultAgents();
+    expect(result.success).toBe(true);
+
+    const saved = JSON.parse(readFileSync(configPath, 'utf-8'));
+    expect(saved.agent.build).toEqual({
+      description: 'custom build agent',
+      disable: true,
+    });
+    expect(saved.agent.plan).toEqual({
+      permission: { edit: 'deny' },
+      disable: true,
+    });
   });
 
   test('enableLspByDefault sets lsp true when missing', () => {

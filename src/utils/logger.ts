@@ -13,7 +13,7 @@ let writeChain: Promise<void> = Promise.resolve();
 function getLogDir(): string {
   return (
     process.env.OPENCODE_LOG_DIR ??
-    path.join(os.homedir(), '.local/share/opencode')
+    path.join(os.homedir(), '.local/share/opencode/log')
   );
 }
 
