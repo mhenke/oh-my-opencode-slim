@@ -75,6 +75,8 @@ Then:
    opencode models --refresh
    ```
 3. **Open your plugin config** at `~/.config/opencode/oh-my-opencode-slim.json`
+   or `$OPENCODE_CONFIG_DIR/oh-my-opencode-slim.json` if you use a custom
+   OpenCode config directory
 
 4. **Update the models you want for each agent**
 
