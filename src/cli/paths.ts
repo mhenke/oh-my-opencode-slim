@@ -55,7 +55,7 @@ export function getConfigSearchDirs(): string[] {
 }
 
 export function getOpenCodeConfigPaths(): string[] {
-  const configDir = getDefaultOpenCodeConfigDir();
+  const configDir = getConfigDir();
   return [join(configDir, 'opencode.json'), join(configDir, 'opencode.jsonc')];
 }
 
