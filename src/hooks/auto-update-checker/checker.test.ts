@@ -387,5 +387,30 @@ describe('auto-update-checker/checker', () => {
 
       globalThis.fetch = originalFetch;
     });
+
+    test('fallback dist-tags never return stable latest for prerelease channel', async () => {
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = mock(async (url: string) => {
+        if (url.includes('/-/package/')) {
+          return Response.json({ latest: '1.5.0' });
+        }
+
+        return new Response(null, { status: 503 });
+      }) as never;
+
+      const { getLatestCompatibleVersion } = await import(
+        `./checker?test=${importCounter++}`
+      );
+
+      const result = await getLatestCompatibleVersion('1.4.0-beta.1', 'beta');
+
+      expect(result).toEqual({
+        latestVersion: null,
+        latestMajorVersion: null,
+        blockedByMajor: false,
+      });
+
+      globalThis.fetch = originalFetch;
+    });
   });
 });
