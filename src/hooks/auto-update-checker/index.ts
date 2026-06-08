@@ -80,6 +80,10 @@ async function runBackgroundUpdateCheck(
   const latestInfo = await getLatestCompatibleVersion(currentVersion, channel);
   if (latestInfo.blockedByMajor && latestInfo.latestMajorVersion) {
     showMajorUpgradeToast(ctx, latestInfo.latestMajorVersion);
+    log(
+      `[auto-update-checker] Major update available; skipping auto-update: ${latestInfo.latestMajorVersion}`,
+    );
+    return;
   }
 
   const latestVersion = latestInfo.latestVersion;

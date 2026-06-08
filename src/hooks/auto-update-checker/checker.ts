@@ -344,6 +344,11 @@ export function updatePinnedVersion(
 export async function getLatestVersion(
   channel: string = 'latest',
 ): Promise<string | null> {
+  const distTags = await fetchDistTags();
+  return distTags?.[channel] ?? distTags?.latest ?? null;
+}
+
+async function fetchDistTags(): Promise<NpmDistTags | null> {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), NPM_FETCH_TIMEOUT);
 
@@ -356,7 +361,7 @@ export async function getLatestVersion(
     if (!response.ok) return null;
 
     const data = (await response.json()) as NpmDistTags;
-    return data[channel] ?? data.latest ?? null;
+    return data;
   } catch {
     return null;
   } finally {
@@ -396,10 +401,12 @@ export async function getLatestCompatibleVersion(
 
     const data = (await response.json()) as NpmPackageMetadata;
     const distTags = data['dist-tags'] ?? { latest: '' };
-    const latestMajorVersion = distTags.latest || null;
     const taggedVersion = distTags[channel] ?? distTags.latest ?? null;
-    const tagged = taggedVersion ? parseVersion(taggedVersion) : null;
-    const blockedByMajor = Boolean(tagged && tagged.major > current.major);
+    const latestMajorVersion = getBlockingMajorVersion(current, [
+      taggedVersion,
+      distTags.latest,
+    ]);
+    const blockedByMajor = latestMajorVersion !== null;
 
     const versions = Object.keys(data.versions ?? {})
       .filter((version) => {
@@ -424,13 +431,37 @@ async function getCompatibleFromDistTags(
   current: ParsedVersion,
   channel: string,
 ): Promise<CompatibleVersionResult> {
-  const latestVersion = await getLatestVersion(channel);
-  const latest = latestVersion ? parseVersion(latestVersion) : null;
-  const blockedByMajor = Boolean(latest && latest.major > current.major);
+  const distTags = await fetchDistTags();
+  if (!distTags) {
+    return {
+      latestVersion: null,
+      latestMajorVersion: null,
+      blockedByMajor: false,
+    };
+  }
+
+  const latestVersion = distTags[channel] ?? distTags.latest ?? null;
+  const latestMajorVersion = getBlockingMajorVersion(current, [
+    latestVersion,
+    distTags.latest,
+  ]);
+  const blockedByMajor = latestMajorVersion !== null;
 
   return {
-    latestVersion: blockedByMajor ? null : latestVersion,
-    latestMajorVersion: latestVersion,
+    latestVersion,
+    latestMajorVersion,
     blockedByMajor,
   };
+}
+
+function getBlockingMajorVersion(
+  current: ParsedVersion,
+  candidates: Array<string | null | undefined>,
+): string | null {
+  for (const candidate of candidates) {
+    const parsed = candidate ? parseVersion(candidate) : null;
+    if (parsed && parsed.major > current.major) return candidate ?? null;
+  }
+
+  return null;
 }

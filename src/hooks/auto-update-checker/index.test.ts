@@ -340,4 +340,35 @@ describe('auto-update-checker/index', () => {
     expect(cacheMocks.preparePackageUpdate).not.toHaveBeenCalled();
     expect(crossSpawnMock).not.toHaveBeenCalled();
   });
+
+  test('shows only migration toast when compatible and blocked major updates coexist', async () => {
+    checkerMocks.findPluginEntry.mockImplementation(() => ({
+      pinnedVersion: null,
+      isPinned: false,
+    }));
+    checkerMocks.getCachedVersion.mockImplementation(() => '1.0.0');
+    checkerMocks.getLatestCompatibleVersion.mockImplementation(async () => ({
+      latestVersion: '1.5.0',
+      latestMajorVersion: '2.0.0',
+      blockedByMajor: true,
+    }));
+
+    const { createAutoUpdateCheckerHook } = await import(
+      `./index?test=${importCounter++}`
+    );
+    const { ctx, showToast } = createCtx();
+
+    const hook = createAutoUpdateCheckerHook(ctx as never);
+    hook.event({ event: { type: 'session.created', properties: {} } });
+    await waitForCalls(showToast);
+
+    expect(showToast).toHaveBeenCalledTimes(1);
+    expect(showToast).toHaveBeenCalledWith({
+      body: expect.objectContaining({
+        title: 'oh-my-opencode-slim v2.0.0 is available.',
+      }),
+    });
+    expect(cacheMocks.preparePackageUpdate).not.toHaveBeenCalled();
+    expect(crossSpawnMock).not.toHaveBeenCalled();
+  });
 });

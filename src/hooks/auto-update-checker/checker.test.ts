@@ -210,8 +210,38 @@ describe('auto-update-checker/checker', () => {
 
       expect(result).toEqual({
         latestVersion: '1.1.2',
-        latestMajorVersion: '1.1.2',
+        latestMajorVersion: null,
         blockedByMajor: false,
+      });
+
+      globalThis.fetch = originalFetch;
+    });
+
+    test('uses channel tag as blocking major version', async () => {
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = mock(async () =>
+        Response.json({
+          'dist-tags': {
+            latest: '1.9.0',
+            beta: '2.0.0-beta.1',
+          },
+          versions: {
+            '1.9.0': {},
+            '2.0.0-beta.1': {},
+          },
+        }),
+      ) as never;
+
+      const { getLatestCompatibleVersion } = await import(
+        `./checker?test=${importCounter++}`
+      );
+
+      const result = await getLatestCompatibleVersion('1.8.0-beta.1', 'beta');
+
+      expect(result).toEqual({
+        latestVersion: null,
+        latestMajorVersion: '2.0.0-beta.1',
+        blockedByMajor: true,
       });
 
       globalThis.fetch = originalFetch;
