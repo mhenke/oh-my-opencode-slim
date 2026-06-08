@@ -51,7 +51,8 @@ function isDistTag(version: string): boolean {
 }
 
 function parseVersion(version: string): ParsedVersion | null {
-  const match = version.match(/^(\d+)\.(\d+)\.(\d+)(?:-([\w.-]+))?/);
+  const normalized = version.trim().replace(/^[~^=<>\s]+/, '');
+  const match = normalized.match(/^(\d+)\.(\d+)\.(\d+)(?:-([\w.-]+))?/);
   if (!match) return null;
 
   return {
@@ -81,7 +82,35 @@ function compareVersions(a: string, b: string): number {
   if (parsedA.prerelease === parsedB.prerelease) return 0;
   if (!parsedA.prerelease) return 1;
   if (!parsedB.prerelease) return -1;
-  return parsedA.prerelease.localeCompare(parsedB.prerelease);
+  return comparePrerelease(parsedA.prerelease, parsedB.prerelease);
+}
+
+function comparePrerelease(a: string, b: string): number {
+  const segmentsA = a.split('.');
+  const segmentsB = b.split('.');
+  const length = Math.max(segmentsA.length, segmentsB.length);
+
+  for (let i = 0; i < length; i++) {
+    const segmentA = segmentsA[i];
+    const segmentB = segmentsB[i];
+    if (segmentA === segmentB) continue;
+    if (segmentA === undefined) return -1;
+    if (segmentB === undefined) return 1;
+
+    const numberA = Number(segmentA);
+    const numberB = Number(segmentB);
+    const numericA = Number.isInteger(numberA);
+    const numericB = Number.isInteger(numberB);
+
+    if (numericA && numericB) return numberA - numberB;
+    if (numericA) return -1;
+    if (numericB) return 1;
+
+    const comparison = segmentA.localeCompare(segmentB);
+    if (comparison !== 0) return comparison;
+  }
+
+  return 0;
 }
 
 function getPrereleaseChannel(version: ParsedVersion): string | null {

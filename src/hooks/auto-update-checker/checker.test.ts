@@ -259,12 +259,71 @@ describe('auto-update-checker/checker', () => {
         `./checker?test=${importCounter++}`
       );
 
-      const result = await getLatestCompatibleVersion('^1.0.0');
+      const result = await getLatestCompatibleVersion('workspace:*');
 
       expect(result).toEqual({
         latestVersion: null,
         latestMajorVersion: '2.0.0',
         blockedByMajor: true,
+      });
+
+      globalThis.fetch = originalFetch;
+    });
+
+    test('parses range prefixes before checking major compatibility', async () => {
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = mock(async () =>
+        Response.json({
+          'dist-tags': {
+            latest: '1.9.0',
+          },
+          versions: {
+            '1.8.0': {},
+            '1.9.0': {},
+          },
+        }),
+      ) as never;
+
+      const { getLatestCompatibleVersion } = await import(
+        `./checker?test=${importCounter++}`
+      );
+
+      const result = await getLatestCompatibleVersion('^1.0.0');
+
+      expect(result).toEqual({
+        latestVersion: '1.9.0',
+        latestMajorVersion: null,
+        blockedByMajor: false,
+      });
+
+      globalThis.fetch = originalFetch;
+    });
+
+    test('sorts prerelease numeric suffixes numerically', async () => {
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = mock(async () =>
+        Response.json({
+          'dist-tags': {
+            beta: '1.0.0-beta.10',
+            latest: '1.0.0',
+          },
+          versions: {
+            '1.0.0-beta.2': {},
+            '1.0.0-beta.10': {},
+          },
+        }),
+      ) as never;
+
+      const { getLatestCompatibleVersion } = await import(
+        `./checker?test=${importCounter++}`
+      );
+
+      const result = await getLatestCompatibleVersion('1.0.0-beta.1', 'beta');
+
+      expect(result).toEqual({
+        latestVersion: '1.0.0-beta.10',
+        latestMajorVersion: null,
+        blockedByMajor: false,
       });
 
       globalThis.fetch = originalFetch;
