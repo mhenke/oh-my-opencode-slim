@@ -78,6 +78,22 @@ async function runBackgroundUpdateCheck(
 
   const channel = extractChannel(pluginInfo.pinnedVersion ?? currentVersion);
   const latestInfo = await getLatestCompatibleVersion(currentVersion, channel);
+  if (latestInfo.unsafeReason === 'unparseable-current-version') {
+    log(
+      `[auto-update-checker] Current version is not semver; skipping auto-update: ${currentVersion}`,
+    );
+    if (latestInfo.latestMajorVersion) {
+      showToast(
+        ctx,
+        `OMO-Slim ${latestInfo.latestMajorVersion}`,
+        `v${latestInfo.latestMajorVersion} available. Auto-update skipped because the current version could not be compared safely.`,
+        'info',
+        8000,
+      );
+    }
+    return;
+  }
+
   if (latestInfo.blockedByMajor && latestInfo.latestMajorVersion) {
     showMajorUpgradeToast(ctx, latestInfo.latestMajorVersion);
     log(

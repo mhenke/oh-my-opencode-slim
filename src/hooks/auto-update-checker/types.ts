@@ -12,6 +12,7 @@ export interface CompatibleVersionResult {
   latestVersion: string | null;
   latestMajorVersion: string | null;
   blockedByMajor: boolean;
+  unsafeReason?: 'unparseable-current-version';
 }
 
 export interface OpencodeConfig {

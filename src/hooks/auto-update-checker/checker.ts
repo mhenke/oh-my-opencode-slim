@@ -414,6 +414,7 @@ export async function getLatestCompatibleVersion(
       latestVersion: null,
       latestMajorVersion: latestVersion,
       blockedByMajor: latestVersion !== null,
+      unsafeReason: latestVersion ? 'unparseable-current-version' : undefined,
     };
   }
 

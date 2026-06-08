@@ -265,6 +265,7 @@ describe('auto-update-checker/checker', () => {
         latestVersion: null,
         latestMajorVersion: '2.0.0',
         blockedByMajor: true,
+        unsafeReason: 'unparseable-current-version',
       });
 
       globalThis.fetch = originalFetch;

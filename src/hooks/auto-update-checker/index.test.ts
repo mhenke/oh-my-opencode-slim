@@ -371,4 +371,40 @@ describe('auto-update-checker/index', () => {
     expect(cacheMocks.preparePackageUpdate).not.toHaveBeenCalled();
     expect(crossSpawnMock).not.toHaveBeenCalled();
   });
+
+  test('does not show migration copy for unparseable current versions', async () => {
+    checkerMocks.findPluginEntry.mockImplementation(() => ({
+      pinnedVersion: 'workspace:*',
+      isPinned: true,
+    }));
+    checkerMocks.getCachedVersion.mockImplementation(() => null);
+    checkerMocks.getLatestCompatibleVersion.mockImplementation(async () => ({
+      latestVersion: null,
+      latestMajorVersion: '1.9.0',
+      blockedByMajor: true,
+      unsafeReason: 'unparseable-current-version',
+    }));
+
+    const { createAutoUpdateCheckerHook } = await import(
+      `./index?test=${importCounter++}`
+    );
+    const { ctx, showToast } = createCtx();
+
+    const hook = createAutoUpdateCheckerHook(ctx as never);
+    hook.event({ event: { type: 'session.created', properties: {} } });
+    await waitForCalls(showToast);
+
+    expect(showToast).toHaveBeenCalledTimes(1);
+    expect(showToast).toHaveBeenCalledWith({
+      body: {
+        title: 'OMO-Slim 1.9.0',
+        message:
+          'v1.9.0 available. Auto-update skipped because the current version could not be compared safely.',
+        variant: 'info',
+        duration: 8000,
+      },
+    });
+    expect(cacheMocks.preparePackageUpdate).not.toHaveBeenCalled();
+    expect(crossSpawnMock).not.toHaveBeenCalled();
+  });
 });
