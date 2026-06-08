@@ -478,7 +478,11 @@ async function getCompatibleFromDistTags(
   const blockedByMajor = latestMajorVersion !== null;
   const parsedLatest = latestVersion ? parseVersion(latestVersion) : null;
   const compatibleLatestVersion =
-    parsedLatest?.major === current.major ? latestVersion : null;
+    parsedLatest?.major === current.major &&
+    latestVersion &&
+    isVersionInChannel(latestVersion, channel)
+      ? latestVersion
+      : null;
 
   return {
     latestVersion: compatibleLatestVersion,
