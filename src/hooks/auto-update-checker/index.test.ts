@@ -153,7 +153,7 @@ describe('auto-update-checker/index', () => {
     checkerMocks.getCachedVersion.mockImplementation(() => '0.9.1');
     checkerMocks.getLatestCompatibleVersion.mockImplementation(async () => ({
       latestVersion: '0.9.11',
-      latestMajorVersion: '0.9.11',
+      latestMajorVersion: null,
       blockedByMajor: false,
     }));
 
@@ -201,7 +201,7 @@ describe('auto-update-checker/index', () => {
     checkerMocks.getCachedVersion.mockImplementation(() => '0.9.1');
     checkerMocks.getLatestCompatibleVersion.mockImplementation(async () => ({
       latestVersion: '0.9.11',
-      latestMajorVersion: '0.9.11',
+      latestMajorVersion: null,
       blockedByMajor: false,
     }));
 
@@ -236,7 +236,7 @@ describe('auto-update-checker/index', () => {
     checkerMocks.getCachedVersion.mockImplementation(() => '0.9.1');
     checkerMocks.getLatestCompatibleVersion.mockImplementation(async () => ({
       latestVersion: '0.9.11',
-      latestMajorVersion: '0.9.11',
+      latestMajorVersion: null,
       blockedByMajor: false,
     }));
     cacheMocks.preparePackageUpdate.mockImplementation(() => null);
@@ -270,7 +270,7 @@ describe('auto-update-checker/index', () => {
     checkerMocks.getCachedVersion.mockImplementation(() => '0.9.1');
     checkerMocks.getLatestCompatibleVersion.mockImplementation(async () => ({
       latestVersion: '0.9.11',
-      latestMajorVersion: '0.9.11',
+      latestMajorVersion: null,
       blockedByMajor: false,
     }));
 

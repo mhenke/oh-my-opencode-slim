@@ -382,9 +382,9 @@ export async function getLatestCompatibleVersion(
   if (!current) {
     const latestVersion = await getLatestVersion(channel);
     return {
-      latestVersion,
+      latestVersion: null,
       latestMajorVersion: latestVersion,
-      blockedByMajor: false,
+      blockedByMajor: latestVersion !== null,
     };
   }
 
@@ -446,9 +446,12 @@ async function getCompatibleFromDistTags(
     distTags.latest,
   ]);
   const blockedByMajor = latestMajorVersion !== null;
+  const parsedLatest = latestVersion ? parseVersion(latestVersion) : null;
+  const compatibleLatestVersion =
+    parsedLatest?.major === current.major ? latestVersion : null;
 
   return {
-    latestVersion,
+    latestVersion: compatibleLatestVersion,
     latestMajorVersion,
     blockedByMajor,
   };

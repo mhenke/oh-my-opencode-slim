@@ -246,5 +246,53 @@ describe('auto-update-checker/checker', () => {
 
       globalThis.fetch = originalFetch;
     });
+
+    test('treats unparseable current version as unsafe for auto-update', async () => {
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = mock(async () =>
+        Response.json({
+          latest: '2.0.0',
+        }),
+      ) as never;
+
+      const { getLatestCompatibleVersion } = await import(
+        `./checker?test=${importCounter++}`
+      );
+
+      const result = await getLatestCompatibleVersion('^1.0.0');
+
+      expect(result).toEqual({
+        latestVersion: null,
+        latestMajorVersion: '2.0.0',
+        blockedByMajor: true,
+      });
+
+      globalThis.fetch = originalFetch;
+    });
+
+    test('fallback dist-tags never return lower-major versions as compatible', async () => {
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = mock(async (url: string) => {
+        if (url.includes('/-/package/')) {
+          return Response.json({ latest: '1.5.0' });
+        }
+
+        return new Response(null, { status: 503 });
+      }) as never;
+
+      const { getLatestCompatibleVersion } = await import(
+        `./checker?test=${importCounter++}`
+      );
+
+      const result = await getLatestCompatibleVersion('2.0.0');
+
+      expect(result).toEqual({
+        latestVersion: null,
+        latestMajorVersion: null,
+        blockedByMajor: false,
+      });
+
+      globalThis.fetch = originalFetch;
+    });
   });
 });
