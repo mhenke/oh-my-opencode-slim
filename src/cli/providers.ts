@@ -145,5 +145,13 @@ export function generateLiteConfig(
     };
   }
 
+  if (installConfig.companion === 'yes') {
+    config.companion = {
+      enabled: true,
+      position: 'bottom-right',
+      size: 'medium',
+    };
+  }
+
   return config;
 }

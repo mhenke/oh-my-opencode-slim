@@ -303,7 +303,9 @@ Notes:
 
 ### Desktop Companion App
 
-The desktop companion app provides a visual status overlay showing running and active agents. The companion requires the binary installed or downloaded separately until installer support lands. Once installed, configure it in your `oh-my-opencode-slim` settings:
+The desktop companion app provides a visual status overlay showing running and active agents. For quick installation instructions, binary paths, config defaults, and release information, see the full **[Desktop Companion Guide](companion.md)**.
+
+Once installed, configure it in your `oh-my-opencode-slim` settings:
 
 ```jsonc
 {

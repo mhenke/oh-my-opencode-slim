@@ -9,6 +9,7 @@ export interface InstallArgs {
   reset?: boolean;
   backgroundSubagents?: BackgroundSubagentsArg;
   backgroundSubagentsTarget?: string;
+  companion?: BooleanArg;
 }
 
 export interface OpenCodeConfig {
@@ -27,6 +28,7 @@ export interface InstallConfig {
   reset: boolean;
   backgroundSubagents: BackgroundSubagentsArg;
   backgroundSubagentsTarget?: string;
+  companion?: BooleanArg;
 }
 
 export interface ConfigMergeResult {

@@ -50,13 +50,17 @@ function binaryPath(): string | null {
     xdg && path.isAbsolute(xdg)
       ? xdg
       : path.join(os.homedir(), '.local', 'share');
+  const binaryName =
+    os.platform() === 'win32'
+      ? 'oh-my-opencode-slim-companion.exe'
+      : 'oh-my-opencode-slim-companion';
   const bin = path.join(
     base,
     'opencode',
     'storage',
     'oh-my-opencode-slim',
     'bin',
-    'oh-my-opencode-slim-companion',
+    binaryName,
   );
   return existsSync(bin) ? bin : null;
 }

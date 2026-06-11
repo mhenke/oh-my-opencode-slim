@@ -8,6 +8,7 @@ import {
   manualBackgroundSubagentsInstructions,
   writeBackgroundSubagentsBlock,
 } from './background-subagents';
+import { installCompanion } from './companion';
 import {
   addPluginToOpenCodeConfig,
   addPluginToOpenCodeTuiConfig,
@@ -246,6 +247,7 @@ async function runInstall(config: InstallConfig): Promise<number> {
 
   let totalSteps = 7;
   if (config.installCustomSkills) totalSteps += 1;
+  if (config.companion === 'yes') totalSteps += 1;
   totalSteps += 1;
 
   let step = 1;
@@ -309,6 +311,12 @@ async function runInstall(config: InstallConfig): Promise<number> {
 
   printStep(step++, totalSteps, 'Configuring OpenCode background subagents...');
   const backgroundSubagents = await configureBackgroundSubagents(config);
+
+  if (config.companion === 'yes') {
+    printStep(step++, totalSteps, 'Installing desktop companion binary...');
+    const companionResult = await installCompanion(config);
+    if (!handleStepResult(companionResult, 'Companion installed')) return 1;
+  }
 
   printStep(step++, totalSteps, 'Writing oh-my-opencode-slim configuration...');
   if (config.dryRun) {
@@ -433,6 +441,7 @@ export async function install(args: InstallArgs): Promise<number> {
     reset: args.reset ?? false,
     backgroundSubagents: args.backgroundSubagents ?? 'no',
     backgroundSubagentsTarget: args.backgroundSubagentsTarget,
+    companion: args.companion,
   };
 
   return runInstall(config);

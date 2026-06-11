@@ -8,6 +8,7 @@ export function parseArgs(args: string[]): InstallArgs {
   const result: InstallArgs = {
     tui: true,
     skills: 'yes',
+    companion: 'no',
   };
 
   for (const arg of args) {
@@ -15,6 +16,13 @@ export function parseArgs(args: string[]): InstallArgs {
       result.tui = false;
     } else if (arg.startsWith('--skills=')) {
       result.skills = arg.split('=')[1] as BooleanArg;
+    } else if (arg.startsWith('--companion=')) {
+      const mode = arg.split('=')[1] as BooleanArg;
+      if (!['yes', 'no'].includes(mode)) {
+        console.error('Unsupported --companion value: use yes or no');
+        process.exit(1);
+      }
+      result.companion = mode;
     } else if (arg.startsWith('--preset=')) {
       const preset = arg.split('=')[1];
       if (!isGeneratedPresetName(preset)) {
@@ -61,6 +69,8 @@ Usage:
 
 Options:
   --skills=yes|no        Install bundled skills (default: yes)
+  --companion=yes|no     Install desktop companion binary and enable config
+                         (default: no)
   --preset=<name>        Active generated config preset (default: openai)
   --background-subagents=ask|yes|no
                          Persist required OpenCode background subagent env
