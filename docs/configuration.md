@@ -144,6 +144,9 @@ Presets can also be switched at runtime without restarting using the `/preset` c
 | `interview.autoOpenBrowser` | boolean | `true` | Automatically open the interview UI in your default browser during interactive runs; suppressed in tests and CI |
 | `interview.port` | integer | `0` | Interview server port (0–65535). `0` = OS-assigned random port (per-session mode). Any value > 0 enables [dashboard mode](interview.md#dashboard-mode) |
 | `interview.dashboard` | boolean | `false` | Enable [dashboard mode](interview.md#dashboard-mode) on the default port (43211). Setting `port` > 0 also enables dashboard mode. If both are set, `port` takes precedence |
+| `companion.enabled` | boolean | `false` | Enable/disable the floating window Rust companion |
+| `companion.position` | string | `"bottom-right"` | The initial corner position of the companion window: `bottom-right`, `bottom-left`, `top-right`, or `top-left` |
+| `companion.size` | string | `"medium"` | The default size preset of the companion window: `small` (80px), `medium` (120px), or `large` (160px) |
 
 ### Council configuration note
 
@@ -297,3 +300,17 @@ Notes:
 - Custom agent names must be safe identifiers such as `janitor` or `security-reviewer`
 - Custom agents without a `model` are skipped with a warning
 - Disabled custom agents are not registered or injected into the orchestrator prompt
+
+### Desktop Companion App
+
+The desktop companion app provides a visual status overlay showing running and active agents. The companion requires the binary installed or downloaded separately until installer support lands. Once installed, configure it in your `oh-my-opencode-slim` settings:
+
+```jsonc
+{
+  "companion": {
+    "enabled": true,
+    "position": "bottom-right", // optional: bottom-right, bottom-left, top-right, top-left
+    "size": "medium"            // optional: small, medium, large
+  }
+}
+```

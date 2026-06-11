@@ -204,6 +204,10 @@ export function mergePluginConfigs(
     divoom: deepMerge(base.divoom, override.divoom),
     fallback: deepMerge(base.fallback, override.fallback),
     council: deepMerge(base.council, override.council),
+    companion: deepMerge(
+      base.companion as Record<string, unknown> | undefined,
+      override.companion as Record<string, unknown> | undefined,
+    ) as PluginConfig['companion'],
   };
 }
 
@@ -312,6 +316,15 @@ export function loadPluginConfig(
         console.warn(`[oh-my-opencode-slim] ${message}`);
       }
     }
+  }
+
+  // Normalize companion config defaults
+  if (config.companion) {
+    config.companion = {
+      enabled: config.companion.enabled ?? false,
+      position: config.companion.position ?? 'bottom-right',
+      size: config.companion.size ?? 'medium',
+    };
   }
 
   return config;

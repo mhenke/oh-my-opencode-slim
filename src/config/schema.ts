@@ -229,6 +229,16 @@ export const FailoverConfigSchema = z.object({
 
 export type FailoverConfig = z.infer<typeof FailoverConfigSchema>;
 
+export const CompanionConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  position: z
+    .enum(['bottom-right', 'bottom-left', 'top-right', 'top-left'])
+    .optional(),
+  size: z.enum(['small', 'medium', 'large']).optional(),
+});
+
+export type CompanionConfig = z.infer<typeof CompanionConfigSchema>;
+
 function validateCustomOnlyPromptFields(
   overrides: Record<string, z.infer<typeof AgentOverrideConfigSchema>>,
   ctx: z.RefinementCtx,
@@ -297,6 +307,7 @@ export const PluginConfigSchema = z
     divoom: DivoomConfigSchema.optional(),
     fallback: FailoverConfigSchema.optional(),
     council: CouncilConfigSchema.optional(),
+    companion: CompanionConfigSchema.optional(),
   })
   .superRefine((value, ctx) => {
     if (value.agents) {

@@ -1,6 +1,7 @@
 import type { Plugin } from '@opencode-ai/plugin';
 import { createAgents, getAgentConfigs, getDisabledAgents } from './agents';
 import { buildOrchestratorPrompt } from './agents/orchestrator';
+import { CompanionManager } from './companion/manager';
 import {
   type AgentOverrideConfig,
   deepMerge,
@@ -139,6 +140,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
   let backgroundJobBoard: BackgroundJobBoard;
   let interviewManager: ReturnType<typeof createInterviewManager>;
   let presetManager: ReturnType<typeof createPresetManager>;
+  let companionManager: CompanionManager;
   let divoomManager: ReturnType<typeof createDivoomManager>;
   let councilTools: Record<string, unknown>;
   let cancelTaskTools: Record<string, unknown>;
@@ -314,6 +316,11 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     });
     interviewManager = createInterviewManager(ctx, config);
     presetManager = createPresetManager(ctx, config);
+    companionManager = new CompanionManager(
+      `proc_${process.pid}`,
+      ctx.directory,
+      config.companion,
+    );
     divoomManager = createDivoomManager(config.divoom);
     cancelTaskTools = createCancelTaskTool({
       client: ctx.client,
@@ -384,6 +391,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
   });
 
   divoomManager.onPluginLoad();
+  companionManager.onLoad();
 
   return {
     name: 'oh-my-opencode-slim',
@@ -801,6 +809,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           sessionId: props?.sessionID,
           requestId: props?.id ?? props?.requestID,
         });
+        companionManager.onWaitingInput();
       }
 
       if (
@@ -815,6 +824,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           sessionId: props?.sessionID,
           requestId: props?.requestID ?? props?.id,
         });
+        companionManager.onInputResolved();
       }
 
       if (input.event.type === 'session.status') {
@@ -822,12 +832,18 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           | { sessionID?: string; status?: { type?: string } }
           | undefined;
         const sessionID = props?.sessionID;
+        const isOrch = sessionID
+          ? sessionAgentMap.get(sessionID) === 'orchestrator'
+          : false;
         divoomManager.onOrchestratorStatus({
           sessionId: sessionID,
           status: props?.status?.type,
-          isOrchestrator: sessionID
-            ? sessionAgentMap.get(sessionID) === 'orchestrator'
-            : false,
+          isOrchestrator: isOrch,
+        });
+        companionManager.onSessionStatus({
+          sessionId: sessionID,
+          agent: sessionID ? sessionAgentMap.get(sessionID) : undefined,
+          status: props?.status?.type,
         });
       }
 
@@ -836,12 +852,14 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           | { info?: { id?: string }; sessionID?: string }
           | undefined;
         const sessionID = props?.info?.id ?? props?.sessionID;
+        const isOrch = sessionID
+          ? sessionAgentMap.get(sessionID) === 'orchestrator'
+          : false;
         divoomManager.onSessionDeleted({
           sessionId: sessionID,
-          isOrchestrator: sessionID
-            ? sessionAgentMap.get(sessionID) === 'orchestrator'
-            : false,
+          isOrchestrator: isOrch,
         });
+        companionManager.onSessionDeleted(sessionID);
       }
 
       if (input.event.type === 'session.deleted') {
@@ -942,6 +960,14 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
       if (agent) {
         sessionAgentMap.set(input.sessionID, agent);
+        // A chat message means this session is actively working. This also
+        // covers the race where session.status busy fires before the
+        // session's agent is known.
+        companionManager.onSessionStatus({
+          sessionId: input.sessionID,
+          agent,
+          status: 'busy',
+        });
       }
     },
 

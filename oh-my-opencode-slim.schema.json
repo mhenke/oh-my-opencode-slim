@@ -707,6 +707,31 @@
       "required": [
         "presets"
       ]
+    },
+    "companion": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "position": {
+          "type": "string",
+          "enum": [
+            "bottom-right",
+            "bottom-left",
+            "top-right",
+            "top-left"
+          ]
+        },
+        "size": {
+          "type": "string",
+          "enum": [
+            "small",
+            "medium",
+            "large"
+          ]
+        }
+      }
     }
   },
   "title": "oh-my-opencode-slim",
