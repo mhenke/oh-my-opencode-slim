@@ -1,13 +1,17 @@
 /**
  * Zellij multiplexer implementation
  *
- * Creates a dedicated "opencode-agents" tab for all sub-agent panes.
+ * Creates panes for sub-agent sessions in Zellij.
+ *
+ * The default mode creates a dedicated "opencode-agents" tab:
  * - First sub-agent uses the default pane from new-tab
  * - Subsequent sub-agents create new panes
  * - User stays in their original tab
+ *
+ * The optional "current-tab" mode creates panes in the active tab instead.
  */
 
-import type { MultiplexerLayout } from '../../config/schema';
+import type { MultiplexerLayout, ZellijPaneMode } from '../../config/schema';
 import { crossSpawn } from '../../utils/compat';
 import type { Multiplexer, PaneResult } from '../types';
 
@@ -27,7 +31,11 @@ export class ZellijMultiplexer implements Multiplexer {
   private firstPaneId: string | null = null;
   private firstPaneUsed = false;
 
-  constructor(layout: MultiplexerLayout = 'main-vertical', mainPaneSize = 60) {
+  constructor(
+    layout: MultiplexerLayout = 'main-vertical',
+    mainPaneSize = 60,
+    private readonly paneMode: ZellijPaneMode = 'agent-tab',
+  ) {
     // Note: Zellij does NOT support layout configuration like tmux.
     // These params are accepted for API consistency but are no-ops.
     // Zellij uses its own native layout algorithm for pane arrangement.
@@ -58,6 +66,16 @@ export class ZellijMultiplexer implements Multiplexer {
     if (!zellij) return { success: false };
 
     try {
+      if (this.paneMode === 'current-tab') {
+        return await this.createPaneInCurrentTab(
+          zellij,
+          sessionId,
+          serverUrl,
+          directory,
+          description,
+        );
+      }
+
       // Ensure agent tab exists on first call
       if (!this.agentTabId) {
         const result = await this.ensureAgentTab(zellij);
@@ -94,6 +112,47 @@ export class ZellijMultiplexer implements Multiplexer {
     } catch {
       return { success: false };
     }
+  }
+
+  private async createPaneInCurrentTab(
+    zellij: string,
+    sessionId: string,
+    serverUrl: string,
+    directory: string,
+    description: string,
+  ): Promise<PaneResult> {
+    const opencodeCmd = buildOpencodeAttachCommand(
+      sessionId,
+      serverUrl,
+      directory,
+    );
+    const paneName = description.slice(0, 30).replace(/"/g, '\\"');
+
+    const args = [
+      'action',
+      'new-pane',
+      '--name',
+      paneName,
+      '--close-on-exit',
+      '--',
+      'sh',
+      '-lc',
+      opencodeCmd,
+    ];
+
+    const proc = crossSpawn([zellij, ...args], {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+
+    const exitCode = await proc.exited;
+    const stdout = await proc.stdout();
+    const paneId = stdout.trim();
+
+    if (exitCode === 0 && paneId?.startsWith('terminal_')) {
+      return { success: true, paneId };
+    }
+    return { success: false };
   }
 
   private async createPaneInAgentTab(
