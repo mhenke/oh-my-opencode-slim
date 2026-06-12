@@ -2,6 +2,7 @@ export { createApplyPatchHook } from './apply-patch';
 export type { AutoUpdateCheckerOptions } from './auto-update-checker';
 export { createAutoUpdateCheckerHook } from './auto-update-checker';
 export { createChatHeadersHook } from './chat-headers';
+export { createDeepworkCommandHook } from './deepwork';
 export { createDelegateTaskRetryHook } from './delegate-task-retry';
 export { createFilterAvailableSkillsHook } from './filter-available-skills';
 export {
@@ -12,6 +13,4 @@ export { processImageAttachments } from './image-hook';
 export { createJsonErrorRecoveryHook } from './json-error-recovery';
 export { createPhaseReminderHook } from './phase-reminder';
 export { createPostFileToolNudgeHook } from './post-file-tool-nudge';
-export { createSessionGoalHook } from './session-goal';
 export { createTaskSessionManagerHook } from './task-session-manager';
-export { createTodoContinuationHook } from './todo-continuation';

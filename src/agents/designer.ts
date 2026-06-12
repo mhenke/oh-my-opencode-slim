@@ -1,3 +1,4 @@
+import { WRITABLE_FILE_OPERATIONS_RULES } from '../config';
 import type { AgentDefinition } from './orchestrator';
 
 const DESIGNER_PROMPT = `You are a Designer - a frontend UI/UX specialist who creates and reviews intentional, polished experiences.
@@ -47,6 +48,9 @@ const DESIGNER_PROMPT = `You are a Designer - a frontend UI/UX specialist who cr
 - Respect existing design systems when present
 - Leverage component libraries where available
 - Prioritize visual excellence—code perfection comes second
+- Use grounded, normal, regular english - don't use jargon or overly technical language
+
+${WRITABLE_FILE_OPERATIONS_RULES}
 
 ## Review Responsibilities
 - Review existing UI for usability, responsiveness, visual consistency, and polish when asked

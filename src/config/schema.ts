@@ -168,7 +168,7 @@ export const WebsearchConfigSchema = z.object({
 export type WebsearchConfig = z.infer<typeof WebsearchConfigSchema>;
 
 // MCP names
-export const McpNameSchema = z.enum(['websearch', 'context7', 'grep_app']);
+export const McpNameSchema = z.enum(['websearch', 'context7', 'gh_grep']);
 export type McpName = z.infer<typeof McpNameSchema>;
 
 export const InterviewConfigSchema = z.object({
@@ -186,13 +186,13 @@ export const InterviewConfigSchema = z.object({
 
 export type InterviewConfig = z.infer<typeof InterviewConfigSchema>;
 
-export const SessionManagerConfigSchema = z.object({
+export const BackgroundJobsConfigSchema = z.object({
   maxSessionsPerAgent: z.number().int().min(1).max(10).default(2),
   readContextMinLines: z.number().int().min(0).max(1000).default(10),
   readContextMaxFiles: z.number().int().min(0).max(50).default(8),
 });
 
-export type SessionManagerConfig = z.infer<typeof SessionManagerConfigSchema>;
+export type BackgroundJobsConfig = z.infer<typeof BackgroundJobsConfigSchema>;
 
 export const DivoomConfigSchema = z.object({
   enabled: z.boolean().default(false),
@@ -218,62 +218,6 @@ export const DivoomConfigSchema = z.object({
 
 export type DivoomConfig = z.infer<typeof DivoomConfigSchema>;
 
-// Todo continuation configuration
-export const TodoContinuationConfigSchema = z.object({
-  maxContinuations: z
-    .number()
-    .int()
-    .min(1)
-    .max(50)
-    .default(5)
-    .describe(
-      'Maximum consecutive auto-continuations before stopping to ask user',
-    ),
-  cooldownMs: z
-    .number()
-    .int()
-    .min(0)
-    .max(30_000)
-    .default(3000)
-    .describe('Delay in ms before auto-continuing (gives user time to abort)'),
-  autoEnable: z
-    .boolean()
-    .default(false)
-    .describe(
-      'Automatically enable auto-continue when the orchestrator session has enough todos',
-    ),
-  autoEnableThreshold: z
-    .number()
-    .int()
-    .min(1)
-    .max(50)
-    .default(4)
-    .describe(
-      'Number of todos that triggers auto-enable (only used when autoEnable is true)',
-    ),
-});
-
-export type TodoContinuationConfig = z.infer<
-  typeof TodoContinuationConfigSchema
->;
-
-export const SubtaskConfigSchema = z.object({
-  // Intentionally no .default(): an empty `subtask: {}` block must parse to
-  // `{}` so it cannot shallow-overwrite an inherited value during config
-  // merging. The runtime fallback in createSubtaskTool applies the default.
-  timeoutMs: z
-    .number()
-    .int()
-    .min(0)
-    .max(24 * 60 * 60 * 1000)
-    .optional()
-    .describe(
-      'Subtask worker timeout in ms. 0 disables the timeout. Defaults to 300000 (5 minutes).',
-    ),
-});
-
-export type SubtaskConfig = z.infer<typeof SubtaskConfigSchema>;
-
 export const FailoverConfigSchema = z.object({
   enabled: z.boolean().default(true),
   timeoutMs: z.number().min(0).default(15000),
@@ -289,6 +233,16 @@ export const FailoverConfigSchema = z.object({
 });
 
 export type FailoverConfig = z.infer<typeof FailoverConfigSchema>;
+
+export const CompanionConfigSchema = z.object({
+  enabled: z.boolean().optional(),
+  position: z
+    .enum(['bottom-right', 'bottom-left', 'top-right', 'top-left'])
+    .optional(),
+  size: z.enum(['small', 'medium', 'large']).optional(),
+});
+
+export type CompanionConfig = z.infer<typeof CompanionConfigSchema>;
 
 function validateCustomOnlyPromptFields(
   overrides: Record<string, z.infer<typeof AgentOverrideConfigSchema>>,
@@ -354,12 +308,11 @@ export const PluginConfigSchema = z
     tmux: TmuxConfigSchema.optional(),
     websearch: WebsearchConfigSchema.optional(),
     interview: InterviewConfigSchema.optional(),
-    sessionManager: SessionManagerConfigSchema.optional(),
+    backgroundJobs: BackgroundJobsConfigSchema.optional(),
     divoom: DivoomConfigSchema.optional(),
-    todoContinuation: TodoContinuationConfigSchema.optional(),
-    subtask: SubtaskConfigSchema.optional(),
     fallback: FailoverConfigSchema.optional(),
     council: CouncilConfigSchema.optional(),
+    companion: CompanionConfigSchema.optional(),
   })
   .superRefine((value, ctx) => {
     if (value.agents) {

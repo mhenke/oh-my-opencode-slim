@@ -1,3 +1,4 @@
+import { READONLY_FILE_OPERATIONS_RULES } from '../config';
 import type { AgentDefinition } from './orchestrator';
 
 const EXPLORER_PROMPT = `You are Explorer - a fast codebase navigation specialist.
@@ -8,6 +9,8 @@ const EXPLORER_PROMPT = `You are Explorer - a fast codebase navigation specialis
 - **Text/regex patterns** (strings, comments, variable names): grep
 - **Structural patterns** (function shapes, class structures): ast_grep_search
 - **File discovery** (find by name/extension): glob
+
+${READONLY_FILE_OPERATIONS_RULES}
 
 **Behavior**:
 - Be fast and thorough

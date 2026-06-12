@@ -1,0 +1,260 @@
+import { spawn } from 'node:child_process';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  writeFileSync,
+} from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
+import type { CompanionConfig } from '../config/schema';
+import { log } from '../utils/logger';
+
+interface CompanionSession {
+  session_id: string;
+  cwd: string;
+  active_agents: string[];
+  status: string;
+  pid: number;
+}
+
+interface CompanionState {
+  version: 1;
+  sessions: CompanionSession[];
+  config?: {
+    enabled: boolean;
+    position: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
+    size: 'small' | 'medium' | 'large';
+  };
+}
+
+export function stateFilePath(): string {
+  const xdg = process.env.XDG_DATA_HOME?.trim();
+  const base =
+    xdg && path.isAbsolute(xdg)
+      ? xdg
+      : path.join(os.homedir(), '.local', 'share');
+  return path.join(
+    base,
+    'opencode',
+    'storage',
+    'oh-my-opencode-slim',
+    'companion-state.json',
+  );
+}
+
+function binaryPath(): string | null {
+  const xdg = process.env.XDG_DATA_HOME?.trim();
+  const base =
+    xdg && path.isAbsolute(xdg)
+      ? xdg
+      : path.join(os.homedir(), '.local', 'share');
+  const binaryName =
+    os.platform() === 'win32'
+      ? 'oh-my-opencode-slim-companion.exe'
+      : 'oh-my-opencode-slim-companion';
+  const bin = path.join(
+    base,
+    'opencode',
+    'storage',
+    'oh-my-opencode-slim',
+    'bin',
+    binaryName,
+  );
+  return existsSync(bin) ? bin : null;
+}
+
+function readState(): CompanionState {
+  try {
+    const raw = readFileSync(stateFilePath(), 'utf8');
+    const parsed = JSON.parse(raw) as Partial<CompanionState>;
+    if (parsed?.version === 1 && Array.isArray(parsed.sessions)) {
+      return parsed as CompanionState;
+    }
+  } catch {}
+  return { version: 1, sessions: [] };
+}
+
+function writeState(state: CompanionState): void {
+  const file = stateFilePath();
+  try {
+    mkdirSync(path.dirname(file), { recursive: true });
+    const tmp = `${file}.tmp`;
+    writeFileSync(tmp, JSON.stringify(state));
+    renameSync(tmp, file);
+  } catch (err) {
+    log('[companion] write failed', String(err));
+  }
+}
+
+/**
+ * Tracks live agent activity per session and mirrors it to the companion
+ * state file. Source of truth is OpenCode's session.status events: every
+ * spawned specialist (foreground or background) runs in its own session,
+ * which reports busy/idle independently. Tool-call lifecycles are NOT used
+ * because background Task launches return immediately while the agent keeps
+ * running in its child session.
+ */
+export class CompanionManager {
+  private readonly id: string;
+  private readonly cwd: string;
+  private status = 'idle';
+  /** sessionId → agent name, for sessions currently busy. */
+  private readonly busyAgentSessions = new Map<string, string>();
+  private readonly config?: CompanionConfig;
+
+  constructor(sessionId: string, cwd: string, config?: CompanionConfig) {
+    this.id = sessionId;
+    this.cwd = cwd;
+    this.config = config;
+  }
+
+  onLoad(): void {
+    if (this.config?.enabled !== true) {
+      try {
+        const state = readState();
+        const filtered = state.sessions.filter((s) => s.session_id !== this.id);
+        if (filtered.length !== state.sessions.length) {
+          state.sessions = filtered;
+          writeState(state);
+        }
+      } catch {}
+      return;
+    }
+    process.on('exit', () => this.onExit());
+    this.flush();
+    this.spawnIfAvailable();
+  }
+
+  /**
+   * Feed every session.status event here, with the agent name resolved
+   * from sessionAgentMap. Orchestrator sessions drive overall status;
+   * specialist sessions drive the per-agent GIF grid.
+   */
+  onSessionStatus(input: {
+    sessionId?: string;
+    agent?: string;
+    status?: string;
+  }): void {
+    if (this.config?.enabled !== true) return;
+    const { sessionId, agent, status } = input;
+    if (!sessionId || (status !== 'busy' && status !== 'idle')) return;
+
+    if (agent === 'orchestrator') {
+      // Orchestrator going idle does NOT clear specialists: with background
+      // orchestration it idles while dispatched agents are still running.
+      // Specialists are removed only by their own idle/deleted events.
+      this.status = status;
+      this.flush();
+      return;
+    }
+
+    if (status === 'busy') {
+      if (!agent) return;
+      this.busyAgentSessions.set(sessionId, agent);
+    } else {
+      // Remove by session even when the agent name is unknown, so a
+      // finished specialist can never get stuck on screen.
+      this.busyAgentSessions.delete(sessionId);
+    }
+    this.flush();
+  }
+
+  onSessionDeleted(sessionId: string | undefined): void {
+    if (this.config?.enabled !== true) return;
+    if (!sessionId) return;
+    if (this.busyAgentSessions.delete(sessionId)) {
+      this.flush();
+    }
+  }
+
+  onWaitingInput(): void {
+    if (this.config?.enabled !== true) return;
+    this.status = 'waiting-input';
+    this.flush();
+  }
+
+  onInputResolved(): void {
+    if (this.config?.enabled !== true) return;
+    this.status = this.busyAgentSessions.size > 0 ? 'busy' : 'idle';
+    this.flush();
+  }
+
+  onExit(): void {
+    if (this.config?.enabled !== true) return;
+    const state = readState();
+    state.sessions = state.sessions.filter((s) => s.session_id !== this.id);
+    writeState(state);
+  }
+
+  /** One entry per running agent instance (two fixers → two cells). */
+  private activeAgents(): string[] {
+    const agents = Array.from(this.busyAgentSessions.values());
+    if (agents.length > 0) return agents.slice(0, 9);
+    if (this.status === 'waiting-input') return ['input'];
+    if (this.status === 'busy') return ['orchestrator'];
+    return ['intro'];
+  }
+
+  private flush(): void {
+    if (this.config?.enabled !== true) return;
+    try {
+      const state = readState();
+      const entry: CompanionSession = {
+        session_id: this.id,
+        cwd: this.cwd,
+        active_agents: this.activeAgents(),
+        status: this.status,
+        pid: process.pid,
+      };
+      const idx = state.sessions.findIndex((s) => s.session_id === this.id);
+      if (idx >= 0) {
+        state.sessions[idx] = entry;
+      } else {
+        state.sessions.push(entry);
+      }
+      if (this.config) {
+        state.config = {
+          enabled: this.config.enabled ?? false,
+          position: this.config.position ?? 'bottom-right',
+          size: this.config.size ?? 'medium',
+        };
+      }
+      writeState(state);
+    } catch (err) {
+      log('[companion] flush failed', String(err));
+    }
+  }
+
+  private spawnIfAvailable(): void {
+    if (this.config?.enabled !== true) return;
+    const bin = binaryPath();
+    if (!bin) {
+      const xdg = process.env.XDG_DATA_HOME?.trim();
+      const base =
+        xdg && path.isAbsolute(xdg)
+          ? xdg
+          : path.join(os.homedir(), '.local', 'share');
+      const expected = path.join(
+        base,
+        'o‍pencode',
+        'storage',
+        'oh-my-o‍pencode-slim',
+        'bin',
+        'oh-my-o‍pencode-slim-companion',
+      );
+      log(
+        `[companion] enabled but companion binary not found at expected path: ${expected}. Please install/download the companion binary separately.`,
+      );
+      return;
+    }
+    try {
+      const child = spawn(bin, [], { detached: true, stdio: 'ignore' });
+      child.unref();
+      log('[companion] spawned', bin);
+    } catch (err) {
+      log('[companion] spawn failed', String(err));
+    }
+  }
+}

@@ -1,3 +1,4 @@
+import { NO_SHELL_READONLY_FILE_OPERATIONS_RULES } from '../config';
 import { type AgentDefinition, resolvePrompt } from './orchestrator';
 
 /**
@@ -29,6 +30,8 @@ problem.
 
 You CANNOT edit files, write files, run shell commands, or delegate to \
 other agents. You are an advisor, not an implementer.
+
+${NO_SHELL_READONLY_FILE_OPERATIONS_RULES}
 
 **Behavior**:
 - **Examine the codebase** before answering — your read access is what makes \

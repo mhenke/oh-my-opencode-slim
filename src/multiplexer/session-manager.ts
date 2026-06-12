@@ -6,6 +6,7 @@ import {
   isServerRunning,
   type Multiplexer,
 } from '../multiplexer';
+import type { BackgroundJobBoard } from '../utils/background-job-board';
 import { log } from '../utils/logger';
 
 interface TrackedSession {
@@ -14,6 +15,7 @@ interface TrackedSession {
   parentId: string;
   title: string;
   directory: string;
+  ownerInstanceId: string;
   createdAt: number;
   lastSeenAt: number;
   seenInStatus: boolean;
@@ -47,9 +49,8 @@ interface SessionEvent {
   };
 }
 
-type CloseReason = 'idle' | 'deleted' | 'missing' | 'timeout';
+type CloseReason = 'idle' | 'deleted' | 'missing';
 
-const SESSION_TIMEOUT_MS = 10 * 60 * 1000;
 const SESSION_MISSING_GRACE_MS = POLL_INTERVAL_BACKGROUND_MS * 3;
 const SHARED_STATE_KEY = Symbol.for(
   'oh-my-opencode-slim.multiplexer-session-manager.state',
@@ -96,7 +97,11 @@ export class MultiplexerSessionManager {
   private pollInterval?: ReturnType<typeof setInterval>;
   private enabled = false;
 
-  constructor(ctx: PluginInput, config: MultiplexerConfig) {
+  constructor(
+    ctx: PluginInput,
+    config: MultiplexerConfig,
+    private readonly backgroundJobBoard?: BackgroundJobBoard,
+  ) {
     const sharedState = getSharedState();
     this.sessions = sharedState.sessions;
     this.knownSessions = sharedState.knownSessions;
@@ -220,6 +225,7 @@ export class MultiplexerSessionManager {
         parentId,
         title,
         directory,
+        ownerInstanceId: this.instanceId,
         createdAt: now,
         lastSeenAt: now,
         seenInStatus: false,
@@ -249,6 +255,8 @@ export class MultiplexerSessionManager {
         sessionId,
         tracked: this.sessions.has(sessionId),
         known: this.knownSessions.has(sessionId),
+        ownerInstanceId: this.sessions.get(sessionId)?.ownerInstanceId,
+        backgroundJobState: this.backgroundJobBoard?.get(sessionId)?.state,
       });
 
       await this.closeSession(sessionId, 'idle');
@@ -261,6 +269,14 @@ export class MultiplexerSessionManager {
     if (!sessionId) return;
 
     if (event.properties?.status?.type === 'idle') {
+      log('[multiplexer-session-manager] session status idle received', {
+        instanceId: this.instanceId,
+        sessionId,
+        tracked: this.sessions.has(sessionId),
+        known: this.knownSessions.has(sessionId),
+        ownerInstanceId: this.sessions.get(sessionId)?.ownerInstanceId,
+        backgroundJobState: this.backgroundJobBoard?.get(sessionId)?.state,
+      });
       await this.closeSession(sessionId, 'idle');
       return;
     }
@@ -271,6 +287,8 @@ export class MultiplexerSessionManager {
         sessionId,
         tracked: this.sessions.has(sessionId),
         known: this.knownSessions.has(sessionId),
+        ownerInstanceId: this.sessions.get(sessionId)?.ownerInstanceId,
+        backgroundJobState: this.backgroundJobBoard?.get(sessionId)?.state,
       });
       await this.respawnIfKnown(sessionId);
     }
@@ -286,6 +304,10 @@ export class MultiplexerSessionManager {
     log('[multiplexer-session-manager] session deleted, closing pane', {
       instanceId: this.instanceId,
       sessionId,
+      tracked: this.sessions.has(sessionId),
+      known: this.knownSessions.has(sessionId),
+      ownerInstanceId: this.sessions.get(sessionId)?.ownerInstanceId,
+      backgroundJobState: this.backgroundJobBoard?.get(sessionId)?.state,
     });
 
     await this.closeSession(sessionId, 'deleted');
@@ -327,6 +349,16 @@ export class MultiplexerSessionManager {
         [];
 
       for (const [sessionId, tracked] of this.sessions.entries()) {
+        if (tracked.ownerInstanceId !== this.instanceId) {
+          log('[multiplexer-session-manager] skipping non-owner poll close', {
+            instanceId: this.instanceId,
+            ownerInstanceId: tracked.ownerInstanceId,
+            sessionId,
+            paneId: tracked.paneId,
+          });
+          continue;
+        }
+
         const status = allStatuses[sessionId];
         const isIdle = status?.type === 'idle';
 
@@ -339,15 +371,27 @@ export class MultiplexerSessionManager {
         }
 
         const missingTooLong =
-          tracked.seenInStatus &&
           !!tracked.missingSince &&
           now - tracked.missingSince >= SESSION_MISSING_GRACE_MS;
-        const isTimedOut = now - tracked.createdAt > SESSION_TIMEOUT_MS;
+        const shouldKeepRunningBackgroundJob =
+          (isIdle || missingTooLong) && this.isRunningBackgroundJob(sessionId);
+        if (isIdle || missingTooLong) {
+          if (shouldKeepRunningBackgroundJob) {
+            log(
+              '[multiplexer-session-manager] keeping running background pane',
+              {
+                instanceId: this.instanceId,
+                sessionId,
+                paneId: tracked.paneId,
+                seenInStatus: tracked.seenInStatus,
+              },
+            );
+            continue;
+          }
 
-        if (isIdle || missingTooLong || isTimedOut) {
           sessionsToClose.push({
             sessionId,
-            reason: isIdle ? 'idle' : isTimedOut ? 'timeout' : 'missing',
+            reason: isIdle ? 'idle' : 'missing',
           });
         }
       }
@@ -372,7 +416,16 @@ export class MultiplexerSessionManager {
       );
     }
 
-    return (await response.json()) as Record<string, { type: string }>;
+    const body = await response.text();
+    if (body.trim() === '') {
+      throw new Error('session status response was empty');
+    }
+
+    try {
+      return JSON.parse(body) as Record<string, { type: string }>;
+    } catch (err) {
+      throw new Error(`session status response was not valid JSON: ${err}`);
+    }
   }
 
   private async closeSession(
@@ -398,6 +451,40 @@ export class MultiplexerSessionManager {
       return;
     }
 
+    if (reason !== 'deleted' && tracked.ownerInstanceId !== this.instanceId) {
+      log('[multiplexer-session-manager] close skipped; non-owner instance', {
+        instanceId: this.instanceId,
+        ownerInstanceId: tracked.ownerInstanceId,
+        sessionId,
+        paneId: tracked.paneId,
+        reason,
+      });
+      return;
+    }
+    if (reason === 'deleted' && tracked.ownerInstanceId !== this.instanceId) {
+      log('[multiplexer-session-manager] closing deleted pane as non-owner', {
+        instanceId: this.instanceId,
+        ownerInstanceId: tracked.ownerInstanceId,
+        sessionId,
+        paneId: tracked.paneId,
+        reason,
+      });
+    }
+
+    if (reason === 'idle' && this.isRunningBackgroundJob(sessionId)) {
+      log(
+        '[multiplexer-session-manager] close skipped; background job running',
+        {
+          instanceId: this.instanceId,
+          sessionId,
+          paneId: tracked.paneId,
+          reason,
+          backgroundJobState: this.backgroundJobBoard?.get(sessionId)?.state,
+        },
+      );
+      return;
+    }
+
     this.sessions.delete(sessionId);
 
     log('[multiplexer-session-manager] closing session pane', {
@@ -405,6 +492,9 @@ export class MultiplexerSessionManager {
       sessionId,
       paneId: tracked.paneId,
       reason,
+      backgroundJobState: this.backgroundJobBoard?.get(sessionId)?.state,
+      parentId: tracked.parentId,
+      title: tracked.title,
     });
 
     const closePromise: Promise<void> = this.multiplexer
@@ -507,6 +597,7 @@ export class MultiplexerSessionManager {
         parentId: known.parentId,
         title: known.title,
         directory: known.directory,
+        ownerInstanceId: this.instanceId,
         createdAt: now,
         lastSeenAt: now,
         seenInStatus: false,
@@ -538,6 +629,10 @@ export class MultiplexerSessionManager {
 
   private getSessionId(event: SessionEvent): string | undefined {
     return event.properties?.info?.id ?? event.properties?.sessionID;
+  }
+
+  private isRunningBackgroundJob(sessionId: string): boolean {
+    return this.backgroundJobBoard?.get(sessionId)?.state === 'running';
   }
 
   async cleanup(): Promise<void> {

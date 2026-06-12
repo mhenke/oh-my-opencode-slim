@@ -123,9 +123,9 @@ Presets can also be switched at runtime without restarting using the `/preset` c
 | `tmux.enabled` | boolean | `false` | Legacy alias for `multiplexer.type = "tmux"` |
 | `tmux.layout` | string | `"main-vertical"` | Legacy alias for `multiplexer.layout` |
 | `tmux.main_pane_size` | number | `60` | Legacy alias for `multiplexer.main_pane_size` |
-| `sessionManager.maxSessionsPerAgent` | integer | `2` | Maximum remembered resumable child sessions per specialist type in the current orchestrator session (1–10). See [Session Management](session-management.md) |
-| `sessionManager.readContextMinLines` | integer | `10` | Minimum number of lines read from a file before it appears in resumable-session context (0–1000) |
-| `sessionManager.readContextMaxFiles` | integer | `8` | Maximum number of recent read-context files shown per remembered child session (0–50) |
+| `backgroundJobs.maxSessionsPerAgent` | integer | `2` | Maximum completed/reconciled reusable child sessions per specialist type in the current orchestrator session (1–10). See [Session Management](session-management.md) |
+| `backgroundJobs.readContextMinLines` | integer | `10` | Minimum number of lines read from a file before it appears in reusable background-job context (0–1000) |
+| `backgroundJobs.readContextMaxFiles` | integer | `8` | Maximum number of recent read-context files shown per reusable child session (0–50) |
 | `disabled_mcps` | string[] | `[]` | MCP server IDs to disable globally |
 | `fallback.enabled` | boolean | `false` | Enable model failover on timeout/error |
 | `fallback.timeoutMs` | number | `15000` | Time before aborting and trying next model |
@@ -140,16 +140,14 @@ Presets can also be switched at runtime without restarting using the `/preset` c
 | `council.timeout` | number | `180000` | Per-councillor timeout (ms) |
 | `council.councillor_execution_mode` | string | `"parallel"` | Run councillors in `parallel` or `serial`; use `serial` for single-model setups |
 | `council.councillor_retries` | number | `3` | Max retries per councillor on empty provider response (0–5) |
-| `subtask.timeoutMs` | integer | `300000` | Subtask worker timeout in ms. `0` disables the timeout. Max `86400000` (24h) |
-| `todoContinuation.maxContinuations` | integer | `5` | Max consecutive auto-continuations before stopping (1–50) |
-| `todoContinuation.cooldownMs` | integer | `3000` | Delay in ms before auto-continuing — gives user time to abort (0–30000) |
-| `todoContinuation.autoEnable` | boolean | `false` | Automatically enable auto-continue when session has enough todos |
-| `todoContinuation.autoEnableThreshold` | integer | `4` | Number of todos that triggers auto-enable (only used when `autoEnable` is true, 1–50) |
 | `interview.maxQuestions` | integer | `2` | Max questions per interview round (1–10) |
 | `interview.outputFolder` | string | `"interview"` | Directory where interview markdown files are written (relative to project root) |
 | `interview.autoOpenBrowser` | boolean | `true` | Automatically open the interview UI in your default browser during interactive runs; suppressed in tests and CI |
 | `interview.port` | integer | `0` | Interview server port (0–65535). `0` = OS-assigned random port (per-session mode). Any value > 0 enables [dashboard mode](interview.md#dashboard-mode) |
 | `interview.dashboard` | boolean | `false` | Enable [dashboard mode](interview.md#dashboard-mode) on the default port (43211). Setting `port` > 0 also enables dashboard mode. If both are set, `port` takes precedence |
+| `companion.enabled` | boolean | `false` | Enable/disable the floating window Rust companion |
+| `companion.position` | string | `"bottom-right"` | The initial corner position of the companion window: `bottom-right`, `bottom-left`, `top-right`, or `top-left` |
+| `companion.size` | string | `"medium"` | The default size preset of the companion window: `small` (80px), `medium` (120px), or `large` (160px) |
 
 ### Council configuration note
 
@@ -157,7 +155,8 @@ Presets can also be switched at runtime without restarting using the `/preset` c
   `presets.<name>.council.model`.
 - The **councillor models** are configured separately under
   `council.presets.<name>.<councillor>.model`.
-- Deprecated `council.master*` fields should not be used in new configs.
+- Deprecated `council.master*` fields are legacy compatibility aliases only;
+  do not use them in new configs.
 
 ### Manual Update Mode
 
@@ -247,11 +246,11 @@ To override a GIF, use either a bundled filename or an absolute path:
 }
 ```
 
-### Session Management
+### Background Job Management
 
-Session management is enabled by default and does not need to be present in the
-starter config. Add `sessionManager` only if you want to tune how many resumable
-child-agent sessions are remembered or how much read context is shown. See
+Background job management is enabled by default and does not need to be present
+in the starter config. Add `backgroundJobs` only if you want to tune how many
+completed/reconciled child-agent sessions are reusable or how much read context is shown. See
 [Session Management](session-management.md) for the concept, defaults, and
 examples.
 
@@ -306,3 +305,19 @@ Notes:
 - Custom agent names must be safe identifiers such as `janitor` or `security-reviewer`
 - Custom agents without a `model` are skipped with a warning
 - Disabled custom agents are not registered or injected into the orchestrator prompt
+
+### Desktop Companion App
+
+The desktop companion app provides a visual status overlay showing running and active agents. For quick installation instructions, binary paths, config defaults, and release information, see the full **[Desktop Companion Guide](companion.md)**.
+
+Once installed, configure it in your `oh-my-opencode-slim` settings:
+
+```jsonc
+{
+  "companion": {
+    "enabled": true,
+    "position": "bottom-right", // optional: bottom-right, bottom-left, top-right, top-left
+    "size": "medium"            // optional: small, medium, large
+  }
+}
+```

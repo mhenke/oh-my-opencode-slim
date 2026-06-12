@@ -89,7 +89,7 @@ OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=1 opencode
     "openai": {
       "orchestrator": { "model": "openai/gpt-5.5", "skills": ["*"], "mcps": ["*", "!context7"] },
       "oracle": { "model": "openai/gpt-5.5", "variant": "high", "skills": ["simplify"], "mcps": [] },
-      "librarian": { "model": "openai/gpt-5.4-mini", "variant": "low", "skills": [], "mcps": ["websearch", "context7", "grep_app"] },
+      "librarian": { "model": "openai/gpt-5.4-mini", "variant": "low", "skills": [], "mcps": ["websearch", "context7", "gh_grep"] },
       "explorer": { "model": "openai/gpt-5.4-mini", "variant": "low", "skills": [], "mcps": [] },
       "designer": { "model": "openai/gpt-5.4-mini", "variant": "medium", "skills": [], "mcps": [] },
       "fixer": { "model": "openai/gpt-5.4-mini", "variant": "low", "skills": [], "mcps": [] }
@@ -98,7 +98,7 @@ OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=1 opencode
       "orchestrator": { "model": "opencode-go/glm-5.1", "skills": [ "*" ], "mcps": [ "*", "!context7" ] },
       "oracle": { "model": "opencode-go/deepseek-v4-pro", "variant": "max", "skills": ["simplify"], "mcps": [] },
       "council": { "model": "opencode-go/deepseek-v4-pro", "variant": "high", "skills": [], "mcps": [] },
-      "librarian": { "model": "opencode-go/minimax-m2.7", "skills": [], "mcps": [ "websearch", "context7", "grep_app" ] },
+      "librarian": { "model": "opencode-go/minimax-m2.7", "skills": [], "mcps": [ "websearch", "context7", "gh_grep" ] },
       "explorer": { "model": "opencode-go/minimax-m2.7", "skills": [], "mcps": [] },
       "designer": { "model": "opencode-go/kimi-k2.6", "variant": "medium", "skills": [], "mcps": [] },
       "fixer": { "model": "opencode-go/deepseek-v4-flash", "variant": "high", "skills": [], "mcps": [] }
@@ -496,13 +496,11 @@ ping all agents
 | 문서 | 내용 |
 |-----|------|
 | **[Council](docs/council.md)** | `@council`로 여러 모델을 병렬 실행하고 하나의 답변으로 종합 |
+| **[Background Orchestration](docs/v2-background-orchestration.md)** | OpenCode 네이티브 백그라운드 서브에이전트를 기반으로 한 스케줄러 우선 오케스트레이터 모델 |
 | **[Multiplexer Integration](docs/multiplexer-integration.md)** | Tmux 또는 Zellij 페인에서 에이전트 작업을 실시간으로 확인 |
 | **[Session Management](docs/session-management.md)** | 단축 별칭으로 최근 자식 에이전트 세션을 재사용하여 처음부터 다시 시작하지 않기 |
-| **[Session Goal](docs/session-goal.md)** | `/goal`로 세션 목표를 고정하여 투두, 위임, 검증이 정렬되게 유지 |
-| **[Todo Continuation](docs/todo-continuation.md)** | 쿨다운과 안전 검사를 통해 오케스트레이터 세션 자동 이어서 진행 |
 | **[Preset Switching](docs/preset-switching.md)** | `/preset`으로 런타임에 에이전트 모델 프리셋 전환 |
 | **[Custom Agents](docs/configuration.md#custom-agents)** | 커스텀 프롬프트, 모델, MCP 접근, Orchestrator 위임 규칙으로 커스텀 전문 에이전트 정의 |
-| **[Subtask](docs/subtask.md)** | `/subtask`로 제한된 자식 워커를 실행하고 메인 세션에 구조화된 요약 반환 |
 | **[Codemap](docs/codemap.md)** | 계층형 코드맵을 생성하여 대규모 코드베이스를 빠르게 파악 |
 | **[Clonedeps](docs/clonedeps.md)** | 선택한 의존성 소스를 무시된 로컬 워크스페이스에 복제하여 검사 |
 | **[Interview](docs/interview.md)** | 브라우저 기반 Q&A 흐름을 통해 거친 아이디어를 구조화된 마크다운 명세로 변환 |
@@ -514,8 +512,8 @@ ping all agents
 |-----|------|
 | **[Configuration](docs/configuration.md)** | 설정 파일 위치, JSONC 지원, 프롬프트 오버라이드, 전체 옵션 레퍼런스 |
 | **[Maintainer Guide](docs/maintainers.md)** | 이슈 트리아지 규칙, 라벨 의미, 지원 라우팅, 저장소 유지보수 워크플로우 |
-| **[Skills](docs/skills.md)** | `simplify`, `codemap`, `clonedeps` 등 번들된 스킬 |
-| **[MCPs](docs/mcps.md)** | `websearch`, `context7`, `grep_app` 및 에이전트별 MCP 권한 동작 방식 |
+| **[Skills](docs/skills.md)** | `simplify`, `codemap`, `clonedeps`, `deepwork`, `oh-my-opencode-slim` 등 번들된 스킬 |
+| **[MCPs](docs/mcps.md)** | `websearch`, `context7`, `gh_grep` 및 에이전트별 MCP 권한 동작 방식 |
 | **[Tools](docs/tools.md)** | `webfetch`, LSP 도구, 코드 검색, 포매터 등 내장 도구 기능 |
 
 ### 💡 프리셋

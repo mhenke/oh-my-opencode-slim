@@ -494,7 +494,7 @@
         }
       }
     },
-    "sessionManager": {
+    "backgroundJobs": {
       "type": "object",
       "properties": {
         "maxSessionsPerAgent": {
@@ -573,48 +573,6 @@
             "type": "string",
             "minLength": 1
           }
-        }
-      }
-    },
-    "todoContinuation": {
-      "type": "object",
-      "properties": {
-        "maxContinuations": {
-          "default": 5,
-          "description": "Maximum consecutive auto-continuations before stopping to ask user",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 50
-        },
-        "cooldownMs": {
-          "default": 3000,
-          "description": "Delay in ms before auto-continuing (gives user time to abort)",
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 30000
-        },
-        "autoEnable": {
-          "default": false,
-          "description": "Automatically enable auto-continue when the orchestrator session has enough todos",
-          "type": "boolean"
-        },
-        "autoEnableThreshold": {
-          "default": 4,
-          "description": "Number of todos that triggers auto-enable (only used when autoEnable is true)",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 50
-        }
-      }
-    },
-    "subtask": {
-      "type": "object",
-      "properties": {
-        "timeoutMs": {
-          "description": "Subtask worker timeout in ms. 0 disables the timeout. Defaults to 300000 (5 minutes).",
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 86400000
         }
       }
     },
@@ -757,6 +715,31 @@
       "required": [
         "presets"
       ]
+    },
+    "companion": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean"
+        },
+        "position": {
+          "type": "string",
+          "enum": [
+            "bottom-right",
+            "bottom-left",
+            "top-right",
+            "top-left"
+          ]
+        },
+        "size": {
+          "type": "string",
+          "enum": [
+            "small",
+            "medium",
+            "large"
+          ]
+        }
+      }
     }
   },
   "title": "oh-my-opencode-slim",

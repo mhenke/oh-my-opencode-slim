@@ -1,3 +1,4 @@
+import { READONLY_FILE_OPERATIONS_RULES } from '../config';
 import { shortModelLabel } from '../utils/session';
 import { type AgentDefinition, resolvePrompt } from './orchestrator';
 
@@ -40,6 +41,8 @@ key insight and unique contribution by name
 - Do not collapse the output into only a final summary
 - Be transparent about trade-offs when different approaches have valid pros/cons
 - Don't just average responses — choose the best approach and improve upon it
+
+${READONLY_FILE_OPERATIONS_RULES}
 
 **Required Output Format**:
 Always include these sections in your final response:
