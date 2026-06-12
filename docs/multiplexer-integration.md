@@ -130,16 +130,16 @@ Please analyze this codebase and create a documentation structure.
 | `type` | string | `"none"` | `"auto"`, `"tmux"`, `"zellij"`, or `"none"` |
 | `layout` | string | `"main-vertical"` | Layout preset for tmux only |
 | `main_pane_size` | number | `60` | Main pane size percentage for tmux only (`20`-`80`) |
-| `zellij_pane_mode` | string | `"agent-tab"` | Zellij pane placement: `"agent-tab"` creates/reuses a dedicated tab; `"current-tab"` opens panes in the active tab |
+| `zellij_pane_mode` | string | `"agent-tab"` | Zellij pane placement: `"agent-tab"` creates/reuses a dedicated tab; `"current-tab"` opens panes in the tab containing the parent OpenCode pane |
 
 ### Supported Multiplexers
 
 | Multiplexer | Status | Notes |
 |-------------|--------|-------|
 | **Tmux** | ✅ Supported | Full layout control with `main-vertical`, `main-horizontal`, `tiled`, and more |
-| **Zellij** | ✅ Supported | Creates a dedicated `opencode-agents` tab by default; can open panes in the current tab with `zellij_pane_mode: "current-tab"` |
+| **Zellij** | ✅ Supported | Creates a dedicated `opencode-agents` tab by default; can open panes in the parent OpenCode tab with `zellij_pane_mode: "current-tab"` |
 
-**Example: open Zellij subagents in the current tab**
+**Example: open Zellij subagents in the parent OpenCode tab**
 
 ```jsonc
 {
@@ -149,6 +149,11 @@ Please analyze this codebase and create a documentation structure.
   }
 }
 ```
+
+In `current-tab` mode, panes are targeted to the tab that contains the parent
+OpenCode pane, even if another Zellij tab is focused when a subagent starts.
+If the parent pane cannot be resolved, it falls back to the currently focused
+tab.
 
 ### Legacy tmux config
 
