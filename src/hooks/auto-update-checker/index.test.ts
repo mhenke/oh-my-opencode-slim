@@ -332,7 +332,7 @@ describe('auto-update-checker/index', () => {
       body: {
         title: 'oh-my-opencode-slim v2.0.0 is available.',
         message:
-          'It requires OpenCode background subagents.\nRun: bunx oh-my-opencode-slim@latest install --background-subagents=yes',
+          'It requires OpenCode background subagents.\nRun: bunx oh-my-opencode-slim@latest install',
         variant: 'info',
         duration: 12000,
       },

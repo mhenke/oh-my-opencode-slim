@@ -1,12 +1,12 @@
 <div align="center">
   <a href="https://github.com/alvinunreal/oh-my-opencode-slim/stargazers">
-    <img src="img/4k.png" alt="4K GitHub Stars Milestone" style="border-radius: 10px;">
+    <img src="img/v2.webp" alt="oh-my-opencode-slim V2 Release" style="border-radius: 10px;">
   </a>
-  <h3>✨ Default Background Orchestration Has Arrived ✨</h3>
-  <p><i>The orchestrator now manages the workflow and schedules specialist agents in the background,<br>while <code>/deepwork</code> turns big goals into file-backed plans.<br>Share feedback and questions with us on Telegram.</i></p>
+  <h3>✨ oh-my-opencode-slim ✨</h3>
 
-  <p><b>Open Multi Agent Suite</b> · Mix any models · Auto delegate tasks</p>
+  <p><i>Seven divine beings emerged from the dawn of code, each an immortal master of their craft,<br>awaiting your command to forge order from chaos and build what was once thought impossible.</i></p>
 
+  <p><b>Opencode Multi Agent Suite</b> · Mix any models · Auto delegate tasks</p>
   <p><sub>by <b>Boring Dystopia Development</b></sub></p>
   <p>
     <a href="https://boringdystopia.ai/"><img src="https://img.shields.io/badge/boringdystopia.ai-111111?style=for-the-badge&logo=vercel&logoColor=white" alt="boringdystopia.ai"></a>&nbsp;
@@ -20,19 +20,7 @@
 
   <p><sub>✦ ✦ ✦</sub></p>
 
-## Support the Project 💖
-
-oh-my-opencode-slim is built and maintained in my spare time. If it helps you consider sponsoring my codex subscription.
-
-**Goal: $200/month**
-
-[![Sponsor](https://img.shields.io/github/sponsors/alvinunreal?style=for-the-badge&logo=GitHub-Sponsors&logoColor=EA4AAA&label=Sponsor)](https://github.com/sponsors/alvinunreal)
-
-See live progress + become a sponsor → [GitHub Sponsors](https://github.com/sponsors/alvinunreal)
-
 </div>
-
----
 
 ## What's This Plugin
 
@@ -58,27 +46,83 @@ Install and configure oh-my-opencode-slim: https://raw.githubusercontent.com/alv
 bunx oh-my-opencode-slim@latest install
 ```
 
-### Default Background Orchestration
+### What's New in V2
 
-The orchestrator is now a workflow manager and scheduler, not the main coding
-worker: it plans work, dispatches specialists as background tasks, receives
-completion events from OpenCode or checks status only when needed, then
-reconciles results before continuing. This uses OpenCode's native background
-subagent support, so OpenCode must run with the background-subagents environment
-variable enabled.
+V2 turns oh-my-opencode-slim into a scheduler-first multi-agent workflow system.
+The Orchestrator stays focused on planning, delegation, reconciliation, and
+verification while specialists do the work in their own lanes.
+
+- **[Background agents](#background-agents)** — the Orchestrator now dispatches
+  specialists as background tasks, tracks task/session IDs, waits for completion
+  events, and reconciles results before continuing.
+- **[Companion](#companion)** — an optional floating desktop window shows which
+  agents are currently active, including parallel background specialists.
+- **[Deepwork](#deepwork)** — a structured workflow for large, multi-file, risky,
+  or phased coding work using persistent plan files and Oracle review gates.
+- **[oh-my-opencode-slim skill](#oh-my-opencode-slim-skill)** — a bundled
+  configuration skill that helps tune models, prompts, custom agents, MCP access,
+  presets, and plugin behavior safely.
+
+#### Background Agents
+
+V2 makes background specialists the default mental model: the Orchestrator plans
+the work graph, launches the right agents, avoids overlapping write ownership,
+and waits for terminal task results before acting on them.
+
+See **[Background Orchestration](docs/v2-background-orchestration.md)** for the
+full scheduler model.
+
+#### Companion
+
+The optional Companion is a floating desktop status window for live agent
+activity. It shows the current session state and which agents are active, so
+background work is easier to follow at a glance.
+
+<div align="center">
+  <img src="img/companion.gif" alt="Companion showing active agents" width="600">
+  <p><i>Left bottom visual companion.</i></p>
+</div>
+
+During interactive install, the installer asks whether to enable Companion and
+defaults to `yes`. For automation, enable it explicitly with:
 
 ```bash
-bunx oh-my-opencode-slim@beta install --background-subagents=yes
+bunx oh-my-opencode-slim@latest install --companion=yes
 ```
 
-The installer can set this up for you with
-`--background-subagents=ask|yes|no`. In an interactive TTY, the default is
-`ask`; in non-interactive mode, the default is `no`. Use
-`--background-subagents=yes` to opt in immediately or `--background-subagents=no`
-to skip. If you want the installer to write to a specific shell/profile file,
-add `--background-subagents-target=<path>`. After shell setup, restart your
-terminal or source the updated file before starting `opencode`; for a one-shot
-launch, run `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true opencode`.
+See **[Companion](docs/companion.md)** for configuration, positions, sizes, and
+install details.
+
+#### Deepwork
+
+Deepwork is for heavy coding sessions: broad refactors, multi-phase features,
+risky architecture changes, or work that needs a persistent plan. It creates a
+local markdown progress file, uses Oracle review gates, and keeps implementation
+phases structured.
+
+Start it with:
+
+```text
+/deepwork <heavy coding task>
+```
+
+See **[Skills](docs/skills.md#deepwork)** for when to use it and how the workflow
+runs.
+
+#### oh-my-opencode-slim Skill
+
+The bundled `oh-my-opencode-slim` skill helps the Orchestrator configure and
+improve the plugin itself. Use it for model tuning, custom agents, prompt
+overrides, skill/MCP permissions, presets, optional agents, background
+orchestration, and recurring workflow friction.
+
+<div align="center">
+  <img src="img/oh-my-opencode-skill.png" alt="oh-my-opencode-slim skill in use" width="600">
+  <p><i>Ask the bundled skill to tune and improve your agent setup.</i></p>
+</div>
+
+See **[Skills](docs/skills.md#oh-my-opencode-slim)** for examples and safety
+rules.
 
 ### Getting Started
 
@@ -104,12 +148,6 @@ Then:
 
 > [!TIP]
 > It's **recommended** to understand how background orchestration works. The **[Orchestrator prompt](https://github.com/alvinunreal/oh-my-opencode-slim/blob/master/src/agents/orchestrator.ts#L28)** contains the scheduler rules, specialist routing logic, and thresholds for when work should be assigned to background agents. You can always delegate manually by calling a subagent via: `@agentName <task>`
-
-### Legacy V1 note
-
-The current `@latest` package is the background-orchestration release. If a
-maintained V1 branch or tag is created later, it will be documented separately as
-historical compatibility guidance rather than part of the default install path.
 
 The default generated configuration includes both `openai` and `opencode-go` presets.
 

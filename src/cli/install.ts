@@ -139,12 +139,6 @@ async function checkOpenCodeInstalled(): Promise<{
   return { ok: true, version: version ?? undefined, path: path ?? undefined };
 }
 
-export function shouldPromptForBackgroundSubagents(
-  config: InstallConfig,
-): boolean {
-  return Boolean(config.promptForStar && process.stdin.isTTY);
-}
-
 export async function configureBackgroundSubagents(
   config: InstallConfig,
 ): Promise<{ enabledNow: boolean; configuredTarget?: string }> {
@@ -165,7 +159,7 @@ export async function configureBackgroundSubagents(
       : detectBackgroundSubagentsTarget();
 
   if (config.backgroundSubagents === 'no') {
-    printInfo('OpenCode background subagents are not enabled.');
+    printInfo('OpenCode background subagents shell setup skipped.');
     console.log(manualBackgroundSubagentsInstructions({ targetPath: target }));
     return { enabledNow: false };
   }
@@ -188,20 +182,27 @@ export async function configureBackgroundSubagents(
   }
 
   if (config.backgroundSubagents === 'ask') {
-    if (!shouldPromptForBackgroundSubagents(config)) {
-      printInfo('Skipped background subagents shell configuration.');
+    if (!process.stdin.isTTY) {
+      printInfo('Skipped background subagents shell setup in non-TTY mode.');
       console.log(
         manualBackgroundSubagentsInstructions({ targetPath: target }),
       );
       return { enabledNow: false };
     }
 
+    console.log();
+    printInfo(
+      'V2 requires OpenCode background subagents for default orchestration.',
+    );
+    printInfo(
+      `The installer can add the required environment export to ${target}.`,
+    );
     const shouldWrite = await confirm(
-      `Enable OpenCode background subagents in ${target}?`,
+      'Add OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true now?',
       true,
     );
     if (!shouldWrite) {
-      printInfo('Skipped background subagents shell configuration.');
+      printInfo('Skipped background subagents shell setup.');
       console.log(
         manualBackgroundSubagentsInstructions({ targetPath: target }),
       );
@@ -225,6 +226,43 @@ export async function configureBackgroundSubagents(
   return { enabledNow: false, configuredTarget: target };
 }
 
+export async function shouldInstallCompanion(
+  config: InstallConfig,
+): Promise<boolean> {
+  if (config.companion === 'yes') return true;
+  if (config.companion === 'no') return false;
+
+  if (config.dryRun) {
+    printInfo(
+      'Dry run mode - would ask to install the desktop companion (default: yes).',
+    );
+    config.companion = 'yes';
+    return true;
+  }
+
+  if (!process.stdin.isTTY) {
+    printInfo(
+      'Skipped desktop companion prompt in non-TTY mode. Use --companion=yes to install it.',
+    );
+    config.companion = 'no';
+    return false;
+  }
+
+  console.log();
+  printInfo('The optional desktop companion shows live agent activity.');
+  const shouldInstall = await confirm(
+    'Install and enable the desktop companion?',
+    true,
+  );
+  config.companion = shouldInstall ? 'yes' : 'no';
+
+  if (!shouldInstall) {
+    printInfo('Desktop companion install skipped.');
+  }
+
+  return shouldInstall;
+}
+
 function handleStepResult(
   result: ConfigMergeResult,
   successMsg: string,
@@ -245,9 +283,11 @@ async function runInstall(config: InstallConfig): Promise<number> {
 
   printHeader(isUpdate);
 
+  const companionInstall = await shouldInstallCompanion(config);
+
   let totalSteps = 7;
   if (config.installCustomSkills) totalSteps += 1;
-  if (config.companion === 'yes') totalSteps += 1;
+  if (companionInstall) totalSteps += 1;
   totalSteps += 1;
 
   let step = 1;
@@ -312,7 +352,7 @@ async function runInstall(config: InstallConfig): Promise<number> {
   printStep(step++, totalSteps, 'Configuring OpenCode background subagents...');
   const backgroundSubagents = await configureBackgroundSubagents(config);
 
-  if (config.companion === 'yes') {
+  if (companionInstall) {
     printStep(step++, totalSteps, 'Installing desktop companion binary...');
     const companionResult = await installCompanion(config);
     if (!handleStepResult(companionResult, 'Companion installed')) return 1;
@@ -439,7 +479,7 @@ export async function install(args: InstallArgs): Promise<number> {
     promptForStar: args.tui,
     dryRun: args.dryRun,
     reset: args.reset ?? false,
-    backgroundSubagents: args.backgroundSubagents ?? 'no',
+    backgroundSubagents: args.backgroundSubagents ?? 'ask',
     backgroundSubagentsTarget: args.backgroundSubagentsTarget,
     companion: args.companion,
   };
