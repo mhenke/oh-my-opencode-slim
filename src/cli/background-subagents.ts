@@ -29,10 +29,11 @@ export function detectBackgroundSubagentsTarget(
   env: NodeJS.ProcessEnv = process.env,
 ): string | undefined {
   const shell = detectShellKind(env.SHELL);
-  if (shell === 'zsh') return join(homedir(), '.zshrc');
-  if (shell === 'bash') return join(homedir(), '.bashrc');
+  const home = env.HOME || homedir();
+  if (shell === 'zsh') return join(home, '.zshrc');
+  if (shell === 'bash') return join(home, '.bashrc');
   if (shell === 'fish') {
-    const configHome = env.XDG_CONFIG_HOME || join(homedir(), '.config');
+    const configHome = env.XDG_CONFIG_HOME || join(home, '.config');
     return join(
       configHome,
       'fish',

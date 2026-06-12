@@ -1,12 +1,12 @@
 <div align="center">
   <a href="https://github.com/alvinunreal/oh-my-opencode-slim/stargazers">
-    <img src="img/4k.png" alt="4K GitHub Stars Milestone" style="border-radius: 10px;">
+    <img src="img/v2.webp" alt="oh-my-opencode-slim V2 Release" style="border-radius: 10px;">
   </a>
   <h3>✨ oh-my-opencode-slim ✨</h3>
+
+  <p><i>Seven divine beings emerged from the dawn of code, each an immortal master of their craft,<br>awaiting your command to forge order from chaos and build what was once thought impossible.</i></p>
+
   <p><b>Opencode Multi Agent Suite</b> · Mix any models · Auto delegate tasks</p>
-
-  <p><i>Seven divine beings emerged from the dawn of code,<br>each an immortal master of their craft,<br>awaiting your command to forge order from chaos and build what was once thought impossible.</i></p>
-
   <p><sub>by <b>Boring Dystopia Development</b></sub></p>
   <p>
     <a href="https://boringdystopia.ai/"><img src="https://img.shields.io/badge/boringdystopia.ai-111111?style=for-the-badge&logo=vercel&logoColor=white" alt="boringdystopia.ai"></a>&nbsp;
@@ -48,25 +48,22 @@ bunx oh-my-opencode-slim@latest install
 
 ### Default Background Orchestration
 
-The orchestrator is now a workflow manager and scheduler, not the main coding
-worker: it plans work, dispatches specialists as background tasks, receives
-completion events from OpenCode or checks status only when needed, then
-reconciles results before continuing. This uses OpenCode's native background
-subagent support, so OpenCode must run with the background-subagents environment
-variable enabled.
+V2 makes the orchestrator a workflow manager and scheduler, not the main coding
+worker. It plans work, dispatches specialists as background tasks, receives
+completion events from OpenCode, and reconciles results before continuing.
+
+This requires OpenCode's native background subagents. During install, the
+installer explains the requirement and asks whether it should add the required
+environment export to your detected shell startup file. Press Enter to accept
+the default `yes`:
 
 ```bash
-bunx oh-my-opencode-slim@beta install --background-subagents=yes
+bunx oh-my-opencode-slim@latest install
 ```
 
-The installer can set this up for you with
-`--background-subagents=ask|yes|no`. In an interactive TTY, the default is
-`ask`; in non-interactive mode, the default is `no`. Use
-`--background-subagents=yes` to opt in immediately or `--background-subagents=no`
-to skip. If you want the installer to write to a specific shell/profile file,
-add `--background-subagents-target=<path>`. After shell setup, restart your
-terminal or source the updated file before starting `opencode`; for a one-shot
-launch, run `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true opencode`.
+After installation, restart your terminal or source the updated shell file before
+starting `opencode`. For a one-shot launch without restarting, run
+`OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true opencode`.
 
 ### Getting Started
 
@@ -92,12 +89,6 @@ Then:
 
 > [!TIP]
 > It's **recommended** to understand how background orchestration works. The **[Orchestrator prompt](https://github.com/alvinunreal/oh-my-opencode-slim/blob/master/src/agents/orchestrator.ts#L28)** contains the scheduler rules, specialist routing logic, and thresholds for when work should be assigned to background agents. You can always delegate manually by calling a subagent via: `@agentName <task>`
-
-### Legacy V1 note
-
-The current `@latest` package is the background-orchestration release. If a
-maintained V1 branch or tag is created later, it will be documented separately as
-historical compatibility guidance rather than part of the default install path.
 
 The default generated configuration includes both `openai` and `opencode-go` presets.
 

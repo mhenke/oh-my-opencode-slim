@@ -53,8 +53,7 @@ export function parseArgs(args: string[]): InstallArgs {
     }
   }
 
-  result.backgroundSubagents ??=
-    result.tui && process.stdin.isTTY ? 'ask' : 'no';
+  result.backgroundSubagents ??= 'ask';
 
   return result;
 }
@@ -73,10 +72,10 @@ Options:
                          (default: no)
   --preset=<name>        Active generated config preset (default: openai)
   --background-subagents=ask|yes|no
-                         Persist required OpenCode background subagent env
-                         (default: ask in interactive TTY, otherwise no)
+                          Persist required OpenCode background subagent env
+                          (default: ask; prompt defaults to yes)
   --background-subagents-target=<path>
-                         Shell startup file to update
+                          Shell startup file to update
   --no-tui               Non-interactive mode
   --dry-run              Simulate install without writing files
   --reset                Force overwrite of existing configuration

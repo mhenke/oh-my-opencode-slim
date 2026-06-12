@@ -139,12 +139,6 @@ async function checkOpenCodeInstalled(): Promise<{
   return { ok: true, version: version ?? undefined, path: path ?? undefined };
 }
 
-export function shouldPromptForBackgroundSubagents(
-  config: InstallConfig,
-): boolean {
-  return Boolean(config.promptForStar && process.stdin.isTTY);
-}
-
 export async function configureBackgroundSubagents(
   config: InstallConfig,
 ): Promise<{ enabledNow: boolean; configuredTarget?: string }> {
@@ -165,7 +159,7 @@ export async function configureBackgroundSubagents(
       : detectBackgroundSubagentsTarget();
 
   if (config.backgroundSubagents === 'no') {
-    printInfo('OpenCode background subagents are not enabled.');
+    printInfo('OpenCode background subagents shell setup skipped.');
     console.log(manualBackgroundSubagentsInstructions({ targetPath: target }));
     return { enabledNow: false };
   }
@@ -188,20 +182,27 @@ export async function configureBackgroundSubagents(
   }
 
   if (config.backgroundSubagents === 'ask') {
-    if (!shouldPromptForBackgroundSubagents(config)) {
-      printInfo('Skipped background subagents shell configuration.');
+    if (!process.stdin.isTTY) {
+      printInfo('Skipped background subagents shell setup in non-TTY mode.');
       console.log(
         manualBackgroundSubagentsInstructions({ targetPath: target }),
       );
       return { enabledNow: false };
     }
 
+    console.log();
+    printInfo(
+      'V2 requires OpenCode background subagents for default orchestration.',
+    );
+    printInfo(
+      `The installer can add the required environment export to ${target}.`,
+    );
     const shouldWrite = await confirm(
-      `Enable OpenCode background subagents in ${target}?`,
+      'Add OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true now?',
       true,
     );
     if (!shouldWrite) {
-      printInfo('Skipped background subagents shell configuration.');
+      printInfo('Skipped background subagents shell setup.');
       console.log(
         manualBackgroundSubagentsInstructions({ targetPath: target }),
       );
@@ -439,7 +440,7 @@ export async function install(args: InstallArgs): Promise<number> {
     promptForStar: args.tui,
     dryRun: args.dryRun,
     reset: args.reset ?? false,
-    backgroundSubagents: args.backgroundSubagents ?? 'no',
+    backgroundSubagents: args.backgroundSubagents ?? 'ask',
     backgroundSubagentsTarget: args.backgroundSubagentsTarget,
     companion: args.companion,
   };
