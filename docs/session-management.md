@@ -97,9 +97,9 @@ That means the generated starter config can stay clean:
   "preset": "openai",
   "presets": {
     "openai": {
-      "orchestrator": { "model": "openai/gpt-5.5" },
+      "orchestrator": { "model": "openai/gpt-5.5", "variant": "medium" },
       "explorer": { "model": "openai/gpt-5.4-mini" },
-      "fixer": { "model": "openai/gpt-5.4-mini" }
+      "fixer": { "model": "openai/gpt-5.5", "variant": "low" }
     }
   }
 }

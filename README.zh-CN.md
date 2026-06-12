@@ -55,7 +55,7 @@ bunx oh-my-opencode-slim@beta install --background-subagents=yes
 
 ### 入门指南
 
-安装程序会同时生成 OpenAI 和 OpenCode Go 的预设（Preset），默认启用 OpenAI 预设。OpenAI 使用 `openai/gpt-5.5` 作为具备高级判断力智能体的模型，并使用 `openai/gpt-5.4-mini` 作为响应更快速、针对具体任务智能体的模型。若要在安装过程中激活 OpenCode Go 预设，请运行 `bunx oh-my-opencode-slim@latest install --preset=opencode-go` 或在安装后修改 `~/.config/opencode/oh-my-opencode-slim.json` 文件中的默认预设名称。
+安装程序会同时生成 OpenAI 和 OpenCode Go 的预设（Preset），默认启用 OpenAI 预设。OpenAI 使用变体感知路由：`openai/gpt-5.5` (medium) 作为工作流管理器/调度模型，`openai/gpt-5.5` (high) 作为 Oracle 模型，`openai/gpt-5.5` (low) 作为 Fixer 模型，并使用 `openai/gpt-5.4-mini` 变体模型作为响应更快速、针对具体任务的智能体模型。若要在安装过程中激活 OpenCode Go 预设，请运行 `bunx oh-my-opencode-slim@latest install --preset=opencode-go` 或在安装后修改 `~/.config/opencode/oh-my-opencode-slim.json` 文件中的默认预设名称。
 
 然后：
 
@@ -84,12 +84,12 @@ bunx oh-my-opencode-slim@beta install --background-subagents=yes
   "preset": "openai",
   "presets": {
     "openai": {
-      "orchestrator": { "model": "openai/gpt-5.5", "skills": ["*"], "mcps": ["*", "!context7"] },
+      "orchestrator": { "model": "openai/gpt-5.5", "variant": "medium", "skills": ["*"], "mcps": ["*", "!context7"] },
       "oracle": { "model": "openai/gpt-5.5", "variant": "high", "skills": ["simplify"], "mcps": [] },
       "librarian": { "model": "openai/gpt-5.4-mini", "variant": "low", "skills": [], "mcps": ["websearch", "context7", "gh_grep"] },
       "explorer": { "model": "openai/gpt-5.4-mini", "variant": "low", "skills": [], "mcps": [] },
       "designer": { "model": "openai/gpt-5.4-mini", "variant": "medium", "skills": [], "mcps": [] },
-      "fixer": { "model": "openai/gpt-5.4-mini", "variant": "low", "skills": [], "mcps": [] }
+      "fixer": { "model": "openai/gpt-5.5", "variant": "low", "skills": [], "mcps": [] }
     },
     "opencode-go": {
       "orchestrator": { "model": "opencode-go/glm-5.1", "skills": [ "*" ], "mcps": [ "*", "!context7" ] },
@@ -165,12 +165,12 @@ ping all agents
   </tr>
   <tr>
     <td colspan="2">
-      <b>默认模型：</b> <code>openai/gpt-5.5</code>
+      <b>默认模型：</b> <code>openai/gpt-5.5 (medium)</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>推荐模型：</b> <code>openai/gpt-5.5</code> <code>anthropic/claude-opus-4.6</code>
+      <b>推荐模型：</b> <code>openai/gpt-5.5 (medium)</code> <code>anthropic/claude-opus-4.6</code>
     </td>
   </tr>
   <tr>
@@ -211,12 +211,12 @@ ping all agents
   </tr>
   <tr>
     <td colspan="2">
-      <b>推荐模型：</b> <code>cerebras/zai-glm-4.7</code> <code>fireworks-ai/accounts/fireworks/routers/kimi-k2p5-turbo</code> <code>openai/gpt-5.4-mini</code>
+      <b>推荐模型：</b> <i>无</i>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>模型选用指南：</b> 选择快速、低成本的模型。Explorer 处理宽泛的侦察工作，因此速度和效率通常比使用最强推理模型更重要。
+      <b>模型选用指南：</b> 选择快速、低成本的模型。Explorer 处理宽泛的侦察工作，因此速度 and 效率通常比使用最强推理模型更重要。
     </td>
   </tr>
 </table>
@@ -342,7 +342,7 @@ ping all agents
   </tr>
   <tr>
     <td colspan="2">
-      <b>推荐模型：</b> <code>cerebras/zai-glm-4.7</code> <code>fireworks-ai/accounts/fireworks/routers/kimi-k2p5-turbo</code> <code>openai/gpt-5.4-mini</code>
+      <b>推荐模型：</b> <i>无</i>
     </td>
   </tr>
   <tr>
@@ -419,12 +419,12 @@ ping all agents
   </tr>
   <tr>
     <td colspan="2">
-      <b>默认模型：</b> <code>openai/gpt-5.4-mini</code>
+      <b>默认模型：</b> <code>openai/gpt-5.5 (low)</code>
     </td>
   </tr>
   <tr>
     <td colspan="2">
-      <b>推荐模型：</b> <code>cerebras/zai-glm-4.7</code> <code>fireworks-ai/accounts/fireworks/routers/kimi-k2p5-turbo</code> <code>openai/gpt-5.4-mini</code>
+      <b>推荐模型：</b> <code>openai/gpt-5.5 (low)</code>
     </td>
   </tr>
   <tr>
