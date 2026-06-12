@@ -35,11 +35,11 @@ The installer supports the following options:
 |--------|-------------|
 | `--skills=yes|no` | Install bundled skills (default: yes) |
 | `--preset=<name>` | Active generated config preset: `openai` or `opencode-go` (default: `openai`) |
+| `--background-subagents=ask\|yes\|no` | Configure the required background-subagents environment export (`ask` by default; prompt defaults to yes) |
+| `--background-subagents-target=<path>` | Write the background-subagents export to a specific shell/profile file |
 | `--no-tui` | Non-interactive mode |
 | `--dry-run` | Simulate install without writing files |
 | `--reset` | Force overwrite of existing configuration |
-| `--background-subagents=ask\|yes\|no` | Configure `OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true` in your shell startup file (`ask` by default only in an interactive TTY; otherwise `no`) |
-| `--background-subagents-target=<path>` | Write the background-subagents export to a specific shell/profile file |
 
 ### Background Subagents Environment Setup
 
@@ -50,22 +50,17 @@ background subagents, which are enabled by this environment variable:
 OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true
 ```
 
-The installer can add that export to your shell startup file. Use one of:
+The installer asks before adding that export to your shell startup file. The
+prompt defaults to `yes` because V2's default orchestration depends on it.
 
 ```bash
-# Ask before editing a shell startup file (default in interactive TTY only)
-bunx oh-my-opencode-slim@latest install --background-subagents=ask
+bunx oh-my-opencode-slim@latest install
+```
 
-# Always configure the export when possible
-bunx oh-my-opencode-slim@latest install --background-subagents=yes
+For non-interactive setup, pass the choice explicitly:
 
-# Do not modify shell startup files
-bunx oh-my-opencode-slim@latest install --background-subagents=no
-
-# Write to an explicit target file
-bunx oh-my-opencode-slim@latest install \
-  --background-subagents=yes \
-  --background-subagents-target="$HOME/.zshrc"
+```bash
+bunx oh-my-opencode-slim@latest install --no-tui --background-subagents=yes
 ```
 
 After the installer updates a shell startup file, restart your terminal or source
@@ -77,7 +72,7 @@ source ~/.zshrc
 source ~/.bashrc
 ```
 
-For a one-shot manual launch without changing shell files:
+For a one-shot manual launch without restarting your terminal:
 
 ```bash
 OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true opencode
@@ -153,7 +148,7 @@ If not installed, direct the user to https://opencode.ai/docs first.
 The installer generates OpenAI and OpenCode Go presets, with OpenAI active by default:
 
 ```bash
-bunx oh-my-opencode-slim@latest install --no-tui --skills=yes --background-subagents=yes
+bunx oh-my-opencode-slim@latest install --no-tui --skills=yes
 ```
 
 **Examples:**
@@ -163,9 +158,6 @@ bunx oh-my-opencode-slim@latest install
 
 # Non-interactive with bundled skills
 bunx oh-my-opencode-slim@latest install --no-tui --skills=yes --background-subagents=yes
-
-# Non-interactive and configure background subagents env setup
-bunx oh-my-opencode-slim@latest install --no-tui --background-subagents=yes
 
 # Make the generated OpenCode Go preset active
 bunx oh-my-opencode-slim@latest install --preset=opencode-go
@@ -276,9 +268,9 @@ return task IDs, or delegation behaves like a blocking foreground call:
    OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true opencode
    ```
 
-4. If you intentionally skipped shell setup, rerun the installer with:
+4. If shell setup was missing, rerun the installer:
    ```bash
-   bunx oh-my-opencode-slim@latest install --background-subagents=yes
+   bunx oh-my-opencode-slim@latest install
    ```
 
 ### Authentication Issues

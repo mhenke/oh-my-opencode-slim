@@ -15,10 +15,7 @@ import {
   writeBackgroundSubagentsBlock,
 } from './background-subagents';
 import { parseArgs } from './index';
-import {
-  configureBackgroundSubagents,
-  shouldPromptForBackgroundSubagents,
-} from './install';
+import { configureBackgroundSubagents } from './install';
 
 describe('background subagents helpers', () => {
   test('detects true-like environment values', () => {
@@ -127,6 +124,11 @@ describe('background subagents writing', () => {
 });
 
 describe('parseArgs background subagents', () => {
+  test('defaults background subagents to ask', () => {
+    expect(parseArgs([]).backgroundSubagents).toBe('ask');
+    expect(parseArgs(['--no-tui']).backgroundSubagents).toBe('ask');
+  });
+
   test('parses mode and target override', () => {
     expect(
       parseArgs([
@@ -138,9 +140,17 @@ describe('parseArgs background subagents', () => {
       backgroundSubagentsTarget: '/tmp/profile',
     });
   });
+});
 
-  test('--no-tui defaults background subagents to no', () => {
-    expect(parseArgs(['--no-tui']).backgroundSubagents).toBe('no');
+describe('parseArgs companion', () => {
+  test('defaults companion install to ask', () => {
+    expect(parseArgs([]).companion).toBe('ask');
+  });
+
+  test('parses companion mode override', () => {
+    expect(parseArgs(['--companion=yes']).companion).toBe('yes');
+    expect(parseArgs(['--companion=no']).companion).toBe('no');
+    expect(parseArgs(['--companion=ask']).companion).toBe('ask');
   });
 });
 
@@ -160,58 +170,14 @@ describe('configureBackgroundSubagents', () => {
     }
   });
 
-  test('does not prompt for ask mode when noninteractive', async () => {
+  test('writes shell config without prompting', async () => {
     tempDir = mkdtempSync(join(tmpdir(), 'omoo-bg-'));
     delete process.env.OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS;
-    const target = join(tempDir, '.bashrc');
     const log = spyOn(console, 'log').mockImplementation(() => undefined);
-    const originalIsTty = process.stdin.isTTY;
-    Object.defineProperty(process.stdin, 'isTTY', {
-      configurable: true,
-      value: false,
-    });
-
-    try {
-      expect(
-        shouldPromptForBackgroundSubagents({
-          hasTmux: false,
-          installCustomSkills: false,
-          promptForStar: false,
-          reset: false,
-          backgroundSubagents: 'ask',
-          backgroundSubagentsTarget: target,
-        }),
-      ).toBe(false);
-
-      const result = await configureBackgroundSubagents({
-        hasTmux: false,
-        installCustomSkills: false,
-        promptForStar: false,
-        reset: false,
-        backgroundSubagents: 'ask',
-        backgroundSubagentsTarget: target,
-      });
-
-      expect(result).toEqual({ enabledNow: false });
-      expect(log.mock.calls.join('\n')).toContain(
-        'Skipped background subagents shell configuration.',
-      );
-    } finally {
-      Object.defineProperty(process.stdin, 'isTTY', {
-        configurable: true,
-        value: originalIsTty,
-      });
-      log.mockRestore();
-    }
-  });
-
-  test('returns no configured target when writing shell config fails', async () => {
-    tempDir = mkdtempSync(join(tmpdir(), 'omoo-bg-'));
-    delete process.env.OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS;
-    const blockingFile = join(tempDir, 'not-a-directory');
-    writeFileSync(blockingFile, 'already a file');
-    const target = join(blockingFile, '.bashrc');
-    const log = spyOn(console, 'log').mockImplementation(() => undefined);
+    const originalShell = process.env.SHELL;
+    const originalHome = process.env.HOME;
+    process.env.SHELL = '/bin/zsh';
+    process.env.HOME = tempDir;
 
     try {
       const result = await configureBackgroundSubagents({
@@ -220,7 +186,40 @@ describe('configureBackgroundSubagents', () => {
         promptForStar: false,
         reset: false,
         backgroundSubagents: 'yes',
-        backgroundSubagentsTarget: target,
+      });
+
+      expect(result.configuredTarget?.endsWith('/.zshrc')).toBe(true);
+      expect(readFileSync(join(tempDir, '.zshrc'), 'utf8')).toContain(
+        'OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS',
+      );
+      expect(log.mock.calls.join('\n')).toContain(
+        'Background subagents enabled',
+      );
+    } finally {
+      process.env.SHELL = originalShell;
+      process.env.HOME = originalHome;
+      log.mockRestore();
+    }
+  });
+
+  test('returns no configured target when writing shell config fails', async () => {
+    tempDir = mkdtempSync(join(tmpdir(), 'omoo-bg-'));
+    delete process.env.OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS;
+    rmSync(tempDir, { recursive: true, force: true });
+    writeFileSync(tempDir, 'not a directory');
+    const log = spyOn(console, 'log').mockImplementation(() => undefined);
+    const originalShell = process.env.SHELL;
+    const originalHome = process.env.HOME;
+    process.env.SHELL = '/bin/zsh';
+    process.env.HOME = tempDir;
+
+    try {
+      const result = await configureBackgroundSubagents({
+        hasTmux: false,
+        installCustomSkills: false,
+        promptForStar: false,
+        reset: false,
+        backgroundSubagents: 'yes',
       });
 
       expect(result).toEqual({ enabledNow: false });
@@ -229,6 +228,8 @@ describe('configureBackgroundSubagents', () => {
       );
       expect(log.mock.calls.join('\n')).toContain('Add the setting manually');
     } finally {
+      process.env.SHELL = originalShell;
+      process.env.HOME = originalHome;
       log.mockRestore();
     }
   });
