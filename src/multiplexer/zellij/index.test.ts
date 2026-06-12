@@ -107,6 +107,8 @@ describe('ZellijMultiplexer', () => {
       'new-pane',
       '--tab-id',
       '0',
+      '--direction',
+      'right',
       '--name',
       'Current tab worker',
       '--close-on-exit',
@@ -243,5 +245,77 @@ describe('ZellijMultiplexer', () => {
 
     expect(tabIdArgIndex).toBeGreaterThanOrEqual(0);
     expect(newPaneCommand?.[tabIdArgIndex + 1]).toBe('1');
+  });
+
+  test('main-horizontal layout opens current-tab panes down', async () => {
+    const { ZellijMultiplexer } = await importFreshZellij();
+    const zellij = new ZellijMultiplexer('main-horizontal', 60, 'current-tab');
+
+    await zellij.spawnPane(
+      'session-1',
+      'Current tab worker',
+      'http://localhost:4096',
+      '/repo',
+    );
+
+    const newPaneCommand = commands().find((command) =>
+      command.includes('new-pane'),
+    );
+    const directionArgIndex = newPaneCommand?.indexOf('--direction') ?? -1;
+
+    expect(directionArgIndex).toBeGreaterThanOrEqual(0);
+    expect(newPaneCommand?.[directionArgIndex + 1]).toBe('down');
+  });
+
+  test('even-horizontal layout uses zellij native current-tab pane placement', async () => {
+    const { ZellijMultiplexer } = await importFreshZellij();
+    const zellij = new ZellijMultiplexer('even-horizontal', 60, 'current-tab');
+
+    await zellij.spawnPane(
+      'session-1',
+      'Current tab worker',
+      'http://localhost:4096',
+      '/repo',
+    );
+
+    const newPaneCommand = commands().find((command) =>
+      command.includes('new-pane'),
+    );
+    expect(newPaneCommand).not.toContain('--direction');
+  });
+
+  test('even-vertical layout uses zellij native current-tab pane placement', async () => {
+    const { ZellijMultiplexer } = await importFreshZellij();
+    const zellij = new ZellijMultiplexer('even-vertical', 60, 'current-tab');
+
+    await zellij.spawnPane(
+      'session-1',
+      'Current tab worker',
+      'http://localhost:4096',
+      '/repo',
+    );
+
+    const newPaneCommand = commands().find((command) =>
+      command.includes('new-pane'),
+    );
+    expect(newPaneCommand).not.toContain('--direction');
+  });
+
+  test('tiled layout uses zellij native current-tab pane placement', async () => {
+    const { ZellijMultiplexer } = await importFreshZellij();
+    const zellij = new ZellijMultiplexer('tiled', 60, 'current-tab');
+
+    await zellij.spawnPane(
+      'session-1',
+      'Current tab worker',
+      'http://localhost:4096',
+      '/repo',
+    );
+
+    const newPaneCommand = commands().find((command) =>
+      command.includes('new-pane'),
+    );
+
+    expect(newPaneCommand).not.toContain('--direction');
   });
 });
