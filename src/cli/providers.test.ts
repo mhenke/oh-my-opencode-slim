@@ -19,6 +19,7 @@ describe('providers', () => {
     const config = generateLiteConfig({
       hasTmux: false,
       installCustomSkills: false,
+      backgroundSubagents: 'no',
       reset: false,
     });
 
@@ -34,8 +35,8 @@ describe('providers', () => {
     const agents = (config.presets as any).openai;
     expect(agents).toBeDefined();
     expect(agents.orchestrator.model).toBe('openai/gpt-5.5');
-    expect(agents.orchestrator.variant).toBeUndefined();
-    expect(agents.fixer.model).toBe('openai/gpt-5.4-mini');
+    expect(agents.orchestrator.variant).toBe('medium');
+    expect(agents.fixer.model).toBe('openai/gpt-5.5');
     expect(agents.fixer.variant).toBe('low');
   });
 
@@ -43,6 +44,7 @@ describe('providers', () => {
     const config = generateLiteConfig({
       hasTmux: false,
       installCustomSkills: false,
+      backgroundSubagents: 'no',
       reset: false,
     });
 
@@ -135,6 +137,7 @@ describe('providers', () => {
     const config = generateLiteConfig({
       hasTmux: false,
       installCustomSkills: false,
+      backgroundSubagents: 'no',
       reset: false,
       companion: 'yes',
     });
@@ -149,6 +152,7 @@ describe('providers', () => {
     const configYes = generateLiteConfig({
       hasTmux: false,
       installCustomSkills: false,
+      backgroundSubagents: 'no',
       reset: false,
       companion: 'no',
     });
@@ -157,6 +161,7 @@ describe('providers', () => {
     const configOmitted = generateLiteConfig({
       hasTmux: false,
       installCustomSkills: false,
+      backgroundSubagents: 'no',
       reset: false,
     });
     expect(configOmitted.companion).toBeUndefined();
@@ -166,6 +171,7 @@ describe('providers', () => {
     const config = generateLiteConfig({
       hasTmux: false,
       installCustomSkills: false,
+      backgroundSubagents: 'no',
       reset: false,
     });
 
@@ -193,6 +199,7 @@ describe('providers', () => {
     const config = generateLiteConfig({
       hasTmux: false,
       installCustomSkills: false,
+      backgroundSubagents: 'no',
       reset: false,
     });
 
@@ -207,6 +214,7 @@ describe('providers', () => {
     const config = generateLiteConfig({
       hasTmux: false,
       installCustomSkills: false,
+      backgroundSubagents: 'no',
       reset: false,
     });
 
