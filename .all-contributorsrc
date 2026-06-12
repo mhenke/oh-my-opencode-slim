@@ -533,6 +533,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "smatheusblu",
+      "name": "Matheus Nogueira Silveira",
+      "avatar_url": "https://avatars.githubusercontent.com/u/5666794?v=4",
+      "profile": "https://github.com/smatheusblu",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commitConvention": "angular"
