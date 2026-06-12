@@ -46,84 +46,6 @@ Install and configure oh-my-opencode-slim: https://raw.githubusercontent.com/alv
 bunx oh-my-opencode-slim@latest install
 ```
 
-### What's New in V2
-
-V2 turns oh-my-opencode-slim into a scheduler-first multi-agent workflow system.
-The Orchestrator stays focused on planning, delegation, reconciliation, and
-verification while specialists do the work in their own lanes.
-
-- **[Background agents](#background-agents)** — the Orchestrator now dispatches
-  specialists as background tasks, tracks task/session IDs, waits for completion
-  events, and reconciles results before continuing.
-- **[Companion](#companion)** — an optional floating desktop window shows which
-  agents are currently active, including parallel background specialists.
-- **[Deepwork](#deepwork)** — a structured workflow for large, multi-file, risky,
-  or phased coding work using persistent plan files and Oracle review gates.
-- **[oh-my-opencode-slim skill](#oh-my-opencode-slim-skill)** — a bundled
-  configuration skill that helps tune models, prompts, custom agents, MCP access,
-  presets, and plugin behavior safely.
-
-#### Background Agents
-
-V2 makes background specialists the default mental model: the Orchestrator plans
-the work graph, launches the right agents, avoids overlapping write ownership,
-and waits for terminal task results before acting on them.
-
-See **[Background Orchestration](docs/v2-background-orchestration.md)** for the
-full scheduler model.
-
-#### Companion
-
-The optional Companion is a floating desktop status window for live agent
-activity. It shows the current session state and which agents are active, so
-background work is easier to follow at a glance.
-
-<div align="center">
-  <img src="img/companion.gif" alt="Companion showing active agents" width="600">
-  <p><i>Left bottom visual companion.</i></p>
-</div>
-
-During interactive install, the installer asks whether to enable Companion and
-defaults to `yes`. For automation, enable it explicitly with:
-
-```bash
-bunx oh-my-opencode-slim@latest install --companion=yes
-```
-
-See **[Companion](docs/companion.md)** for configuration, positions, sizes, and
-install details.
-
-#### Deepwork
-
-Deepwork is for heavy coding sessions: broad refactors, multi-phase features,
-risky architecture changes, or work that needs a persistent plan. It creates a
-local markdown progress file, uses Oracle review gates, and keeps implementation
-phases structured.
-
-Start it with:
-
-```text
-/deepwork <heavy coding task>
-```
-
-See **[Skills](docs/skills.md#deepwork)** for when to use it and how the workflow
-runs.
-
-#### oh-my-opencode-slim Skill
-
-The bundled `oh-my-opencode-slim` skill helps the Orchestrator configure and
-improve the plugin itself. Use it for model tuning, custom agents, prompt
-overrides, skill/MCP permissions, presets, optional agents, background
-orchestration, and recurring workflow friction.
-
-<div align="center">
-  <img src="img/oh-my-opencode-skill.png" alt="oh-my-opencode-slim skill in use" width="600">
-  <p><i>Ask the bundled skill to tune and improve your agent setup.</i></p>
-</div>
-
-See **[Skills](docs/skills.md#oh-my-opencode-slim)** for examples and safety
-rules.
-
 ### Getting Started
 
 The installer generates both OpenAI and OpenCode Go presets, with OpenAI active by default. OpenAI uses `openai/gpt-5.5 (medium)` for the workflow manager/scheduler, `openai/gpt-5.5 (high)` for the Oracle, `openai/gpt-5.5 (low)` for the Fixer, and `openai/gpt-5.4-mini` variants for other specialists. To make OpenCode Go active during install, run `bunx oh-my-opencode-slim@latest install --preset=opencode-go` or change the default preset name in `~/.config/opencode/oh-my-opencode-slim.json` after installation.
@@ -205,6 +127,86 @@ ping all agents
 </div>
 
 If any agent fails to respond, check your provider authentication and config file.
+
+---
+
+### What's New in V2
+
+V2 turns oh-my-opencode-slim into a scheduler-first multi-agent workflow system.
+The Orchestrator stays focused on planning, delegation, reconciliation, and
+verification while specialists do the work in their own lanes.
+
+- **[Background agents](#background-agents)** — the Orchestrator now dispatches
+  specialists as background tasks, tracks task/session IDs, waits for completion
+  events, and reconciles results before continuing.
+- **[Companion](#companion)** — an optional floating desktop window shows which
+  agents are currently active, including parallel background specialists.
+- **[Deepwork](#deepwork)** — a structured workflow for large, multi-file, risky,
+  or phased coding work using persistent plan files and Oracle review gates.
+- **[oh-my-opencode-slim skill](#oh-my-opencode-slim-skill)** — a bundled
+  configuration skill that helps tune models, prompts, custom agents, MCP access,
+  presets, and plugin behavior safely.
+
+#### Background Agents
+
+V2 makes background specialists the default mental model: the Orchestrator plans
+the work graph, launches the right agents, avoids overlapping write ownership,
+and waits for terminal task results before acting on them.
+
+See **[Background Orchestration](docs/v2-background-orchestration.md)** for the
+full scheduler model.
+
+#### Companion
+
+The optional Companion is a floating desktop status window for live agent
+activity. It shows the current session state and which agents are active, so
+background work is easier to follow at a glance.
+
+<div align="center">
+  <img src="img/companion.gif" alt="Companion showing active agents" width="600">
+  <p><i>Left bottom visual companion.</i></p>
+</div>
+
+During interactive install, the installer asks whether to enable Companion and
+defaults to `yes`. For automation, enable it explicitly with:
+
+```bash
+bunx oh-my-opencode-slim@latest install --companion=yes
+```
+
+See **[Companion](docs/companion.md)** for configuration, positions, sizes, and
+install details.
+
+#### Deepwork
+
+Deepwork is for heavy coding sessions: broad refactors, multi-phase features,
+risky architecture changes, or work that needs a persistent plan. It creates a
+local markdown progress file, uses Oracle review gates, and keeps implementation
+phases structured.
+
+Start it with:
+
+```text
+/deepwork <heavy coding task>
+```
+
+See **[Skills](docs/skills.md#deepwork)** for when to use it and how the workflow
+runs.
+
+#### oh-my-opencode-slim Skill
+
+The bundled `oh-my-opencode-slim` skill helps the Orchestrator configure and
+improve the plugin itself. Use it for model tuning, custom agents, prompt
+overrides, skill/MCP permissions, presets, optional agents, background
+orchestration, and recurring workflow friction.
+
+<div align="center">
+  <img src="img/oh-my-opencode-skill.png" alt="oh-my-opencode-slim skill in use" width="600">
+  <p><i>Ask the bundled skill to tune and improve your agent setup.</i></p>
+</div>
+
+See **[Skills](docs/skills.md#oh-my-opencode-slim)** for examples and safety
+rules.
 
 ---
 
@@ -568,7 +570,6 @@ Use this section as a map: start with installation, then jump to features, confi
 | **[Council](docs/council.md)** | Run multiple models in parallel and synthesize a single answer with `@council` |
 | **[Background Orchestration](docs/background-orchestration.md)** | Scheduler-first orchestrator model built around native background subagents |
 | **[Multiplexer Integration](docs/multiplexer-integration.md)** | Watch agents work live in Tmux or Zellij panes |
-| **[Session Management](docs/session-management.md)** | Reuse recent child-agent sessions with short aliases instead of starting over |
 | **[Preset Switching](docs/preset-switching.md)** | Switch agent model presets at runtime with `/preset` |
 | **[Custom Agents](docs/configuration.md#custom-agents)** | Define your own specialists with custom prompts, models, MCP access, and Orchestrator delegation rules |
 | **[Codemap](docs/codemap.md)** | Generate hierarchical codemaps to understand large codebases faster |
