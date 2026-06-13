@@ -2,6 +2,30 @@ import { z } from 'zod';
 import { AGENT_ALIASES, ALL_AGENT_NAMES } from './constants';
 import { CouncilConfigSchema } from './council-schema';
 
+const FALLBACK_AGENT_NAMES = [
+  'orchestrator',
+  'oracle',
+  'designer',
+  'explorer',
+  'librarian',
+  'fixer',
+] as const;
+
+const AgentModelChainSchema = z.array(z.string()).min(1);
+
+const FallbackChainsSchema = z
+  .object({
+    orchestrator: AgentModelChainSchema.optional(),
+    oracle: AgentModelChainSchema.optional(),
+    designer: AgentModelChainSchema.optional(),
+    explorer: AgentModelChainSchema.optional(),
+    librarian: AgentModelChainSchema.optional(),
+    fixer: AgentModelChainSchema.optional(),
+  })
+  .catchall(AgentModelChainSchema);
+
+export type FallbackAgentName = (typeof FALLBACK_AGENT_NAMES)[number];
+
 // Agent override configuration (distinct from SDK's AgentConfig)
 export const AgentOverrideConfigSchema = z
   .object({
@@ -119,6 +143,7 @@ export type BackgroundJobsConfig = z.infer<typeof BackgroundJobsConfigSchema>;
 
 export const FailoverConfigSchema = z.object({
   enabled: z.boolean().default(true),
+  chains: FallbackChainsSchema.default({}),
   retry_on_empty: z
     .boolean()
     .default(true)

@@ -11,6 +11,7 @@ import {
   parseTaskStatusOutput,
   SLIM_INTERNAL_INITIATOR_MARKER,
 } from '../../utils';
+import { isRecord as isObjectRecord } from '../../utils/guards';
 import { log } from '../../utils/logger';
 
 interface TaskArgs {
@@ -125,8 +126,6 @@ function createOccurrenceId(
 function isAgentName(value: unknown): value is AgentName {
   return typeof value === 'string' && AGENT_NAME_SET.has(value as AgentName);
 }
-
-import { isRecord as isObjectRecord } from '../../utils/guards';
 
 function extractPath(output: string): string | undefined {
   return /<path>([^<]+)<\/path>/.exec(output)?.[1];

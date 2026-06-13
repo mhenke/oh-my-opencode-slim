@@ -4,6 +4,7 @@ import {
   tool,
 } from '@opencode-ai/plugin';
 import type { BackgroundJobBoard } from '../utils/background-job-board';
+import { isRecord as isObjectRecord } from '../utils/guards';
 import { log } from '../utils/logger';
 import { abortSessionWithTimeout, withTimeout } from '../utils/session';
 
@@ -459,8 +460,6 @@ async function getSessionStatus(
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
-
-import { isRecord as isObjectRecord } from '../utils/guards';
 
 function isSessionID(value: string): boolean {
   return /^ses_[\w-]+$/.test(value);
