@@ -4,6 +4,7 @@ import {
   mkdirSync,
   readFileSync,
   renameSync,
+  rmSync,
   statSync,
   writeFileSync,
 } from 'node:fs';
@@ -169,6 +170,23 @@ function getPinnedVersionFromConfig(): string | undefined {
   return undefined;
 }
 
+function getRequestedPackageTag(packageRoot: string): string | undefined {
+  const normalizedPath = normalizePathForMatch(packageRoot);
+  const marker = `/bunx-`;
+  const markerIndex = normalizedPath.lastIndexOf(marker);
+  if (markerIndex === -1) return undefined;
+
+  const bunxSegment = normalizedPath
+    .slice(markerIndex + marker.length)
+    .split('/')[0];
+  const packagePrefix = `${PACKAGE_NAME}@`;
+  const packageIndex = bunxSegment.lastIndexOf(packagePrefix);
+  if (packageIndex === -1) return undefined;
+
+  const tag = bunxSegment.slice(packageIndex + packagePrefix.length);
+  return tag || undefined;
+}
+
 /**
  * Reads the version from the package.json at the given package root.
  * Used as a fallback when the config entry is unpinned (e.g. bunx @beta install).
@@ -222,6 +240,15 @@ function writeOpenCodePluginCacheManifest(
       error: `Failed to write cache package.json: ${err}`,
     };
   }
+}
+
+function removeOpenCodePluginCacheArtifacts(cacheDir: string): void {
+  rmSync(join(cacheDir, 'node_modules', PACKAGE_NAME), {
+    recursive: true,
+    force: true,
+  });
+  rmSync(join(cacheDir, 'bun.lock'), { force: true });
+  rmSync(join(cacheDir, 'bun.lockb'), { force: true });
 }
 
 function verifyOpenCodePluginCache(cacheDir: string): ConfigMergeResult | null {
@@ -278,7 +305,8 @@ export async function warmOpenCodePluginCache(): Promise<ConfigMergeResult | nul
 
   const pinnedVersion = getPinnedVersionFromConfig();
   const runningVersion = getVersionFromPackageRoot(packageRoot);
-  const cacheVersion = pinnedVersion ?? runningVersion;
+  const requestedTag = getRequestedPackageTag(packageRoot);
+  const cacheVersion = pinnedVersion ?? requestedTag ?? runningVersion;
   const cacheDir = getOpenCodePluginCacheDir(cacheVersion);
 
   try {
@@ -296,6 +324,8 @@ export async function warmOpenCodePluginCache(): Promise<ConfigMergeResult | nul
     cacheVersion,
   );
   if (manifestError) return manifestError;
+
+  removeOpenCodePluginCacheArtifacts(cacheDir);
 
   try {
     const proc = crossSpawn(['bun', 'install', '--ignore-scripts'], {
