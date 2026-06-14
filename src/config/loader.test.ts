@@ -51,36 +51,6 @@ describe('loadPluginConfig', () => {
     expect(config.agents?.oracle?.model).toBe('test/model');
   });
 
-  test('loads scoringEngineVersion flag when configured', () => {
-    const projectDir = path.join(tempDir, 'project');
-    const projectConfigDir = path.join(projectDir, '.opencode');
-    fs.mkdirSync(projectConfigDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(projectConfigDir, 'oh-my-opencode-slim.json'),
-      JSON.stringify({
-        scoringEngineVersion: 'v2-shadow',
-      }),
-    );
-
-    const config = loadPluginConfig(projectDir);
-    expect(config.scoringEngineVersion).toBe('v2-shadow');
-  });
-
-  test('loads balanceProviderUsage flag when configured', () => {
-    const projectDir = path.join(tempDir, 'project');
-    const projectConfigDir = path.join(projectDir, '.opencode');
-    fs.mkdirSync(projectConfigDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(projectConfigDir, 'oh-my-opencode-slim.json'),
-      JSON.stringify({
-        balanceProviderUsage: true,
-      }),
-    );
-
-    const config = loadPluginConfig(projectDir);
-    expect(config.balanceProviderUsage).toBe(true);
-  });
-
   test('loads autoUpdate flag when configured', () => {
     const projectDir = path.join(tempDir, 'project');
     const projectConfigDir = path.join(projectDir, '.opencode');
@@ -94,60 +64,6 @@ describe('loadPluginConfig', () => {
 
     const config = loadPluginConfig(projectDir);
     expect(config.autoUpdate).toBe(false);
-  });
-
-  test('loads manual plan structure when configured', () => {
-    const projectDir = path.join(tempDir, 'project');
-    const projectConfigDir = path.join(projectDir, '.opencode');
-    fs.mkdirSync(projectConfigDir, { recursive: true });
-    fs.writeFileSync(
-      path.join(projectConfigDir, 'oh-my-opencode-slim.json'),
-      JSON.stringify({
-        manualPlan: {
-          orchestrator: {
-            primary: 'openai/gpt-5.5',
-            fallback1: 'anthropic/claude-opus-4-6',
-            fallback2: 'chutes/kimi-k2.5',
-            fallback3: 'opencode/gpt-5-nano',
-          },
-          oracle: {
-            primary: 'openai/gpt-5.5',
-            fallback1: 'anthropic/claude-opus-4-6',
-            fallback2: 'chutes/Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8-TEE',
-            fallback3: 'opencode/gpt-5-nano',
-          },
-          designer: {
-            primary: 'openai/gpt-5.5',
-            fallback1: 'anthropic/claude-opus-4-6',
-            fallback2: 'chutes/kimi-k2.5',
-            fallback3: 'opencode/gpt-5-nano',
-          },
-          explorer: {
-            primary: 'openai/gpt-5.5',
-            fallback1: 'anthropic/claude-opus-4-6',
-            fallback2: 'chutes/kimi-k2.5',
-            fallback3: 'opencode/gpt-5-nano',
-          },
-          librarian: {
-            primary: 'openai/gpt-5.5',
-            fallback1: 'anthropic/claude-opus-4-6',
-            fallback2: 'chutes/kimi-k2.5',
-            fallback3: 'opencode/gpt-5-nano',
-          },
-          fixer: {
-            primary: 'openai/gpt-5.5',
-            fallback1: 'anthropic/claude-opus-4-6',
-            fallback2: 'chutes/kimi-k2.5',
-            fallback3: 'opencode/gpt-5-nano',
-          },
-        },
-      }),
-    );
-
-    const config = loadPluginConfig(projectDir);
-    expect(config.manualPlan?.oracle?.fallback2).toBe(
-      'chutes/Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8-TEE',
-    );
   });
 
   test('ignores invalid config (schema violation or malformed JSON)', () => {
@@ -635,6 +551,35 @@ describe('deepMerge behavior', () => {
 
     const config = loadPluginConfig(projectDir);
     expect(config.agents?.oracle?.model).toBe('user/model');
+  });
+
+  test('merges fallback timeout from user and project', () => {
+    const userOpencodeDir = path.join(userConfigDir, 'opencode');
+    fs.mkdirSync(userOpencodeDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(userOpencodeDir, 'oh-my-opencode-slim.json'),
+      JSON.stringify({
+        fallback: {
+          enabled: true,
+        },
+      }),
+    );
+
+    const projectDir = path.join(tempDir, 'project');
+    const projectConfigDir = path.join(projectDir, '.opencode');
+    fs.mkdirSync(projectConfigDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(projectConfigDir, 'oh-my-opencode-slim.json'),
+      JSON.stringify({
+        fallback: {
+          enabled: false,
+        },
+      }),
+    );
+
+    const config = loadPluginConfig(projectDir);
+    // Fallback deepMerge: project value wins over user value
+    expect(config.fallback?.enabled).toBe(false);
   });
 });
 

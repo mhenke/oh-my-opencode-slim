@@ -233,15 +233,12 @@ export const PluginConfigSchema = z
   .object({
     preset: z.string().optional(),
     setDefaultAgent: z.boolean().optional(),
-    scoringEngineVersion: z.enum(['v1', 'v2-shadow', 'v2']).optional(),
-    balanceProviderUsage: z.boolean().optional(),
     autoUpdate: z
       .boolean()
       .optional()
       .describe(
         'Disable automatic installation of plugin updates when false. Defaults to true.',
       ),
-    manualPlan: ManualPlanSchema.optional(),
     presets: z.record(z.string(), PresetSchema).optional(),
     agents: z.record(z.string(), AgentOverrideConfigSchema).optional(),
     disabled_agents: z
