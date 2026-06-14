@@ -100,6 +100,12 @@ oh-my-opencode-slim/
 5. Run `bun test` to verify tests pass
 6. Commit changes
 
+## Release Workflow
+
+For plugin or Companion releases, follow `docs/release.md`. It documents the
+required diff inspection, companion asset workflow, GitHub release creation,
+tagging, verification, and npm publish order.
+
 ## Tmux Session Lifecycle Management
 
 When working with tmux integration, understanding the session lifecycle is crucial for preventing orphaned processes and ghost panes.
