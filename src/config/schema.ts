@@ -213,9 +213,7 @@ export const CompanionConfigSchema = z.object({
     .min(0.25)
     .max(4)
     .optional()
-    .describe(
-      'Companion animation playback speed multiplier. Defaults to 1.5.',
-    ),
+    .describe('Companion animation playback speed multiplier. Defaults to 1.'),
   debug: z
     .boolean()
     .optional()

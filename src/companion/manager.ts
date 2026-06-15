@@ -18,6 +18,7 @@ interface CompanionSession {
   active_agents: string[];
   status: string;
   pid: number;
+  config?: CompanionState['config'];
 }
 
 interface CompanionState {
@@ -245,6 +246,17 @@ export class CompanionManager {
         active_agents: this.activeAgents(),
         status: this.status,
         pid: process.pid,
+        config: this.config
+          ? {
+              enabled: this.config.enabled ?? false,
+              position: this.config.position ?? 'bottom-right',
+              size: this.config.size ?? 'medium',
+              gifPack: this.config.gifPack ?? 'default',
+              loopStyle: this.config.loopStyle ?? 'classic',
+              speed: this.config.speed ?? 1,
+              debug: this.config.debug ?? false,
+            }
+          : undefined,
       };
       writeState((state) => {
         const idx = state.sessions.findIndex((s) => s.session_id === this.id);
@@ -260,7 +272,7 @@ export class CompanionManager {
             size: this.config.size ?? 'medium',
             gifPack: this.config.gifPack ?? 'default',
             loopStyle: this.config.loopStyle ?? 'classic',
-            speed: this.config.speed ?? 1.5,
+            speed: this.config.speed ?? 1,
             debug: this.config.debug ?? false,
           };
         }

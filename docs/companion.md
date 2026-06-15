@@ -15,7 +15,7 @@ You can enable the companion by adding a `companion` section to your setting con
     "size": "medium",
     "gifPack": "default",
     "loopStyle": "classic",
-    "speed": 1.5,
+    "speed": 1,
     "debug": false
   }
 }
@@ -44,7 +44,7 @@ You can enable the companion by adding a `companion` section to your setting con
     smoother transition.
 
 - **`companion.speed`**: optional animation playback speed multiplier from `0.25` to
-  `4`. The default is `1.5`. Values above `1` play faster; values below `1`
+  `4`. The default is `1`. Values above `1` play faster; values below `1`
   play slower.
 
 - **`companion.debug`**: set to `true` to enable verbose native companion debug
