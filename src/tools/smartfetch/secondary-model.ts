@@ -161,6 +161,14 @@ const SESSION_DELETE_RETRY_DELAY_MS = 500;
 const SECONDARY_MODEL_TIMEOUT_MS = 30_000;
 
 /**
+ * Exposed for tests so they can avoid real wall-clock sleeps.
+ * Not part of the public API.
+ */
+export const _testConfig = {
+  deleteRetryDelayMs: SESSION_DELETE_RETRY_DELAY_MS,
+};
+
+/**
  * Delete a temporary secondary-model session with retry.
  *
  * The previous implementation swallowed all errors silently via
@@ -191,7 +199,7 @@ async function deleteSessionSafely(
         return;
       }
       await new Promise((resolve) =>
-        setTimeout(resolve, SESSION_DELETE_RETRY_DELAY_MS),
+        setTimeout(resolve, _testConfig.deleteRetryDelayMs),
       );
     }
   }

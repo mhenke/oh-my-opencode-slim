@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
-import { runSecondaryModelWithFallback } from './secondary-model';
+import { runSecondaryModelWithFallback, _testConfig } from './secondary-model';
 import type { SecondaryModel } from './types';
 
 type PromptStep = {
@@ -36,7 +36,6 @@ function createMockClient(steps: PromptStep[], deleteBehavior?: {
         }
         return {};
       }),
-      _deleteCallCount: () => deleteCallCount,
     },
     tool: {
       ids: mock(async () => ({ data: ['read', 'bash'] })),
@@ -98,6 +97,8 @@ describe('smartfetch/secondary-model', () => {
     const originalWarn = console.warn;
     const warnCalls: unknown[][] = [];
     console.warn = (...args: unknown[]) => warnCalls.push(args);
+    const originalDelay = _testConfig.deleteRetryDelayMs;
+    _testConfig.deleteRetryDelayMs = 0;
     try {
       const client = createMockClient(
         [{ text: 'Answer' }],
@@ -118,6 +119,7 @@ describe('smartfetch/secondary-model', () => {
       expect(warnCalls.length).toBe(0);
     } finally {
       console.warn = originalWarn;
+      _testConfig.deleteRetryDelayMs = originalDelay;
     }
   });
 
@@ -125,6 +127,8 @@ describe('smartfetch/secondary-model', () => {
     const originalWarn = console.warn;
     const warnCalls: unknown[][] = [];
     console.warn = (...args: unknown[]) => warnCalls.push(args);
+    const originalDelay = _testConfig.deleteRetryDelayMs;
+    _testConfig.deleteRetryDelayMs = 0;
     try {
       const client = createMockClient(
         [{ text: 'Answer' }],
@@ -145,6 +149,7 @@ describe('smartfetch/secondary-model', () => {
       expect(String(warnCalls[0][0])).toContain('smartfetch');
     } finally {
       console.warn = originalWarn;
+      _testConfig.deleteRetryDelayMs = originalDelay;
     }
   });
 
