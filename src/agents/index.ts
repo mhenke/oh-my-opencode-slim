@@ -71,7 +71,8 @@ function buildAcpAgentDefinition(
         config.wrapperModel ??
         DEFAULT_MODELS.fixer ??
         DEFAULT_MODELS.librarian ??
-        DEFAULT_MODELS.orchestrator,
+        DEFAULT_MODELS.orchestrator ??
+        DEFAULT_MODELS.oracle,
       temperature: 0,
       prompt,
       permission: {
