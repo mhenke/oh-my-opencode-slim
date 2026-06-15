@@ -454,7 +454,7 @@
           ]
         },
         "speed": {
-          "description": "Companion GIF playback speed multiplier.",
+          "description": "Companion GIF playback speed multiplier. Defaults to 1.5.",
           "type": "number",
           "minimum": 0.25,
           "maximum": 4

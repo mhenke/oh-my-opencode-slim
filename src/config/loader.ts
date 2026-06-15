@@ -327,7 +327,7 @@ export function loadPluginConfig(
       size: config.companion.size ?? 'medium',
       gifPack: config.companion.gifPack ?? 'default',
       loopStyle: config.companion.loopStyle ?? 'classic',
-      speed: config.companion.speed ?? 1,
+      speed: config.companion.speed ?? 1.5,
       debug: config.companion.debug ?? false,
     };
   }

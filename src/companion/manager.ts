@@ -260,7 +260,7 @@ export class CompanionManager {
             size: this.config.size ?? 'medium',
             gifPack: this.config.gifPack ?? 'default',
             loopStyle: this.config.loopStyle ?? 'classic',
-            speed: this.config.speed ?? 1,
+            speed: this.config.speed ?? 1.5,
             debug: this.config.debug ?? false,
           };
         }

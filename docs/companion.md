@@ -15,7 +15,7 @@ You can enable the companion by adding a `companion` section to your setting con
     "size": "medium",
     "gifPack": "default",
     "loopStyle": "classic",
-    "speed": 1,
+    "speed": 1.5,
     "debug": false
   }
 }
@@ -43,9 +43,8 @@ You can enable the companion by adding a `companion` section to your setting con
     transitions using the same selected GIF pack.
 
 - **`companion.speed`**: optional GIF playback speed multiplier from `0.25` to
-  `4`. The default is `1`. This setting is stored in companion state for
-  compatibility with speed-capable companion renderers; the current native
-  renderer follows the timing embedded in each GIF file.
+  `4`. The default is `1.5`. Values above `1` play faster; values below `1`
+  play slower.
 
 - **`companion.debug`**: set to `true` to enable verbose native companion debug
   logs while troubleshooting window/session behavior. Logs are written under

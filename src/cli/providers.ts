@@ -152,7 +152,7 @@ export function generateLiteConfig(
       size: 'medium',
       gifPack: 'default',
       loopStyle: 'classic',
-      speed: 1,
+      speed: 1.5,
       debug: false,
     };
   }

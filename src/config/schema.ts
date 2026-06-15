@@ -213,7 +213,7 @@ export const CompanionConfigSchema = z.object({
     .min(0.25)
     .max(4)
     .optional()
-    .describe('Companion GIF playback speed multiplier.'),
+    .describe('Companion GIF playback speed multiplier. Defaults to 1.5.'),
   debug: z
     .boolean()
     .optional()
