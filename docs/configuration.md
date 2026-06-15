@@ -171,6 +171,9 @@ entry. The wrapper calls the built-in `acp_run` tool, which starts the ACP
 process, creates a session, sends the task, and returns the streamed result.
 `command` is only the executable; put flags and subcommands in `args`.
 
+See **[ACP Agents](acp-agents.md)** for the dedicated setup guide, auth notes,
+and troubleshooting.
+
 ```jsonc
 {
   "acpAgents": {

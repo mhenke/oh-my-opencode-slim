@@ -58,16 +58,15 @@ class AcpClient {
       this.errors.push(String(chunk));
     });
     this.child.on('error', (error) => {
-      for (const item of this.pending.values()) item.reject(error);
-      this.pending.clear();
+      this.rejectPending(error);
     });
     this.child.on('exit', (code, signal) => {
       if (this.pending.size === 0) return;
-      const error = new Error(
-        `ACP agent '${name}' exited before replying (code ${code ?? 'null'}, signal ${signal ?? 'null'})`,
+      this.rejectPending(
+        new Error(
+          `ACP agent '${name}' exited before replying (code ${code ?? 'null'}, signal ${signal ?? 'null'})`,
+        ),
       );
-      for (const item of this.pending.values()) item.reject(error);
-      this.pending.clear();
     });
 
     createInterface({ input: this.child.stdout }).on('line', (line) => {
@@ -155,10 +154,18 @@ class AcpClient {
 
   private async receive(line: string): Promise<void> {
     if (!line.trim()) return;
-    const message = JSON.parse(line) as
-      | RpcResponse
-      | RpcRequest
-      | RpcNotification;
+    let message: RpcResponse | RpcRequest | RpcNotification;
+    try {
+      message = JSON.parse(line) as RpcResponse | RpcRequest | RpcNotification;
+    } catch {
+      const error = new Error(
+        `ACP agent '${this.name}' wrote non-JSON stdout: ${line.slice(0, 200)}`,
+      );
+      this.errors.push(error.message);
+      this.rejectPending(error);
+      this.close();
+      return;
+    }
     if ('id' in message && ('result' in message || 'error' in message)) {
       const pending = this.pending.get(message.id);
       if (!pending) return;
@@ -175,6 +182,11 @@ class AcpClient {
       return;
     }
     if ('method' in message) this.handleNotification(message);
+  }
+
+  private rejectPending(error: Error): void {
+    for (const item of this.pending.values()) item.reject(error);
+    this.pending.clear();
   }
 
   private async handleRequest(message: RpcRequest): Promise<void> {
