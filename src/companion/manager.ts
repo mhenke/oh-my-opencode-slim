@@ -22,6 +22,7 @@ interface CompanionSession {
 interface CompanionState {
   version: 1;
   sessions: CompanionSession[];
+  window_positions?: Record<string, { x: number; y: number }>;
   config?: {
     enabled: boolean;
     position: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left';
