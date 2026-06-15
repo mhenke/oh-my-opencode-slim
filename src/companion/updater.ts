@@ -8,6 +8,7 @@ import {
   readFileSync,
   renameSync,
   rmSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { homedir, platform, tmpdir } from 'node:os';
@@ -41,6 +42,7 @@ export type CompanionUpdateResult =
 
 const DOWNLOAD_TIMEOUT_MS = 30_000;
 const LOCK_TIMEOUT_MS = 2_000;
+const STALE_LOCK_MS = 5 * 60_000;
 const FIRST_METADATA_VERSION = '0.1.2';
 
 export const COMPANION_MANIFEST: CompanionManifest = {
@@ -120,6 +122,7 @@ export async function ensureCompanionVersion(options: {
   dryRun?: boolean;
   downloadTimeoutMs?: number;
   lockTimeoutMs?: number;
+  lockStaleMs?: number;
 }): Promise<CompanionUpdateResult> {
   const { config, dryRun = false } = options;
   const manifest = options.manifest ?? COMPANION_MANIFEST;
@@ -175,6 +178,7 @@ export async function ensureCompanionVersion(options: {
   return withCompanionInstallLock(
     binaryPath,
     options.lockTimeoutMs,
+    options.lockStaleMs,
     async () => {
       const lockedCurrent = readInstallMetadata(binaryPath);
       if (
@@ -374,10 +378,12 @@ function metadataPath(binaryPath: string): string {
 async function withCompanionInstallLock(
   binaryPath: string,
   timeoutMs: number | undefined,
+  staleMs: number | undefined,
   run: () => Promise<CompanionUpdateResult>,
 ): Promise<CompanionUpdateResult> {
   const lock = `${binaryPath}.lock`;
   const deadline = Date.now() + (timeoutMs ?? LOCK_TIMEOUT_MS);
+  const staleAfterMs = staleMs ?? STALE_LOCK_MS;
   mkdirSync(path.dirname(binaryPath), { recursive: true });
   while (Date.now() <= deadline) {
     try {
@@ -392,6 +398,17 @@ async function withCompanionInstallLock(
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
       if (code !== 'EEXIST') throw err;
+      try {
+        const ageMs = Date.now() - statSync(lock).mtimeMs;
+        if (ageMs > staleAfterMs) {
+          rmSync(lock, { recursive: true, force: true });
+          log('[companion] removed stale install lock', lock);
+          continue;
+        }
+      } catch (statErr) {
+        const statCode = (statErr as NodeJS.ErrnoException).code;
+        if (statCode !== 'ENOENT') throw statErr;
+      }
       await delay(25);
     }
   }

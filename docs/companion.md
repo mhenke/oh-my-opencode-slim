@@ -145,7 +145,9 @@ Startup checks run before the Companion is spawned, but they use a short timeout
 so OpenCode startup is not blocked by a slow network. Plugin auto-update also
 tries to update the Companion binary after the new package is installed. If a
 download fails, the plugin update still succeeds and Companion update is retried
-on the next OpenCode restart.
+on the next OpenCode restart. The updater uses a lock to prevent concurrent
+OpenCode processes from replacing the same binary, and stale locks from crashed
+updates are cleaned up automatically.
 
 Automatic native updates only use release archives listed in the packaged
 companion manifest, and every archive must have a matching SHA256 checksum.

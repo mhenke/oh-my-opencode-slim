@@ -4,6 +4,7 @@ import {
   mkdirSync,
   readFileSync,
   rmSync,
+  utimesSync,
   writeFileSync,
 } from 'node:fs';
 import * as os from 'node:os';
@@ -202,6 +203,35 @@ describe('companion updater', () => {
     expect(result).toMatchObject({
       status: 'failed',
       error: 'Timed out waiting for companion install lock',
+    });
+  });
+
+  test('recovers from stale install locks', async () => {
+    const bin = getCompanionBinaryPath();
+    const lock = `${bin}.lock`;
+    mkdirSync(lock, { recursive: true });
+    const oldDate = new Date(Date.now() - 10 * 60_000);
+    utimesSync(lock, oldDate, oldDate);
+    globalThis.fetch = (() => {
+      throw new Error('should not fetch without checksum');
+    }) as unknown as typeof fetch;
+
+    const result = await ensureCompanionVersion({
+      config: { enabled: true },
+      manifest: {
+        version: '0.2.0',
+        tag: 'companion-v0.2.0',
+        repo: 'owner/repo',
+        checksums: {},
+      },
+      lockTimeoutMs: 100,
+      lockStaleMs: 1,
+    });
+
+    expect(existsSync(lock)).toBe(false);
+    expect(result).toMatchObject({
+      status: 'failed',
+      error: expect.stringContaining('Missing SHA256 checksum'),
     });
   });
 
