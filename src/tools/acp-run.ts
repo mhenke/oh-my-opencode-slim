@@ -409,10 +409,12 @@ function selectPermissionOption(
 
 function collectText(update: Record<string, unknown>, chunks: string[]): void {
   if (update.sessionUpdate !== 'agent_message_chunk') return;
-  for (const key of ['content', 'delta']) {
-    const value = update[key];
-    if (typeof value === 'string') chunks.push(value);
-    if (isRecord(value) && typeof value.text === 'string')
-      chunks.push(value.text);
-  }
+  const text = readText(update.delta) ?? readText(update.content);
+  if (text) chunks.push(text);
+}
+
+function readText(value: unknown): string | undefined {
+  if (typeof value === 'string') return value;
+  if (isRecord(value) && typeof value.text === 'string') return value.text;
+  return undefined;
 }
