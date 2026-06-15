@@ -29,6 +29,16 @@ You can enable the companion by adding a `companion` section to your setting con
   - `medium` (120px) (default)
   - `large` (160px)
 
+### Remembered Window Position
+
+You can drag the companion window to a custom location. The companion remembers
+the last dragged position per project and restores it the next time that project
+opens. If no custom position is saved for a project, the configured
+`companion.position` corner is used.
+
+Saved positions are clamped to the current screen so the companion stays visible
+after monitor or resolution changes.
+
 ---
 
 ## Installer Flag
