@@ -1,5 +1,5 @@
 import { describe, expect, spyOn, test } from 'bun:test';
-import type { PluginConfig } from '../config';
+import { DEFAULT_MODELS, type PluginConfig } from '../config';
 import { createAgents, getAgentConfigs } from './index';
 
 describe('custom-agent creation', () => {
@@ -123,6 +123,105 @@ describe('custom-agent creation', () => {
     const orchestrator = agents.find((agent) => agent.name === 'orchestrator');
     expect(orchestrator?.config.prompt).toContain(
       '@cleanup\n- Role: Cleanup specialist',
+    );
+  });
+
+  test('creates wrapper agents from acpAgents config', () => {
+    const config: PluginConfig = {
+      acpAgents: {
+        'claude-research': {
+          command: 'claude-code-acp',
+          args: [],
+          env: {},
+          timeoutMs: 300000,
+          permissionMode: 'ask',
+          description: 'Claude Code research via ACP',
+          wrapperModel: 'openai/gpt-5.4-mini',
+        },
+      },
+    };
+
+    const agents = createAgents(config);
+    const wrapper = agents.find((agent) => agent.name === 'claude-research');
+    const orchestrator = agents.find((agent) => agent.name === 'orchestrator');
+
+    expect(wrapper).toBeDefined();
+    expect(wrapper?.description).toBe('Claude Code research via ACP');
+    expect(wrapper?.config.model).toBe('openai/gpt-5.4-mini');
+    expect(wrapper?.config.prompt).toContain('acp_run');
+    expect(orchestrator?.config.prompt).toContain('@claude-research');
+  });
+
+  test('falls back to oracle model for ACP wrappers', () => {
+    const defaults = {
+      fixer: DEFAULT_MODELS.fixer,
+      librarian: DEFAULT_MODELS.librarian,
+      orchestrator: DEFAULT_MODELS.orchestrator,
+    };
+    DEFAULT_MODELS.fixer = undefined;
+    DEFAULT_MODELS.librarian = undefined;
+    DEFAULT_MODELS.orchestrator = undefined;
+
+    try {
+      const config: PluginConfig = {
+        acpAgents: {
+          bridge: {
+            command: 'bridge-acp',
+            args: [],
+            env: {},
+            timeoutMs: 300000,
+            permissionMode: 'ask',
+          },
+        },
+      };
+
+      const agents = createAgents(config);
+      const wrapper = agents.find((agent) => agent.name === 'bridge');
+
+      expect(wrapper?.config.model).toBe(DEFAULT_MODELS.oracle);
+    } finally {
+      DEFAULT_MODELS.fixer = defaults.fixer;
+      DEFAULT_MODELS.librarian = defaults.librarian;
+      DEFAULT_MODELS.orchestrator = defaults.orchestrator;
+    }
+  });
+
+  test('rejects acpAgents that conflict with custom agents', () => {
+    const config: PluginConfig = {
+      agents: {
+        bridge: { model: 'openai/gpt-5.4-mini' },
+      },
+      acpAgents: {
+        bridge: {
+          command: 'bridge-acp',
+          args: [],
+          env: {},
+          timeoutMs: 300000,
+          permissionMode: 'ask',
+        },
+      },
+    };
+
+    expect(() => createAgents(config)).toThrow(
+      "ACP agent 'bridge' conflicts with a custom agent of the same name",
+    );
+  });
+
+  test('rejects acpAgents that conflict with built-in agents', () => {
+    const config: PluginConfig = {
+      acpAgents: {
+        fixer: {
+          command: 'fixer-acp',
+          args: [],
+          env: {},
+          timeoutMs: 300000,
+          permissionMode: 'ask',
+        },
+      },
+    };
+
+    expect(() => createAgents(config)).toThrow(
+      "ACP agent 'fixer' conflicts with a built-in agent name or alias",
     );
   });
 });
