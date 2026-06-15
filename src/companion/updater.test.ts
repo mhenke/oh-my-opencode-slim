@@ -66,8 +66,8 @@ describe('companion updater', () => {
     writeFileSync(
       `${bin}.json`,
       JSON.stringify({
-        version: '0.1.2',
-        tag: 'companion-v0.1.2',
+        version: '0.1.3',
+        tag: 'companion-v0.1.3',
         target: getCompanionTarget(),
         installedAt: new Date().toISOString(),
         archiveName: 'archive.tar.gz',
@@ -81,7 +81,7 @@ describe('companion updater', () => {
     expect(result).toMatchObject({
       status: 'current',
       binaryPath: bin,
-      version: '0.1.2',
+      version: '0.1.3',
     });
   });
 
@@ -94,7 +94,7 @@ describe('companion updater', () => {
     expect(result).toMatchObject({
       status: 'installed',
       binaryPath: getCompanionBinaryPath(),
-      version: '0.1.2',
+      version: '0.1.3',
     });
   });
 
@@ -108,6 +108,11 @@ describe('companion updater', () => {
 
     const result = await ensureCompanionVersion({
       config: { enabled: true },
+      manifest: {
+        version: '0.1.2',
+        tag: 'companion-v0.1.2',
+        repo: 'alvinunreal/oh-my-opencode-slim',
+      },
     });
 
     expect(result).toMatchObject({ status: 'current', version: '0.1.2' });
