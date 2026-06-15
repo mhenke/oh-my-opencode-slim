@@ -35,14 +35,15 @@ You can enable the companion by adding a `companion` section to your setting con
   - `large` (160px)
 
 - **`companion.gifPack`**:
-  - `default` (default) — the bundled companion GIF set.
+  - `default` (default) — the bundled companion animation set generated from
+    the MP4 sources in `companion/VIDEOS/`.
 
 - **`companion.loopStyle`**:
-  - `classic` (default) — normal GIF playback.
-  - `smooth` — intended forward-then-backward ping-pong playback for smoother
-    transitions using the same selected GIF pack.
+  - `classic` (default) — forward playback that loops back to the first frame.
+  - `smooth` — ping-pong playback that reverses direction at the end for a
+    smoother transition.
 
-- **`companion.speed`**: optional GIF playback speed multiplier from `0.25` to
+- **`companion.speed`**: optional animation playback speed multiplier from `0.25` to
   `4`. The default is `1.5`. Values above `1` play faster; values below `1`
   play slower.
 

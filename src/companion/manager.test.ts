@@ -273,7 +273,7 @@ describe('CompanionManager', () => {
     });
   });
 
-  it('supports custom position, size, and GIF settings', () => {
+  it('supports custom position, size, and animation settings', () => {
     const m = make('test-custom', '/path', {
       enabled: true,
       position: 'top-left',

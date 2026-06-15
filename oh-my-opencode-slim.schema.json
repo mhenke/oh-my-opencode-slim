@@ -439,14 +439,14 @@
           ]
         },
         "gifPack": {
-          "description": "Bundled companion GIF pack to use.",
+          "description": "Bundled companion animation pack to use.",
           "type": "string",
           "enum": [
             "default"
           ]
         },
         "loopStyle": {
-          "description": "Companion GIF playback style: classic loops or smooth ping-pong playback.",
+          "description": "Companion animation playback style: classic loops or smooth ping-pong playback.",
           "type": "string",
           "enum": [
             "classic",
@@ -454,7 +454,7 @@
           ]
         },
         "speed": {
-          "description": "Companion GIF playback speed multiplier. Defaults to 1.5.",
+          "description": "Companion animation playback speed multiplier. Defaults to 1.5.",
           "type": "number",
           "minimum": 0.25,
           "maximum": 4
