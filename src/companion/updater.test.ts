@@ -261,6 +261,26 @@ describe('companion updater', () => {
       COMPANION_MANIFEST,
     );
   });
+
+  test('uses the macOS x64 release target on Intel Macs', () => {
+    const originalPlatform = Object.getOwnPropertyDescriptor(
+      process,
+      'platform',
+    );
+    const originalArch = Object.getOwnPropertyDescriptor(process, 'arch');
+    Object.defineProperty(process, 'platform', { value: 'darwin' });
+    Object.defineProperty(process, 'arch', { value: 'x64' });
+    try {
+      expect(getCompanionTarget()).toBe('x86_64-apple-darwin');
+    } finally {
+      if (originalPlatform) {
+        Object.defineProperty(process, 'platform', originalPlatform);
+      }
+      if (originalArch) {
+        Object.defineProperty(process, 'arch', originalArch);
+      }
+    }
+  });
 });
 
 function archiveName(version: string, target: string): string {

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
-import { runSecondaryModelWithFallback, _testConfig } from './secondary-model';
+import { _testConfig, runSecondaryModelWithFallback } from './secondary-model';
 import type { SecondaryModel } from './types';
 
 type PromptStep = {
@@ -7,9 +7,12 @@ type PromptStep = {
   error?: Error;
 };
 
-function createMockClient(steps: PromptStep[], deleteBehavior?: {
-  failTimes?: number;
-}) {
+function createMockClient(
+  steps: PromptStep[],
+  deleteBehavior?: {
+    failTimes?: number;
+  },
+) {
   let createCount = 0;
   let promptCount = 0;
   let deleteCallCount = 0;
@@ -100,10 +103,7 @@ describe('smartfetch/secondary-model', () => {
     const originalDelay = _testConfig.deleteRetryDelayMs;
     _testConfig.deleteRetryDelayMs = 0;
     try {
-      const client = createMockClient(
-        [{ text: 'Answer' }],
-        { failTimes: 1 },
-      );
+      const client = createMockClient([{ text: 'Answer' }], { failTimes: 1 });
 
       const result = await runSecondaryModelWithFallback(
         client,
@@ -130,10 +130,7 @@ describe('smartfetch/secondary-model', () => {
     const originalDelay = _testConfig.deleteRetryDelayMs;
     _testConfig.deleteRetryDelayMs = 0;
     try {
-      const client = createMockClient(
-        [{ text: 'Answer' }],
-        { failTimes: 99 },
-      );
+      const client = createMockClient([{ text: 'Answer' }], { failTimes: 99 });
 
       const result = await runSecondaryModelWithFallback(
         client,
