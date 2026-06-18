@@ -413,10 +413,10 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     const chainMatches = modelArrayMap[agentName]?.filter(
       (entry) => entry.id === model,
     );
-    if (chainMatches?.length === 1) {
-      return chainMatches[0].variant ?? defaultVariant;
-    }
-    if (chainMatches && chainMatches.length > 1) {
+    if (chainMatches) {
+      if (chainMatches.length === 1) {
+        return chainMatches[0].variant ?? defaultVariant;
+      }
       return undefined;
     }
 
