@@ -401,6 +401,36 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
   companionManager.onLoad();
 
+  function resolveTuiVariantForModel(
+    agentName: string,
+    model: string,
+  ): string | undefined {
+    const configEntry = config.agents?.[agentName];
+    const defaultVariant =
+      typeof configEntry?.variant === 'string'
+        ? configEntry.variant
+        : undefined;
+    const chainMatches = modelArrayMap[agentName]?.filter(
+      (entry) => entry.id === model,
+    );
+    if (chainMatches?.length === 1) {
+      return chainMatches[0].variant ?? defaultVariant;
+    }
+    if (chainMatches && chainMatches.length > 1) {
+      return undefined;
+    }
+
+    if (
+      typeof configEntry?.model === 'string' &&
+      configEntry.model === model &&
+      defaultVariant
+    ) {
+      return defaultVariant;
+    }
+
+    return undefined;
+  }
+
   return {
     name: 'oh-my-opencode-slim',
 
@@ -714,6 +744,10 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
             agent?: string;
             providerID?: string;
             modelID?: string;
+            model?: {
+              providerID?: string;
+              modelID?: string;
+            };
             sessionID?: string;
           };
           sessionID?: string;
@@ -725,14 +759,26 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
       if (event.type === 'message.updated') {
         const info = event.properties?.info;
-        if (
-          typeof info?.agent === 'string' &&
-          typeof info.providerID === 'string' &&
-          typeof info.modelID === 'string'
-        ) {
+        const providerID =
+          typeof info?.providerID === 'string'
+            ? info.providerID
+            : typeof info?.model?.providerID === 'string'
+              ? info.model.providerID
+              : undefined;
+        const modelID =
+          typeof info?.modelID === 'string'
+            ? info.modelID
+            : typeof info?.model?.modelID === 'string'
+              ? info.model.modelID
+              : undefined;
+        if (typeof info?.agent === 'string' && providerID && modelID) {
+          const agentName = resolveRuntimeAgentName(config, info.agent);
+          const model = `${providerID}/${modelID}`;
+          const variant = resolveTuiVariantForModel(agentName, model);
           recordTuiAgentModel({
-            agentName: resolveRuntimeAgentName(config, info.agent),
-            model: `${info.providerID}/${info.modelID}`,
+            agentName,
+            model,
+            variant: variant ?? null,
           });
         }
       }
