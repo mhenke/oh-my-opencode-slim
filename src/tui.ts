@@ -94,7 +94,7 @@ function agentRow(
   label: string,
   model: string,
   variant: string | undefined,
-  theme: { textMuted: unknown; text: unknown },
+  theme: { textMuted: unknown },
 ): JSX.Element {
   const modelParts = splitSidebarModelId(model);
   const detailRows: JSX.Element[] = [];

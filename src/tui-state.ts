@@ -90,12 +90,16 @@ export function recordTuiAgentModels(input: {
 export function recordTuiAgentModel(input: {
   agentName: string;
   model: string;
-  variant?: string;
+  variant?: string | null;
 }): void {
   updateSnapshot((snapshot) => {
     snapshot.agentModels[input.agentName] = input.model;
     if (input.variant !== undefined) {
-      snapshot.agentVariants[input.agentName] = input.variant;
+      if (input.variant === null) {
+        delete snapshot.agentVariants[input.agentName];
+      } else {
+        snapshot.agentVariants[input.agentName] = input.variant;
+      }
     }
   });
 }
