@@ -264,7 +264,9 @@ export class MultiplexerSessionManager {
     const sessionId = event.properties?.sessionID;
     if (!sessionId) return;
 
-    if (event.properties?.status?.type === 'idle') {
+    const statusType = event.properties?.status?.type;
+
+    if (statusType === 'idle') {
       log('[multiplexer-session-manager] session status idle received', {
         instanceId: this.instanceId,
         sessionId,
@@ -277,8 +279,11 @@ export class MultiplexerSessionManager {
       return;
     }
 
-    if (event.properties?.status?.type === 'busy') {
+    if (statusType) {
       this.deferredIdleCloses.delete(sessionId);
+
+      if (statusType !== 'busy') return;
+
       log('[multiplexer-session-manager] session busy event received', {
         instanceId: this.instanceId,
         sessionId,
