@@ -662,6 +662,68 @@ describe('MultiplexerSessionManager', () => {
       expect(mockMultiplexer.closePane).not.toHaveBeenCalled();
     });
 
+    test('explicit non-idle status event clears stale deferred idle close', async () => {
+      const ctx = createMockContext();
+      const board = new BackgroundJobBoard();
+      board.registerLaunch({
+        taskID: 'retry-event-deferred',
+        parentSessionID: 'parent-1',
+        agent: 'explorer',
+      });
+      mockMultiplexer.spawnPane.mockResolvedValue({
+        success: true,
+        paneId: 'p-retry-event-deferred',
+      });
+      const manager = new MultiplexerSessionManager(
+        ctx,
+        defaultMultiplexerConfig,
+        board,
+      );
+      board.setTerminalStateListener((taskID) => {
+        void manager.retryDeferredIdleClose(taskID);
+      });
+
+      await manager.onSessionCreated({
+        type: 'session.created',
+        properties: {
+          info: { id: 'retry-event-deferred', parentID: 'parent-1' },
+        },
+      });
+      await manager.onSessionStatus({
+        type: 'session.status',
+        properties: {
+          sessionID: 'retry-event-deferred',
+          status: { type: 'idle' },
+        },
+      });
+      await manager.onSessionStatus({
+        type: 'session.status',
+        properties: {
+          sessionID: 'retry-event-deferred',
+          status: { type: 'retry' },
+        },
+      });
+
+      board.updateStatus({
+        taskID: 'retry-event-deferred',
+        state: 'completed',
+      });
+      await Promise.resolve();
+
+      expect(mockMultiplexer.closePane).not.toHaveBeenCalled();
+
+      await manager.onSessionStatus({
+        type: 'session.status',
+        properties: {
+          sessionID: 'retry-event-deferred',
+          status: { type: 'idle' },
+        },
+      });
+      expect(mockMultiplexer.closePane).toHaveBeenCalledWith(
+        'p-retry-event-deferred',
+      );
+    });
+
     test('explicit non-idle poll clears stale deferred idle close', async () => {
       const ctx = createMockContext();
       const board = new BackgroundJobBoard();
