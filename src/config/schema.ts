@@ -224,6 +224,8 @@ export type CompanionConfig = z.infer<typeof CompanionConfigSchema>;
 
 export const AcpAgentPermissionModeSchema = z.enum(['ask', 'allow', 'reject']);
 
+export const MAX_ACP_TIMEOUT_MS = 2_147_483_647;
+
 export const AcpAgentConfigSchema = z
   .object({
     command: z.string().min(1),
@@ -234,7 +236,15 @@ export const AcpAgentConfigSchema = z
     prompt: z.string().min(1).optional(),
     orchestratorPrompt: z.string().min(1).optional(),
     wrapperModel: ProviderModelIdSchema.optional(),
-    timeoutMs: z.number().int().min(1000).max(900000).default(300000),
+    timeoutMs: z
+      .number()
+      .int()
+      .min(0)
+      .max(MAX_ACP_TIMEOUT_MS)
+      .default(0)
+      .describe(
+        'Timeout for a single ACP run in milliseconds. Set to 0 to disable the timeout.',
+      ),
     permissionMode: AcpAgentPermissionModeSchema.default('ask'),
   })
   .strict();

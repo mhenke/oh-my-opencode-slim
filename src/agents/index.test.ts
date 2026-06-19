@@ -772,6 +772,46 @@ describe('PluginConfigSchema custom-agent-only prompt fields', () => {
 
     expect(result.success).toBe(true);
   });
+
+  test('defaults ACP agent timeout to disabled', () => {
+    const result = PluginConfigSchema.safeParse({
+      acpAgents: {
+        research: {
+          command: 'research-acp',
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.acpAgents?.research.timeoutMs).toBe(0);
+  });
+
+  test('accepts long ACP agent timeouts', () => {
+    const result = PluginConfigSchema.safeParse({
+      acpAgents: {
+        research: {
+          command: 'research-acp',
+          timeoutMs: 3_600_000,
+        },
+      },
+    });
+
+    expect(result.success).toBe(true);
+  });
+
+  test('rejects ACP agent timeouts above timer-safe range', () => {
+    const result = PluginConfigSchema.safeParse({
+      acpAgents: {
+        research: {
+          command: 'research-acp',
+          timeoutMs: 2_147_483_648,
+        },
+      },
+    });
+
+    expect(result.success).toBe(false);
+  });
 });
 
 describe('disabled_agents', () => {

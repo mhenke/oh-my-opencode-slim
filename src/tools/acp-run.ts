@@ -1,7 +1,11 @@
 import { type ChildProcessWithoutNullStreams, spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import { type ToolDefinition, tool } from '@opencode-ai/plugin';
-import type { AcpAgentConfig, AcpAgentsConfig } from '../config';
+import {
+  type AcpAgentConfig,
+  type AcpAgentsConfig,
+  MAX_ACP_TIMEOUT_MS,
+} from '../config';
 
 const z = tool.schema;
 
@@ -279,10 +283,12 @@ export function createAcpRunTool(agents: AcpAgentsConfig = {}): ToolDefinition {
       timeout_ms: z
         .number()
         .int()
-        .min(1000)
-        .max(900000)
+        .min(0)
+        .max(MAX_ACP_TIMEOUT_MS)
         .optional()
-        .describe('Optional timeout override in milliseconds'),
+        .describe(
+          'Optional timeout override in milliseconds. Set to 0 to disable the timeout.',
+        ),
     },
     async execute(args, ctx) {
       if (ctx.agent !== args.agent) {
@@ -327,22 +333,26 @@ export function createAcpRunTool(agents: AcpAgentsConfig = {}): ToolDefinition {
       );
       const timeoutMs = args.timeout_ms ?? config.timeoutMs;
       let timer: ReturnType<typeof setTimeout> | undefined;
-      const timeout = new Promise<string>(
-        (_, reject) =>
-          (timer = setTimeout(
-            () =>
-              reject(
-                new Error(
-                  `ACP agent '${args.agent}' timed out after ${timeoutMs}ms`,
-                ),
-              ),
-            timeoutMs,
-          )),
-      );
+      const timeout =
+        timeoutMs > 0
+          ? new Promise<string>(
+              (_, reject) =>
+                (timer = setTimeout(
+                  () =>
+                    reject(
+                      new Error(
+                        `ACP agent '${args.agent}' timed out after ${timeoutMs}ms`,
+                      ),
+                    ),
+                  timeoutMs,
+                )),
+            )
+          : undefined;
       const abort = () => client.close();
       ctx.abort.addEventListener('abort', abort, { once: true });
       try {
-        return await Promise.race([client.run(args.prompt), timeout]);
+        const run = client.run(args.prompt);
+        return timeout ? await Promise.race([run, timeout]) : await run;
       } finally {
         if (timer) clearTimeout(timer);
         ctx.abort.removeEventListener('abort', abort);
