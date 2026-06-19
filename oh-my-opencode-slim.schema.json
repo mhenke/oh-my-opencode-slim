@@ -515,10 +515,11 @@
             "pattern": "^[^/\\s]+\\/[^\\s]+$"
           },
           "timeoutMs": {
-            "default": 300000,
+            "default": 0,
+            "description": "Timeout for a single ACP run in milliseconds. Set to 0 to disable the timeout.",
             "type": "integer",
-            "minimum": 1000,
-            "maximum": 900000
+            "minimum": 0,
+            "maximum": 2147483647
           },
           "permissionMode": {
             "default": "ask",
