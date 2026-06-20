@@ -587,6 +587,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "linze0721",
+      "name": "萧瑟",
+      "avatar_url": "https://avatars.githubusercontent.com/u/178997622?v=4",
+      "profile": "https://github.com/linze0721",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commitConvention": "angular"
