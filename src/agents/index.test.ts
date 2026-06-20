@@ -108,9 +108,6 @@ describe('built-in subagent preset fallback', () => {
           orchestrator: { model: 'opencode-go/glm-5.1' },
         },
       },
-      agents: {
-        orchestrator: { model: 'opencode-go/glm-5.1' },
-      },
       council: councilConfig(),
       disabled_agents: [],
     };
@@ -124,7 +121,7 @@ describe('built-in subagent preset fallback', () => {
     }
   });
 
-  test('subagents missing from the active preset inherit the first preset model when orchestrator is absent', () => {
+  test('subagents missing from the active preset inherit the first subagent preset model when orchestrator is absent', () => {
     const config: PluginConfig = {
       preset: 'minimal',
       presets: {
@@ -133,7 +130,7 @@ describe('built-in subagent preset fallback', () => {
         },
       },
       agents: {
-        oracle: { model: 'anthropic/claude-sonnet-4-6' },
+        orchestrator: { model: 'root-orchestrator-model' },
       },
       disabled_agents: [],
     };

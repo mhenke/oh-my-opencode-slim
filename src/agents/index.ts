@@ -78,8 +78,8 @@ function getActivePresetPrimaryModel(
     return orchestratorModel;
   }
 
-  for (const override of Object.values(activePreset)) {
-    const model = getPrimaryModelFromOverride(override);
+  for (const name of SUBAGENT_NAMES) {
+    const model = getPrimaryModelFromOverride(activePreset[name]);
     if (model) {
       return model;
     }
@@ -91,10 +91,7 @@ function getActivePresetPrimaryModel(
 function getConfigPrimaryModel(
   config: PluginConfig | undefined,
 ): string | undefined {
-  return (
-    getPrimaryModelFromOverride(getAgentOverride(config, 'orchestrator')) ??
-    getActivePresetPrimaryModel(config)
-  );
+  return getActivePresetPrimaryModel(config);
 }
 
 function buildAcpAgentDefinition(
