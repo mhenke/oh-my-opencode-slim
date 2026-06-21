@@ -259,6 +259,23 @@ export function createInterviewService(
     return result.data as InterviewMessage[];
   }
 
+  async function loadMessagesWithRetry(
+    sessionID: string,
+  ): Promise<InterviewMessage[]> {
+    const _lastLength = 0;
+    for (let i = 0; i < 8; i++) {
+      const messages = await loadMessages(sessionID);
+      if (messages.length > 0) {
+        const last = messages[messages.length - 1];
+        if (last?.info?.role === 'assistant') {
+          return messages;
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    return loadMessages(sessionID);
+  }
+
   function isUserVisibleMessage(message: InterviewMessage): boolean {
     return !(message.parts ?? []).some((part) =>
       hasInternalInitiatorMarker(part),
@@ -350,7 +367,7 @@ export function createInterviewService(
   async function syncInterview(
     interview: InterviewRecord,
   ): Promise<InterviewState> {
-    const allMessages = await loadMessages(interview.sessionID);
+    const allMessages = await loadMessagesWithRetry(interview.sessionID);
     const interviewMessages = allMessages
       .slice(interview.baseMessageCount)
       .filter(isUserVisibleMessage);

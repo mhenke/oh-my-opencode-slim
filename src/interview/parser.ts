@@ -81,8 +81,33 @@ export function parseAssistantState(
     return { state: null };
   }
 
+  // Pre-process match[1] to repair common JSON escaping issues (e.g. unescaped newlines inside strings)
+  let rawJson = match[1].trim();
+
+  // A robust heuristic to escape literal carriage returns/newlines inside JSON string values
+  // so JSON.parse doesn't throw "JSON Parse error: Expected '}'" or "Unexpected token".
+  // This is safe because it only targets characters within quotes.
   try {
-    const raw = JSON.parse(match[1]);
+    // If it parses directly, great!
+    JSON.parse(rawJson);
+  } catch {
+    // Try to normalize literal newlines inside string values:
+    rawJson = rawJson.replace(
+      /:[ \t]*"([\s\S]*?)"([ \t]*[,}])/g,
+      (_m, content, suffix) => {
+        // Escape real newlines and backslash escapes in content
+        const escaped = content
+          .replace(/\\/g, '\\\\')
+          .replace(/\n/g, '\\n')
+          .replace(/\r/g, '\\r')
+          .replace(/"/g, '\\"');
+        return `: "${escaped}"${suffix}`;
+      },
+    );
+  }
+
+  try {
+    const raw = JSON.parse(rawJson);
     // Validate raw LLM output with Zod before processing
     const parsed = RawInterviewStateSchema.parse(raw) as Record<
       string,
