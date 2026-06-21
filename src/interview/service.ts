@@ -762,7 +762,18 @@ export function createInterviewService(
         throw new Error('Interview is waiting for a valid agent update.');
       }
 
+      const relativePath = relativeInterviewPath(
+        ctx.directory,
+        interview.markdownPath,
+      );
+
       const prompt = [
+        `You are updating the active interview specification document at "${relativePath}".`,
+        `The current document content on disk is:`,
+        `\`\`\`markdown`,
+        state.document,
+        `\`\`\``,
+        ``,
         `The user submitted specific feedback/comments for the section "${sectionTitle}".`,
         `Feedback: ${comment}`,
         ``,
@@ -811,21 +822,34 @@ export function createInterviewService(
     try {
       const state = await getInterviewState(interviewId);
 
+      const relativePath = relativeInterviewPath(
+        ctx.directory,
+        interview.markdownPath,
+      );
+
       let prompt: string;
       if (action === 'more-questions') {
         prompt = [
-          `The user reviewed the completed interview spec and wants you to continue.`,
+          `You are continuing the interview for the specification document at "${relativePath}".`,
+          `The current document content on disk is:`,
+          `\`\`\`markdown`,
+          state.document,
+          `\`\`\``,
           ``,
-          `Current spec summary: ${state.summary}`,
+          `The user reviewed the completed interview spec and wants you to continue.`,
           ``,
           `Ask up to ${maxQuestions} new clarifying questions about aspects that are still unclear or underspecified.`,
           `Include the structured <interview_state> block with new questions.`,
         ].join('\n');
       } else {
         prompt = [
-          `The user confirmed the interview spec is complete.`,
+          `You are finishing the interview for the specification document at "${relativePath}".`,
+          `The current document content on disk is:`,
+          `\`\`\`markdown`,
+          state.document,
+          `\`\`\``,
           ``,
-          `Current spec summary: ${state.summary}`,
+          `The user confirmed the interview spec is complete.`,
           ``,
           `Produce a final, polished version of the full spec document.`,
           `Do NOT include any <interview_state> block — just output the final spec as clean markdown.`,
