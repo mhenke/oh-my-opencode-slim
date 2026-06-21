@@ -383,11 +383,7 @@ export function createInterviewService(
     // Rename file if assistant provided a title (and file hasn't been renamed yet)
     await maybeRenameWithTitle(interview, state.title);
 
-    // Only rewrite the document when we have structured state from the agent.
-    // When parsed.state is null (e.g. after confirm-complete), the agent has
-    // already written the final polished spec directly to the file — rewriting
-    // would clobber it with a rebuild that loses the agent's formatting and
-    // Q&A history (due to case-sensitive marker mismatch).
+    // Skip rewrite when parsed.state is null — agent already wrote the final spec
     let document: string;
     if (parsed.state) {
       document = await rewriteInterviewDocument(interview, state.summary);
@@ -644,15 +640,13 @@ export function createInterviewService(
         const wasBusy = sessionBusy.get(sessionID) === true;
         sessionBusy.set(sessionID, status?.type === 'busy');
 
-        // When session transitions from busy → idle, sync state so the
-        // browser gets the final push (e.g. after confirm-complete or
-        // chat message processing). Without this, the browser stays
-        // stuck on "Agent Thinking" because no poll triggers syncInterview.
+        // Sync state on busy → idle so the browser gets the final push
         if (wasBusy && status?.type !== 'busy') {
           const activeId = activeInterviewIds.get(sessionID);
-          const interview = activeId ? interviewsById.get(activeId) : null;
+          const interview = activeId
+            ? interviewsById.get(activeId)
+            : null;
           if (interview && interview.status === 'active') {
-            // Fire-and-forget — syncInterview pushes state via onStateChange
             syncInterview(interview).catch(() => {});
           }
         }
