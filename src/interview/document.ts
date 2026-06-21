@@ -137,12 +137,19 @@ export function buildInterviewDocument(
   const normalizedSummary = summary.trim() || 'Waiting for interview answers.';
   const normalizedHistory = history.trim() || 'No answers yet.';
 
+  const now = new Date();
+  const dateStr = now.toISOString().split('T')[0];
+
   const frontmatter = meta?.sessionID
     ? [
         '---',
         `sessionID: ${meta.sessionID}`,
         `baseMessageCount: ${meta.baseMessageCount ?? 0}`,
-        `updatedAt: ${new Date().toISOString()}`,
+        `updatedAt: ${now.toISOString()}`,
+        `version: 1.0`,
+        `date_created: ${dateStr}`,
+        `owner: oh-my-opencode-slim`,
+        `tags: [spec, diagnostic, omo-slim]`,
         '---',
         '',
       ].join('\n')
