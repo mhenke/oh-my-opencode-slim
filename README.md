@@ -44,24 +44,6 @@ To explore the agents themselves, see **[Meet the Pantheon](#meet-the-pantheon)*
   <a href="https://github.com/alvinunreal/lazyskills"><b>Explore LazySkills →</b></a>
 </p>
 
-### 🏛️ Support
-
-My sponsorship goal is **$200/month**.
-
-That covers my Codex subscription, so I can keep building and testing oh-my-opencode-slim without worrying about token costs.
-
-<p align="center">
-  <a href="https://github.com/sponsors/alvinunreal">Sponsor this project</a>
-</p>
-
-### ✨ Sponsors
-
-<p align="center">
-  <a href="https://github.com/sponsors/alvinunreal">
-    <img src="./sponsors.svg" alt="Sponsors" width="800">
-  </a>
-</p>
-
 ### What Users Say
 
 > “Task management went from 5/10 to 8-9/10 easily. The Orchestrator sends
