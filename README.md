@@ -161,6 +161,18 @@ The default generated configuration includes both `openai` and `opencode-go` pre
 
 To use custom providers or a mixed-provider setup, use **[Configuration](docs/configuration.md)** for the full reference. If you want a ready-made starting point, check the **[Author's Preset](docs/authors-preset.md)** and **[$30 Preset](docs/thirty-dollars-preset.md)** - the `$30` preset is the best cheap setup.
 
+### Temporarily Disable the Plugin
+
+Set `OH_MY_OPENCODE_SLIM_DISABLE=1` when starting OpenCode to make the plugin
+return without registering agents, tools, MCPs, hooks, Companion, or the TUI
+sidebar:
+
+```bash
+OH_MY_OPENCODE_SLIM_DISABLE=1 opencode
+```
+
+Truthy values are `1`, `true`, `yes`, and `on`.
+
 ### ✅ Verify Your Setup
 
 After installation and authentication, verify all agents are configured and responding:
