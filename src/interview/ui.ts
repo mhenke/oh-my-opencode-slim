@@ -1849,6 +1849,17 @@ export function renderInterviewPage(
         updateSubmitButton();
         updateTocSidebar(data);
         updateChatPanel(data);
+
+        // If we transitioned to a non-terminal state and connection/polling is stopped, restart them
+        const terminalModes = ['abandoned', 'completed', 'session-disconnected'];
+        if (!terminalModes.includes(data.mode)) {
+          if (!sseConnected && !activeEs) {
+            connectSse();
+          }
+          if (!sseConnected && !pollFallbackTimer) {
+            schedulePoll();
+          }
+        }
       }
 
       async function refresh() {
@@ -1962,10 +1973,15 @@ export function renderInterviewPage(
       // ── Real-time updates via SSE ─────────────────────────────────
       let sseConnected = false;
       let pollFallbackTimer = null;
+      let activeEs = null;
 
       function connectSse() {
+        if (activeEs) {
+          activeEs.close();
+        }
         const sseUrl = '/api/interviews/' + encodeURIComponent(interviewId) + '/events';
         const es = new EventSource(sseUrl);
+        activeEs = es;
 
         es.addEventListener('state', (e) => {
           sseConnected = true;
@@ -1982,6 +1998,11 @@ export function renderInterviewPage(
         es.onerror = () => {
           sseConnected = false;
           es.close();
+          activeEs = null;
+          const terminalModes = ['abandoned', 'completed', 'session-disconnected'];
+          if (state.data && terminalModes.includes(state.data.mode)) {
+            return;
+          }
           // Retry SSE after 3s, fall back to polling in the meantime
           if (!pollFallbackTimer) schedulePoll();
           setTimeout(() => connectSse(), 3000);
@@ -1991,6 +2012,10 @@ export function renderInterviewPage(
       function schedulePoll() {
         // Only poll if SSE is not connected
         if (sseConnected) return;
+        const terminalModes = ['abandoned', 'completed', 'session-disconnected'];
+        if (state.data && terminalModes.includes(state.data.mode)) {
+          return;
+        }
         pollFallbackTimer = setTimeout(async () => {
           try { await refresh(); } catch (_) {}
           pollFallbackTimer = null;

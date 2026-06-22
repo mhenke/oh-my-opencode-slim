@@ -642,11 +642,16 @@ export function createInterviewService(
         // Sync state on busy → idle so the browser gets the final push
         if (wasBusy && status?.type !== 'busy') {
           const activeId = activeInterviewIds.get(sessionID);
-          const interview = activeId
-            ? interviewsById.get(activeId)
-            : null;
+          const interview = activeId ? interviewsById.get(activeId) : null;
           if (interview && interview.status === 'active') {
-            syncInterview(interview).catch(() => {});
+            syncInterview(interview).catch((err) => {
+              log(
+                '[interview] failed to sync interview state in event handler:',
+                {
+                  error: err instanceof Error ? err.message : String(err),
+                },
+              );
+            });
           }
         }
       }

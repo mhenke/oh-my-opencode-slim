@@ -422,6 +422,8 @@ export function createInterviewManager(
             // Session mode: HTTP poll the dashboard
             await pollPendingAnswers(sessionID);
             await pollNudgeAction(sessionID);
+            await pollBlockComment(sessionID);
+            await pollChat(sessionID);
           } else if (interviewId && dashboard) {
             // Dashboard mode: read directly from in-process cache
             const pending = dashboard.consumePendingAnswers(interviewId);
@@ -439,6 +441,25 @@ export function createInterviewManager(
                 action: nudge,
               });
               await service.handleNudgeAction(interviewId, nudge);
+            }
+            const comment = dashboard.consumeBlockComment(interviewId);
+            if (comment) {
+              log('[interview] delivering block comment (in-process)', {
+                interviewId,
+                section: comment.section,
+              });
+              await service.submitBlockComment(
+                interviewId,
+                comment.section,
+                comment.comment,
+              );
+            }
+            const chat = dashboard.consumeChatMessage(interviewId);
+            if (chat) {
+              log('[interview] delivering chat message (in-process)', {
+                interviewId,
+              });
+              await service.submitChat(interviewId, chat);
             }
           }
 

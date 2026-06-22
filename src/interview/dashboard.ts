@@ -185,6 +185,7 @@ export function createDashboardServer(config: DashboardConfig): {
   consumeBlockComment: (
     interviewId: string,
   ) => { section: string; comment: string } | null;
+  consumeChatMessage: (interviewId: string) => string | null;
   authToken: string;
   discoverSessionDirectories: () => Promise<void>;
   addManualFolder: (dir: string) => void;
@@ -1353,6 +1354,13 @@ export function createDashboardServer(config: DashboardConfig): {
       const comment = entry.pendingBlockComment;
       entry.pendingBlockComment = null;
       return comment;
+    },
+    consumeChatMessage: (id: string) => {
+      const entry = stateCache.get(id);
+      if (!entry?.pendingChatMessage) return null;
+      const message = entry.pendingChatMessage;
+      entry.pendingChatMessage = null;
+      return message;
     },
     authToken,
     discoverSessionDirectories,

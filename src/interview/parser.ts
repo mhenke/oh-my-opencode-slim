@@ -46,6 +46,39 @@ function normalizeQuestion(
   };
 }
 
+function repairJsonNewlines(json: string): string {
+  let result = '';
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < json.length; i++) {
+    const char = json[i];
+    if (inString) {
+      if (escaped) {
+        result += char;
+        escaped = false;
+      } else if (char === '\\') {
+        result += char;
+        escaped = true;
+      } else if (char === '"') {
+        result += char;
+        inString = false;
+      } else if (char === '\n') {
+        result += '\\n';
+      } else if (char === '\r') {
+        result += '\\r';
+      } else {
+        result += char;
+      }
+    } else {
+      if (char === '"') {
+        inString = true;
+      }
+      result += char;
+    }
+  }
+  return result;
+}
+
 export function flattenMessage(message: InterviewMessage): string {
   return (message.parts ?? [])
     .map((part) => part.text ?? '')
@@ -92,18 +125,7 @@ export function parseAssistantState(
     JSON.parse(rawJson);
   } catch {
     // Try to normalize literal newlines inside string values:
-    rawJson = rawJson.replace(
-      /:[ \t]*"([\s\S]*?)"([ \t]*[,}])/g,
-      (_m, content, suffix) => {
-        // Escape real newlines and backslash escapes in content
-        const escaped = content
-          .replace(/\\/g, '\\\\')
-          .replace(/\n/g, '\\n')
-          .replace(/\r/g, '\\r')
-          .replace(/"/g, '\\"');
-        return `: "${escaped}"${suffix}`;
-      },
-    );
+    rawJson = repairJsonNewlines(rawJson);
   }
 
   try {

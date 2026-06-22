@@ -134,13 +134,21 @@ export function buildInterviewDocument(
   idea: string,
   summary: string,
   history: string,
-  meta?: { sessionID?: string; baseMessageCount?: number },
+  meta?: {
+    sessionID?: string;
+    baseMessageCount?: number;
+    owner?: string;
+    tags?: string[];
+  },
 ): string {
   const normalizedSummary = summary.trim() || 'Waiting for interview answers.';
   const normalizedHistory = history.trim() || 'No answers yet.';
 
   const now = new Date();
   const dateStr = now.toISOString().split('T')[0];
+
+  const owner = meta?.owner ?? 'agent';
+  const tags = meta?.tags ?? ['spec', 'diagnostic'];
 
   const frontmatter = meta?.sessionID
     ? [
@@ -150,8 +158,8 @@ export function buildInterviewDocument(
         `updatedAt: ${now.toISOString()}`,
         `version: 1.0`,
         `date_created: ${dateStr}`,
-        `owner: oh-my-opencode-slim`,
-        `tags: [spec, diagnostic, omo-slim]`,
+        `owner: ${owner}`,
+        `tags: [${tags.join(', ')}]`,
         '---',
         '',
       ].join('\n')

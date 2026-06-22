@@ -168,6 +168,25 @@ describe('parseAssistantState', () => {
 
     expect(result.state?.questions).toHaveLength(5);
   });
+
+  test('repairs unescaped newlines inside strings and handles backslash escapes correctly', () => {
+    // Let's use raw unescaped newlines inside the JSON string to test the parser's repair:
+    const textWithLiteralNewlines = [
+      '<interview_state>',
+      '{',
+      '  "summary": "This is a summary',
+      'with a newline and escaped \\"quotes\\" and \\\\ backslash.",',
+      '  "questions": []',
+      '}',
+      '</interview_state>',
+    ].join('\n');
+    const result = parseAssistantState(textWithLiteralNewlines);
+
+    expect(result.state).not.toBeNull();
+    expect(result.state?.summary).toBe(
+      'This is a summary\nwith a newline and escaped "quotes" and \\ backslash.',
+    );
+  });
 });
 
 describe('flattenMessage', () => {
