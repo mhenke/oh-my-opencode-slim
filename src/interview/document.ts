@@ -5,6 +5,7 @@ import type {
   InterviewAnswer,
   InterviewQuestion,
   InterviewRecord,
+  SpecBlock,
 } from './types';
 
 // ─── Path Utilities ──────────────────────────────────────────────────
@@ -103,23 +104,26 @@ export function slugify(value: string): string {
 // ─── Markdown Document Operations ────────────────────────────────────
 
 function extractHistorySection(document: string): string {
-  const marker = '## Q&A history\n\n';
-  const index = document.indexOf(marker);
-  return index >= 0 ? document.slice(index + marker.length).trim() : '';
+  const marker = /## Q&A history/i;
+  const match = document.match(marker);
+  if (!match || match.index === undefined) return '';
+  return document.slice(match.index + match[0].length).trim();
 }
 
 export function extractSummarySection(document: string): string {
   const marker = '## Current spec\n\n';
-  const historyMarker = '\n\n## Q&A history';
   const start = document.indexOf(marker);
   if (start < 0) {
     return '';
   }
   const summaryStart = start + marker.length;
-  const summaryEnd = document.indexOf(historyMarker, summaryStart);
-  return document
-    .slice(summaryStart, summaryEnd >= 0 ? summaryEnd : undefined)
-    .trim();
+  const historyMarker = /\n\n## Q&A history/i;
+  const historyMatch = document.slice(summaryStart).match(historyMarker);
+  const summaryEnd =
+    historyMatch?.index !== undefined
+      ? summaryStart + historyMatch.index
+      : undefined;
+  return document.slice(summaryStart, summaryEnd).trim();
 }
 
 export function extractTitle(document: string): string {
@@ -131,17 +135,32 @@ export function buildInterviewDocument(
   idea: string,
   summary: string,
   history: string,
-  meta?: { sessionID?: string; baseMessageCount?: number },
+  meta?: {
+    sessionID?: string;
+    baseMessageCount?: number;
+    owner?: string;
+    tags?: string[];
+  },
 ): string {
   const normalizedSummary = summary.trim() || 'Waiting for interview answers.';
   const normalizedHistory = history.trim() || 'No answers yet.';
+
+  const now = new Date();
+  const dateStr = now.toISOString().split('T')[0];
+
+  const owner = meta?.owner ?? 'agent';
+  const tags = meta?.tags ?? ['spec', 'diagnostic'];
 
   const frontmatter = meta?.sessionID
     ? [
         '---',
         `sessionID: ${meta.sessionID}`,
         `baseMessageCount: ${meta.baseMessageCount ?? 0}`,
-        `updatedAt: ${new Date().toISOString()}`,
+        `updatedAt: ${now.toISOString()}`,
+        `version: 1.0`,
+        `date_created: ${dateStr}`,
+        `owner: ${owner}`,
+        `tags: [${tags.join(', ')}]`,
         '---',
         '',
       ].join('\n')
@@ -253,4 +272,60 @@ export async function appendInterviewAnswers(
     }),
     'utf8',
   );
+}
+
+export function parseSpecBlocks(markdown: string): SpecBlock[] {
+  const blocks: SpecBlock[] = [];
+  const lines = markdown.split('\n');
+
+  let currentBlockId: string | null = null;
+  let currentBlockTitle: string | null = null;
+  let currentBlockLines: string[] = [];
+
+  const flush = () => {
+    if (currentBlockId) {
+      blocks.push({
+        id: currentBlockId,
+        title: currentBlockTitle || currentBlockId,
+        content: currentBlockLines.join('\n').trim(),
+      });
+    }
+  };
+
+  for (const line of lines) {
+    if (/^##\s+Q&A history\s*$/i.test(line)) {
+      break;
+    }
+
+    const headerMatch = line.match(/^##\s+(\d+)\.\s+(.+)$/);
+    if (headerMatch) {
+      flush();
+      const num = headerMatch[1];
+      const name = headerMatch[2].trim();
+      currentBlockId = `section-${num}`;
+      currentBlockTitle = `${num}. ${name}`;
+      currentBlockLines = [];
+    } else if (line.startsWith('# ') && !line.startsWith('## ')) {
+      // Intro section before ## 1.
+      if (currentBlockId === null) {
+        currentBlockId = 'section-0';
+        currentBlockTitle = 'Introduction';
+        currentBlockLines = [];
+      }
+    } else if (line.startsWith('## ') && !headerMatch) {
+      // Any other H2
+      flush();
+      const name = line.replace(/^##\s+/, '').trim();
+      currentBlockId = `section-${slugify(name)}`;
+      currentBlockTitle = name;
+      currentBlockLines = [];
+    }
+
+    if (currentBlockId !== null) {
+      currentBlockLines.push(line);
+    }
+  }
+
+  flush();
+  return blocks;
 }

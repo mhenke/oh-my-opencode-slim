@@ -15,6 +15,7 @@ import {
   extractSummarySection,
   extractTitle,
   parseFrontmatter,
+  parseSpecBlocks,
   slugify,
 } from './document';
 import {
@@ -181,6 +182,10 @@ export function createDashboardServer(config: DashboardConfig): {
   consumeNudgeAction: (
     interviewId: string,
   ) => 'more-questions' | 'confirm-complete' | null;
+  consumeBlockComment: (
+    interviewId: string,
+  ) => { section: string; comment: string } | null;
+  consumeChatMessage: (interviewId: string) => string | null;
   authToken: string;
   discoverSessionDirectories: () => Promise<void>;
   addManualFolder: (dir: string) => void;
@@ -199,6 +204,56 @@ export function createDashboardServer(config: DashboardConfig): {
 
   // Interview state cache
   const stateCache = new Map<string, InterviewStateEntry>();
+
+  // SSE client registry: interviewId → Set<ServerResponse>
+  const sseClients = new Map<string, Set<import('node:http').ServerResponse>>();
+
+  function formatSseState(entry: InterviewStateEntry) {
+    const markdownPath = entry.filePath;
+    const displayPath = markdownPath
+      ? markdownPath.split('/').pop() || markdownPath
+      : 'interview.md';
+    const document = entry.document ?? '';
+
+    return {
+      interview: {
+        id: entry.interviewId,
+        sessionID: entry.sessionID,
+        idea: entry.idea,
+        markdownPath: displayPath,
+        createdAt: new Date(entry.lastUpdatedAt).toISOString(),
+        status:
+          entry.mode === 'session-disconnected'
+            ? ('abandoned' as const)
+            : ('active' as const),
+        baseMessageCount: 0,
+      },
+      url: `${baseUrl}/interview/${entry.interviewId}`,
+      markdownPath,
+      mode: entry.mode,
+      isBusy: entry.mode === 'awaiting-agent',
+      summary: entry.summary,
+      questions: entry.questions,
+      document,
+      lastUpdatedAt: entry.lastUpdatedAt,
+      nudgeAction: entry.nudgeAction,
+      blocks: entry.blocks ?? parseSpecBlocks(document),
+    };
+  }
+
+  function broadcastSse(interviewId: string, entry: InterviewStateEntry) {
+    const clients = sseClients.get(interviewId);
+    if (!clients || clients.size === 0) return;
+    const payload = `event: state\ndata: ${JSON.stringify(formatSseState(entry))}\n\n`;
+    for (const res of clients) {
+      try {
+        res.write(payload);
+      } catch {
+        clients.delete(res);
+      }
+    }
+    if (clients.size === 0) sseClients.delete(interviewId);
+  }
 
   // Periodic cleanup: remove terminal entries older than 24h
   const TERMINAL_MODES = new Set([
@@ -406,6 +461,8 @@ export function createDashboardServer(config: DashboardConfig): {
             : Date.now(),
           filePath: path.join(interviewDir, entry),
           nudgeAction: null,
+          pendingBlockComment: null,
+          pendingChatMessage: null,
         });
 
         // Also register the session directory
@@ -668,6 +725,8 @@ export function createDashboardServer(config: DashboardConfig): {
         lastUpdatedAt: Date.now(),
         filePath: '',
         nudgeAction: null,
+        pendingBlockComment: null,
+        pendingChatMessage: null,
       });
       dedupRecovered(interviewId, stateCache);
       fileCache = null;
@@ -676,6 +735,63 @@ export function createDashboardServer(config: DashboardConfig): {
       sendJson(response, 200, {
         interviewId,
         url: interviewUrl,
+      });
+      return;
+    }
+
+    // ── API: SSE stream (browser → dashboard, real-time push) ────────
+    if (
+      request.method === 'GET' &&
+      pathname.startsWith('/api/interviews/') &&
+      pathname.endsWith('/events')
+    ) {
+      const interviewId = pathname
+        .replace('/api/interviews/', '')
+        .replace('/events', '');
+      if (!interviewId || !isValidId(interviewId)) {
+        sendJson(response, 400, { error: 'Invalid interview ID' });
+        return;
+      }
+      const entry = stateCache.get(interviewId);
+      if (!entry) {
+        sendJson(response, 404, { error: 'Interview not found' });
+        return;
+      }
+
+      response.writeHead(200, {
+        'content-type': 'text/event-stream',
+        'cache-control': 'no-cache',
+        connection: 'keep-alive',
+        'access-control-allow-origin': '*',
+      });
+
+      // Register this client
+      let clients = sseClients.get(interviewId);
+      if (!clients) {
+        clients = new Set();
+        sseClients.set(interviewId, clients);
+      }
+      clients.add(response);
+
+      // Send initial state immediately
+      response.write(
+        `event: state\ndata: ${JSON.stringify(formatSseState(entry))}\n\n`,
+      );
+
+      // Heartbeat every 15s to keep connection alive
+      const heartbeat = setInterval(() => {
+        try {
+          response.write(': hb\n\n');
+        } catch {
+          // will be cleaned up on close
+        }
+      }, 15000);
+
+      // Cleanup on disconnect
+      request.on('close', () => {
+        clearInterval(heartbeat);
+        clients?.delete(response);
+        if (clients && clients.size === 0) sseClients.delete(interviewId);
       });
       return;
     }
@@ -711,11 +827,14 @@ export function createDashboardServer(config: DashboardConfig): {
         if (state.title) existing.title = state.title;
         if (state.questions) existing.questions = state.questions;
         if (state.filePath) existing.filePath = state.filePath;
+        if (state.document !== undefined) existing.document = state.document;
+        if (state.blocks !== undefined) existing.blocks = state.blocks;
         existing.lastUpdatedAt = Date.now();
         dedupRecovered(interviewId, stateCache);
+        broadcastSse(interviewId, existing);
       } else {
         // New entry
-        stateCache.set(interviewId, {
+        const entry: InterviewStateEntry = {
           interviewId,
           sessionID: state.sessionID ?? '',
           idea: state.idea ?? '',
@@ -727,7 +846,13 @@ export function createDashboardServer(config: DashboardConfig): {
           lastUpdatedAt: Date.now(),
           filePath: state.filePath ?? '',
           nudgeAction: null,
-        });
+          pendingBlockComment: state.pendingBlockComment ?? null,
+          pendingChatMessage: state.pendingChatMessage ?? null,
+          document: state.document,
+          blocks: state.blocks,
+        };
+        stateCache.set(interviewId, entry);
+        broadcastSse(interviewId, entry);
       }
 
       sendJson(response, 200, { status: 'ok' });
@@ -810,6 +935,7 @@ export function createDashboardServer(config: DashboardConfig): {
         document,
         lastUpdatedAt: entry.lastUpdatedAt,
         nudgeAction: entry.nudgeAction,
+        blocks: parseSpecBlocks(document),
       });
       return;
     }
@@ -865,6 +991,161 @@ export function createDashboardServer(config: DashboardConfig): {
       entry.mode = 'awaiting-agent';
       entry.lastUpdatedAt = Date.now();
       sendJson(response, 200, { status: 'ok' });
+      return;
+    }
+
+    // ── API: submit block comment (browser → dashboard) ────────────
+    if (
+      request.method === 'POST' &&
+      pathname.startsWith('/api/interviews/') &&
+      pathname.endsWith('/block-comment')
+    ) {
+      if (!isAuthenticated(request)) {
+        sendJson(response, 401, { error: 'Unauthorized' });
+        return;
+      }
+      const interviewId = pathname
+        .replace('/api/interviews/', '')
+        .replace('/block-comment', '');
+      if (!isValidId(interviewId)) {
+        sendJson(response, 400, { error: 'Invalid interview ID' });
+        return;
+      }
+      const entry = stateCache.get(interviewId);
+      if (!entry) {
+        sendJson(response, 404, { error: 'Interview not found' });
+        return;
+      }
+
+      let body: unknown;
+      try {
+        body = await readJsonBody(request);
+      } catch {
+        sendJson(response, 400, { error: 'Invalid JSON' });
+        return;
+      }
+
+      const { section, comment } = body as {
+        section?: string;
+        comment?: string;
+      };
+      if (typeof section !== 'string' || typeof comment !== 'string') {
+        sendJson(response, 400, {
+          error: 'section and comment must be strings',
+        });
+        return;
+      }
+
+      entry.pendingBlockComment = { section, comment };
+      entry.mode = 'awaiting-agent';
+      entry.lastUpdatedAt = Date.now();
+      sendJson(response, 200, { status: 'ok' });
+      return;
+    }
+
+    // ── API: get pending block comment (session polls, auth required) ─
+    if (
+      request.method === 'GET' &&
+      pathname.startsWith('/api/interviews/') &&
+      pathname.endsWith('/block-comment')
+    ) {
+      if (!isAuthenticated(request)) {
+        sendJson(response, 401, { error: 'Unauthorized' });
+        return;
+      }
+      const interviewId = pathname
+        .replace('/api/interviews/', '')
+        .replace('/block-comment', '');
+      if (!isValidId(interviewId)) {
+        sendJson(response, 400, { error: 'Invalid interview ID' });
+        return;
+      }
+      const entry = stateCache.get(interviewId);
+      if (!entry) {
+        sendJson(response, 404, { error: 'Interview not found' });
+        return;
+      }
+      const val = entry.pendingBlockComment;
+      if (val) {
+        entry.pendingBlockComment = null;
+      }
+      sendJson(response, 200, val || {});
+      return;
+    }
+
+    // ── API: submit chat message (browser → dashboard) ──────────────
+    if (
+      request.method === 'POST' &&
+      pathname.startsWith('/api/interviews/') &&
+      pathname.endsWith('/chat')
+    ) {
+      if (!isAuthenticated(request)) {
+        sendJson(response, 401, { error: 'Unauthorized' });
+        return;
+      }
+      const interviewId = pathname
+        .replace('/api/interviews/', '')
+        .replace('/chat', '');
+      if (!isValidId(interviewId)) {
+        sendJson(response, 400, { error: 'Invalid interview ID' });
+        return;
+      }
+      const entry = stateCache.get(interviewId);
+      if (!entry) {
+        sendJson(response, 404, { error: 'Interview not found' });
+        return;
+      }
+
+      let body: unknown;
+      try {
+        body = await readJsonBody(request);
+      } catch {
+        sendJson(response, 400, { error: 'Invalid JSON' });
+        return;
+      }
+
+      const { message } = body as { message?: string };
+      if (typeof message !== 'string' || !message.trim()) {
+        sendJson(response, 400, {
+          error: 'message must be a non-empty string',
+        });
+        return;
+      }
+
+      entry.pendingChatMessage = message.trim();
+      entry.mode = 'awaiting-agent';
+      entry.lastUpdatedAt = Date.now();
+      sendJson(response, 200, { status: 'ok' });
+      return;
+    }
+
+    // ── API: get pending chat message (session polls, auth required) ─
+    if (
+      request.method === 'GET' &&
+      pathname.startsWith('/api/interviews/') &&
+      pathname.endsWith('/chat')
+    ) {
+      if (!isAuthenticated(request)) {
+        sendJson(response, 401, { error: 'Unauthorized' });
+        return;
+      }
+      const interviewId = pathname
+        .replace('/api/interviews/', '')
+        .replace('/chat', '');
+      if (!isValidId(interviewId)) {
+        sendJson(response, 400, { error: 'Invalid interview ID' });
+        return;
+      }
+      const entry = stateCache.get(interviewId);
+      if (!entry) {
+        sendJson(response, 404, { error: 'Interview not found' });
+        return;
+      }
+      const val = entry.pendingChatMessage;
+      if (val) {
+        entry.pendingChatMessage = null;
+      }
+      sendJson(response, 200, { message: val || null });
       return;
     }
 
@@ -1084,9 +1365,20 @@ export function createDashboardServer(config: DashboardConfig): {
         if (existing.pendingAnswers)
           entry.pendingAnswers ??= existing.pendingAnswers;
         if (existing.nudgeAction) entry.nudgeAction ??= existing.nudgeAction;
+        if (existing.pendingBlockComment)
+          entry.pendingBlockComment ??= existing.pendingBlockComment;
+        if (existing.pendingChatMessage)
+          entry.pendingChatMessage ??= existing.pendingChatMessage;
+        if (entry.document === undefined && existing.document !== undefined) {
+          entry.document = existing.document;
+        }
+        if (entry.blocks === undefined && existing.blocks !== undefined) {
+          entry.blocks = existing.blocks;
+        }
       }
       stateCache.set(entry.interviewId, entry);
       dedupRecovered(entry.interviewId, stateCache);
+      broadcastSse(entry.interviewId, entry);
     },
     getState: (id) => stateCache.get(id),
     storeAnswers: (id, answers) => {
@@ -1111,6 +1403,20 @@ export function createDashboardServer(config: DashboardConfig): {
       const action = entry.nudgeAction;
       entry.nudgeAction = null;
       return action;
+    },
+    consumeBlockComment: (id: string) => {
+      const entry = stateCache.get(id);
+      if (!entry?.pendingBlockComment) return null;
+      const comment = entry.pendingBlockComment;
+      entry.pendingBlockComment = null;
+      return comment;
+    },
+    consumeChatMessage: (id: string) => {
+      const entry = stateCache.get(id);
+      if (!entry?.pendingChatMessage) return null;
+      const message = entry.pendingChatMessage;
+      entry.pendingChatMessage = null;
+      return message;
     },
     authToken,
     discoverSessionDirectories,

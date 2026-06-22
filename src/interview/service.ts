@@ -18,6 +18,7 @@ import {
   extractSummarySection,
   extractTitle,
   normalizeOutputFolder,
+  parseSpecBlocks,
   readInterviewDocument,
   relativeInterviewPath,
   resolveExistingInterviewPath,
@@ -138,6 +139,12 @@ export function createInterviewService(
     interviewId: string,
     answers: InterviewAnswer[],
   ) => Promise<void>;
+  submitBlockComment: (
+    interviewId: string,
+    section: string,
+    comment: string,
+  ) => Promise<void>;
+  submitChat: (interviewId: string, message: string) => Promise<void>;
   handleNudgeAction: (
     interviewId: string,
     action: 'more-questions' | 'confirm-complete',
@@ -154,6 +161,7 @@ export function createInterviewService(
   const browserOpener = deps?.openBrowser ?? openBrowser;
   const activeInterviewIds = new Map<string, string>();
   const interviewsById = new Map<string, InterviewRecord>();
+  const activeSyncs = new Map<string, Promise<InterviewState>>();
   const sessionBusy = new Map<string, boolean>();
   const sessionModel = new Map<string, string>();
   const browserOpened = new Set<string>(); // Track interviews that have opened browser
@@ -253,6 +261,22 @@ export function createInterviewService(
     return result.data as InterviewMessage[];
   }
 
+  async function loadMessagesWithRetry(
+    sessionID: string,
+  ): Promise<InterviewMessage[]> {
+    for (let i = 0; i < 8; i++) {
+      const messages = await loadMessages(sessionID);
+      if (messages.length > 0) {
+        const last = messages[messages.length - 1];
+        if (last?.info?.role === 'assistant') {
+          return messages;
+        }
+      }
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    }
+    return loadMessages(sessionID);
+  }
+
   function isUserVisibleMessage(message: InterviewMessage): boolean {
     return !(message.parts ?? []).some((part) =>
       hasInternalInitiatorMarker(part),
@@ -341,10 +365,23 @@ export function createInterviewService(
     return record;
   }
 
-  async function syncInterview(
+  function syncInterview(interview: InterviewRecord): Promise<InterviewState> {
+    const existing = activeSyncs.get(interview.id);
+    if (existing) {
+      return existing;
+    }
+
+    const sync = performSyncInterview(interview).finally(() => {
+      activeSyncs.delete(interview.id);
+    });
+    activeSyncs.set(interview.id, sync);
+    return sync;
+  }
+
+  async function performSyncInterview(
     interview: InterviewRecord,
   ): Promise<InterviewState> {
-    const allMessages = await loadMessages(interview.sessionID);
+    const allMessages = await loadMessagesWithRetry(interview.sessionID);
     const interviewMessages = allMessages
       .slice(interview.baseMessageCount)
       .filter(isUserVisibleMessage);
@@ -359,7 +396,14 @@ export function createInterviewService(
     // Rename file if assistant provided a title (and file hasn't been renamed yet)
     await maybeRenameWithTitle(interview, state.title);
 
-    const document = await rewriteInterviewDocument(interview, state.summary);
+    // Skip rewrite when parsed.state is null — agent already wrote the final spec
+    let document: string;
+    if (parsed.state) {
+      document = await rewriteInterviewDocument(interview, state.summary);
+    } else {
+      document = await readInterviewDocument(interview);
+    }
+    const blocks = parseSpecBlocks(document);
 
     const interviewState: InterviewState = {
       interview,
@@ -379,12 +423,16 @@ export function createInterviewService(
                 ? 'awaiting-user'
                 : parsed.latestAssistantError
                   ? 'error'
-                  : 'awaiting-agent',
+                  : !parsed.state &&
+                      sessionBusy.get(interview.sessionID) === false
+                    ? 'completed'
+                    : 'awaiting-agent',
       lastParseError: parsed.latestAssistantError,
       isBusy: sessionBusy.get(interview.sessionID) === true,
       summary: state.summary,
       questions: state.questions,
       document,
+      blocks,
     };
 
     // Push state to dashboard if callback is set (dashboard mode)
@@ -710,6 +758,132 @@ export function createInterviewService(
     return sorted;
   }
 
+  async function submitBlockComment(
+    interviewId: string,
+    sectionTitle: string,
+    comment: string,
+  ): Promise<void> {
+    const interview = getInterviewById(interviewId);
+    if (!interview) {
+      throw new Error('Interview not found');
+    }
+    if (interview.status === 'abandoned') {
+      throw new Error('Interview session is no longer active.');
+    }
+    if (sessionBusy.get(interview.sessionID) === true) {
+      throw new Error(
+        'Interview session is busy. Wait for the current response.',
+      );
+    }
+
+    sessionBusy.set(interview.sessionID, true);
+    let promptSent = false;
+
+    try {
+      const state = await getInterviewState(interviewId);
+      if (state.mode === 'error') {
+        throw new Error('Interview is waiting for a valid agent update.');
+      }
+
+      const relativePath = relativeInterviewPath(
+        ctx.directory,
+        interview.markdownPath,
+      );
+
+      const prompt = [
+        `You are updating the active interview specification document at "${relativePath}".`,
+        `The current document content on disk is:`,
+        `\`\`\`markdown`,
+        state.document,
+        `\`\`\``,
+        ``,
+        `The user submitted specific feedback/comments for the section "${sectionTitle}".`,
+        `Feedback: ${comment}`,
+        ``,
+        `Update the specification summary (focusing heavily on making changes to the "${sectionTitle}" section) to address this feedback.`,
+        `If this feedback implies other parts of the spec should change, update them too.`,
+        `Include the updated 11-section specification and ask the next highest-value clarifying questions as questions (up to ${maxQuestions} questions) if needed.`,
+        `Return the same <interview_state> JSON block format as before.`,
+      ].join('\n');
+
+      const model = sessionModel.get(interview.sessionID);
+      await ctx.client.session.promptAsync({
+        path: { id: interview.sessionID },
+        body: {
+          parts: [createInternalAgentTextPart(prompt)],
+          ...(model ? { model: parseModelReference(model) ?? undefined } : {}),
+        },
+      });
+      promptSent = true;
+    } finally {
+      if (!promptSent) {
+        sessionBusy.set(interview.sessionID, false);
+      }
+    }
+  }
+
+  async function submitChat(
+    interviewId: string,
+    message: string,
+  ): Promise<void> {
+    const interview = getInterviewById(interviewId);
+    if (!interview) {
+      throw new Error('Interview not found');
+    }
+    if (interview.status === 'abandoned') {
+      throw new Error('Interview session is no longer active.');
+    }
+    if (sessionBusy.get(interview.sessionID) === true) {
+      throw new Error(
+        'Interview session is busy. Wait for the current response.',
+      );
+    }
+
+    sessionBusy.set(interview.sessionID, true);
+    let promptSent = false;
+
+    try {
+      const state = await getInterviewState(interviewId);
+      if (state.mode === 'error') {
+        throw new Error('Interview is waiting for a valid agent update.');
+      }
+
+      const relativePath = relativeInterviewPath(
+        ctx.directory,
+        interview.markdownPath,
+      );
+
+      const prompt = [
+        `You are continuing the interview for the specification document at "${relativePath}".`,
+        `The current document content on disk is:`,
+        `\`\`\`markdown`,
+        state.document,
+        `\`\`\``,
+        ``,
+        `The user sent a freeform message via the dashboard chat panel:`,
+        `${message}`,
+        ``,
+        `Process this request — it may be a request to add a new section, revise existing content, ask clarifying questions, or make structural changes.`,
+        `Update the specification document accordingly and include the updated 11-section specification.`,
+        `Ask up to ${maxQuestions} clarifying questions if needed using the same <interview_state> JSON block format as before.`,
+      ].join('\n');
+
+      const model = sessionModel.get(interview.sessionID);
+      await ctx.client.session.promptAsync({
+        path: { id: interview.sessionID },
+        body: {
+          parts: [createInternalAgentTextPart(prompt)],
+          ...(model ? { model: parseModelReference(model) ?? undefined } : {}),
+        },
+      });
+      promptSent = true;
+    } finally {
+      if (!promptSent) {
+        sessionBusy.set(interview.sessionID, false);
+      }
+    }
+  }
+
   async function handleNudgeAction(
     interviewId: string,
     action: 'more-questions' | 'confirm-complete',
@@ -733,21 +907,34 @@ export function createInterviewService(
     try {
       const state = await getInterviewState(interviewId);
 
+      const relativePath = relativeInterviewPath(
+        ctx.directory,
+        interview.markdownPath,
+      );
+
       let prompt: string;
       if (action === 'more-questions') {
         prompt = [
-          `The user reviewed the completed interview spec and wants you to continue.`,
+          `You are continuing the interview for the specification document at "${relativePath}".`,
+          `The current document content on disk is:`,
+          `\`\`\`markdown`,
+          state.document,
+          `\`\`\``,
           ``,
-          `Current spec summary: ${state.summary}`,
+          `The user reviewed the completed interview spec and wants you to continue.`,
           ``,
           `Ask up to ${maxQuestions} new clarifying questions about aspects that are still unclear or underspecified.`,
           `Include the structured <interview_state> block with new questions.`,
         ].join('\n');
       } else {
         prompt = [
-          `The user confirmed the interview spec is complete.`,
+          `You are finishing the interview for the specification document at "${relativePath}".`,
+          `The current document content on disk is:`,
+          `\`\`\`markdown`,
+          state.document,
+          `\`\`\``,
           ``,
-          `Current spec summary: ${state.summary}`,
+          `The user confirmed the interview spec is complete.`,
           ``,
           `Produce a final, polished version of the full spec document.`,
           `Do NOT include any <interview_state> block — just output the final spec as clean markdown.`,
@@ -783,6 +970,8 @@ export function createInterviewService(
     listInterviewFiles,
     listInterviews,
     submitAnswers,
+    submitBlockComment,
+    submitChat,
     handleNudgeAction,
   };
 }

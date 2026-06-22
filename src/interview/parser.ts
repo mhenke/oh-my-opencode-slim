@@ -46,6 +46,39 @@ function normalizeQuestion(
   };
 }
 
+function repairJsonNewlines(json: string): string {
+  let result = '';
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < json.length; i++) {
+    const char = json[i];
+    if (inString) {
+      if (escaped) {
+        result += char;
+        escaped = false;
+      } else if (char === '\\') {
+        result += char;
+        escaped = true;
+      } else if (char === '"') {
+        result += char;
+        inString = false;
+      } else if (char === '\n') {
+        result += '\\n';
+      } else if (char === '\r') {
+        result += '\\r';
+      } else {
+        result += char;
+      }
+    } else {
+      if (char === '"') {
+        inString = true;
+      }
+      result += char;
+    }
+  }
+  return result;
+}
+
 export function flattenMessage(message: InterviewMessage): string {
   return (message.parts ?? [])
     .map((part) => part.text ?? '')
@@ -81,8 +114,22 @@ export function parseAssistantState(
     return { state: null };
   }
 
+  // Pre-process match[1] to repair common JSON escaping issues (e.g. unescaped newlines inside strings)
+  let rawJson = match[1].trim();
+
+  // A robust heuristic to escape literal carriage returns/newlines inside JSON string values
+  // so JSON.parse doesn't throw "JSON Parse error: Expected '}'" or "Unexpected token".
+  // This is safe because it only targets characters within quotes.
   try {
-    const raw = JSON.parse(match[1]);
+    // If it parses directly, great!
+    JSON.parse(rawJson);
+  } catch {
+    // Try to normalize literal newlines inside string values:
+    rawJson = repairJsonNewlines(rawJson);
+  }
+
+  try {
+    const raw = JSON.parse(rawJson);
     // Validate raw LLM output with Zod before processing
     const parsed = RawInterviewStateSchema.parse(raw) as Record<
       string,
