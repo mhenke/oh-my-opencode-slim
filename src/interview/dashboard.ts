@@ -263,15 +263,21 @@ export function createDashboardServer(config: DashboardConfig): {
   ]);
   const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
   const CLEANUP_INTERVAL_MS = 60 * 60 * 1000;
-  const cleanupTimer = setInterval(() => {
-    const cutoff = Date.now() - CACHE_TTL_MS;
-    for (const [id, entry] of stateCache) {
-      if (TERMINAL_MODES.has(entry.mode) && entry.lastUpdatedAt < cutoff) {
-        stateCache.delete(id);
+  function createCleanupTimer(): ReturnType<typeof setInterval> {
+    const timer = setInterval(() => {
+      const cutoff = Date.now() - CACHE_TTL_MS;
+      for (const [id, entry] of stateCache) {
+        if (TERMINAL_MODES.has(entry.mode) && entry.lastUpdatedAt < cutoff) {
+          stateCache.delete(id);
+        }
       }
-    }
-  }, CLEANUP_INTERVAL_MS);
-  cleanupTimer.unref();
+    }, CLEANUP_INTERVAL_MS);
+    timer.unref();
+    return timer;
+  }
+
+  let cleanupTimer: ReturnType<typeof setInterval> | null =
+    createCleanupTimer();
 
   // File scan cache (TTL 10s)
   let fileCache: { items: InterviewFileItem[]; at: number } | null = null;
@@ -1288,6 +1294,10 @@ export function createDashboardServer(config: DashboardConfig): {
   function start(): Promise<string> {
     if (baseUrl) return Promise.resolve(baseUrl);
 
+    if (!cleanupTimer) {
+      cleanupTimer = createCleanupTimer();
+    }
+
     return new Promise((resolve, reject) => {
       const server = createServer((request, response) => {
         handleRequest(request, response).catch((error: unknown) => {
@@ -1325,8 +1335,32 @@ export function createDashboardServer(config: DashboardConfig): {
   }
 
   function close(): void {
+    if (cleanupTimer) {
+      clearInterval(cleanupTimer);
+      cleanupTimer = null;
+    }
+
+    for (const clients of sseClients.values()) {
+      for (const response of clients) {
+        try {
+          if (!response.writableEnded && !response.destroyed) {
+            response.end();
+          }
+        } catch {
+          try {
+            response.destroy();
+          } catch {
+            // Ignore cleanup errors
+          }
+        }
+      }
+    }
+
+    sseClients.clear();
+
+    removeAuthFile(config.port);
+
     if (activeServer) {
-      removeAuthFile(config.port);
       activeServer.closeAllConnections();
       activeServer.close();
       activeServer = null;
