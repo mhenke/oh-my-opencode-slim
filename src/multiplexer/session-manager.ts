@@ -626,7 +626,10 @@ export class MultiplexerSessionManager {
     const job = this.backgroundJobBoard?.get(sessionId);
     const hasDeferredIdleClose = this.deferredIdleCloses.has(sessionId);
 
-    if (!hasDeferredIdleClose && (!job || job.state === 'running')) {
+    if (
+      !hasDeferredIdleClose &&
+      (!job || (job.state === 'running' && !job.timedOut))
+    ) {
       return;
     }
 

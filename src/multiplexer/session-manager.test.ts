@@ -432,7 +432,7 @@ describe('MultiplexerSessionManager', () => {
           defaultMultiplexerConfig,
           board,
         );
-        board.setTerminalStateListener((taskID) => {
+        board.setActionableStateListener((taskID) => {
           void manager.retryDeferredIdleClose(taskID);
         });
 
@@ -470,7 +470,7 @@ describe('MultiplexerSessionManager', () => {
         defaultMultiplexerConfig,
         board,
       );
-      board.setTerminalStateListener((taskID) => {
+      board.setActionableStateListener((taskID) => {
         void manager.retryDeferredIdleClose(taskID);
       });
 
@@ -500,6 +500,47 @@ describe('MultiplexerSessionManager', () => {
       );
     });
 
+    test('timed out running job closes tracked pane without prior defer', async () => {
+      const ctx = createMockContext();
+      const board = new BackgroundJobBoard();
+      board.registerLaunch({
+        taskID: 'timed-out-direct',
+        parentSessionID: 'parent-1',
+        agent: 'explorer',
+      });
+      mockMultiplexer.spawnPane.mockResolvedValue({
+        success: true,
+        paneId: 'p-timed-out-direct',
+      });
+      const manager = new MultiplexerSessionManager(
+        ctx,
+        defaultMultiplexerConfig,
+        board,
+      );
+      board.setActionableStateListener((taskID) => {
+        void manager.retryDeferredIdleClose(taskID);
+      });
+
+      await manager.onSessionCreated({
+        type: 'session.created',
+        properties: {
+          info: { id: 'timed-out-direct', parentID: 'parent-1' },
+        },
+      });
+
+      board.updateStatus({
+        taskID: 'timed-out-direct',
+        state: 'running',
+        timedOut: true,
+      });
+      await Promise.resolve();
+
+      expect(mockMultiplexer.closePane).toHaveBeenCalledWith(
+        'p-timed-out-direct',
+      );
+      expect(mockMultiplexer.closePane).toHaveBeenCalledTimes(1);
+    });
+
     test('deferred idle close retries on markCancelled', async () => {
       const ctx = createMockContext();
       const board = new BackgroundJobBoard();
@@ -517,7 +558,7 @@ describe('MultiplexerSessionManager', () => {
         defaultMultiplexerConfig,
         board,
       );
-      board.setTerminalStateListener((taskID) => {
+      board.setActionableStateListener((taskID) => {
         void manager.retryDeferredIdleClose(taskID);
       });
 
@@ -557,7 +598,7 @@ describe('MultiplexerSessionManager', () => {
         defaultMultiplexerConfig,
         board,
       );
-      board.setTerminalStateListener((taskID) => {
+      board.setActionableStateListener((taskID) => {
         void manager.retryDeferredIdleClose(taskID);
       });
 
@@ -595,7 +636,7 @@ describe('MultiplexerSessionManager', () => {
         defaultMultiplexerConfig,
         board,
       );
-      board.setTerminalStateListener((taskID) => {
+      board.setActionableStateListener((taskID) => {
         void manager.retryDeferredIdleClose(taskID);
       });
 
@@ -637,7 +678,7 @@ describe('MultiplexerSessionManager', () => {
         defaultMultiplexerConfig,
         board,
       );
-      board.setTerminalStateListener((taskID) => {
+      board.setActionableStateListener((taskID) => {
         void manager.retryDeferredIdleClose(taskID);
       });
 
@@ -728,7 +769,7 @@ describe('MultiplexerSessionManager', () => {
         defaultMultiplexerConfig,
         board,
       );
-      board.setTerminalStateListener((taskID) => {
+      board.setActionableStateListener((taskID) => {
         void manager.retryDeferredIdleClose(taskID);
       });
 
@@ -791,7 +832,7 @@ describe('MultiplexerSessionManager', () => {
         defaultMultiplexerConfig,
         board,
       );
-      board.setTerminalStateListener((taskID) => {
+      board.setActionableStateListener((taskID) => {
         void manager.retryDeferredIdleClose(taskID);
       });
 

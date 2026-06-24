@@ -371,7 +371,7 @@ describe('BackgroundJobBoard', () => {
   test('notifies terminal listener on updateStatus terminal transition', () => {
     const board = new BackgroundJobBoard();
     const listener = mock(() => {});
-    board.setTerminalStateListener(listener);
+    board.setActionableStateListener(listener);
     board.registerLaunch({
       taskID: 'ses_1',
       parentSessionID: 'parent-1',
@@ -387,7 +387,7 @@ describe('BackgroundJobBoard', () => {
   test('notifies terminal listener when running job times out', () => {
     const board = new BackgroundJobBoard();
     const listener = mock(() => {});
-    board.setTerminalStateListener(listener);
+    board.setActionableStateListener(listener);
     board.registerLaunch({
       taskID: 'ses_1',
       parentSessionID: 'parent-1',
@@ -403,7 +403,7 @@ describe('BackgroundJobBoard', () => {
   test('notifies terminal listener on markCancelled mutation', () => {
     const board = new BackgroundJobBoard();
     const listener = mock(() => {});
-    board.setTerminalStateListener(listener);
+    board.setActionableStateListener(listener);
     board.registerLaunch({
       taskID: 'ses_1',
       parentSessionID: 'parent-1',
@@ -419,7 +419,7 @@ describe('BackgroundJobBoard', () => {
   test('notifies terminal listener on forced markCancelled from running', () => {
     const board = new BackgroundJobBoard();
     const listener = mock(() => {});
-    board.setTerminalStateListener(listener);
+    board.setActionableStateListener(listener);
     board.registerLaunch({
       taskID: 'ses_1',
       parentSessionID: 'parent-1',
@@ -437,7 +437,7 @@ describe('BackgroundJobBoard', () => {
   test('does not notify terminal listener on forced markCancelled from terminal', () => {
     const board = new BackgroundJobBoard();
     const listener = mock(() => {});
-    board.setTerminalStateListener(listener);
+    board.setActionableStateListener(listener);
     board.registerLaunch({
       taskID: 'ses_1',
       parentSessionID: 'parent-1',
@@ -456,7 +456,7 @@ describe('BackgroundJobBoard', () => {
   test('does not notify terminal listener for running or stale updates', () => {
     const board = new BackgroundJobBoard();
     const listener = mock(() => {});
-    board.setTerminalStateListener(listener);
+    board.setActionableStateListener(listener);
     board.registerLaunch({
       taskID: 'ses_1',
       parentSessionID: 'parent-1',
