@@ -56,31 +56,66 @@ async function openSseConnection(
     firstChunk: Promise<string>;
     closed: Promise<void>;
   }>((resolve, reject) => {
+    let responded = false;
+    let sawStateEvent = false;
+
+    let firstChunkResolve!: (value: string) => void;
+    let firstChunkReject!: (reason: Error) => void;
+    const firstChunk = new Promise<string>((resolveFirst, rejectFirst) => {
+      firstChunkResolve = resolveFirst;
+      firstChunkReject = rejectFirst;
+    });
+
+    let closedResolve!: () => void;
+    let closedReject!: (reason: Error) => void;
+    const closed = new Promise<void>((resolveClosed, rejectClosed) => {
+      closedResolve = resolveClosed;
+      closedReject = rejectClosed;
+    });
+
+    const rejectStreams = (error: Error) => {
+      firstChunkReject(error);
+      closedReject(error);
+    };
+
+    const onError = (error: Error) => {
+      rejectStreams(error);
+      if (!responded) {
+        responded = true;
+        reject(error);
+      }
+    };
+
     const request = get(
       `${baseUrl}/api/interviews/${interviewId}/events?token=${authToken}`,
       (response) => {
+        responded = true;
         response.setEncoding('utf8');
 
         let buffer = '';
-        const firstChunk = new Promise<string>((resolveFirst) => {
-          response.on('data', (chunk: string) => {
-            buffer += chunk;
-            if (buffer.includes('event: state')) {
-              resolveFirst(buffer);
-            }
-          });
+        response.on('data', (chunk: string) => {
+          buffer += chunk;
+          if (!sawStateEvent && buffer.includes('event: state')) {
+            sawStateEvent = true;
+            firstChunkResolve(buffer);
+          }
         });
 
-        const closed = new Promise<void>((resolveClosed) => {
-          response.once('close', resolveClosed);
+        response.once('close', () => {
+          if (!sawStateEvent) {
+            firstChunkReject(
+              new Error('SSE response closed before initial state event'),
+            );
+          }
+          closedResolve();
         });
 
-        response.once('error', reject);
+        response.once('error', onError);
         resolve({ firstChunk, closed });
       },
     );
 
-    request.once('error', reject);
+    request.once('error', onError);
   });
 }
 
@@ -125,6 +160,24 @@ describe('dashboard server', () => {
         dashboard.close();
 
         await closed;
+      } finally {
+        cleanup();
+      }
+    });
+
+    test('rejects SSE firstChunk when response closes before state', async () => {
+      const { baseUrl, authToken, cleanup } = await startDashboard();
+      try {
+        const connection = await openSseConnection(
+          baseUrl,
+          authToken,
+          'missing-lifecycle-sse',
+        );
+
+        await expect(connection.firstChunk).rejects.toThrow(
+          'SSE response closed before initial state event',
+        );
+        await connection.closed;
       } finally {
         cleanup();
       }

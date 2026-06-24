@@ -276,8 +276,7 @@ export function createDashboardServer(config: DashboardConfig): {
     return timer;
   }
 
-  let cleanupTimer: ReturnType<typeof setInterval> | null =
-    createCleanupTimer();
+  let cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
   // File scan cache (TTL 10s)
   let fileCache: { items: InterviewFileItem[]; at: number } | null = null;
