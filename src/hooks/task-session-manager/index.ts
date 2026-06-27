@@ -13,7 +13,11 @@ import {
 import { isRecord as isObjectRecord } from '../../utils/guards';
 import { log } from '../../utils/logger';
 import { isRateLimitError } from '../foreground-fallback/index';
-import type { MessagePart, MessageWithParts } from '../types';
+import {
+  isUserMessageWithParts,
+  type MessagePart,
+  type MessageWithParts,
+} from '../types';
 
 interface TaskArgs {
   description?: unknown;
@@ -642,7 +646,7 @@ export function createTaskSessionManagerHook(
       output: { messages: MessageWithParts[] },
     ): Promise<void> => {
       for (const [messageIndex, message] of output.messages.entries()) {
-        if (message.info.role !== 'user') continue;
+        if (!isUserMessageWithParts(message)) continue;
         if (message.info.agent && message.info.agent !== 'orchestrator') {
           continue;
         }
@@ -660,7 +664,7 @@ export function createTaskSessionManagerHook(
 
       for (let i = output.messages.length - 1; i >= 0; i -= 1) {
         const message = output.messages[i];
-        if (message.info.role !== 'user') continue;
+        if (!isUserMessageWithParts(message)) continue;
         if (message.info.agent && message.info.agent !== 'orchestrator') return;
         if (
           !message.info.sessionID ||

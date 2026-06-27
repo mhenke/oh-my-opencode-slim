@@ -32,7 +32,11 @@ import {
   ForegroundFallbackManager,
 } from './hooks';
 import { processImageAttachments } from './hooks/image-hook';
-import type { MessageWithParts } from './hooks/types';
+import {
+  isMessageWithParts,
+  isUserMessageWithParts,
+  type MessageWithParts,
+} from './hooks/types';
 import { createInterviewManager } from './interview';
 import { createBuiltinMcps } from './mcp';
 import {
@@ -1033,10 +1037,11 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       input: Record<string, never>,
       output: { messages: unknown[] },
     ): Promise<void> => {
-      const typedOutput = output as { messages: MessageWithParts[] };
+      const typedOutput = output as { messages: unknown[] };
+      const messages = typedOutput.messages.filter(isMessageWithParts);
 
-      for (const message of typedOutput.messages) {
-        if (message.info.role !== 'user') {
+      for (const message of messages) {
+        if (!isUserMessageWithParts(message)) {
           continue;
         }
         for (const part of message.parts) {
@@ -1053,7 +1058,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       // image bytes with a text nudge so the orchestrator delegates to
       // @observer instead.
       processImageAttachments({
-        messages: typedOutput.messages,
+        messages,
         workDir: ctx.directory,
         disabledAgents,
         log,
@@ -1061,15 +1066,15 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
       await taskSessionManagerHook['experimental.chat.messages.transform'](
         input,
-        typedOutput,
+        { messages },
       );
       await phaseReminderHook['experimental.chat.messages.transform'](
         input,
-        typedOutput,
+        { messages },
       );
       await filterAvailableSkillsHook['experimental.chat.messages.transform'](
         input,
-        typedOutput,
+        { messages },
       );
     },
 

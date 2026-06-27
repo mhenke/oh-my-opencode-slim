@@ -43,6 +43,25 @@ function createMessages(sessionID: string, text = 'user message') {
 }
 
 describe('task-session-manager hook', () => {
+  test('ignores messages without OpenCode info or parts', async () => {
+    const { hook } = createHook();
+    const messages = {
+      messages: [
+        {},
+        { info: { role: 'user', agent: 'orchestrator', sessionID: 'parent-1' } },
+        { parts: [{ type: 'text', text: 'missing info' }] },
+        {
+          info: { role: 'assistant' },
+          parts: [{ type: 'text', text: 'assistant response' }],
+        },
+      ],
+    };
+
+    await hook['experimental.chat.messages.transform']({}, messages as never);
+
+    expect(messages.messages).toHaveLength(4);
+  });
+
   test('stores background task launches in job board prompt context', async () => {
     const board = new BackgroundJobBoard();
     const { hook } = createHook({ backgroundJobBoard: board });
