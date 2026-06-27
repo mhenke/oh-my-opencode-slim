@@ -34,10 +34,10 @@ Layer 0: Orchestrator — runtime that runs everything
   - Loads and follows skill instructions
   - Delegates to LoopEngine
   - Collects LoopDefinition via Grill interview
-  - Listens to engine callbacks (onPhaseChange, onLoopComplete, onEscalated)
+  - Listens to engine callbacks (onLoopComplete, onEscalated)
   - Handles human-facing parts (Grill, escalation UI)
   - Dispatches @council ONLY on Layer 0 escalation (never inside the loop)
-  - Never dispatches agents directly during a loop
+  - Never dispatches specialist agents during a loop — engine dispatches via BackgroundJobBoard
 
 Layer 1: LoopEngine — orchestration logic, framework-owned
   - Event-driven state machine
@@ -317,7 +317,7 @@ The skill instructs the orchestrator — it never "does" anything itself.
 - Output structured JSON passed to `loopEngine.startLoop()`
 
 **Orchestrator follows skill's Loop Monitor instructions:**
-- Listen to engine callbacks (`onPhaseChange`, `onLoopComplete`, `onEscalated`)
+- Listen to engine callbacks (`onLoopComplete`, `onEscalated`)
 - Display current state, attempt count, verification result to human
 - On `onEscalated` — surface resolution options to human, await instruction
 - On human intervention (cancel, force pass, modify definition) — call appropriate engine method
@@ -387,6 +387,16 @@ No LLM involved. Deterministic.
 4. Engine parses result, applies retry logic same as oracle
 
 **Observer artifact transfer:** Orchestrator owns the filesystem artifact lifecycle. Engine only signals when artifacts are written (`onArtifactWrite`). This prevents artifact management from bloating the engine's responsibilities.
+
+**`{ type: 'manual' }`:**
+1. Engine transitions to `verifying` phase
+2. Engine fires `onManualReview(loopID, reason)` callback
+3. Engine stops dispatching — session enters a waiting state (phase stays `verifying`, no active job)
+4. Orchestrator surfaces the review request to the human
+5. Human responds with pass/fail via orchestrator → orchestrator calls `engine.resolveManualReview(loopID, passed, reason)`
+6. Engine resumes: `passed` → `done`, `!passed` → retry or escalate based on attempt count
+
+**Manual verification is the simplest on-ramp.** No LLM involved. Human decides. Proven by autoresearch — Karpathy's entire loop is manual inspection. Use when automated verification isn't worth the setup cost, or when you want to eyeball results before committing to a verification criteria.
 
 ### Council — Layer 0 Escalation Only
 

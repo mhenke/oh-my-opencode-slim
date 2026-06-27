@@ -292,10 +292,10 @@ import { LoopSession, type LoopPhase, type LoopDefinition, type AttemptRecord } 
 import { BackgroundJobBoard, type BackgroundJobRecord } from '../utils/background-job-board';
 
 export interface LoopEngineCallbacks {
-  onPhaseChange?: (loopID: string, prev: LoopPhase, next: LoopPhase) => void;
-  onAttemptComplete?: (loopID: string, attempt: AttemptRecord) => void;
   onLoopComplete?: (loopID: string, success: boolean) => void;
   onEscalated?: (loopID: string, reason: string) => void;
+  // Manual verification — orchestrator surfaces review to human, calls resolveManualReview
+  onManualReview?: (loopID: string, reason: string) => void;
   // Artifact management — orchestrator owns filesystem, engine only signals
   onArtifactWrite?: (loopID: string, artifactPath: string) => void;
   // Deferred: onWorktreeCreate, onWorktreeMerge, onWorktreeAbandon
@@ -311,6 +311,7 @@ export class LoopEngine {
 
   startLoop(definition: LoopDefinition): string;
   cancel(loopID: string): void;
+  resolveManualReview(loopID: string, passed: boolean, reason?: string): void;
   getSession(loopID: string): LoopSession | undefined;
   listSessions(): LoopSession[];
 
@@ -400,6 +401,8 @@ job completed (error)     → handleFailure() → may escalate
    ```
 
 **Observer artifact transfer:** For UI loops, `verifyAgent = 'observer'`, the executing agent writes visual artifacts to paths. The engine signals `onArtifactWrite(loopID, artifactPath)` so orchestrator can manage artifact lifecycle. Engine does not own filesystem artifacts — only signals when they are written.
+
+**Manual verification:** When `success.type = 'manual'`, engine transitions to `verifying` but does NOT dispatch a verifyAgent. Instead, fires `onManualReview(loopID, reason)` and stops. Session waits. Orchestrator surfaces review to human. Human responds → orchestrator calls `engine.resolveManualReview(loopID, passed, reason)`. Engine resumes: `passed` → `done`, `!passed` → retry or escalate.
 
     **No Council inside the loop** — Council with 360s+ latency stalls the rapid `executing ↔ verifying` oscillation. Council is reserved for Layer 0 escalation only.
 
@@ -537,7 +540,7 @@ Two parts:
 - Output structured JSON passed to `loopEngine.startLoop()`
 
 **Loop Monitor — orchestrator follows these instructions:**
-- Listen to engine callbacks (`onPhaseChange`, `onLoopComplete`, `onEscalated`)
+- Listen to engine callbacks (`onLoopComplete`, `onEscalated`)
 - Display current state, attempt count, verification result to human
 - On `onEscalated` — surface resolution options to human, await instruction
 - On human intervention (cancel, force pass, modify definition) — call appropriate engine method
@@ -584,6 +587,7 @@ grep -r "deepwork" src/ --include="*.ts"
 **PR 2 — Loop Engine (full runtime orchestration)**
 - Tasks 4, 7, 8, 9, 10
 - `LoopSession` + `LoopEngine` event-driven state machine
+- `SuccessCriterion` routing (test/build/lint evaluated directly, oracle/observer dispatched, manual waits for human)
 - Skill + `/loop` command
 - Tests
 - Depends on PR 1 merging first
