@@ -38,12 +38,14 @@ Layer 0: Orchestrator — runtime that runs everything
   - Handles human-facing parts (Grill, escalation UI)
   - Dispatches @council ONLY on Layer 0 escalation (never inside the loop)
   - Never dispatches specialist agents during a loop — engine dispatches via BackgroundJobBoard
+  - Provides `dispatch(agent, prompt, contextFiles)` callback to engine for agent spawning
 
 Layer 1: LoopEngine — orchestration logic, framework-owned
+  - Location: `src/loop/loop-engine.ts` (not src/council/)
   - Event-driven state machine
-  - Internally dispatches agents based on LoopDefinition.executeAgent/verifyAgent
+  - Dispatches agents via orchestrator-provided callback (not direct SDK access)
   - Owns phase transitions and verification parsing
-  - Manages context compaction via .loop-history.md
+  - Manages context compaction via .loop-history-{loopID}.md
   - Manages session artifact directory for visual artifact transfer
   - Enforces hard circuit breaker (escalated state)
   - Handles dispatch failures with try/catch → escalated
@@ -170,7 +172,12 @@ Error tracking is an **implementation detail of escalation**, not the foundation
 
 **Convergence signal scope:** Signals apply to `error` and `timeout` states only. The `cancelled` state is a quiet terminal state — it does NOT increment error counters. This prevents noisy escalation when users intentionally cancel.
 
-**timeoutCount semantics:** Tracks consecutive timeout occurrences. Incremented when `timedOut: true` on `updateStatus()`. Reset to 0 when a job reaches `completed` state (any completed job, not just timeout completions).
+**Signal computation:** Convergence signals are computed from `BackgroundJobRecord` state transitions, not explicit flags:
+- `totalErrors` — incremented when job state transitions to `error`
+- `timeoutCount` — incremented when `timedOut === true` on status update; reset to 0 on `completed`
+- `lastErrorAt` — timestamp of last `error` state transition
+
+This avoids redundant `isError`/`isTimeout` fields on status input — the state machine already conveys this information.
 
 When convergence signals exceed threshold:
 → transition to `escalated` state
@@ -185,7 +192,7 @@ When convergence signals exceed threshold:
 To prevent `/tmp/` memory leaks across multiple loops:
 
 - **Terminal states trigger cleanup:** When state transitions to `done`, `escalated`, or `cancelled`, the engine synchronously deletes:
-  - `.loop-history.md`
+  - `.loop-history-{loopID}.md` (includes loopID to prevent collision across concurrent loops)
 
 - **Artifact cleanup is orchestrator-owned:** The engine does NOT manage artifact directories. Orchestrator tracks artifact paths via `onArtifactWrite` callbacks and handles cleanup independently.
 
@@ -200,9 +207,9 @@ To prevent `/tmp/` memory leaks across multiple loops:
 
 Text history and visual artifacts are handled separately:
 
-**`.loop-history.md`** — text compaction for all loop types:
+**`.loop-history-{loopID}.md`** — text compaction for all loop types:
 
-Written to the project root before each retry. Appended to `contextFiles` so agents read it as file context, not job description noise.
+Written to the project root before each retry. Appended to `contextFiles` so agents read it as file context, not job description noise. Includes loopID in filename to prevent collision across concurrent loops.
 
 ```typescript
 function compactHistory(history: AttemptRecord[]): string {
@@ -354,19 +361,13 @@ Verification is driven by `SuccessCriterion.type`. The engine routes to the appr
 
 ### Automated Verification (runtime-evaluated, no LLM)
 
-**`{ type: 'test' | 'build' | 'lint' | 'command' }`:**
-```typescript
-// Engine runs command directly, evaluates exit code
-const exitCode = spawnSync(command, { shell: true });
-const passed = exitCode === (success.expectExitCode ?? 0);
-```
-No LLM involved. Deterministic. Fast.
+**`{ type: 'test' | 'build' | 'lint' | 'command' | 'fileExists' }`:**
+1. Engine dispatches to a test-runner agent (or `@fixer` with a focused prompt) via BackgroundJobBoard
+2. Agent runs the command, evaluates exit code or file existence
+3. Agent returns structured result: `{ passed: boolean, reason: string }`
+4. Engine evaluates result — no LLM involved. Deterministic. Fast.
 
-**`{ type: 'fileExists' }`:**
-```typescript
-const passed = fs.existsSync(success.path);
-```
-No LLM involved. Deterministic.
+This uses the same dispatch mechanism as oracle/observer. The engine does not execute commands directly — it delegates to an agent that has shell access.
 
 ### Subjective Verification (LLM-based)
 
@@ -391,12 +392,14 @@ No LLM involved. Deterministic.
 **`{ type: 'manual' }`:**
 1. Engine transitions to `verifying` phase
 2. Engine fires `onManualReview(loopID, reason)` callback
-3. Engine stops dispatching — session enters a waiting state (phase stays `verifying`, no active job)
+3. Engine stops dispatching — session enters a waiting state (phase stays `verifying`, no active job, **no BackgroundJob created**)
 4. Orchestrator surfaces the review request to the human
 5. Human responds with pass/fail via orchestrator → orchestrator calls `engine.resolveManualReview(loopID, passed, reason)`
 6. Engine resumes: `passed` → `done`, `!passed` → retry or escalate based on attempt count
 
 **Manual verification is the simplest on-ramp.** No LLM involved. Human decides. Proven by autoresearch — Karpathy's entire loop is manual inspection. Use when automated verification isn't worth the setup cost, or when you want to eyeball results before committing to a verification criteria.
+
+**No BackgroundJob for manual verification.** The BackgroundJobBoard tracks running jobs only. Manual review is an engine-level waiting state, not a job.
 
 ### Council — Layer 0 Escalation Only
 
