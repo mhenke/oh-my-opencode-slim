@@ -1037,8 +1037,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       input: Record<string, never>,
       output: { messages: unknown[] },
     ): Promise<void> => {
-      const typedOutput = output as { messages: unknown[] };
-      const messages = typedOutput.messages.filter(isMessageWithParts);
+      const messages = output.messages.filter(isMessageWithParts);
 
       for (const message of messages) {
         if (!isUserMessageWithParts(message)) {
