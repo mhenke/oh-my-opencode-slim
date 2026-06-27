@@ -72,6 +72,7 @@ States: executing | verifying | done | escalated | cancelled
 
 Transitions:
   executing  → verifying    (on job completed)
+  executing  → escalated    (on dispatch/execution error — API down, token limit, etc.)
   verifying  → done         (on verification passed)
   verifying  → executing    (on verification failed, attempts < maxAttempts)
   verifying  → escalated    (on verification failed, attempts >= maxAttempts)
@@ -81,7 +82,7 @@ Transitions:
   cancelled  → (terminal)
 ```
 
-**`oracleRetryCount` lifecycle:** Reset to `0` on every `executing` transition. Increment on Oracle retry. Max 1 retry (retry count < 1 before re-dispatch). If second parse fails → fail closed.
+**`oracleRetryCount` lifecycle:** Reset to `0` on every `executing` transition. Increment on Oracle retry. Max 1 retry (retry if count == 0, i.e. first failure). If second parse fails → fail closed.
 
 **Design decisions:**
 - `planning` removed — `LoopDefinition` is fully formed from Grill. Loop starts in `executing` immediately dispatching executeAgent.
@@ -106,6 +107,9 @@ type SuccessCriterion =
   | { type: 'command'; command: string; expectExitCode?: number }  // customizable
   | { type: 'oracle' }                                        // Oracle returns structured JSON (subjective)
   | { type: 'observer' };                                     // Observer reads visual artifacts (subjective)
+  | { type: 'manual' };                                       // human reviews and decides
+
+// MVP implements: 'test', 'oracle', 'observer', 'manual'. Others deferred.
 
 interface LoopDefinition {
   goal: string;
@@ -119,6 +123,8 @@ interface LoopDefinition {
   verifyAgent: 'oracle' | 'observer' | 'test';
   // CONSTRAINT: executeAgent and verifyAgent MUST be different agents
   // Validation: startLoop() throws if executeAgent === verifyAgent
+  // ROUTING: When success.type is test/build/lint/command/fileExists, engine runs command directly (no agent dispatch).
+  //          verifyAgent is only used when success.type is oracle or observer.
   contextFiles?: string[];
   // trigger, worktree, memory: deferred to Future Extensions (see below)
 }
@@ -130,6 +136,7 @@ interface AttemptRecord {
   attemptNumber: number;
   executionResult: string;
   verificationResult: VerificationResult;
+  artifactPaths?: string[];  // visual artifacts from executing phase (for UI loops)
 }
 ```
 
@@ -178,14 +185,15 @@ When convergence signals exceed threshold:
 To prevent `/tmp/` memory leaks across multiple loops:
 
 - **Terminal states trigger cleanup:** When state transitions to `done`, `escalated`, or `cancelled`, the engine synchronously deletes:
-  - `session.artifactDir` (`/tmp/loop-{loopID}/`)
   - `.loop-history.md`
+
+- **Artifact cleanup is orchestrator-owned:** The engine does NOT manage artifact directories. Orchestrator tracks artifact paths via `onArtifactWrite` callbacks and handles cleanup independently.
 
 - **Cancellation also triggers cleanup:** If user triggers `cancel(loopID)`, the engine transitions to `cancelled`, cleans up, fires `onLoopComplete(false)` (not `onEscalated`). Quiet shutdown — no error escalation.
 
 - **"Modify definition and retry" during `escalated`:** Human decides to modify and retry → engine does NOT reuse the session. Instead:
   1. Call `cancel(loopID)` → triggers `cancelled` cleanup
-  2. Call `startLoop(newDefinition)` → fresh `loopID`, fresh artifact directory
+  2. Call `startLoop(newDefinition)` → fresh `loopID`
   This ensures no stale state from the failed loop leaks into the retry.
 
 ### Context Compaction via .loop-history.md and Session Artifact Directory
@@ -202,7 +210,10 @@ function compactHistory(history: AttemptRecord[]): string {
     const outcome = a.verificationResult.passed
       ? 'PASS'
       : `FAIL: ${a.verificationResult.reason}`;
-    return `[Attempt ${i + 1}] ${outcome}`;
+    const artifacts = a.artifactPaths?.length
+      ? ` → artifacts: ${a.artifactPaths.join(', ')}`
+      : '';
+    return `[Attempt ${i + 1}] ${outcome}${artifacts}`;
   });
   return `# Loop Attempt History\n\n${lines.join('\n')}\n`;
 }
@@ -229,25 +240,7 @@ Engine reads artifact paths from completed job, includes them in Observer's `con
 
 ### Trigger Architecture
 
-The loop can be invoked via multiple trigger types:
-
-```typescript
-type LoopTriggerType = 'manual' | 'schedule' | 'webhook' | 'event';
-
-interface LoopTrigger {
-  type: LoopTriggerType;
-  condition: string;  // cron expression, webhook path, event filter
-}
-```
-
-**MVP scope:** Only `manual` ( `/loop` command) is implemented. The `LoopTrigger` interface is defined so future trigger types can be added without redesigning the engine.
-
-**Future triggers (deferred):**
-- `schedule` — cron-based invocation (e.g., "run every 2 hours")
-- `webhook` — HTTP endpoint that starts a loop
-- `event` — event-driven (e.g., GitHub PR opened, Sentry error spike)
-
-**Trigger routing:** `startLoop(definition)` accepts an optional `definition.trigger`. If `trigger.type !== 'manual'`, engine notifies orchestrator to route to the appropriate trigger handler. Orchestrator owns trigger registration, not the engine.
+**MVP scope:** Only `manual` (`/loop` command) is implemented. Trigger types (`schedule`, `webhook`, `event`) will be defined in Phase 4 when automation is implemented.
 
 **Worktree isolation and cross-loop memory** are deferred to Future Extensions. See "Future Extensions" section below for interface definitions and implementation notes.
 
@@ -279,18 +272,8 @@ Orchestrator follows skill's Grill instructions → collects LoopDefinition via 
 Orchestrator calls loopEngine.startLoop(definition)
   → engine validates: executeAgent !== verifyAgent (throws if equal)
   → engine creates LoopSession (phase: executing, attempts: 1)
-  → if definition.worktree?.enabled:
-      → session.worktreeReady = false
-      → engine fires onWorktreeCreate(loopID, "loop-{loopID}") callback
-      → orchestrator creates worktree via using-git-worktrees skill
-      → orchestrator calls engine.setWorktreeReady(loopID) when ready
-  → if definition.memory?.enabled:
-      → session.memoryLoaded = false
-      → engine reads .loop-memory.md, fires onMemoryRead(loopID, memory) callback
-      → orchestrator calls engine.setMemoryLoaded(loopID, memory) when ready
   → engine writes empty .loop-history.md
-  → engine creates /tmp/loop-{loopID}/ artifact directory
-  → engine dispatches executeAgent (execution job) [only after worktreeReady && memoryLoaded if configured]
+  → engine dispatches executeAgent (execution job)
   → returns loopID immediately to orchestrator (non-blocking)
   ↓
 BackgroundJobBoard.runJob(executing)
@@ -460,6 +443,7 @@ Council is reserved for Layer 0 escalation: when `escalated` fires, Orchestrator
 - **Cross-loop memory** — deferred to Future Extensions. MVP uses per-session history only.
 - **Trigger automation** — deferred to Future Extensions. Only 'manual' (`/loop` command) in MVP.
 - **Fuzzy verification** — SuccessCriterion only supports binary outcomes. No engagement metrics or content quality scoring.
+- **Token budget / cost controls** — `maxAttempts` limits iterations but not token spend per iteration. Deferred to post-MVP.
 - **MCP connectors** — no GitHub Issues, Slack, Sentry integration
 - Persistence layer (in-memory only for session; file-based for `.loop-history.md`)
 - New hooks or infrastructure beyond orchestration wiring
@@ -516,7 +500,7 @@ Our architecture is ahead of both on the verification and trigger fronts, but be
 **Phased roadmap:**
 - **Phase 1**: Runtime loop engine (this PR)
 - **Phase 2**: Loop skill (Grill + Monitor)
-- **Phase 3**: Routine integration
+- **Phase 3**: Routine integration — loop engine plugs into existing oh-my-opencode-slim workflow routines
 - **Phase 4**: Triggers (cron, webhooks)
 - **Phase 5**: Persistent memory (cross-loop)
 
@@ -548,37 +532,11 @@ This progression mirrors how users adopt loop engineering and reduces implementa
 
 ## Future Extensions (Deferred — Not in MVP)
 
-These interfaces are defined here for reference but NOT embedded in `LoopDefinition` or `LoopSession` for MVP. They will be added via extension when the corresponding features are implemented.
+These features are deferred. Interfaces will be defined when implementation begins.
 
-### LoopTrigger
-```typescript
-export type LoopTriggerType = 'manual' | 'schedule' | 'webhook' | 'event';
-
-export interface LoopTrigger {
-  type: LoopTriggerType;
-  condition: string;  // cron expression, webhook path, event filter
-}
-```
-When implemented: Add `trigger: LoopTrigger` to `LoopDefinition`.
-
-### LoopWorktreeConfig
-```typescript
-export interface LoopWorktreeConfig {
-  enabled: boolean;
-  branchName?: string;
-  mergeOnSuccess: boolean;
-}
-```
-When implemented: Add `worktree: LoopWorktreeConfig` to `LoopDefinition`, `worktreeName` + `worktreeReady` to `LoopSession`, and `onWorktreeCreate/Merge/Abandon` callbacks.
-
-### LoopMemoryConfig
-```typescript
-export interface LoopMemoryConfig {
-  enabled: boolean;
-  storePath?: string;  // defaults to .loop-memory.md
-}
-```
-When implemented: Add `memory: LoopMemoryConfig` to `LoopDefinition`, `memoryLoaded` to `LoopSession`, and `onMemoryRead/Write` callbacks.
+- **Worktree isolation** — opt-in per LoopDefinition, uses `using-git-worktrees` skill. Prevents parallel loop file collisions.
+- **Cross-loop memory** — `.loop-memory.md` file store. Learns from prior loops: successful strategies, failure patterns, tuned convergence thresholds.
+- **Trigger automation** — cron, webhook, event-driven invocation. `LoopTrigger` interface defined in Phase 4.
 
 ---
 

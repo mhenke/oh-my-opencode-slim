@@ -73,12 +73,10 @@ Update:
 
 Add to `BackgroundJobBoard`:
 ```typescript
-getConsecutiveErrors(taskID: string): number
-getTotalErrors(taskID: string): number
 hasConvergenceSignals(taskID: string, threshold?: number): boolean
 ```
 
-These enable the loop engine to detect stuck patterns and escalate.
+This enables the loop engine to detect stuck patterns and escalate. The engine reads `totalErrors` and `timeoutCount` fields directly for detailed checks.
 
 ### Task 3: BackgroundJobBoard Event Plumbing
 
@@ -119,8 +117,6 @@ export type LoopPhase =
   | 'cancelled';
 
 // Fleet mapping: executeAgent is dynamically selected based on task domain
-// Fleet mapping: executeAgent is dynamically selected based on task domain
-// Fleet mapping: executeAgent is dynamically selected based on task domain
 export type ExecuteAgent = 'fixer' | 'designer' | 'explorer' | 'librarian';
 // Fleet mapping: verifyAgent is dynamically selected based on task domain
 // Note: 'council' is NOT a verifyAgent inside the loop — it is Layer 0 escalation only
@@ -136,8 +132,9 @@ export type SuccessCriterion =
   | { type: 'command'; command: string; expectExitCode?: number }  // customizable
   | { type: 'oracle' }                                        // Oracle returns structured JSON (subjective)
   | { type: 'observer' };                                     // Observer reads visual artifacts (subjective)
+  | { type: 'manual' };                                       // human reviews and decides
 
-// MVP only implements: 'test', 'oracle', 'observer'
+// MVP only implements: 'test', 'oracle', 'observer', 'manual'
 // Others deferred.
 
 export interface LoopDefinition {
@@ -157,13 +154,12 @@ export interface AttemptRecord {
   attemptNumber: number;
   executionResult: string;
   verificationResult: VerificationResult;
+  artifactPaths?: string[];  // visual artifacts from executing phase (for UI loops)
 }
 
-export interface VerificationResult {
-  passed: boolean;
-  reason: string;
-  suggestedFix?: string;
-}
+export type VerificationResult =
+  | { passed: true; reason: string }
+  | { passed: false; reason: string; suggestedFix?: string };
 
 export interface LoopSession {
   loopID: string;
@@ -247,37 +243,7 @@ Engine dispatches first job (checks session.worktreeReady before dispatching)
 
 **File:** `src/council/loop-memory.ts` (new file)
 
-**Purpose:** Learn from prior loops. Store successful strategies, failure patterns, and convergence thresholds across sessions.
-
-**Interface:**
-```typescript
-export interface LoopMemoryStore {
-  patterns: LoopPattern[];       // successful strategies by goal type
-  failures: FailureRecord[];     // failure modes and what worked
-  thresholds: ConvergenceThresholds;  // tuned signal thresholds
-  lastUpdated: number;
-}
-
-export interface LoopPattern {
-  goalType: string;              // e.g., "fix auth", "improve ui"
-  strategy: string;              // what approach worked
-  attemptsRequired: number;
-  timestamp: number;
-}
-
-export interface FailureRecord {
-  goalType: string;
-  failureReason: string;
-  suggestedFix: string;
-  occurrences: number;
-}
-
-export interface ConvergenceThresholds {
-  maxErrors: number;
-  maxTimeouts: number;
-  maxConsecutiveFailures: number;
-}
-```
+**Purpose:** Learn from prior loops. Store successful strategies, failure patterns, and convergence thresholds across sessions. File-based (`.loop-memory.md`) for MVP. Future: GitHub Issues, database. Enables learned strategies and tuned convergence thresholds.
 
 **Read timing (before first dispatch):**
 
@@ -347,8 +313,6 @@ export class LoopEngine {
   cancel(loopID: string): void;
   getSession(loopID: string): LoopSession | undefined;
   listSessions(): LoopSession[];
-  setWorktreeReady(loopID: string): void;  // called by orchestrator after worktree creation
-  setMemoryLoaded(loopID: string, memory: LoopMemoryStore): void;  // called by orchestrator after memory read
 
   private handleTerminalJob(job: BackgroundJobRecord): void;
   private findSessionForJob(taskID: string): LoopSession | undefined;
@@ -420,16 +384,19 @@ job completed (error)     → handleFailure() → may escalate
      // Write to session.historyFilePath (.loop-history.md in project root)
    }
 
-   private compactHistory(session: LoopSession): string {
-     if (session.history.length === 0) return '';
-     const lines = session.history.map((a, i) => {
-       const outcome = a.verificationResult.passed
-         ? 'PASS'
-         : `FAIL: ${a.verificationResult.reason}`;
-       return `[Attempt ${i + 1}] ${outcome}`;
-     });
-     return `# Loop Attempt History\n\n${lines.join('\n')}\n`;
-   }
+    private compactHistory(session: LoopSession): string {
+      if (session.history.length === 0) return '';
+      const lines = session.history.map((a, i) => {
+        const outcome = a.verificationResult.passed
+          ? 'PASS'
+          : `FAIL: ${a.verificationResult.reason}`;
+        const artifacts = a.artifactPaths?.length
+          ? ` → artifacts: ${a.artifactPaths.join(', ')}`
+          : '';
+        return `[Attempt ${i + 1}] ${outcome}${artifacts}`;
+      });
+      return `# Loop Attempt History\n\n${lines.join('\n')}\n`;
+    }
    ```
 
 **Observer artifact transfer:** For UI loops, `verifyAgent = 'observer'`, the executing agent writes visual artifacts to paths. The engine signals `onArtifactWrite(loopID, artifactPath)` so orchestrator can manage artifact lifecycle. Engine does not own filesystem artifacts — only signals when they are written.
@@ -486,7 +453,6 @@ job completed (error)     → handleFailure() → may escalate
     private evaluateVerification(session: LoopSession, job: BackgroundJobRecord): void {
       const result = this.tryParseVerification(job.resultSummary);
       if (result !== null) {
-        session.oracleRetryCount = 0;
         this.transitionToNextPhase(session, result);
         return;
       }
@@ -503,7 +469,7 @@ job completed (error)     → handleFailure() → may escalate
       this.transitionToNextPhase(session, { passed: false, reason: 'Verification output unparseable after retry' });
     }
     ```
-    `oracleRetryCount` is reset to `0` on every `executing` transition. Max 1 retry (retry count < 1). Handles the 12.5% Oracle error rate without infinite loops.
+    `oracleRetryCount` is reset to `0` on every `executing` transition (not on parse success). Max 1 retry (retry if count == 0, i.e. first failure). Handles the 12.5% Oracle error rate without infinite loops.
 
 12. **Session cleanup** — prevents memory leaks:
     ```typescript
@@ -616,7 +582,7 @@ grep -r "deepwork" src/ --include="*.ts"
 - Ready to open now
 
 **PR 2 — Loop Engine (full runtime orchestration)**
-- Tasks 4, 5, 6, 7, 8
+- Tasks 4, 7, 8, 9, 10
 - `LoopSession` + `LoopEngine` event-driven state machine
 - Skill + `/loop` command
 - Tests
@@ -637,29 +603,11 @@ These are the remaining delta between MVP loop engineering and full theory compl
 
 ## Future Extensions (Deferred — Not in MVP)
 
-These interfaces are defined here for completeness but NOT embedded in `LoopDefinition` or `LoopSession` for MVP. They will be added via extension when the corresponding features are implemented.
+These features are deferred. Interfaces will be defined when implementation begins.
 
-### LoopTrigger
-```typescript
-// Trigger types for loop invocation
-export type LoopTriggerType = 'manual' | 'schedule' | 'webhook' | 'event';
-
-export interface LoopTrigger {
-  type: LoopTriggerType;
-  condition: string;  // cron expression, webhook path, event filter
-}
-```
-
-### LoopWorktreeConfig
-```typescript
-// Worktree isolation for parallel loop safety
-export interface LoopWorktreeConfig {
-  enabled: boolean;
-  branchName?: string;  // defaults to loop-{loopID}
-  mergeOnSuccess: boolean;  // merge to main on 'done', abandon on 'escalated'/'cancelled'
-}
-```
-When implemented: Add `worktree: LoopWorktreeConfig` to `LoopDefinition`, `worktreeName` and `worktreeReady` to `LoopSession`, and `onWorktreeCreate/Merge/Abandon` callbacks to `LoopEngineCallbacks`.
+- **Worktree isolation** — opt-in per LoopDefinition, uses `using-git-worktrees` skill. Prevents parallel loop file collisions.
+- **Cross-loop memory** — `.loop-memory.md` file store. Learns from prior loops: successful strategies, failure patterns, tuned convergence thresholds.
+- **Trigger automation** — cron, webhook, event-driven invocation. `LoopTrigger` interface defined in Phase 4.
 
 ### LoopMemoryConfig
 ```typescript
