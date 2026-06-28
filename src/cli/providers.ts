@@ -5,7 +5,7 @@ import type { InstallConfig } from './types';
 const SCHEMA_URL =
   'https://unpkg.com/oh-my-opencode-slim@latest/oh-my-opencode-slim.schema.json';
 
-export const GENERATED_PRESETS = ['openai', 'opencode-go'] as const;
+export const GENERATED_PRESETS = ['openai', 'opencode-go', 'opencode-zen-free'] as const;
 
 // Model mappings by provider/preset.
 export const MODEL_MAPPINGS = {
@@ -53,6 +53,16 @@ export const MODEL_MAPPINGS = {
     designer: { model: 'opencode-go/kimi-k2.6', variant: 'medium' },
     fixer: { model: 'opencode-go/deepseek-v4-flash', variant: 'high' },
     observer: { model: 'opencode-go/kimi-k2.6' },
+  },
+  'opencode-zen-free': {
+    orchestrator: { model: 'opencode/mimo-v2.5-free', temperature: 0.4 },
+    oracle: { model: 'opencode/deepseek-v4-flash-free', temperature: 0.4, variant: 'max' },
+    council: { model: 'opencode/mimo-v2.5-free', temperature: 0.4, variant: 'high' },
+    librarian: { model: 'opencode/mimo-v2.5-free', temperature: 0.2 },
+    explorer: { model: 'opencode/mimo-v2.5-free', temperature: 0.2 },
+    designer: { model: 'opencode/mimo-v2.5-free', temperature: 0.3, variant: 'medium' },
+    fixer: { model: 'opencode/deepseek-v4-flash-free', temperature: 0.2, variant: 'high' },
+    observer: { model: 'opencode/mimo-v2.5-free', temperature: 0.2, variant: 'low' },
   },
 } as const;
 
