@@ -17,6 +17,7 @@ The goal is to identify real repeated friction and suggest practical improvement
 Use Reflect when the user asks to:
 
 - run `/reflect` or `/reflect <focus>`;
+- run `/reflect --global` for cross-repo reflection;
 - learn from recent sessions or repeated workflows;
 - find work they keep doing manually;
 - improve their oh-my-opencode-slim setup based on actual usage using oh-my-opencode-slim skill;
@@ -25,6 +26,32 @@ Use Reflect when the user asks to:
 
 Do not use Reflect for ordinary implementation work, one-off debugging, broad
 architecture review, or speculative agent creation without workflow evidence.
+
+## Global Mode
+
+When the user includes `--global` in their reflect command, shift the evidence
+sources: logs become primary for repo discovery, and per-repo project files
+become the basis for pattern detection.
+
+Use available evidence in this order:
+
+1. **OpenCode logs** — Read `~/.local/share/opencode/log/opencode.log` to discover
+   repos. Look for lines containing `message="creating instance"` and extract
+   the `directory=<path>` value. Collect unique repo paths.
+2. **Per-repo project files** — For each discovered repo that still exists on disk,
+   read `AGENTS.md` (or just its headings if the file is long) and list the
+   contents of `.opencode/` (and `.slim/` if present).
+3. **Current project files** — The repo where reflect was invoked. Its AGENTS.md,
+   `.opencode/`, and `.slim/` are the baseline for comparison.
+4. **Existing assets** — Same as local mode: skills, commands, agents, prompt
+   overrides, MCP permissions, config.
+
+Synthesize cross-repo patterns: which configs repeat, which skills are duplicated,
+which workflows are re-invented per-repo instead of shared. Return the same compact
+report format (Findings / Recommended changes / Skipped / Needs more evidence).
+
+Respect privacy: read only AGENTS.md, `.opencode/`, and `.slim/`. Do not read
+source code files, commit history, or personal documents.
 
 ## Core Contract
 
@@ -66,6 +93,8 @@ Reflect can be triggered directly:
 ```text
 /reflect
 /reflect release workflow and checks
+/reflect --global
+/reflect --global dependency patterns
 ```
 
 With no arguments, review recent work broadly. With arguments, focus the review
