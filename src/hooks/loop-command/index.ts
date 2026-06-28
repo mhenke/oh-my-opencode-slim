@@ -25,7 +25,7 @@ function activationPrompt(text: string): string {
     `1. Read \`${dir}/\` for prior results`,
     '2. Dispatch @fixer with the goal',
     '3. Verify per the successCriteria',
-    `4. Write result to \`${dir}/attempt-{N}.md\` (PASS/FAIL + reason)`,
+    `4. Write result to \`${dir}/history-{NNN}.md\` (PASS/FAIL + reason)`,
     '5. PASS -> stop. FAIL under maxAttempts -> retry. FAIL at max -> escalate.',
   ].join('\n');
 }
