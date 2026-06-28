@@ -20,7 +20,7 @@ It uses deepseek-v4-flash-free for high-volume coding tasks and big-pickle for d
       "librarian": { "model": "opencode/deepseek-v4-flash-free", "temperature": 0.2, "skills": [], "mcps": ["websearch", "context7", "gh_grep"] },
       "designer": { "model": "opencode/mimo-v2.5-free", "temperature": 0.3, "variant": "medium", "skills": [], "mcps": [] },
       "fixer": { "model": "opencode/deepseek-v4-flash-free", "temperature": 0.2, "variant": "high", "skills": [], "mcps": [] },
-      "observer": { "model": "opencode/mimo-v2.5-free", "temperature": 0.2, "variant": "low", "skills": [], "mcps": [] }
+      "observer": { "model": "opencode/north-mini-code-free", "temperature": 0.2, "variant": "low", "skills": [], "mcps": [] }
     }
   }
 }
@@ -36,7 +36,7 @@ It uses deepseek-v4-flash-free for high-volume coding tasks and big-pickle for d
 | Librarian | deepseek-v4-flash-free | Documentation lookup and summarization don't require MiMo's planning strength |
 | Designer | mimo-v2.5-free | Better for higher-level UI structure and planning |
 | Fixer | deepseek-v4-flash-free | Excellent for iterative implementation |
-| Observer | mimo-v2.5-free | Visual analysis |
+| Observer | north-mini-code-free | Visual analysis |
 
 ## Available Free Models
 
