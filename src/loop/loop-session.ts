@@ -1,5 +1,21 @@
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+
+const HISTORY_DIR = join(process.cwd(), '.opencode', 'loop-history');
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/(^-|-$)/g, '')
+    .slice(0, 40);
+}
+
+export function loopDirname(loopID: string, goal: string): string {
+  const parts = loopID.split('-');
+  const shortID = parts[parts.length - 1] ?? loopID;
+  return `${slugify(goal)}-${shortID}`;
+}
 
 export type LoopPhase =
   | 'executing'
@@ -29,6 +45,7 @@ export interface LoopDefinition {
   executeAgent: ExecuteAgent;
   verifyAgent: VerifyAgent;
   contextFiles?: string[];
+  parentSessionID?: string;
 }
 
 export type VerificationResult =
@@ -49,7 +66,7 @@ export interface LoopSession {
   attempts: number;
   activeJobID?: string;
   history: AttemptRecord[];
-  historyFilePath: string;
+  historyDir: string;
   manualReviewPending: boolean;
 }
 
@@ -57,33 +74,44 @@ export function createLoopSession(
   definition: LoopDefinition,
   loopID: string,
 ): LoopSession {
-  const historyFilePath = join(process.cwd(), `.loop-history-${loopID}.md`);
+  const dir = join(HISTORY_DIR, loopDirname(loopID, definition.goal));
   return {
     loopID,
     definition,
     currentPhase: 'executing',
     attempts: 1,
     history: [],
-    historyFilePath,
     manualReviewPending: false,
+    historyDir: dir,
   };
 }
 
-export function compactHistory(history: AttemptRecord[]): string {
-  if (history.length === 0) return '';
-  const lines = history.map((attempt, index) => {
-    const outcome = attempt.verificationResult.passed
-      ? 'PASS'
-      : `FAIL: ${attempt.verificationResult.reason}`;
-    const artifacts = attempt.artifactPaths?.length
-      ? ` → artifacts: ${attempt.artifactPaths.join(', ')}`
-      : '';
-    return `[Attempt ${index + 1}] ${outcome}${artifacts}`;
-  });
-  return `# Loop Attempt History\n\n${lines.join('\n')}\n`;
+export function compactAttempt(attempt: AttemptRecord): string {
+  const outcome = attempt.verificationResult.passed
+    ? 'PASS'
+    : `FAIL: ${attempt.verificationResult.reason}`;
+  const artifacts = attempt.artifactPaths?.length
+    ? `\n  → artifacts: ${attempt.artifactPaths.join(', ')}`
+    : '';
+  return `## Attempt ${attempt.attemptNumber}
+
+**Outcome:** ${outcome}${artifacts}
+
+### Execution Result
+\`\`\`
+${attempt.executionResult}
+\`\`\`
+`;
 }
 
 export function writeHistoryFile(session: LoopSession): void {
-  const content = compactHistory(session.history);
-  writeFileSync(session.historyFilePath, content, { encoding: 'utf-8' });
+  const lastAttempt = session.history.at(-1);
+  if (!lastAttempt) return;
+  const attemptFile = join(
+    session.historyDir,
+    `history-${String(session.attempts).padStart(3, '0')}.md`,
+  );
+  mkdirSync(session.historyDir, { recursive: true });
+  const content = compactAttempt(lastAttempt);
+  writeFileSync(attemptFile, content, { encoding: 'utf-8' });
 }
