@@ -107,7 +107,9 @@ function buildAcpAgentDefinition(
       `You are the ${name} ACP wrapper agent.`,
       '',
       'Your only job is to send the user task to the configured external ACP agent using the acp_run tool, then return the ACP agent result.',
-      `Always call acp_run with agent: ${JSON.stringify(name)} and pass the full user task as prompt.`,
+      `Always call acp_run with agent: ${JSON.stringify(
+        name,
+      )} and pass the full user task as prompt.`,
       'Do not edit files yourself unless the ACP result explicitly asks you to report a local follow-up to the orchestrator.',
     ].join('\n');
 
@@ -176,6 +178,9 @@ function applyOverrides(
   }
   if (override.displayName) {
     agent.displayName = override.displayName;
+  }
+  if (override.permission) {
+    agent.config.permission = override.permission;
   }
 }
 
@@ -253,6 +258,13 @@ function applyDefaultPermissions(
   configuredSkills?: string[],
   disabledSkills?: string[],
 ): void {
+  // If the user supplied a shorthand string permission (e.g. "ask"),
+  // it already applies to all tools — preserve it as-is and skip the
+  // object merge, which would corrupt it by spreading the string.
+  if (typeof agent.config.permission === 'string') {
+    return;
+  }
+
   const existing = (agent.config.permission ?? {}) as Record<
     string,
     'ask' | 'allow' | 'deny' | Record<string, 'ask' | 'allow' | 'deny'>
@@ -479,14 +491,14 @@ export function createAgents(config?: PluginConfig): AgentDefinition[] {
     orchestratorPrompts.appendPrompt,
     disabled,
   );
+  if (orchestratorOverride) {
+    applyOverrides(orchestrator, orchestratorOverride);
+  }
   applyDefaultPermissions(
     orchestrator,
     orchestratorOverride?.skills,
     config?.disabled_skills,
   );
-  if (orchestratorOverride) {
-    applyOverrides(orchestrator, orchestratorOverride);
-  }
 
   // Collect all display names from orchestrator and all subagents
   const displayNameMap = new Map<string, string>();
@@ -512,7 +524,9 @@ export function createAgents(config?: PluginConfig): AgentDefinition[] {
     if (acp?.orchestratorPrompt) return acp.orchestratorPrompt;
     return [
       `@${agent.name}`,
-      `- Lane: External ACP-connected agent (${acp?.command ?? 'unknown command'})`,
+      `- Lane: External ACP-connected agent (${
+        acp?.command ?? 'unknown command'
+      })`,
       `- Role: ${agent.description ?? `External ACP agent ${agent.name}`}`,
       '- **Delegate when:** The user explicitly asks for this ACP-backed agent, or the task matches its role and benefits from software/subscription-specific capabilities outside OpenCode.',
       '- **Do not delegate when:** The built-in specialists can handle the task more directly or local file ownership would conflict with another writer lane.',
@@ -568,9 +582,9 @@ export function createAgents(config?: PluginConfig): AgentDefinition[] {
       return text;
     });
 
-    orchestrator.config.prompt = `${orchestrator.config.prompt}\n\n${rewrittenPrompts.join(
-      '\n\n',
-    )}`;
+    orchestrator.config.prompt = `${
+      orchestrator.config.prompt
+    }\n\n${rewrittenPrompts.join('\n\n')}`;
   }
 
   return [orchestrator, ...allSubAgents];
