@@ -35,22 +35,20 @@ repeated patterns, friction, and improvement opportunities.
 
 ### Session Discovery
 
-1. **Extract session IDs** — Use Bash to grep the OpenCode log file:
+1. **Load recent sessions** — Query the SQLite database directly:
    ```bash
-   grep -oP 'session\.id=ses_[a-f0-9]+' ~/.local/share/opencode/log/opencode.log
+   bun -e "import Database from 'bun:sqlite'; const db = new Database('/home/mhenke/.local/share/opencode/opencode.db'); console.log(db.query('SELECT id, directory, title, agent, model, time_created, cost, tokens_input, tokens_output FROM session ORDER BY time_created DESC LIMIT 50').all())"
    ```
-   Collect unique session IDs. Sort by appearance (most recent first).
-   Cap at N sessions (default 50, configurable via `--last N`).
+   Adjust `LIMIT 50` to `--last N` if specified.
 
-2. **Load session metadata** — For each session ID, query the SQLite database:
-   ```bash
-   bun -e "import Database from 'bun:sqlite'; const db = new Database('/home/mhenke/.local/share/opencode/opencode.db'); console.log(db.query('SELECT id, directory, title, agent, model, time_created, cost, tokens_input, tokens_output FROM session WHERE id = ?').all('ses_14de9c68effegtZtlATm42wnz7'))"
-   ```
+   **Session table columns:** `id, directory, title, agent, model, time_created, cost, tokens_input, tokens_output`
 
-3. **Load session messages** — Query the message table:
+2. **Load session messages** — For each session ID, query the message table:
    ```bash
    bun -e "import Database from 'bun:sqlite'; const db = new Database('/home/mhenke/.local/share/opencode/opencode.db'); console.log(db.query('SELECT data FROM message WHERE session_id = ?').all('ses_14de9c68effegtZtlATm42wnz7'))"
    ```
+
+   **Message table columns:** `id, session_id, time_created, time_updated, data` (data is JSON with role, agent, model, summary, etc.)
 
 ### Per-Session Analysis
 
