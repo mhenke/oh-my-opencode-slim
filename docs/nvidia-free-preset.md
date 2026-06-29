@@ -30,7 +30,7 @@ It uses step-3.5-flash for high-volume coding tasks and deepseek-v4-pro for deep
 
 | Agent | Model | Why |
 |-------|-------|-----|
-| Orchestrator | MiniMax M2.7 | Best planner |
+| Orchestrator | MiniMax M3 | Snappy, efficient central conductor |
 | Oracle | DeepSeek V4 Pro (max) | Deep reasoning/review |
 | Explorer | Step 3.5 Flash | High-context directory mapping, less-crowded endpoint |
 | Librarian | Kimi K2.6 | Documentation lookup and summarization |
@@ -40,10 +40,9 @@ It uses step-3.5-flash for high-volume coding tasks and deepseek-v4-pro for deep
 
 ## Available Free Models
 
-- `nvidia/minimaxai/minimax-m2.7` — well-rounded planner
+- `nvidia/minimaxai/minimax-m3` — snappy conductor for orchestration + design
 - `nvidia/deepseek-ai/deepseek-v4-pro` — deep reasoning
 - `nvidia/stepfun-ai/step-3.5-flash` — fast directory mapping and code exploration
 - `nvidia/moonshotai/kimi-k2.6` — good for research and summarization
-- `nvidia/minimaxai/minimax-m3` — UI/UX and design
 - `nvidia/mistralai/mistral-small-4-119b-2603` — extremely fast and obedient for iterative code edits and diff application
 - `nvidia/nemotron-3-ultra-550b-a55b` — visual analysis
