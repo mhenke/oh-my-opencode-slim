@@ -225,6 +225,7 @@
             "auto",
             "tmux",
             "zellij",
+            "herdr",
             "none"
           ]
         },
