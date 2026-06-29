@@ -32,7 +32,7 @@ import {
   ForegroundFallbackManager,
 } from './hooks';
 import { processImageAttachments } from './hooks/image-hook';
-import { isMessageWithParts, isUserMessageWithParts } from './hooks/types';
+import type { MessageWithParts } from './hooks/types';
 import { createInterviewManager } from './interview';
 import { createBuiltinMcps } from './mcp';
 import {
@@ -188,8 +188,8 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
     disabledAgents = getDisabledAgents(config);
     rewriteDisplayNameMentions = createDisplayNameMentionRewriter(config);
-    agentDefs = createAgents(config);
-    agents = getAgentConfigs(config);
+    agentDefs = createAgents(config, { projectDirectory: ctx.directory });
+    agents = getAgentConfigs(config, { projectDirectory: ctx.directory });
 
     // Build model array map and runtime fallback chains from _modelArray
     // entries (when the user configures model as an array in
@@ -1031,14 +1031,12 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     // API (doesn't show in UI)
     'experimental.chat.messages.transform': async (
       input: Record<string, never>,
-      output: { messages?: unknown },
+      output: { messages: unknown[] },
     ): Promise<void> => {
-      const messages = (
-        Array.isArray(output.messages) ? output.messages : []
-      ).filter(isMessageWithParts);
+      const typedOutput = output as { messages: MessageWithParts[] };
 
-      for (const message of messages) {
-        if (!isUserMessageWithParts(message)) {
+      for (const message of typedOutput.messages) {
+        if (message.info.role !== 'user') {
           continue;
         }
         for (const part of message.parts) {
@@ -1055,7 +1053,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       // image bytes with a text nudge so the orchestrator delegates to
       // @observer instead.
       processImageAttachments({
-        messages,
+        messages: typedOutput.messages,
         workDir: ctx.directory,
         disabledAgents,
         log,
@@ -1063,14 +1061,15 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
       await taskSessionManagerHook['experimental.chat.messages.transform'](
         input,
-        { messages },
+        typedOutput,
       );
-      await phaseReminderHook['experimental.chat.messages.transform'](input, {
-        messages,
-      });
+      await phaseReminderHook['experimental.chat.messages.transform'](
+        input,
+        typedOutput,
+      );
       await filterAvailableSkillsHook['experimental.chat.messages.transform'](
         input,
-        { messages },
+        typedOutput,
       );
     },
 

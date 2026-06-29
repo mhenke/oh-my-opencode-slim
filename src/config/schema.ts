@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { AGENT_ALIASES, ALL_AGENT_NAMES } from './constants';
 import { CouncilConfigSchema } from './council-schema';
 
 const MANUAL_AGENT_NAMES = [
@@ -55,46 +54,6 @@ export type ManualAgentName = (typeof MANUAL_AGENT_NAMES)[number];
 export type ManualAgentPlan = z.infer<typeof ManualAgentPlanSchema>;
 export type ManualPlan = z.infer<typeof ManualPlanSchema>;
 
-// Permission schemas — mirror the SDK's PermissionConfig type with shallow
-// validation. Action values are validated; unknown tool keys pass through.
-const PermissionActionSchema = z.enum(['ask', 'allow', 'deny']);
-
-// A rule key accepts either a single action (whole-tool default) or a
-// pattern→action map (e.g. bash: { "git status*": "allow", "*": "ask" })
-const PermissionRuleSchema = z.union([
-  PermissionActionSchema,
-  z.record(z.string(), PermissionActionSchema),
-]);
-
-// Known keys are typed for typo protection; .catchall() types the index
-// signature to match the SDK's PermissionConfig, so no cast is needed at
-// the assignment site. Unknown tool keys are still validated as rules.
-const PermissionObjectSchema = z
-  .object({
-    read: PermissionRuleSchema.optional(),
-    edit: PermissionRuleSchema.optional(),
-    glob: PermissionRuleSchema.optional(),
-    grep: PermissionRuleSchema.optional(),
-    list: PermissionRuleSchema.optional(),
-    bash: PermissionRuleSchema.optional(),
-    task: PermissionRuleSchema.optional(),
-    external_directory: PermissionRuleSchema.optional(),
-    lsp: PermissionRuleSchema.optional(),
-    skill: PermissionRuleSchema.optional(),
-    todowrite: PermissionActionSchema.optional(),
-    question: PermissionActionSchema.optional(),
-    webfetch: PermissionActionSchema.optional(),
-    websearch: PermissionActionSchema.optional(),
-    codesearch: PermissionActionSchema.optional(),
-    doom_loop: PermissionActionSchema.optional(),
-  })
-  .catchall(PermissionRuleSchema);
-
-export const PermissionConfigSchema = z.union([
-  PermissionActionSchema,
-  PermissionObjectSchema,
-]);
-
 // Agent override configuration (distinct from SDK's AgentConfig)
 export const AgentOverrideConfigSchema = z
   .object({
@@ -122,7 +81,6 @@ export const AgentOverrideConfigSchema = z
     orchestratorPrompt: z.string().min(1).optional(),
     options: z.record(z.string(), z.unknown()).optional(), // provider-specific model options (e.g., textVerbosity, thinking budget)
     displayName: z.string().min(1).optional(),
-    permission: PermissionConfigSchema.optional(), // tool-level permission rules enforced by the SDK
   })
   .strict();
 
@@ -298,33 +256,18 @@ export type AcpAgentPermissionMode = z.infer<
 export type AcpAgentConfig = z.infer<typeof AcpAgentConfigSchema>;
 export type AcpAgentsConfig = z.infer<typeof AcpAgentsConfigSchema>;
 
-function validateCustomOnlyPromptFields(
+function rejectOrchestratorPromptOnOrchestrator(
   overrides: Record<string, z.infer<typeof AgentOverrideConfigSchema>>,
   ctx: z.RefinementCtx,
   pathPrefix: Array<string | number>,
 ): void {
   for (const [name, override] of Object.entries(overrides)) {
-    const isBuiltInOrAlias =
-      (ALL_AGENT_NAMES as readonly string[]).includes(name) ||
-      AGENT_ALIASES[name] !== undefined;
-
-    if (!isBuiltInOrAlias) {
-      continue;
-    }
-
-    if (override.prompt !== undefined) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: [...pathPrefix, name, 'prompt'],
-        message: 'prompt is only supported for custom agents',
-      });
-    }
-
-    if (override.orchestratorPrompt !== undefined) {
+    if (name === 'orchestrator' && override.orchestratorPrompt !== undefined) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: [...pathPrefix, name, 'orchestratorPrompt'],
-        message: 'orchestratorPrompt is only supported for custom agents',
+        message:
+          'orchestratorPrompt is not supported for the orchestrator agent',
       });
     }
   }
@@ -334,17 +277,15 @@ export const PluginConfigSchema = z
   .object({
     preset: z.string().optional(),
     setDefaultAgent: z.boolean().optional(),
+    compactSidebar: z
+      .boolean()
+      .optional()
+      .describe('Use the compact TUI sidebar layout when enabled.'),
     autoUpdate: z
       .boolean()
       .optional()
       .describe(
         'Disable automatic installation of plugin updates when false. Defaults to true.',
-      ),
-    compactSidebar: z
-      .boolean()
-      .optional()
-      .describe(
-        'Render each agent on a single line in the TUI sidebar instead of the default multi-line layout. Default false.',
       ),
     presets: z.record(z.string(), PresetSchema).optional(),
     agents: z.record(z.string(), AgentOverrideConfigSchema).optional(),
@@ -385,12 +326,15 @@ export const PluginConfigSchema = z
   })
   .superRefine((value, ctx) => {
     if (value.agents) {
-      validateCustomOnlyPromptFields(value.agents, ctx, ['agents']);
+      rejectOrchestratorPromptOnOrchestrator(value.agents, ctx, ['agents']);
     }
 
     if (value.presets) {
       for (const [presetName, preset] of Object.entries(value.presets)) {
-        validateCustomOnlyPromptFields(preset, ctx, ['presets', presetName]);
+        rejectOrchestratorPromptOnOrchestrator(preset, ctx, [
+          'presets',
+          presetName,
+        ]);
       }
     }
   });
