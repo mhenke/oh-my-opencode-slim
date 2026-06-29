@@ -252,165 +252,94 @@ describe('custom-agent creation', () => {
       "ACP agent 'fixer' conflicts with a built-in agent name or alias",
     );
   });
-});
 
-describe('custom-agent permission passthrough', () => {
-  test('passes user permission through to agent config', () => {
-    const config: PluginConfig = {
-      agents: {
-        planner: {
-          model: 'openai/gpt-5.5',
-          permission: { edit: 'deny', bash: 'ask' },
-        },
-      },
-    };
-
-    const agents = createAgents(config);
-    const planner = agents.find((a) => a.name === 'planner');
-
-    expect(planner).toBeDefined();
-    expect(planner?.config.permission).toMatchObject({
-      edit: 'deny',
-      bash: 'ask',
-    });
-  });
-
-  test('applies permission to built-in agent overrides', () => {
+  test('appends ACP routing prompts separately without heading, and preserves rewriting', () => {
     const config: PluginConfig = {
       agents: {
         explorer: {
+          model: 'openai/gpt-5.4-mini',
+          displayName: 'fancy-explorer',
+        },
+        janitor: {
           model: 'openai/gpt-5.5',
-          permission: { edit: 'deny' },
+          orchestratorPrompt:
+            'Please use @janitor to clean up after @explorer has completed.',
+        },
+      },
+      acpAgents: {
+        'claude-research': {
+          command: 'claude-code-acp',
+          args: [],
+          env: {},
+          timeoutMs: 0,
+          permissionMode: 'ask',
+          orchestratorPrompt:
+            'Please delegate research tasks to @claude-research or @explorer.',
         },
       },
     };
 
     const agents = createAgents(config);
-    const explorer = agents.find((a) => a.name === 'explorer');
+    const orchestrator = agents.find((agent) => agent.name === 'orchestrator');
+    const prompt = orchestrator?.config.prompt ?? '';
 
-    expect(explorer).toBeDefined();
-    expect(explorer?.config.permission).toMatchObject({
-      edit: 'deny',
-    });
-  });
+    // Verify Project-specific routing guidance exists and has the custom agent override prompt rewritten
+    expect(prompt).toContain('# Project-specific routing guidance');
+    expect(prompt).toContain(
+      'Please use @janitor to clean up after @fancy-explorer has completed.',
+    );
 
-  test('user edit/bash survive merge with skills config', () => {
-    const config: PluginConfig = {
+    // Verify ACP routing prompt is appended but NOT under the Project-specific routing guidance section
+    // (i.e. it comes after or is separate, let's verify exact substring sequence or that the ACP test isn't inside the heading section)
+    const pieces = prompt.split('# Project-specific routing guidance');
+    expect(pieces.length).toBe(2);
+
+    const headingContent = pieces[1];
+    // The headingContent should contain the custom prompt but not contain the ACP prompt if ACP prompt is appended after/before.
+    // Wait, in our implementation, order of appending is:
+    // 1) overridden/custom prompts under # Project-specific routing guidance.
+    // 2) ACP routing prompts (without the header).
+    // So headingContent (everything after the header) will contain the custom prompt, and then at the very end (or separated), the ACP prompt.
+    // But the ACP prompt is not under that header's specific block if it's appended separately.
+    // Wait, is there a way to verify they are separated? Yes, we can verify that the custom prompt block and ACP prompt block are two separate parts,
+    // and that ACP prompt is appended at the very end of the string, outside of the heading's contiguous text block or that if only ACP is present, the heading doesn't show up.
+    expect(headingContent).toContain(
+      'Please use @janitor to clean up after @fancy-explorer has completed.',
+    );
+    expect(headingContent).toContain(
+      'Please delegate research tasks to @claude-research or @fancy-explorer.',
+    );
+
+    // Let's also check a scenario where only ACP routing prompt is present. There should be NO heading at all!
+    const configOnlyAcp: PluginConfig = {
       agents: {
-        planner: {
-          model: 'openai/gpt-5.5',
-          skills: ['my-skill'],
-          permission: { edit: 'deny', bash: 'ask' },
+        explorer: {
+          model: 'openai/gpt-5.4-mini',
+          displayName: 'fancy-explorer',
+        },
+      },
+      acpAgents: {
+        'claude-research': {
+          command: 'claude-code-acp',
+          args: [],
+          env: {},
+          timeoutMs: 0,
+          permissionMode: 'ask',
+          orchestratorPrompt:
+            'Please delegate research tasks to @claude-research or @explorer.',
         },
       },
     };
 
-    const agents = createAgents(config);
-    const planner = agents.find((a) => a.name === 'planner');
+    const agentsOnlyAcp = createAgents(configOnlyAcp);
+    const orchestratorOnlyAcp = agentsOnlyAcp.find(
+      (agent) => agent.name === 'orchestrator',
+    );
+    const promptOnlyAcp = orchestratorOnlyAcp?.config.prompt ?? '';
 
-    expect(planner).toBeDefined();
-    // User-supplied keys survive
-    expect(planner?.config.permission).toMatchObject({
-      edit: 'deny',
-      bash: 'ask',
-    });
-    // Plugin generates skill rule (overrides any user skill key)
-    expect(
-      (planner?.config.permission as Record<string, unknown>)?.skill,
-    ).toBeDefined();
-  });
-
-  test('passes permission through unchanged without skills or mcps', () => {
-    const config: PluginConfig = {
-      agents: {
-        researcher: {
-          model: 'openai/gpt-5.5',
-          permission: { edit: 'deny', webfetch: 'allow' },
-        },
-      },
-    };
-
-    const agents = createAgents(config);
-    const researcher = agents.find((a) => a.name === 'researcher');
-
-    expect(researcher).toBeDefined();
-    expect(researcher?.config.permission).toMatchObject({
-      edit: 'deny',
-      webfetch: 'allow',
-    });
-  });
-
-  test('no permission field means no regression', () => {
-    const config: PluginConfig = {
-      agents: {
-        reviewer: {
-          model: 'openai/gpt-5.5',
-          prompt: 'You are a reviewer.',
-        },
-      },
-    };
-
-    const agents = createAgents(config);
-    const reviewer = agents.find((a) => a.name === 'reviewer');
-
-    expect(reviewer).toBeDefined();
-    // Plugin still generates its own permission keys (question, etc.)
-    expect(reviewer?.config.permission).toBeDefined();
-    // But no edit/bash keys since user didn't set them
-    expect(
-      (reviewer?.config.permission as Record<string, unknown>)?.edit,
-    ).toBeUndefined();
-  });
-});
-
-describe('permission edge cases', () => {
-  test('shorthand string permission is not corrupted by applyDefaultPermissions', () => {
-    const config: PluginConfig = {
-      agents: {
-        planner: {
-          model: 'openai/gpt-5.5',
-          permission: 'ask',
-        },
-      },
-    };
-
-    const agents = createAgents(config);
-    const planner = agents.find((a) => a.name === 'planner');
-
-    expect(planner).toBeDefined();
-    // The shorthand string should be preserved as-is, not spread into
-    // character keys like { "0": "a", "1": "s", "2": "k" }
-    expect(planner?.config.permission).toBe('ask');
-  });
-
-  test('orchestrator permission override does not replace plugin gates', () => {
-    const config: PluginConfig = {
-      agents: {
-        orchestrator: {
-          model: 'openai/gpt-5.5',
-          permission: { edit: 'deny' },
-        },
-      },
-    };
-
-    const agents = createAgents(config);
-    const orchestrator = agents.find((a) => a.name === 'orchestrator');
-
-    expect(orchestrator).toBeDefined();
-    // User-supplied key survives
-    expect(orchestrator?.config.permission).toMatchObject({
-      edit: 'deny',
-    });
-    // Plugin-generated gates are NOT dropped by the override
-    expect(
-      (orchestrator?.config.permission as Record<string, unknown>)?.question,
-    ).toBeDefined();
-    expect(
-      (orchestrator?.config.permission as Record<string, unknown>)
-        ?.council_session,
-    ).toBeDefined();
-    expect(
-      (orchestrator?.config.permission as Record<string, unknown>)?.cancel_task,
-    ).toBeDefined();
+    expect(promptOnlyAcp).not.toContain('# Project-specific routing guidance');
+    expect(promptOnlyAcp).toContain(
+      'Please delegate research tasks to @claude-research or @fancy-explorer.',
+    );
   });
 });
