@@ -30,6 +30,10 @@ The main idea is simple: instead of forcing one model to do everything, the plug
 
 To explore the agents themselves, see **[Meet the Pantheon](#meet-the-pantheon)**. For the full feature set, see **[Features & Workflows](#features-and-workflows)** below.
 
+### Submit Your Preset
+
+Using a model mix that works well? Share it with the community through the **[preset submission form](https://github.com/alvinunreal/oh-my-opencode-slim/issues/new?template=preset_submission.yml)**. Accepted presets are reviewed and displayed in the **[Community Presets gallery](https://ohmyopencodeslim.com/community-presets)** with attribution.
+
 ### Manage Agent Skills with LazySkills
 
 <p align="center">
