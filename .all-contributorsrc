@@ -641,6 +641,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "rgutzen",
+      "name": "Robin Gutzen",
+      "avatar_url": "https://avatars.githubusercontent.com/u/16289604?v=4",
+      "profile": "https://rgutzen.github.io/",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commitConvention": "angular"
