@@ -668,7 +668,7 @@ export function createTaskSessionManagerHook(
       terminalJobsInjectedByParent.delete(sessionId);
       taskContextTracker.clearSession(sessionId);
       taskContextTracker.prune(backgroundJobBoard);
-      pendingCallTracker.clearForSession(sessionId);
+      pendingCallTracker.clearSession(sessionId);
     },
   };
 

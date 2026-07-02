@@ -12,8 +12,7 @@ export interface PendingCallTracker {
   add(call: PendingTaskCall): void;
   take(callId?: string, parentSessionId?: string): PendingTaskCall | undefined;
   firstForParent(parentSessionId: string): string | undefined;
-  prune(maxSize: number): void;
-  clearForSession(sessionId: string): void;
+  clearSession(sessionId: string): void;
   pendingCallId(sessionID?: string, callID?: string): string;
 }
 
@@ -21,6 +20,37 @@ export function createPendingCallTracker(): PendingCallTracker {
   const pendingCalls = new Map<string, PendingTaskCall>();
   const pendingCallOrder: string[] = [];
   let anonymousPendingCallId = 0;
+
+  const firstForParent = (parentSessionId: string) => {
+    return pendingCallOrder.find(
+      (id) => pendingCalls.get(id)?.parentSessionId === parentSessionId,
+    );
+  };
+
+  const take = (callId?: string, parentSessionId?: string) => {
+    const resolvedCallId =
+      callId ?? (parentSessionId ? firstForParent(parentSessionId) : undefined);
+    if (!resolvedCallId) return undefined;
+    const pending = pendingCalls.get(resolvedCallId);
+    pendingCalls.delete(resolvedCallId);
+    const orderIndex = pendingCallOrder.indexOf(resolvedCallId);
+    if (orderIndex >= 0) {
+      pendingCallOrder.splice(orderIndex, 1);
+    }
+    return pending;
+  };
+
+  const clearSession = (sessionId: string) => {
+    const toRemove: string[] = [];
+    for (const [callId, pending] of pendingCalls.entries()) {
+      if (pending.parentSessionId === sessionId) {
+        toRemove.push(callId);
+      }
+    }
+    for (const id of toRemove) {
+      take(id);
+    }
+  };
 
   return {
     add(call: PendingTaskCall) {
@@ -37,40 +67,11 @@ export function createPendingCallTracker(): PendingCallTracker {
       }
     },
 
-    take(callId?: string, parentSessionId?: string) {
-      const resolvedCallId =
-        callId ??
-        (parentSessionId ? this.firstForParent(parentSessionId) : undefined);
-      if (!resolvedCallId) return undefined;
-      const pending = pendingCalls.get(resolvedCallId);
-      pendingCalls.delete(resolvedCallId);
-      const orderIndex = pendingCallOrder.indexOf(resolvedCallId);
-      if (orderIndex >= 0) {
-        pendingCallOrder.splice(orderIndex, 1);
-      }
-      return pending;
-    },
+    take,
 
-    firstForParent(parentSessionId: string) {
-      return pendingCallOrder.find(
-        (id) => pendingCalls.get(id)?.parentSessionId === parentSessionId,
-      );
-    },
+    firstForParent,
 
-    prune(maxSize: number) {
-      while (pendingCallOrder.length > maxSize) {
-        const evicted = pendingCallOrder.shift();
-        if (!evicted) break;
-        pendingCalls.delete(evicted);
-      }
-    },
-
-    clearForSession(sessionId: string) {
-      for (const [callId, pending] of pendingCalls.entries()) {
-        if (pending.parentSessionId !== sessionId) continue;
-        this.take(callId);
-      }
-    },
+    clearSession,
 
     pendingCallId(sessionID?: string, callID?: string) {
       return (
