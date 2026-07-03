@@ -445,12 +445,15 @@ async function runInstall(config: InstallConfig): Promise<number> {
           }
         }
 
+        const realFailed = result.failed.filter(
+          (skill) => skill !== '__lock__' && skill !== '__manifest__',
+        );
         const totalCustom = CUSTOM_SKILLS.length;
         printSuccess(
           `Skill synchronization complete. Processed ${totalCustom} skills: ` +
             `${result.installed.length} installed/updated, ` +
             `${result.skippedExisting.length} skipped/preserved, ` +
-            `${result.failed.length} failed.`,
+            `${realFailed.length} failed.`,
         );
       } catch (err) {
         printError(`Failed to synchronize custom skills: ${err}`);

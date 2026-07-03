@@ -220,6 +220,13 @@ describe('install skill synchronization error mapping', () => {
       msg?.includes('__lock__'),
     );
     expect(hasRawSentinel).toBe(false);
+
+    // Verify counter does not count __lock__ as a failed skill
+    const summaryMsg = calls.find((msg: string) =>
+      msg?.includes('Skill synchronization complete.'),
+    );
+    expect(summaryMsg).toBeDefined();
+    expect(summaryMsg).toContain('0 failed.');
   });
 
   test('maps __manifest__ to manifest write failure', async () => {
@@ -242,6 +249,13 @@ describe('install skill synchronization error mapping', () => {
       msg?.includes('__manifest__'),
     );
     expect(hasRawSentinel).toBe(false);
+
+    // Verify counter does not count __manifest__ as a failed skill
+    const summaryMsg = calls.find((msg: string) =>
+      msg?.includes('Skill synchronization complete.'),
+    );
+    expect(summaryMsg).toBeDefined();
+    expect(summaryMsg).toContain('0 failed.');
   });
 
   test('keeps normal skill names prefix as Failed: <name>', async () => {
@@ -259,5 +273,12 @@ describe('install skill synchronization error mapping', () => {
       msg?.includes('Failed: some-custom-skill'),
     );
     expect(hasSkillErr).toBe(true);
+
+    // Verify counter DOES count standard skill failures in the failed count
+    const summaryMsg = calls.find((msg: string) =>
+      msg?.includes('Skill synchronization complete.'),
+    );
+    expect(summaryMsg).toBeDefined();
+    expect(summaryMsg).toContain('1 failed.');
   });
 });
