@@ -1,5 +1,6 @@
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { syncBundledSkillsFromPackage } from '../hooks/auto-update-checker/skill-sync';
 import { CUSTOM_SKILLS, type CustomSkill } from './custom-skills-registry';
 import { getConfigDir } from './paths';
 
@@ -18,14 +19,11 @@ export function getCustomSkillsDir(): string {
  * @returns True if installation succeeded, false otherwise
  * @deprecated Use syncBundledSkillsFromPackage instead.
  */
-export async function installCustomSkill(skill: CustomSkill): Promise<boolean> {
+export function installCustomSkill(skill: CustomSkill): boolean {
   console.warn(
     `[DEPRECATED] installCustomSkill is deprecated and will be removed. Use syncBundledSkillsFromPackage instead.`,
   );
   try {
-    const { syncBundledSkillsFromPackage } = await import(
-      '../hooks/auto-update-checker/skill-sync'
-    );
     const packageRoot = fileURLToPath(new URL('../..', import.meta.url));
     const result = syncBundledSkillsFromPackage(packageRoot, {
       skills: [skill],

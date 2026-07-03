@@ -1446,7 +1446,6 @@ describe('syncBundledSkillsFromPackage', () => {
     const result = await syncBundledSkillsFromPackage(fakePackageRoot);
 
     expect(result.installed).toContain(skillName);
-    expect(result.updated).toContain(skillName);
     expect(fs.existsSync(path.join(destSkillDir, 'user-link'))).toBe(false);
     expect(fs.readFileSync(path.join(destSkillDir, 'SKILL.md'), 'utf-8')).toBe(
       '# Updated',

@@ -144,6 +144,9 @@ describe('auto-update-checker/index', () => {
       installed: [],
       skippedExisting: [],
       failed: [],
+      staged: [],
+      adopted: [],
+      customized: [],
     }));
 
     companionUpdaterMocks.ensureCompanionVersion.mockReset();
@@ -255,6 +258,9 @@ describe('auto-update-checker/index', () => {
       installed: ['reflect', 'worktrees'],
       skippedExisting: ['codemap'],
       failed: [],
+      staged: [],
+      adopted: [],
+      customized: [],
     }));
 
     const { createAutoUpdateCheckerHook } = await import(
@@ -431,6 +437,9 @@ describe('auto-update-checker/index', () => {
       installed: [],
       skippedExisting: [],
       failed: ['reflect'],
+      staged: [],
+      adopted: [],
+      customized: [],
     }));
 
     const { createAutoUpdateCheckerHook } = await import(

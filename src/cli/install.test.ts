@@ -57,7 +57,6 @@ mock.module('../hooks/auto-update-checker/skill-sync', () => {
             installed: [],
             skippedExisting: [],
             failed: mockFailedResult,
-            updated: [],
             staged: mockStagedResult,
             adopted: mockAdoptedResult,
             customized: [],
@@ -230,6 +229,7 @@ describe('install skill synchronization error mapping', () => {
       msg?.includes('Skill synchronization complete.'),
     );
     expect(summaryMsg).toBeDefined();
+    expect(summaryMsg).toContain('Processed 0 skills:');
     expect(summaryMsg).toContain('0 failed.');
   });
 
@@ -259,6 +259,7 @@ describe('install skill synchronization error mapping', () => {
       msg?.includes('Skill synchronization complete.'),
     );
     expect(summaryMsg).toBeDefined();
+    expect(summaryMsg).toContain('Processed 0 skills:');
     expect(summaryMsg).toContain('0 failed.');
   });
 
@@ -283,6 +284,7 @@ describe('install skill synchronization error mapping', () => {
       msg?.includes('Skill synchronization complete.'),
     );
     expect(summaryMsg).toBeDefined();
+    expect(summaryMsg).toContain('Processed 1 skills:');
     expect(summaryMsg).toContain('1 failed.');
   });
 

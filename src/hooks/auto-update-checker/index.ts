@@ -221,8 +221,8 @@ async function runBackgroundUpdateCheck(
     try {
       const syncResult = syncBundledSkillsFromPackage(packageRoot);
       installedSkills = syncResult.installed;
-      stagedSkills = syncResult.staged ?? [];
-      customizedSkills = syncResult.customized ?? [];
+      stagedSkills = syncResult.staged;
+      customizedSkills = syncResult.customized;
       if (syncResult.failed.length > 0) {
         log(
           `[auto-update-checker] Skill sync warnings/failures: ${syncResult.failed.join(', ')}`,

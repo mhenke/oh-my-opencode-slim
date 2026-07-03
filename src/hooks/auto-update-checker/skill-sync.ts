@@ -35,7 +35,6 @@ export interface SkillSyncResult {
   installed: string[];
   skippedExisting: string[];
   failed: string[];
-  updated: string[];
   staged: string[];
   adopted: string[];
   customized: string[];
@@ -544,7 +543,6 @@ export function syncBundledSkillsFromPackage(
   const installed: string[] = [];
   const skippedExisting: string[] = [];
   const failed: string[] = [];
-  const updated: string[] = [];
   const staged: string[] = [];
   const adopted: string[] = [];
   const customized: string[] = [];
@@ -561,7 +559,6 @@ export function syncBundledSkillsFromPackage(
         installed,
         skippedExisting,
         failed,
-        updated,
         staged,
         adopted,
         customized,
@@ -575,7 +572,6 @@ export function syncBundledSkillsFromPackage(
       installed,
       skippedExisting,
       failed,
-      updated,
       staged,
       adopted,
       customized,
@@ -619,7 +615,6 @@ export function syncBundledSkillsFromPackage(
       installed,
       skippedExisting,
       failed: ['__lock__'],
-      updated,
       staged,
       adopted,
       customized,
@@ -898,7 +893,6 @@ export function syncBundledSkillsFromPackage(
                 try {
                   atomicReplaceDir(sourcePath, destPath);
                   installed.push(skill.name);
-                  updated.push(skill.name);
                   manifest.skills[skill.name] = {
                     status: 'managed',
                     packageVersion,
@@ -1168,7 +1162,6 @@ export function syncBundledSkillsFromPackage(
             try {
               atomicReplaceDir(sourcePath, destPath);
               installed.push(skill.name);
-              updated.push(skill.name);
               manifest.skills[skill.name] = {
                 status: 'managed',
                 packageVersion,
@@ -1262,7 +1255,6 @@ export function syncBundledSkillsFromPackage(
     installed,
     skippedExisting,
     failed,
-    updated,
     staged,
     adopted,
     customized,

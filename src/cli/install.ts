@@ -458,9 +458,12 @@ async function runInstall(config: InstallConfig): Promise<number> {
         const realFailed = result.failed.filter(
           (skill) => skill !== '__lock__' && skill !== '__manifest__',
         );
-        const totalCustom = CUSTOM_SKILLS.length;
+        const totalProcessed =
+          result.installed.length +
+          result.skippedExisting.length +
+          realFailed.length;
         printSuccess(
-          `Skill synchronization complete. Processed ${totalCustom} skills: ` +
+          `Skill synchronization complete. Processed ${totalProcessed} skills: ` +
             `${result.installed.length} installed/updated, ` +
             `${result.skippedExisting.length} skipped/preserved, ` +
             `${realFailed.length} failed.`,
