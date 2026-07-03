@@ -46,6 +46,7 @@ let importCounter = 0;
 let mockFailedResult: string[] = [];
 let mockStagedResult: string[] = [];
 let mockAdoptedResult: string[] = [];
+let mockCustomizedResult: string[] = [];
 let enableInstallMocks = false;
 
 mock.module('../hooks/auto-update-checker/skill-sync', () => {
@@ -59,7 +60,7 @@ mock.module('../hooks/auto-update-checker/skill-sync', () => {
             failed: mockFailedResult,
             staged: mockStagedResult,
             adopted: mockAdoptedResult,
-            customized: [],
+            customized: mockCustomizedResult,
           }
         : originalSyncBundledSkillsFromPackage(packageRoot, options),
   };
@@ -193,6 +194,7 @@ describe('install skill synchronization error mapping', () => {
     mockFailedResult = [];
     mockStagedResult = [];
     mockAdoptedResult = [];
+    mockCustomizedResult = [];
     originalConsoleLog = console.log;
     logSpy = mock(() => {});
     console.log = logSpy;
@@ -319,6 +321,24 @@ describe('install skill synchronization error mapping', () => {
     const calls = logSpy.mock.calls.map((call: any[]) => call[0] as string);
     expect(
       calls.some((msg: string) => msg?.includes('Adopted: adopted-skill')),
+    ).toBe(true);
+  });
+
+  test('prints customized skills during sync', async () => {
+    mockCustomizedResult = ['customized-skill'];
+    const { install } = await import(`./install?test=${importCounter++}`);
+
+    await install({
+      skills: 'yes',
+      tui: false,
+      companion: 'no',
+    });
+
+    const calls = logSpy.mock.calls.map((call: any[]) => call[0] as string);
+    expect(
+      calls.some((msg: string) =>
+        msg?.includes('Customized: customized-skill'),
+      ),
     ).toBe(true);
   });
 });

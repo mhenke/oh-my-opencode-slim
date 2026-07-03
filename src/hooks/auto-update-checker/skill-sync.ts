@@ -1024,8 +1024,11 @@ export function syncBundledSkillsFromPackage(
 
                   entry.stagedPath = stagedSkillDir;
                   entry.sourceHash = sourceHash;
+                  entry.packageVersion = packageVersion;
 
                   staged.push(skill.name);
+                  customized.push(skill.name);
+                  skippedExisting.push(skill.name);
                   log(
                     `[skill-sync] Staged new update for customized skill ${skill.name} at ${stagedSkillDir}`,
                   );
@@ -1034,9 +1037,12 @@ export function syncBundledSkillsFromPackage(
                     `[skill-sync] Failed to stage update for customized skill ${skill.name}:`,
                     err,
                   );
+                  failed.push(skill.name);
                 }
+              } else {
+                customized.push(skill.name);
+                skippedExisting.push(skill.name);
               }
-              skippedExisting.push(skill.name);
             }
           } else if (entry.status === 'deleted') {
             if (destHash === sourceHash) {
