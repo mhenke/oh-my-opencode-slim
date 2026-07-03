@@ -14,6 +14,17 @@ import { CUSTOM_SKILLS } from '../../cli/custom-skills';
 import { getConfigDir } from '../../cli/paths';
 import { log } from '../../utils/logger';
 
+let localProcessToken = (
+  globalThis as { OMO_SKILL_SYNC_PROCESS_TOKEN?: string }
+).OMO_SKILL_SYNC_PROCESS_TOKEN;
+if (!localProcessToken) {
+  localProcessToken = crypto.randomUUID();
+  (
+    globalThis as { OMO_SKILL_SYNC_PROCESS_TOKEN?: string }
+  ).OMO_SKILL_SYNC_PROCESS_TOKEN = localProcessToken;
+}
+const PROCESS_TOKEN = localProcessToken;
+
 export interface SkillSyncResult {
   installed: string[];
   skippedExisting: string[];
@@ -194,6 +205,8 @@ function isPidRunning(pid: number): boolean {
   }
 }
 
+const CROSS_HOST_LOCK_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
+
 /**
  * Acquires a simple lock under .oh-my-opencode-slim.
  * Avoids stealing active locks purely by time; writes owner metadata
@@ -210,6 +223,7 @@ function acquireLock(lockDir: string): boolean {
         pid: currentPid,
         host: currentHost,
         time: Date.now(),
+        token: PROCESS_TOKEN,
       };
       fs.writeFileSync(metadataPath, JSON.stringify(metadata), 'utf-8');
     } catch {
@@ -245,9 +259,16 @@ function acquireLock(lockDir: string): boolean {
             shouldSteal = true;
           }
         } else {
-          log(
-            `[skill-sync] Lock is owned by different host ${metadata.host}; failing closed.`,
-          );
+          if (ageMs > CROSS_HOST_LOCK_EXPIRY_MS) {
+            log(
+              `[skill-sync] Lock owned by different host ${metadata.host} has expired (${Math.round(ageMs / 1000)}s old). Reclaiming lock.`,
+            );
+            shouldSteal = true;
+          } else {
+            log(
+              `[skill-sync] Lock is owned by different host ${metadata.host}; failing closed.`,
+            );
+          }
         }
       } catch {
         shouldSteal = true;
@@ -276,10 +297,27 @@ function acquireLock(lockDir: string): boolean {
 /**
  * Releases the lock.
  */
-function releaseLock(lockDir: string): void {
+export function releaseLock(lockDir: string): void {
   try {
-    if (existsSync(lockDir)) {
-      fs.rmSync(lockDir, { recursive: true, force: true });
+    const metadataPath = path.join(lockDir, 'owner.json');
+    if (existsSync(metadataPath)) {
+      const content = fs.readFileSync(metadataPath, 'utf-8');
+      const metadata = JSON.parse(content);
+      if (
+        metadata.host === os.hostname() &&
+        metadata.pid === process.pid &&
+        metadata.token === PROCESS_TOKEN
+      ) {
+        fs.rmSync(lockDir, { recursive: true, force: true });
+      } else {
+        log(
+          `[skill-sync] Skipping lock directory removal: lock is now owned by host=${metadata.host}, pid=${metadata.pid}, token=${metadata.token}`,
+        );
+      }
+    } else if (existsSync(lockDir)) {
+      log(
+        `[skill-sync] Skipping lock directory removal: lock directory exists but owner.json was missing.`,
+      );
     }
   } catch (err) {
     log(`[skill-sync] Failed to release lock at ${lockDir}:`, err);
@@ -418,6 +456,44 @@ function recoverOrphanArtifacts(
   }
 
   return hadArtifacts;
+}
+
+/**
+ * Safely removes a directory only if it resides within the plugin staged updates directory.
+ */
+function removeManagedStagedPath(
+  stagedPath: string,
+  manifestDir: string,
+  skillName: string,
+): void {
+  try {
+    const absoluteStagedPath = path.resolve(stagedPath);
+    const absoluteAllowedRoot = path.resolve(
+      path.join(manifestDir, 'skill-updates'),
+    );
+
+    const relative = path.relative(absoluteAllowedRoot, absoluteStagedPath);
+    const isUnderRoot =
+      relative && !relative.startsWith('..') && !path.isAbsolute(relative);
+
+    if (isUnderRoot) {
+      if (existsSync(absoluteStagedPath)) {
+        fs.rmSync(absoluteStagedPath, { recursive: true, force: true });
+        log(
+          `[skill-sync] Safely cleaned up staged path for ${skillName}: ${absoluteStagedPath}`,
+        );
+      }
+    } else {
+      log(
+        `[skill-sync] Refusing to delete staged path for ${skillName}: path ${absoluteStagedPath} is not under managed root ${absoluteAllowedRoot}`,
+      );
+    }
+  } catch (err) {
+    log(
+      `[skill-sync] Error while trying to verify and remove staged path for ${skillName} (${stagedPath}):`,
+      err,
+    );
+  }
 }
 
 /**
@@ -703,6 +779,8 @@ export function syncBundledSkillsFromPackage(
           if (entry.status === 'managed') {
             if (destHash === entry.lastManagedHash) {
               if (destHash === sourceHash) {
+                entry.packageVersion = packageVersion;
+                entry.updatedAt = new Date().toISOString();
                 skippedExisting.push(skill.name);
               } else {
                 try {
@@ -745,6 +823,13 @@ export function syncBundledSkillsFromPackage(
                     packageVersion,
                     skill.name,
                   );
+                  if (entry.stagedPath && entry.stagedPath !== stagedSkillDir) {
+                    removeManagedStagedPath(
+                      entry.stagedPath,
+                      manifestDir,
+                      skill.name,
+                    );
+                  }
                   if (existsSync(stagedSkillDir)) {
                     fs.rmSync(stagedSkillDir, { recursive: true, force: true });
                   }
@@ -775,6 +860,13 @@ export function syncBundledSkillsFromPackage(
             }
           } else if (entry.status === 'customized') {
             if (destHash === sourceHash) {
+              if (entry.stagedPath) {
+                removeManagedStagedPath(
+                  entry.stagedPath,
+                  manifestDir,
+                  skill.name,
+                );
+              }
               entry.status = 'managed';
               entry.lastManagedHash = sourceHash;
               entry.lastSeenHash = sourceHash;
@@ -799,6 +891,13 @@ export function syncBundledSkillsFromPackage(
                     packageVersion,
                     skill.name,
                   );
+                  if (entry.stagedPath && entry.stagedPath !== stagedSkillDir) {
+                    removeManagedStagedPath(
+                      entry.stagedPath,
+                      manifestDir,
+                      skill.name,
+                    );
+                  }
                   if (existsSync(stagedSkillDir)) {
                     fs.rmSync(stagedSkillDir, { recursive: true, force: true });
                   }
