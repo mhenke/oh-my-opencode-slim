@@ -28,7 +28,9 @@ All modules depend on `BackgroundJobBoard` from `src/utils/background-job-board.
    - Intercepts `task` tool calls on managed sessions
    - Generates a task label from `description`/`prompt` via `deriveTaskSessionLabel`
    - Creates a `PendingTaskCall` record with call ID, parent session ID, agent type, and label
-   - Resolves reusable task IDs from the job board; if found, updates the task ID and marks it as used
+   - Resolves reusable task IDs from the job board; completed/reconciled jobs
+     are reusable by alias, while timed-out running jobs become recoverable
+     only after a live busy signal confirms they are safe to resume
    - If no reusable task exists, allows fresh task creation
 
 2. **Task Launch (`tool.execute.after`)**

@@ -334,13 +334,28 @@ export function createTaskSessionManagerHook(
       }
 
       const requested = args.task_id.trim();
-      const remembered = backgroundJobBoard.resolveReusable(
-        input.sessionID,
-        requested,
-        agentType,
-      );
+      const remembered =
+        backgroundJobBoard.resolveReusable(
+          input.sessionID,
+          requested,
+          agentType,
+        ) ??
+        backgroundJobBoard.resolveRecoverable(
+          input.sessionID,
+          requested,
+          agentType,
+        );
 
       if (!remembered) {
+        const knownManagedTask = backgroundJobBoard.resolve(
+          input.sessionID,
+          requested,
+        );
+        if (knownManagedTask) {
+          delete args.task_id;
+          return;
+        }
+
         if (RAW_SESSION_ID_PATTERN.test(requested)) {
           pendingCall.resumedTaskId = requested;
           pendingCallTracker.add(pendingCall);
