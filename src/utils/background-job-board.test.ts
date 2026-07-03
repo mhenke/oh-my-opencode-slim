@@ -742,6 +742,12 @@ describe('BackgroundJobBoard', () => {
         agent: 'fixer',
         now: 100,
       });
+      board.registerLaunch({
+        taskID: 'terminal-1',
+        parentSessionID: 'parent-1',
+        agent: 'fixer',
+        now: 100,
+      });
       board.updateStatus({
         taskID: 'terminal-1',
         state: 'completed',

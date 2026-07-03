@@ -126,12 +126,12 @@ Use only for obsolete, wrong, conflicting, or user-requested cancellation. Accep
       try {
         await abortAndVerifySession(options, job.taskID);
       } catch (error) {
-        const stillRunning =
-          error instanceof SessionStillRunningError ||
-          options.backgroundJobBoard.isRunning(job.taskID); // ponytail: intent-revealing query
+        const stillRunning = error instanceof SessionStillRunningError;
+        const boardRunning = options.backgroundJobBoard.isRunning(job.taskID);
         log('[cancel-task] abort failed', {
           taskID: job.taskID,
           stillRunning,
+          boardRunning,
           error: error instanceof Error ? error.message : String(error),
         });
         options.backgroundJobBoard.updateStatus({

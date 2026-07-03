@@ -399,8 +399,11 @@ export class BackgroundJobBoard {
     for (const file of files) {
       const previous = existing.get(file.path);
       if (previous) {
-        previous.lineCount = Math.max(previous.lineCount, file.lineCount);
-        previous.lastReadAt = Math.max(previous.lastReadAt, file.lastReadAt);
+        existing.set(file.path, {
+          ...previous,
+          lineCount: Math.max(previous.lineCount, file.lineCount),
+          lastReadAt: Math.max(previous.lastReadAt, file.lastReadAt),
+        });
       } else {
         existing.set(file.path, { ...file });
       }
