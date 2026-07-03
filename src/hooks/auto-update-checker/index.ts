@@ -92,6 +92,16 @@ async function runBackgroundUpdateCheck(
             `[auto-update-checker] Startup skill sync failures: ${syncResult.failed.join(', ')}`,
           );
         }
+        if ((syncResult.staged ?? []).length > 0) {
+          log(
+            `[auto-update-checker] Startup skill sync staged: ${syncResult.staged?.join(', ')}`,
+          );
+        }
+        if ((syncResult.customized ?? []).length > 0) {
+          log(
+            `[auto-update-checker] Startup skill sync customized: ${syncResult.customized?.join(', ')}`,
+          );
+        }
       } else {
         log(
           '[auto-update-checker] Could not resolve runtime package path for startup skill reconciliation',

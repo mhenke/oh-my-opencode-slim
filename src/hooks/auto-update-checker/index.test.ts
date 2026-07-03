@@ -702,4 +702,41 @@ describe('auto-update-checker/index', () => {
       '/tmp/opencode',
     );
   });
+
+  test('logs staged and customized skills during startup reconciliation', async () => {
+    checkerMocks.getCurrentRuntimePackageJsonPath.mockImplementation(
+      () => '/tmp/opencode/package.json',
+    );
+    checkerMocks.findPluginEntry.mockImplementation(() => ({
+      pinnedVersion: '0.9.11',
+      isPinned: false,
+    }));
+    checkerMocks.getCachedVersion.mockImplementation(() => null);
+    skillSyncMocks.syncBundledSkillsFromPackage.mockImplementation(() => ({
+      installed: [],
+      skippedExisting: [],
+      failed: [],
+      staged: ['reflect'],
+      customized: ['my-custom-skill'],
+    }));
+
+    const { createAutoUpdateCheckerHook } = await import(
+      `./index?test=${importCounter++}`
+    );
+    const { ctx } = createCtx();
+
+    const hook = createAutoUpdateCheckerHook(ctx as never);
+    hook.event({ event: { type: 'session.created', properties: {} } });
+
+    await waitForCalls(logMock, 3);
+
+    const logs = logMock.mock.calls.map((entry: [string]) => entry[0]);
+
+    expect(logs).toContain(
+      '[auto-update-checker] Startup skill sync staged: reflect',
+    );
+    expect(logs).toContain(
+      '[auto-update-checker] Startup skill sync customized: my-custom-skill',
+    );
+  });
 });

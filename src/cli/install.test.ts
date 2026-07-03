@@ -44,6 +44,8 @@ const originalGetExistingLiteConfigPath = actualPaths.getExistingLiteConfigPath;
 
 let importCounter = 0;
 let mockFailedResult: string[] = [];
+let mockStagedResult: string[] = [];
+let mockAdoptedResult: string[] = [];
 let enableInstallMocks = false;
 
 mock.module('../hooks/auto-update-checker/skill-sync', () => {
@@ -56,8 +58,8 @@ mock.module('../hooks/auto-update-checker/skill-sync', () => {
             skippedExisting: [],
             failed: mockFailedResult,
             updated: [],
-            staged: [],
-            adopted: [],
+            staged: mockStagedResult,
+            adopted: mockAdoptedResult,
             customized: [],
           }
         : originalSyncBundledSkillsFromPackage(packageRoot, options),
@@ -190,6 +192,8 @@ describe('install skill synchronization error mapping', () => {
   beforeEach(() => {
     enableInstallMocks = true;
     mockFailedResult = [];
+    mockStagedResult = [];
+    mockAdoptedResult = [];
     originalConsoleLog = console.log;
     logSpy = mock(() => {});
     console.log = logSpy;
@@ -280,5 +284,39 @@ describe('install skill synchronization error mapping', () => {
     );
     expect(summaryMsg).toBeDefined();
     expect(summaryMsg).toContain('1 failed.');
+  });
+
+  test('prints staged skills during sync', async () => {
+    mockStagedResult = ['staged-skill'];
+    const { install } = await import(`./install?test=${importCounter++}`);
+
+    await install({
+      skills: 'yes',
+      tui: false,
+      companion: 'no',
+    });
+
+    const calls = logSpy.mock.calls.map((call: any[]) => call[0] as string);
+    expect(
+      calls.some((msg: string) =>
+        msg?.includes('Staged for review: staged-skill'),
+      ),
+    ).toBe(true);
+  });
+
+  test('prints adopted skills during sync', async () => {
+    mockAdoptedResult = ['adopted-skill'];
+    const { install } = await import(`./install?test=${importCounter++}`);
+
+    await install({
+      skills: 'yes',
+      tui: false,
+      companion: 'no',
+    });
+
+    const calls = logSpy.mock.calls.map((call: any[]) => call[0] as string);
+    expect(
+      calls.some((msg: string) => msg?.includes('Adopted: adopted-skill')),
+    ).toBe(true);
   });
 });

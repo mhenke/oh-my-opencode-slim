@@ -498,6 +498,53 @@ describe('syncBundledSkillsFromPackage', () => {
     ).toBe(false);
   });
 
+  test('recovers conflict status when destination is now a directory', async () => {
+    const skillName = 'conflict-skill';
+    const skillSrcDir = path.join(fakePackageRoot, 'src', 'skills', skillName);
+    fs.mkdirSync(skillSrcDir, { recursive: true });
+    fs.writeFileSync(path.join(skillSrcDir, 'SKILL.md'), '# Bundled Content');
+
+    const manifestDir = path.join(fakeDestConfigDir, '.oh-my-opencode-slim');
+    fs.mkdirSync(manifestDir, { recursive: true });
+    const manifestPath = path.join(manifestDir, 'skills-manifest.json');
+
+    const initialManifest = {
+      schemaVersion: 1,
+      updatedAt: new Date().toISOString(),
+      skills: {
+        [skillName]: {
+          status: 'conflict',
+          packageVersion: '1.0.0',
+          sourceHash: 'old-source-hash',
+          lastManagedHash: 'old-managed-hash',
+          lastSeenHash: 'old-seen-hash',
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    };
+    fs.writeFileSync(manifestPath, JSON.stringify(initialManifest, null, 2));
+
+    const destSkillsDir = path.join(fakeDestConfigDir, 'skills');
+    fs.mkdirSync(destSkillsDir, { recursive: true });
+    const destSkillDir = path.join(destSkillsDir, skillName);
+    fs.mkdirSync(destSkillDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(destSkillDir, 'SKILL.md'),
+      '# Customized Content',
+    );
+
+    const result = await syncBundledSkillsFromPackage(fakePackageRoot);
+
+    expect(result.customized).toContain(skillName);
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+    expect(manifest.skills[skillName].status).toBe('customized');
+    const stagedPath = manifest.skills[skillName].stagedPath as string;
+    expect(stagedPath).toBeDefined();
+    expect(fs.readFileSync(path.join(stagedPath, 'SKILL.md'), 'utf-8')).toBe(
+      '# Bundled Content',
+    );
+  });
+
   test('fails closed (only installs missing) when manifest validation fails (schemaVersion mismatch)', async () => {
     const missingSkill = 'missing-skill';
     const existingSkill = 'existing-skill';
@@ -789,6 +836,37 @@ describe('syncBundledSkillsFromPackage', () => {
     expect(manifest.skills[skillName].lastManagedHash).toBe(hashVal);
     expect(manifest.skills[skillName].lastSeenHash).toBe(hashVal);
     expect(manifest.skills[skillName].updatedAt).not.toBe(originalTime);
+  });
+
+  test('directory hashing symlink consistency: ignores symlinks when hashing, matching copy semantics', async () => {
+    const skillName = 'symlink-hash-skill';
+    const skillSrcDir = path.join(fakePackageRoot, 'src', 'skills', skillName);
+    fs.mkdirSync(skillSrcDir, { recursive: true });
+    fs.writeFileSync(path.join(skillSrcDir, 'SKILL.md'), '# Bundle Content');
+
+    // Create a symlink in the source directory
+    const linkTarget = path.join(tempDir, 'outside-target.txt');
+    fs.writeFileSync(linkTarget, 'target content');
+    fs.symlinkSync(linkTarget, path.join(skillSrcDir, 'a-link.txt'));
+
+    const { computeDirectoryHash } = await import(
+      `./skill-sync?test=${importCounter++}`
+    );
+
+    const sourceHashWithSymlink = computeDirectoryHash(skillSrcDir);
+
+    const result = await syncBundledSkillsFromPackage(fakePackageRoot);
+    expect(result.installed).toContain(skillName);
+
+    const destSkillDir = path.join(fakeDestConfigDir, 'skills', skillName);
+    expect(fs.existsSync(destSkillDir)).toBe(true);
+
+    // The destination directory should have the symlink omitted due to copyDirRecursive
+    expect(fs.existsSync(path.join(destSkillDir, 'a-link.txt'))).toBe(false);
+
+    // The computed hash of destination should match the source hash
+    const destHash = computeDirectoryHash(destSkillDir);
+    expect(destHash).toBe(sourceHashWithSymlink);
   });
 
   test('deleted to customized: stages and marks customized', async () => {
@@ -1264,12 +1342,11 @@ describe('syncBundledSkillsFromPackage', () => {
 
     const result = await syncBundledSkillsFromPackage(fakePackageRoot);
 
-    expect(result.customized).toContain(skillName);
-    expect(
-      fs.lstatSync(path.join(destSkillDir, 'user-link')).isSymbolicLink(),
-    ).toBe(true);
+    expect(result.installed).toContain(skillName);
+    expect(result.updated).toContain(skillName);
+    expect(fs.existsSync(path.join(destSkillDir, 'user-link'))).toBe(false);
     expect(fs.readFileSync(path.join(destSkillDir, 'SKILL.md'), 'utf-8')).toBe(
-      '# Original',
+      '# Updated',
     );
   });
 

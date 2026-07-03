@@ -6,7 +6,6 @@ import {
   mkdirSync,
   readdirSync,
   readFileSync,
-  readlinkSync,
   renameSync,
   rmSync,
   statSync,
@@ -138,7 +137,7 @@ export function computeDirectoryHash(dirPath: string): string {
   const entriesToHash: {
     relativePath: string;
     absolutePath: string;
-    kind: 'directory' | 'file' | 'symlink';
+    kind: 'directory' | 'file';
     mode: number;
   }[] = [];
 
@@ -149,13 +148,9 @@ export function computeDirectoryHash(dirPath: string): string {
       const stat = lstatSync(absolutePath);
       const relativePath = path.relative(dirPath, absolutePath);
       if (stat.isSymbolicLink()) {
-        entriesToHash.push({
-          relativePath,
-          absolutePath,
-          kind: 'symlink',
-          mode: stat.mode,
-        });
-      } else if (stat.isDirectory()) {
+        continue;
+      }
+      if (stat.isDirectory()) {
         entriesToHash.push({
           relativePath,
           absolutePath,
@@ -192,8 +187,6 @@ export function computeDirectoryHash(dirPath: string): string {
     if (entry.kind === 'file') {
       const content = readFileSync(entry.absolutePath);
       hash.update(content);
-    } else if (entry.kind === 'symlink') {
-      hash.update(readlinkSync(entry.absolutePath));
     }
   }
 
@@ -1092,6 +1085,57 @@ export function syncBundledSkillsFromPackage(
               }
             }
           } else if (entry.status === 'conflict') {
+            if (destHash === sourceHash) {
+              entry.status = 'managed';
+              entry.packageVersion = packageVersion;
+              entry.sourceHash = sourceHash;
+              entry.lastManagedHash = sourceHash;
+              entry.lastSeenHash = sourceHash;
+              delete entry.stagedPath;
+              entry.updatedAt = new Date().toISOString();
+              adopted.push(skill.name);
+            } else {
+              try {
+                const stagedSkillDir = path.join(
+                  manifestDir,
+                  'skill-updates',
+                  packageVersion,
+                  skill.name,
+                );
+                if (entry.stagedPath && entry.stagedPath !== stagedSkillDir) {
+                  removeManagedStagedPath(
+                    entry.stagedPath,
+                    manifestDir,
+                    skill.name,
+                  );
+                }
+                if (existsSync(stagedSkillDir)) {
+                  rmSync(stagedSkillDir, { recursive: true, force: true });
+                }
+                mkdirSync(stagedSkillDir, { recursive: true });
+                copyDirRecursive(sourcePath, stagedSkillDir);
+
+                entry.status = 'customized';
+                entry.packageVersion = packageVersion;
+                entry.sourceHash = '';
+                entry.lastManagedHash = sourceHash;
+                entry.lastSeenHash = destHash;
+                entry.stagedPath = stagedSkillDir;
+                entry.updatedAt = new Date().toISOString();
+
+                staged.push(skill.name);
+                customized.push(skill.name);
+                log(
+                  `[skill-sync] Conflicted skill ${skill.name} recovered as customized and staged at ${stagedSkillDir}`,
+                );
+              } catch (err) {
+                log(
+                  `[skill-sync] Failed to stage update for conflicted skill ${skill.name}:`,
+                  err,
+                );
+                failed.push(skill.name);
+              }
+            }
             skippedExisting.push(skill.name);
           }
         } else {

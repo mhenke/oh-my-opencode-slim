@@ -444,6 +444,16 @@ async function runInstall(config: InstallConfig): Promise<number> {
             }
           }
         }
+        if ((result.staged ?? []).length > 0) {
+          for (const skill of result.staged ?? []) {
+            printInfo(`Staged for review: ${skill}`);
+          }
+        }
+        if ((result.adopted ?? []).length > 0) {
+          for (const skill of result.adopted ?? []) {
+            printInfo(`Adopted: ${skill}`);
+          }
+        }
 
         const realFailed = result.failed.filter(
           (skill) => skill !== '__lock__' && skill !== '__manifest__',
