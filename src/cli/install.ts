@@ -1,5 +1,7 @@
 import { existsSync } from 'node:fs';
 import { createInterface } from 'node:readline/promises';
+import { fileURLToPath } from 'node:url';
+import { syncBundledSkillsFromPackage } from '../hooks/auto-update-checker/skill-sync';
 import {
   detectBackgroundSubagentsTarget,
   expandHomePath,
@@ -22,7 +24,7 @@ import {
   warmOpenCodePluginCache,
   writeLiteConfig,
 } from './config-manager';
-import { CUSTOM_SKILLS, installCustomSkill } from './custom-skills';
+import { CUSTOM_SKILLS } from './custom-skills';
 import { getExistingLiteConfigPath } from './paths';
 import type { ConfigMergeResult, InstallArgs, InstallConfig } from './types';
 
@@ -410,27 +412,43 @@ async function runInstall(config: InstallConfig): Promise<number> {
 
   // Install custom skills if requested
   if (config.installCustomSkills) {
-    printStep(step++, totalSteps, 'Installing custom skills...');
+    printStep(step++, totalSteps, 'Synchronizing custom skills...');
     if (config.dryRun) {
-      printInfo('Dry run mode - would install custom skills:');
+      printInfo('Dry run mode - would synchronize custom skills:');
       for (const skill of CUSTOM_SKILLS) {
         printInfo(`  - ${skill.name}`);
       }
     } else {
-      let customSkillsInstalled = 0;
-      for (const skill of CUSTOM_SKILLS) {
-        printInfo(`Installing ${skill.name}...`);
-        if (installCustomSkill(skill)) {
-          printSuccess(`Installed: ${skill.name}`);
-          customSkillsInstalled++;
-        } else {
-          printInfo(`Skipped: ${skill.name} (already installed)`);
+      try {
+        const packageRoot = fileURLToPath(new URL('../..', import.meta.url));
+        const result = syncBundledSkillsFromPackage(packageRoot);
+
+        if (result.installed.length > 0) {
+          for (const skill of result.installed) {
+            printSuccess(`Installed/Updated: ${skill}`);
+          }
         }
+        if (result.skippedExisting.length > 0) {
+          for (const skill of result.skippedExisting) {
+            printInfo(`Skipped/Preserved: ${skill}`);
+          }
+        }
+        if (result.failed.length > 0) {
+          for (const skill of result.failed) {
+            printError(`Failed: ${skill}`);
+          }
+        }
+
+        const totalCustom = CUSTOM_SKILLS.length;
+        printSuccess(
+          `Skill synchronization complete. Processed ${totalCustom} skills: ` +
+            `${result.installed.length} installed/updated, ` +
+            `${result.skippedExisting.length} skipped/preserved, ` +
+            `${result.failed.length} failed.`,
+        );
+      } catch (err) {
+        printError(`Failed to synchronize custom skills: ${err}`);
       }
-      const totalCustom = CUSTOM_SKILLS.length;
-      printSuccess(
-        `${customSkillsInstalled}/${totalCustom} custom skills processed`,
-      );
     }
   }
 

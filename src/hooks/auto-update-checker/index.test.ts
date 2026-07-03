@@ -633,4 +633,34 @@ describe('auto-update-checker/index', () => {
     expect(crossSpawnMock).not.toHaveBeenCalled();
     expect(skillSyncMocks.syncBundledSkillsFromPackage).not.toHaveBeenCalled();
   });
+
+  test('runs startup skill reconciliation even when already on latest version', async () => {
+    checkerMocks.findPluginEntry.mockImplementation(() => ({
+      pinnedVersion: null,
+      isPinned: false,
+    }));
+    checkerMocks.getCachedVersion.mockImplementation(() => '0.9.11');
+    checkerMocks.getLatestCompatibleVersion.mockImplementation(async () => ({
+      latestVersion: '0.9.11',
+      latestMajorVersion: null,
+      blockedByMajor: false,
+    }));
+    checkerMocks.getCurrentRuntimePackageJsonPath.mockImplementation(
+      () => '/tmp/opencode/package.json',
+    );
+
+    const { createAutoUpdateCheckerHook } = await import(
+      `./index?test=${importCounter++}`
+    );
+    const { ctx } = createCtx();
+
+    const hook = createAutoUpdateCheckerHook(ctx as never);
+    hook.event({ event: { type: 'session.created', properties: {} } });
+
+    await waitForCalls(logMock, 1);
+
+    expect(skillSyncMocks.syncBundledSkillsFromPackage).toHaveBeenCalledWith(
+      '/tmp/opencode',
+    );
+  });
 });

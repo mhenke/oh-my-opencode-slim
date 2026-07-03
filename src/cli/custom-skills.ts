@@ -1,11 +1,4 @@
-import {
-  copyFileSync,
-  existsSync,
-  mkdirSync,
-  readdirSync,
-  statSync,
-} from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getConfigDir } from './paths';
 
@@ -91,55 +84,32 @@ export function getCustomSkillsDir(): string {
 }
 
 /**
- * Recursively copy a directory.
- */
-function copyDirRecursive(src: string, dest: string): void {
-  if (!existsSync(dest)) {
-    mkdirSync(dest, { recursive: true });
-  }
-
-  const entries = readdirSync(src);
-  for (const entry of entries) {
-    const srcPath = join(src, entry);
-    const destPath = join(dest, entry);
-    const stat = statSync(srcPath);
-
-    if (stat.isDirectory()) {
-      copyDirRecursive(srcPath, destPath);
-    } else {
-      const destDir = dirname(destPath);
-      if (!existsSync(destDir)) {
-        mkdirSync(destDir, { recursive: true });
-      }
-      copyFileSync(srcPath, destPath);
-    }
-  }
-}
-
-/**
  * Install a custom skill by copying from src/skills/ to the OpenCode skills directory
  * @param skill - The custom skill to install
- * @param projectRoot - Root directory of oh-my-opencode-slim project
  * @returns True if installation succeeded, false otherwise
+ * @deprecated Use syncBundledSkillsFromPackage instead.
  */
-export function installCustomSkill(skill: CustomSkill): boolean {
+export async function installCustomSkill(skill: CustomSkill): Promise<boolean> {
+  console.warn(
+    `[DEPRECATED] installCustomSkill is deprecated and will be removed. Use syncBundledSkillsFromPackage instead.`,
+  );
   try {
+    const { syncBundledSkillsFromPackage } = await import(
+      '../hooks/auto-update-checker/skill-sync'
+    );
     const packageRoot = fileURLToPath(new URL('../..', import.meta.url));
-    const sourcePath = join(packageRoot, skill.sourcePath);
-    const targetPath = join(getCustomSkillsDir(), skill.name);
-
-    // Validate source exists
-    if (!existsSync(sourcePath)) {
-      console.error(`Custom skill source not found: ${sourcePath}`);
-      return false;
-    }
-
-    // Copy skill directory
-    copyDirRecursive(sourcePath, targetPath);
-
-    return true;
+    const result = syncBundledSkillsFromPackage(packageRoot, {
+      skills: [skill],
+    });
+    return (
+      result.installed.includes(skill.name) ||
+      result.skippedExisting.includes(skill.name)
+    );
   } catch (error) {
-    console.error(`Failed to install custom skill: ${skill.name}`, error);
+    console.error(
+      `Failed to install custom skill safely: ${skill.name}`,
+      error,
+    );
     return false;
   }
 }

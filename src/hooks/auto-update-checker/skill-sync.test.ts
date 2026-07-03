@@ -7,7 +7,21 @@ let importCounter = 0;
 
 async function syncBundledSkillsFromPackage(packageRoot: string) {
   const module = await import(`./skill-sync?test=${importCounter++}`);
-  return module.syncBundledSkillsFromPackage(packageRoot);
+  return module.syncBundledSkillsFromPackage(packageRoot, {
+    skills: getFakeManagedSkills(packageRoot),
+  });
+}
+
+function getFakeManagedSkills(packageRoot: string) {
+  const sourceSkillsDir = path.join(packageRoot, 'src', 'skills');
+  if (!fs.existsSync(sourceSkillsDir)) return [];
+  return fs
+    .readdirSync(sourceSkillsDir)
+    .filter((entry) => !entry.startsWith('.'))
+    .map((entry) => ({
+      name: entry,
+      sourcePath: path.relative(packageRoot, path.join(sourceSkillsDir, entry)),
+    }));
 }
 
 describe('syncBundledSkillsFromPackage', () => {
@@ -156,8 +170,8 @@ describe('syncBundledSkillsFromPackage', () => {
 
     // Verify no staging directories are left behind in destSkillsDir
     const destEntries = fs.readdirSync(destSkillsDir);
-    const stagingDirs = destEntries.filter((entry) =>
-      entry.startsWith('.sync-staging-'),
+    const stagingDirs = destEntries.filter(
+      (entry) => entry.startsWith('.staging-') || entry.startsWith('.backup-'),
     );
     expect(stagingDirs).toHaveLength(0);
   });
@@ -266,5 +280,561 @@ describe('syncBundledSkillsFromPackage', () => {
 
     const destSkillDir = path.join(fakeDestConfigDir, 'skills', symlinkSkill);
     expect(fs.existsSync(destSkillDir)).toBe(false);
+  });
+
+  test('adopts and updates existing destination skill if it matches legacy official hashes (no manifest)', async () => {
+    const skillName = 'legacy-skill';
+    const legacyContent = 'old legacy skill content';
+
+    const skillSrcDir = path.join(fakePackageRoot, 'src', 'skills', skillName);
+    fs.mkdirSync(skillSrcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(skillSrcDir, 'SKILL.md'),
+      '# Updated Legacy Skill',
+    );
+
+    const destSkillsDir = path.join(fakeDestConfigDir, 'skills');
+    fs.mkdirSync(destSkillsDir, { recursive: true });
+    const destSkillDir = path.join(destSkillsDir, skillName);
+    fs.mkdirSync(destSkillDir, { recursive: true });
+    fs.writeFileSync(path.join(destSkillDir, 'SKILL.md'), legacyContent);
+
+    const testIndex = importCounter++;
+    const {
+      computeDirectoryHash,
+      LEGACY_MANAGED_SKILL_HASHES: legHashes,
+      syncBundledSkillsFromPackage: syncFn,
+    } = await import(`./skill-sync?test=${testIndex}`);
+    const legacyHash = computeDirectoryHash(destSkillDir);
+
+    legHashes[skillName] = [legacyHash];
+
+    const result = syncFn(fakePackageRoot, {
+      skills: getFakeManagedSkills(fakePackageRoot),
+    });
+
+    expect(result.installed).toContain(skillName);
+    expect(fs.readFileSync(path.join(destSkillDir, 'SKILL.md'), 'utf-8')).toBe(
+      '# Updated Legacy Skill',
+    );
+
+    const manifestPath = path.join(
+      fakeDestConfigDir,
+      '.oh-my-opencode-slim',
+      'skills-manifest.json',
+    );
+    expect(fs.existsSync(manifestPath)).toBe(true);
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+    expect(manifest.skills[skillName].status).toBe('managed');
+
+    delete legHashes[skillName];
+  });
+
+  test('stages update and marks customized if managed skill was modified by user', async () => {
+    const skillName = 'custom-skill-test';
+
+    fs.writeFileSync(
+      path.join(fakePackageRoot, 'package.json'),
+      JSON.stringify({ version: '1.1.0' }),
+    );
+
+    const skillSrcDir = path.join(fakePackageRoot, 'src', 'skills', skillName);
+    fs.mkdirSync(skillSrcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(skillSrcDir, 'SKILL.md'),
+      '# Current Bundled Skill',
+    );
+
+    const manifestDir = path.join(fakeDestConfigDir, '.oh-my-opencode-slim');
+    fs.mkdirSync(manifestDir, { recursive: true });
+    const manifestPath = path.join(manifestDir, 'skills-manifest.json');
+
+    const initialManifest = {
+      schemaVersion: 1,
+      updatedAt: new Date().toISOString(),
+      skills: {
+        [skillName]: {
+          status: 'managed',
+          packageVersion: '1.0.0',
+          sourceHash: 'old-source-hash',
+          lastManagedHash: 'old-managed-hash',
+          lastSeenHash: 'old-managed-hash',
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    };
+    fs.writeFileSync(manifestPath, JSON.stringify(initialManifest, null, 2));
+
+    const destSkillsDir = path.join(fakeDestConfigDir, 'skills');
+    fs.mkdirSync(destSkillsDir, { recursive: true });
+    const destSkillDir = path.join(destSkillsDir, skillName);
+    fs.mkdirSync(destSkillDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(destSkillDir, 'SKILL.md'),
+      '# User Modified Skill',
+    );
+
+    const result = await syncBundledSkillsFromPackage(fakePackageRoot);
+
+    expect(result.skippedExisting).toContain(skillName);
+    expect(fs.readFileSync(path.join(destSkillDir, 'SKILL.md'), 'utf-8')).toBe(
+      '# User Modified Skill',
+    );
+
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+    const stagedPath = manifest.skills[skillName].stagedPath as string;
+    expect(stagedPath).toBeDefined();
+    expect(fs.existsSync(stagedPath)).toBe(true);
+    expect(fs.readFileSync(path.join(stagedPath, 'SKILL.md'), 'utf-8')).toBe(
+      '# Current Bundled Skill',
+    );
+
+    expect(manifest.skills[skillName].status).toBe('customized');
+  });
+
+  test('fails closed (only installs missing) when manifest is corrupt', async () => {
+    const missingSkill = 'missing-skill';
+    const existingSkill = 'existing-skill';
+
+    const missingSrcDir = path.join(
+      fakePackageRoot,
+      'src',
+      'skills',
+      missingSkill,
+    );
+    fs.mkdirSync(missingSrcDir, { recursive: true });
+    fs.writeFileSync(path.join(missingSrcDir, 'SKILL.md'), '# Missing');
+
+    const existingSrcDir = path.join(
+      fakePackageRoot,
+      'src',
+      'skills',
+      existingSkill,
+    );
+    fs.mkdirSync(existingSrcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(existingSrcDir, 'SKILL.md'),
+      '# Existing Source',
+    );
+
+    const destSkillsDir = path.join(fakeDestConfigDir, 'skills');
+    fs.mkdirSync(destSkillsDir, { recursive: true });
+    const destExistingDir = path.join(destSkillsDir, existingSkill);
+    fs.mkdirSync(destExistingDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(destExistingDir, 'SKILL.md'),
+      '# Existing Dest Original',
+    );
+
+    const manifestDir = path.join(fakeDestConfigDir, '.oh-my-opencode-slim');
+    fs.mkdirSync(manifestDir, { recursive: true });
+    const manifestPath = path.join(manifestDir, 'skills-manifest.json');
+    fs.writeFileSync(manifestPath, '{ corrupt json here');
+
+    const result = await syncBundledSkillsFromPackage(fakePackageRoot);
+
+    expect(result.installed).toContain(missingSkill);
+    expect(fs.existsSync(path.join(destSkillsDir, missingSkill))).toBe(true);
+
+    expect(result.skippedExisting).toContain(existingSkill);
+    expect(
+      fs.readFileSync(path.join(destExistingDir, 'SKILL.md'), 'utf-8'),
+    ).toBe('# Existing Dest Original');
+
+    expect(fs.readFileSync(manifestPath, 'utf-8')).toBe('{ corrupt json here');
+  });
+
+  test('prevents reinstall when manifest indicates skill was deleted by user', async () => {
+    const skillName = 'deleted-skill-test';
+
+    const skillSrcDir = path.join(fakePackageRoot, 'src', 'skills', skillName);
+    fs.mkdirSync(skillSrcDir, { recursive: true });
+    fs.writeFileSync(path.join(skillSrcDir, 'SKILL.md'), '# Current');
+
+    const manifestDir = path.join(fakeDestConfigDir, '.oh-my-opencode-slim');
+    fs.mkdirSync(manifestDir, { recursive: true });
+    const manifestPath = path.join(manifestDir, 'skills-manifest.json');
+
+    const initialManifest = {
+      schemaVersion: 1,
+      updatedAt: new Date().toISOString(),
+      skills: {
+        [skillName]: {
+          status: 'deleted',
+          packageVersion: '1.0.0',
+          sourceHash: 'some-hash',
+          lastManagedHash: 'some-hash',
+          lastSeenHash: 'some-hash',
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    };
+    fs.writeFileSync(manifestPath, JSON.stringify(initialManifest, null, 2));
+
+    const result = await syncBundledSkillsFromPackage(fakePackageRoot);
+
+    expect(result.installed).not.toContain(skillName);
+    expect(
+      fs.existsSync(path.join(fakeDestConfigDir, 'skills', skillName)),
+    ).toBe(false);
+  });
+
+  test('fails closed (only installs missing) when manifest validation fails (schemaVersion mismatch)', async () => {
+    const missingSkill = 'missing-skill';
+    const existingSkill = 'existing-skill';
+
+    const missingSrcDir = path.join(
+      fakePackageRoot,
+      'src',
+      'skills',
+      missingSkill,
+    );
+    fs.mkdirSync(missingSrcDir, { recursive: true });
+    fs.writeFileSync(path.join(missingSrcDir, 'SKILL.md'), '# Missing');
+
+    const existingSrcDir = path.join(
+      fakePackageRoot,
+      'src',
+      'skills',
+      existingSkill,
+    );
+    fs.mkdirSync(existingSrcDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(existingSrcDir, 'SKILL.md'),
+      '# Existing Source',
+    );
+
+    const destSkillsDir = path.join(fakeDestConfigDir, 'skills');
+    fs.mkdirSync(destSkillsDir, { recursive: true });
+    const destExistingDir = path.join(destSkillsDir, existingSkill);
+    fs.mkdirSync(destExistingDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(destExistingDir, 'SKILL.md'),
+      '# Existing Dest Original',
+    );
+
+    const manifestDir = path.join(fakeDestConfigDir, '.oh-my-opencode-slim');
+    fs.mkdirSync(manifestDir, { recursive: true });
+    const manifestPath = path.join(manifestDir, 'skills-manifest.json');
+
+    const invalidManifest = {
+      schemaVersion: 2,
+      updatedAt: new Date().toISOString(),
+      skills: {
+        [existingSkill]: {
+          status: 'managed',
+          packageVersion: '1.0.0',
+          sourceHash: 'some-hash',
+          lastManagedHash: 'some-hash',
+          lastSeenHash: 'some-hash',
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    };
+    fs.writeFileSync(manifestPath, JSON.stringify(invalidManifest, null, 2));
+
+    const result = await syncBundledSkillsFromPackage(fakePackageRoot);
+
+    expect(result.installed).toContain(missingSkill);
+    expect(fs.existsSync(path.join(destSkillsDir, missingSkill))).toBe(true);
+
+    expect(result.skippedExisting).toContain(existingSkill);
+    expect(
+      fs.readFileSync(path.join(destExistingDir, 'SKILL.md'), 'utf-8'),
+    ).toBe('# Existing Dest Original');
+  });
+
+  test('customized convergence: customized adopts back to managed when destHash equals current sourceHash', async () => {
+    const skillName = 'convergence-skill';
+
+    const skillSrcDir = path.join(fakePackageRoot, 'src', 'skills', skillName);
+    fs.mkdirSync(skillSrcDir, { recursive: true });
+    fs.writeFileSync(path.join(skillSrcDir, 'SKILL.md'), '# Identical Content');
+
+    const manifestDir = path.join(fakeDestConfigDir, '.oh-my-opencode-slim');
+    fs.mkdirSync(manifestDir, { recursive: true });
+    const manifestPath = path.join(manifestDir, 'skills-manifest.json');
+
+    const initialManifest = {
+      schemaVersion: 1,
+      updatedAt: new Date().toISOString(),
+      skills: {
+        [skillName]: {
+          status: 'customized',
+          packageVersion: '1.0.0',
+          sourceHash: 'old-source-hash',
+          lastManagedHash: 'old-managed-hash',
+          lastSeenHash: 'user-custom-hash',
+          stagedPath: '/tmp/some-staged-path',
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    };
+    fs.writeFileSync(manifestPath, JSON.stringify(initialManifest, null, 2));
+
+    const destSkillsDir = path.join(fakeDestConfigDir, 'skills');
+    fs.mkdirSync(destSkillsDir, { recursive: true });
+    const destSkillDir = path.join(destSkillsDir, skillName);
+    fs.mkdirSync(destSkillDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(destSkillDir, 'SKILL.md'),
+      '# Identical Content',
+    );
+
+    const result = await syncBundledSkillsFromPackage(fakePackageRoot);
+
+    expect(result.adopted).toContain(skillName);
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+    expect(manifest.skills[skillName].status).toBe('managed');
+    expect(manifest.skills[skillName].stagedPath).toBeUndefined();
+  });
+
+  test('lock recovery: steals lock when owner host matches and owner process is dead', async () => {
+    const skillName = 'lock-recovery-skill';
+    const skillSrcDir = path.join(fakePackageRoot, 'src', 'skills', skillName);
+    fs.mkdirSync(skillSrcDir, { recursive: true });
+    fs.writeFileSync(path.join(skillSrcDir, 'SKILL.md'), '# Content');
+
+    const manifestDir = path.join(fakeDestConfigDir, '.oh-my-opencode-slim');
+    fs.mkdirSync(manifestDir, { recursive: true });
+    const lockDir = path.join(manifestDir, 'skills.lock');
+    fs.mkdirSync(lockDir, { recursive: true });
+
+    const deadOwner = {
+      pid: 999999,
+      host: require('node:os').hostname(),
+      time: Date.now() - 5000,
+    };
+    fs.writeFileSync(
+      path.join(lockDir, 'owner.json'),
+      JSON.stringify(deadOwner),
+      'utf-8',
+    );
+
+    const result = await syncBundledSkillsFromPackage(fakePackageRoot);
+
+    expect(result.installed).toContain(skillName);
+    expect(result.failed).not.toContain('__lock__');
+  });
+
+  test('returns failed: ["__lock__"] when lock acquisition fails', async () => {
+    const skillName = 'lock-fail-skill';
+    const skillSrcDir = path.join(fakePackageRoot, 'src', 'skills', skillName);
+    fs.mkdirSync(skillSrcDir, { recursive: true });
+    fs.writeFileSync(path.join(skillSrcDir, 'SKILL.md'), '# Content');
+
+    const manifestDir = path.join(fakeDestConfigDir, '.oh-my-opencode-slim');
+    fs.mkdirSync(manifestDir, { recursive: true });
+    const lockDir = path.join(manifestDir, 'skills.lock');
+    fs.mkdirSync(lockDir, { recursive: true });
+
+    const activeOwner = {
+      pid: process.pid,
+      host: require('node:os').hostname(),
+      time: Date.now(),
+    };
+    fs.writeFileSync(
+      path.join(lockDir, 'owner.json'),
+      JSON.stringify(activeOwner),
+      'utf-8',
+    );
+
+    const result = await syncBundledSkillsFromPackage(fakePackageRoot);
+
+    expect(result.failed).toContain('__lock__');
+    expect(result.installed).not.toContain(skillName);
+  });
+
+  test('crash safe recovery: recovers backup directory when destination directory is missing', async () => {
+    const skillName = 'recovery-test-skill';
+    const skillSrcDir = path.join(fakePackageRoot, 'src', 'skills', skillName);
+    fs.mkdirSync(skillSrcDir, { recursive: true });
+    fs.writeFileSync(path.join(skillSrcDir, 'SKILL.md'), '# Bundled Content');
+
+    const destSkillsDir = path.join(fakeDestConfigDir, 'skills');
+    fs.mkdirSync(destSkillsDir, { recursive: true });
+    const destSkillDir = path.join(destSkillsDir, skillName);
+
+    const backupDir = path.join(destSkillsDir, `.backup-${skillName}-12345`);
+    fs.mkdirSync(backupDir, { recursive: true });
+    fs.writeFileSync(path.join(backupDir, 'SKILL.md'), '# Backup Content');
+
+    const manifestDir = path.join(fakeDestConfigDir, '.oh-my-opencode-slim');
+    fs.mkdirSync(manifestDir, { recursive: true });
+    const manifestPath = path.join(manifestDir, 'skills-manifest.json');
+    const initialManifest = {
+      schemaVersion: 1,
+      updatedAt: new Date().toISOString(),
+      skills: {
+        [skillName]: {
+          status: 'managed',
+          packageVersion: '1.0.0',
+          sourceHash: 'some-hash',
+          lastManagedHash: 'some-hash',
+          lastSeenHash: 'some-hash',
+          updatedAt: new Date().toISOString(),
+        },
+      },
+    };
+    fs.writeFileSync(manifestPath, JSON.stringify(initialManifest, null, 2));
+
+    await syncBundledSkillsFromPackage(fakePackageRoot);
+
+    expect(fs.existsSync(destSkillDir)).toBe(true);
+    expect(fs.readFileSync(path.join(destSkillDir, 'SKILL.md'), 'utf-8')).toBe(
+      '# Backup Content',
+    );
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+    expect(manifest.skills[skillName].status).not.toBe('deleted');
+  });
+
+  test('preserves managed skill when user only adds nested symlink', async () => {
+    const skillName = 'symlink-customization-skill';
+    const skillSrcDir = path.join(fakePackageRoot, 'src', 'skills', skillName);
+    fs.mkdirSync(skillSrcDir, { recursive: true });
+    fs.writeFileSync(path.join(skillSrcDir, 'SKILL.md'), '# Original');
+
+    const destSkillsDir = path.join(fakeDestConfigDir, 'skills');
+    fs.mkdirSync(destSkillsDir, { recursive: true });
+    const destSkillDir = path.join(destSkillsDir, skillName);
+    fs.mkdirSync(destSkillDir, { recursive: true });
+    fs.writeFileSync(path.join(destSkillDir, 'SKILL.md'), '# Original');
+
+    const { computeDirectoryHash } = await import(
+      `./skill-sync?test=${importCounter++}`
+    );
+    const managedHash = computeDirectoryHash(destSkillDir);
+
+    const symlinkTarget = path.join(fakeDestConfigDir, 'user-target.txt');
+    fs.writeFileSync(symlinkTarget, 'user data');
+    fs.symlinkSync(symlinkTarget, path.join(destSkillDir, 'user-link'));
+
+    fs.writeFileSync(path.join(skillSrcDir, 'SKILL.md'), '# Updated');
+
+    const manifestDir = path.join(fakeDestConfigDir, '.oh-my-opencode-slim');
+    fs.mkdirSync(manifestDir, { recursive: true });
+    const manifestPath = path.join(manifestDir, 'skills-manifest.json');
+    fs.writeFileSync(
+      manifestPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        updatedAt: new Date().toISOString(),
+        skills: {
+          [skillName]: {
+            status: 'managed',
+            packageVersion: '1.0.0',
+            sourceHash: managedHash,
+            lastManagedHash: managedHash,
+            lastSeenHash: managedHash,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      }),
+    );
+
+    const result = await syncBundledSkillsFromPackage(fakePackageRoot);
+
+    expect(result.customized).toContain(skillName);
+    expect(
+      fs.lstatSync(path.join(destSkillDir, 'user-link')).isSymbolicLink(),
+    ).toBe(true);
+    expect(fs.readFileSync(path.join(destSkillDir, 'SKILL.md'), 'utf-8')).toBe(
+      '# Original',
+    );
+  });
+
+  test('preserves managed skill when user only adds empty directory', async () => {
+    const skillName = 'empty-dir-customization-skill';
+    const skillSrcDir = path.join(fakePackageRoot, 'src', 'skills', skillName);
+    fs.mkdirSync(skillSrcDir, { recursive: true });
+    fs.writeFileSync(path.join(skillSrcDir, 'SKILL.md'), '# Original');
+
+    const destSkillsDir = path.join(fakeDestConfigDir, 'skills');
+    fs.mkdirSync(destSkillsDir, { recursive: true });
+    const destSkillDir = path.join(destSkillsDir, skillName);
+    fs.mkdirSync(destSkillDir, { recursive: true });
+    fs.writeFileSync(path.join(destSkillDir, 'SKILL.md'), '# Original');
+
+    const { computeDirectoryHash } = await import(
+      `./skill-sync?test=${importCounter++}`
+    );
+    const managedHash = computeDirectoryHash(destSkillDir);
+    fs.mkdirSync(path.join(destSkillDir, 'user-empty-dir'));
+    fs.writeFileSync(path.join(skillSrcDir, 'SKILL.md'), '# Updated');
+
+    const manifestDir = path.join(fakeDestConfigDir, '.oh-my-opencode-slim');
+    fs.mkdirSync(manifestDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(manifestDir, 'skills-manifest.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        updatedAt: new Date().toISOString(),
+        skills: {
+          [skillName]: {
+            status: 'managed',
+            packageVersion: '1.0.0',
+            sourceHash: managedHash,
+            lastManagedHash: managedHash,
+            lastSeenHash: managedHash,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      }),
+    );
+
+    const result = await syncBundledSkillsFromPackage(fakePackageRoot);
+
+    expect(result.customized).toContain(skillName);
+    expect(fs.existsSync(path.join(destSkillDir, 'user-empty-dir'))).toBe(true);
+    expect(fs.readFileSync(path.join(destSkillDir, 'SKILL.md'), 'utf-8')).toBe(
+      '# Original',
+    );
+  });
+
+  test('preserves managed skill when user only changes file mode', async () => {
+    const skillName = 'mode-customization-skill';
+    const skillSrcDir = path.join(fakePackageRoot, 'src', 'skills', skillName);
+    fs.mkdirSync(skillSrcDir, { recursive: true });
+    fs.writeFileSync(path.join(skillSrcDir, 'SKILL.md'), '# Original');
+
+    const destSkillsDir = path.join(fakeDestConfigDir, 'skills');
+    fs.mkdirSync(destSkillsDir, { recursive: true });
+    const destSkillDir = path.join(destSkillsDir, skillName);
+    fs.mkdirSync(destSkillDir, { recursive: true });
+    const destSkillFile = path.join(destSkillDir, 'SKILL.md');
+    fs.writeFileSync(destSkillFile, '# Original');
+
+    const { computeDirectoryHash } = await import(
+      `./skill-sync?test=${importCounter++}`
+    );
+    const managedHash = computeDirectoryHash(destSkillDir);
+    fs.chmodSync(destSkillFile, 0o600);
+    fs.writeFileSync(path.join(skillSrcDir, 'SKILL.md'), '# Updated');
+
+    const manifestDir = path.join(fakeDestConfigDir, '.oh-my-opencode-slim');
+    fs.mkdirSync(manifestDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(manifestDir, 'skills-manifest.json'),
+      JSON.stringify({
+        schemaVersion: 1,
+        updatedAt: new Date().toISOString(),
+        skills: {
+          [skillName]: {
+            status: 'managed',
+            packageVersion: '1.0.0',
+            sourceHash: managedHash,
+            lastManagedHash: managedHash,
+            lastSeenHash: managedHash,
+            updatedAt: new Date().toISOString(),
+          },
+        },
+      }),
+    );
+
+    const result = await syncBundledSkillsFromPackage(fakePackageRoot);
+
+    expect(result.customized).toContain(skillName);
+    expect((fs.statSync(destSkillFile).mode & 0o777).toString(8)).toBe('600');
+    expect(fs.readFileSync(destSkillFile, 'utf-8')).toBe('# Original');
   });
 });

@@ -11,6 +11,7 @@ import {
   extractChannel,
   findPluginEntry,
   getCachedVersion,
+  getCurrentRuntimePackageJsonPath,
   getLatestCompatibleVersion,
   getLocalDevVersion,
 } from './checker';
@@ -60,6 +61,8 @@ export function createAutoUpdateCheckerHook(
   };
 }
 
+let hasReconciledAtStartup = false;
+
 /**
  * Orchestrates the version comparison and update process in the background.
  * @param ctx The plugin input context.
@@ -70,6 +73,35 @@ async function runBackgroundUpdateCheck(
   autoUpdate: boolean,
   companion: AutoUpdateCheckerOptions['companion'],
 ): Promise<void> {
+  // Startup reconciliation (run once per top-level startup)
+  if (!hasReconciledAtStartup) {
+    hasReconciledAtStartup = true;
+    try {
+      const runtimePackageJsonPath = getCurrentRuntimePackageJsonPath();
+      if (runtimePackageJsonPath) {
+        const packageRoot = path.dirname(runtimePackageJsonPath);
+        log('[auto-update-checker] Running startup skill reconciliation');
+        const syncResult = syncBundledSkillsFromPackage(packageRoot);
+        if (syncResult.installed.length > 0) {
+          log(
+            `[auto-update-checker] Startup skill sync installed: ${syncResult.installed.join(', ')}`,
+          );
+        }
+        if (syncResult.failed.length > 0) {
+          log(
+            `[auto-update-checker] Startup skill sync failures: ${syncResult.failed.join(', ')}`,
+          );
+        }
+      } else {
+        log(
+          '[auto-update-checker] Could not resolve runtime package path for startup skill reconciliation',
+        );
+      }
+    } catch (err) {
+      log('[auto-update-checker] Startup skill reconciliation failed:', err);
+    }
+  }
+
   const pluginInfo = findPluginEntry(ctx.directory);
   if (!pluginInfo) {
     log('[auto-update-checker] Plugin not found in config');
