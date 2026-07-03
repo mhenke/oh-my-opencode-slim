@@ -660,3 +660,69 @@ describe('interview manager - integration with real dashboard', () => {
     }
   });
 });
+
+describe('interview manager - dashboard election failure fallback', () => {
+  test('falls back to per-session mode when tryBecomeDashboard fails and dashboard is unreachable', async () => {
+    // Create a TCP server that blocks a port but immediately destroys
+    // connections. This simulates a port in use by a non-dashboard
+    // process, causing:
+    //   1. tryBecomeDashboard → probes fail, bind fails (EADDRINUSE),
+    //      returns null after retries
+    //   2. probeDashboard × 2 → fails (no valid HTTP response)
+    //   3. Throws → caught → falls back via createPerSessionInterviewServer
+    const tcpServer = createServer((socket) => {
+      socket.destroy();
+    });
+
+    const port = await new Promise<number>((resolve) => {
+      tcpServer.listen(0, () => {
+        const address = tcpServer.address();
+        if (address && typeof address !== 'string') {
+          resolve(address.port);
+        } else {
+          resolve(0);
+        }
+      });
+    });
+
+    const tempDir = await fs.mkdtemp('/tmp/manager-test-');
+    const ctx = createMockContext({ directory: tempDir });
+    const config = createTestConfig({
+      port,
+      dashboard: true,
+    });
+
+    try {
+      const manager = createInterviewManager(ctx, config);
+
+      // handleCommandExecuteBefore calls ensureInitialized internally,
+      // which awaits initPromise. This naturally waits for all retries,
+      // probes, and fallback logic to complete before proceeding.
+      const output = {
+        parts: [] as Array<{ type: string; text?: string }>,
+      };
+      await manager.handleCommandExecuteBefore(
+        {
+          command: 'interview',
+          sessionID: 'session-fallback',
+          arguments: 'Fallback Test Idea',
+        },
+        output,
+      );
+
+      // Verify interview was created in per-session fallback mode
+      expect(output.parts.length).toBe(1);
+      expect(output.parts[0].type).toBe('text');
+      expect(output.parts[0].text).toContain('Fallback Test Idea');
+      expect(output.parts[0].text).toContain('<interview_state>');
+
+      // Verify interview file was created (per-session mode writes markdown)
+      const interviewDir = `${tempDir}/interview`;
+      const files = await fs.readdir(interviewDir);
+      expect(files.length).toBe(1);
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true }).catch(() => {});
+      tcpServer.close();
+    }
+  });
+});

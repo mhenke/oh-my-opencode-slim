@@ -1,3 +1,4 @@
+import path from 'node:path';
 import type { PluginInput } from '@opencode-ai/plugin';
 import type { PluginConfig } from '../config';
 import { log } from '../utils';
@@ -6,7 +7,7 @@ import {
   readDashboardAuthFile,
   tryBecomeDashboard,
 } from './dashboard';
-import { createPerSessionInterviewServer } from './manager';
+import { createInterviewServer } from './server';
 import { createInterviewService } from './service';
 import type {
   InterviewRecord,
@@ -184,9 +185,27 @@ export function createDashboardManager(
         '[interview] dashboard election failed or unreachable. Falling back to per-session server.',
         { error: err instanceof Error ? err.message : String(err) },
       );
-      // Fallback: spawn a per-session server exactly like non-dashboard mode
+      // Fallback: wire up a local per-session server for the manager's
+      // service, exactly like the non-dashboard mode would.
       isDashboard = false;
-      createPerSessionInterviewServer(ctx, interviewConfig, outputFolder);
+      const resolvedOutputPath = path.join(ctx.directory, outputFolder);
+      const fallbackServer = createInterviewServer({
+        getState: async (interviewId) =>
+          service.getInterviewState(interviewId),
+        listInterviewFiles: async () => service.listInterviewFiles(),
+        listInterviews: () => service.listInterviews(),
+        submitAnswers: async (interviewId, answers) =>
+          service.submitAnswers(interviewId, answers),
+        submitBlockComment: async (interviewId, section, comment) =>
+          service.submitBlockComment(interviewId, section, comment),
+        submitChat: async (interviewId, message) =>
+          service.submitChat(interviewId, message),
+        handleNudgeAction: async (interviewId, action) =>
+          service.handleNudgeAction(interviewId, action),
+        outputFolder: resolvedOutputPath,
+        port: 0,
+      });
+      service.setBaseUrlResolver(() => fallbackServer.ensureStarted());
       service.setStatePushCallback(() => {}); // no-op on fallback
     } finally {
       initDone = true;
