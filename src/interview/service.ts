@@ -49,7 +49,7 @@ const DEFAULT_MAX_QUESTIONS = 2;
  * without a bound the `interviewsById` and `browserOpened` collections grow
  * for the life of a long-running session/dashboard process.
  */
-const MAX_RETAINED_ABANDONED = 50;
+export const MAX_RETAINED_ABANDONED = 50;
 
 function isTruthyEnvFlag(value: string | undefined): boolean {
   if (!value) {
@@ -179,6 +179,7 @@ export function createInterviewService(
     | null = null;
   let onInterviewCreated: ((interview: InterviewRecord) => void) | null = null;
   let idCounter = 0;
+  let abandonedOrderCounter = 0;
 
   function setBaseUrlResolver(resolver: () => Promise<string>): void {
     resolveBaseUrl = resolver;
@@ -300,6 +301,10 @@ export function createInterviewService(
    * in-memory registry (and its browser-open tracking) stays bounded.
    */
   function abandonInterview(interview: InterviewRecord): void {
+    if (interview.status !== 'abandoned') {
+      interview.abandonedAt = nowIso();
+      interview.abandonedOrder = ++abandonedOrderCounter;
+    }
     interview.status = 'abandoned';
     pruneAbandonedInterviews();
   }
@@ -311,10 +316,13 @@ export function createInterviewService(
     const overflow = abandoned.length - MAX_RETAINED_ABANDONED;
     if (overflow <= 0) return;
     abandoned
-      .sort(
-        (a, b) =>
-          new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
-      )
+      .sort((a, b) => {
+        const timeDelta =
+          new Date(a.abandonedAt ?? a.createdAt).getTime() -
+          new Date(b.abandonedAt ?? b.createdAt).getTime();
+        if (timeDelta !== 0) return timeDelta;
+        return (a.abandonedOrder ?? 0) - (b.abandonedOrder ?? 0);
+      })
       .slice(0, overflow)
       .forEach((record) => {
         interviewsById.delete(record.id);
