@@ -1824,6 +1824,54 @@ describe('task-session-manager hook', () => {
     expect(messages.messages[0].parts[0].text).toBe('do something');
   });
 
+  test('reconciles running child session job from session.idle event', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'fixer',
+      description: 'fix bug',
+    });
+    expect(board.get('child-1')).toMatchObject({ state: 'running' });
+
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      shouldManageSession: (id) => id === 'parent-1',
+    });
+
+    await hook.event({
+      event: { type: 'session.idle', properties: { sessionID: 'child-1' } },
+    });
+
+    expect(board.get('child-1')).toMatchObject({
+      state: 'reconciled',
+      terminalState: 'completed',
+    });
+  });
+
+  test('ignores session.idle for already reconciled job', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'fixer',
+      description: 'fix bug',
+    });
+    board.updateStatus({ taskID: 'child-1', state: 'completed' });
+    board.markReconciled('child-1');
+
+    const { hook } = createHook({ backgroundJobBoard: board });
+
+    await hook.event({
+      event: { type: 'session.idle', properties: { sessionID: 'child-1' } },
+    });
+
+    expect(board.get('child-1')).toMatchObject({
+      state: 'reconciled',
+      terminalState: 'completed',
+    });
+  });
+
   test('parent deletion clears jobs and pending calls', async () => {
     const board = new BackgroundJobBoard();
     const { hook } = createHook({ backgroundJobBoard: board });

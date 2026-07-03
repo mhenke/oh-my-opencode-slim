@@ -582,9 +582,34 @@ export function createTaskSessionManagerHook(
           terminalJobsPending: sessionId
             ? (terminalJobsInjectedByParent.get(sessionId)?.size ?? 0)
             : 0,
+          runningJobForSession: sessionId
+            ? backgroundJobBoard.get(sessionId)?.state === 'running' || false
+            : false,
         });
         if (sessionId && options.shouldManageSession(sessionId)) {
           reconcileInjectedTerminalJobs(sessionId);
+          return;
+        }
+
+        // Fallback: for background child sessions that go idle without
+        // an injected completion, reconcile the board entry since the
+        // session being idle is itself the completion signal.
+        if (sessionId) {
+          const job = backgroundJobBoard.get(sessionId);
+          if (job && job.state === 'running') {
+            log('[task-session-manager] reconciled running job from idle', {
+              sessionID: sessionId,
+              alias: job.alias,
+              parentSessionID: job.parentSessionID,
+            });
+            backgroundJobBoard.updateStatus({
+              taskID: sessionId,
+              state: 'completed',
+              resultSummary:
+                'Background task completed (reconciled from idle event)',
+            });
+            backgroundJobBoard.markReconciled(sessionId);
+          }
         }
         return;
       }
