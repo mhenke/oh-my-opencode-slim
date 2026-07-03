@@ -61,6 +61,30 @@ export function stateFilePath(): string {
   );
 }
 
+function pidFilePath(): string {
+  const xdg = process.env.XDG_DATA_HOME?.trim();
+  const base =
+    xdg && path.isAbsolute(xdg)
+      ? xdg
+      : path.join(os.homedir(), '.local', 'share');
+  return path.join(
+    base,
+    'opencode',
+    'storage',
+    'oh-my-opencode-slim',
+    'companion.pid',
+  );
+}
+
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function defaultBinaryPath(): string {
   const xdg = process.env.XDG_DATA_HOME?.trim();
   const base =
@@ -260,6 +284,12 @@ export class CompanionManager {
   }
 
   onExit(): void {
+    if (this.wasSpawner) {
+      try {
+        const pf = pidFilePath();
+        if (existsSync(pf)) rmSync(pf, { force: true });
+      } catch {}
+    }
     activeManagers.delete(this);
     if (this.companionProcess) {
       try {
@@ -335,6 +365,23 @@ export class CompanionManager {
 
   private spawnIfAvailable(): void {
     if (this.config?.enabled !== true) return;
+    // Check if another process already spawned the companion
+    const pidFile = pidFilePath();
+    try {
+      if (existsSync(pidFile)) {
+        const existingPid = Number(readFileSync(pidFile, 'utf8').trim());
+        if (isProcessAlive(existingPid)) {
+          log('[companion] another instance already running, skipping spawn');
+          return;
+        }
+        // Stale PID file — process died without cleanup
+        log(
+          '[companion] removing stale PID file for dead process',
+          String(existingPid),
+        );
+        rmSync(pidFile, { force: true });
+      }
+    } catch {}
     const bin = resolveCompanionBinaryPath(this.config);
     if (!bin) {
       const expected = this.config.binaryPath?.trim() || defaultBinaryPath();
@@ -365,6 +412,10 @@ export class CompanionManager {
           debug: this.config.debug === true,
         }),
       );
+      try {
+        mkdirSync(path.dirname(pidFile), { recursive: true });
+        writeFileSync(pidFile, String(process.pid));
+      } catch {}
     } catch (err) {
       log('[companion] spawn failed', String(err));
     }

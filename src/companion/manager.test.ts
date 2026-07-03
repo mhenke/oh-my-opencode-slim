@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import {
@@ -428,6 +434,55 @@ describe('CompanionManager', () => {
     const state = readState();
     expect(state.sessions[0].session_id).toBe('test-enabled');
     expect(state.config.enabled).toBe(true);
+  });
+
+  it('skips spawn when PID file points to a live process', () => {
+    // Write a PID file with our own PID (which is alive)
+    mkdirSync(path.dirname(stateFilePath()), { recursive: true });
+    const pidFile = path.join(path.dirname(stateFilePath()), 'companion.pid');
+    writeFileSync(pidFile, String(process.pid));
+
+    const m = make('test-pid-guard');
+    m.onLoad();
+
+    // Should not have spawned — PID file guard prevented it
+    // The session should still be written to state
+    const state = readState();
+    expect(state.sessions[0].session_id).toBe('test-pid-guard');
+  });
+
+  it('spawns when PID file contains a dead process', () => {
+    mkdirSync(path.dirname(stateFilePath()), { recursive: true });
+    const pidFile = path.join(path.dirname(stateFilePath()), 'companion.pid');
+    // Use an impossibly high PID that no kernel will ever assign
+    writeFileSync(pidFile, '999999999');
+
+    const m = make('test-stale-pid');
+    m.onLoad();
+
+    // Stale PID file should have been cleaned up
+    expect(existsSync(pidFile)).toBe(false);
+    const state = readState();
+    expect(state.sessions[0].session_id).toBe('test-stale-pid');
+  });
+
+  it('spawns when no PID file exists', () => {
+    const m = make('test-no-pid');
+    m.onLoad();
+    const state = readState();
+    expect(state.sessions[0].session_id).toBe('test-no-pid');
+  });
+
+  it('cleans up PID file on exit', () => {
+    mkdirSync(path.dirname(stateFilePath()), { recursive: true });
+    const pidFile = path.join(path.dirname(stateFilePath()), 'companion.pid');
+    writeFileSync(pidFile, String(process.pid));
+
+    const m = make('test-pid-cleanup');
+    m.onLoad();
+    m.onExit();
+
+    expect(existsSync(pidFile)).toBe(false);
   });
 
   it('removes disabled session entries on load', () => {
