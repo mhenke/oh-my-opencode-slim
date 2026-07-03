@@ -1,6 +1,7 @@
 import { describe, expect, mock, test } from 'bun:test';
 import * as fs from 'node:fs/promises';
-import { createServer } from 'node:http';
+import { createServer as createHttpServer } from 'node:http';
+import { createServer as createNetServer } from 'node:net';
 import type { PluginConfig } from '../config';
 import { readDashboardAuthFile } from './dashboard';
 import { createInterviewManager } from './manager';
@@ -8,7 +9,7 @@ import { createInterviewManager } from './manager';
 // Helper to find a free port (matches interview.test.ts pattern)
 async function findFreePort(): Promise<number> {
   return new Promise((resolve, reject) => {
-    const server = createServer();
+    const server = createHttpServer();
     server.listen(0, () => {
       const address = server.address();
       if (address && typeof address !== 'string') {
@@ -444,6 +445,74 @@ describe('interview manager - session registration', () => {
       await fs.rm(tempDir, { recursive: true, force: true });
     }
   });
+
+  test('clears fallback timer when last registered session is deleted', async () => {
+    const dashboardDir = await fs.mkdtemp('/tmp/manager-test-');
+    const clientDir = await fs.mkdtemp('/tmp/manager-test-');
+    const dashboardCtx = createMockContext({ directory: dashboardDir });
+    const clientCtx = createMockContext({ directory: clientDir });
+
+    const freePort = await findFreePort();
+    const config = createTestConfig({
+      port: freePort,
+      dashboard: true,
+    });
+
+    const originalSetInterval = globalThis.setInterval;
+    const originalClearInterval = globalThis.clearInterval;
+    const intervalHandles: Array<{ unref: ReturnType<typeof mock> }> = [];
+    const setIntervalSpy = mock(() => {
+      const handle = { unref: mock(() => {}) };
+      intervalHandles.push(handle);
+      return handle;
+    });
+    const clearIntervalSpy = mock(() => {});
+
+    try {
+      (globalThis as any).setInterval = setIntervalSpy;
+      (globalThis as any).clearInterval = clearIntervalSpy;
+
+      createInterviewManager(dashboardCtx, config);
+
+      // Wait for dashboard init
+      await new Promise((r) => setTimeout(r, 100));
+
+      const clientManager = createInterviewManager(clientCtx, config);
+
+      // Wait for client init to connect to the dashboard
+      await new Promise((r) => setTimeout(r, 100));
+
+      const output = { parts: [] as Array<{ type: string; text?: string }> };
+      await clientManager.handleCommandExecuteBefore(
+        {
+          command: 'interview',
+          sessionID: 'session-fallback-cleanup',
+          arguments: 'Fallback Cleanup Test',
+        },
+        output,
+      );
+
+      expect(intervalHandles.length).toBeGreaterThan(0);
+      const fallbackTimerHandle = intervalHandles.at(-1);
+      expect(fallbackTimerHandle).toBeDefined();
+
+      await clientManager.handleEvent({
+        event: {
+          type: 'session.deleted',
+          properties: { sessionID: 'session-fallback-cleanup' },
+        },
+      });
+
+      expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
+      expect(clearIntervalSpy).toHaveBeenCalledWith(fallbackTimerHandle);
+      expect(fallbackTimerHandle?.unref).toHaveBeenCalledTimes(1);
+    } finally {
+      (globalThis as any).setInterval = originalSetInterval;
+      (globalThis as any).clearInterval = originalClearInterval;
+      await fs.rm(dashboardDir, { recursive: true, force: true });
+      await fs.rm(clientDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('interview manager - edge cases', () => {
@@ -670,7 +739,7 @@ describe('interview manager - dashboard election failure fallback', () => {
     //      returns null after retries
     //   2. probeDashboard × 2 → fails (no valid HTTP response)
     //   3. Throws → caught → falls back via createPerSessionInterviewServer
-    const tcpServer = createServer((socket) => {
+    const tcpServer = createNetServer((socket) => {
       socket.destroy();
     });
 

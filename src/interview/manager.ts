@@ -34,4 +34,3 @@ export function createInterviewManager(
 
   return createDashboardManager(ctx, config, dashboardPort, outputFolder);
 }
-

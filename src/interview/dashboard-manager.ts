@@ -44,6 +44,11 @@ export function createDashboardManager(
   // ── Timer-based fallback for nudge/answer polling ─────────────
   const FALLBACK_POLL_INTERVAL = 10_000;
   let fallbackTimer: ReturnType<typeof setInterval> | null = null;
+  const stopFallbackTimer = () => {
+    if (!fallbackTimer) return;
+    clearInterval(fallbackTimer);
+    fallbackTimer = null;
+  };
   const startFallbackTimer = () => {
     if (fallbackTimer) return;
     fallbackTimer = setInterval(() => {
@@ -190,8 +195,7 @@ export function createDashboardManager(
       isDashboard = false;
       const resolvedOutputPath = path.join(ctx.directory, outputFolder);
       const fallbackServer = createInterviewServer({
-        getState: async (interviewId) =>
-          service.getInterviewState(interviewId),
+        getState: async (interviewId) => service.getInterviewState(interviewId),
         listInterviewFiles: async () => service.listInterviewFiles(),
         listInterviews: () => service.listInterviews(),
         submitAnswers: async (interviewId, answers) =>
@@ -225,8 +229,11 @@ export function createDashboardManager(
 
     try {
       const res = await fetch(
-        `${dashboardBaseUrl}/api/interviews/${interviewId}/pending?token=${authToken}`,
-        { signal: AbortSignal.timeout(3000) },
+        `${dashboardBaseUrl}/api/interviews/${interviewId}/pending`,
+        {
+          headers: authHeaders(authToken),
+          signal: AbortSignal.timeout(3000),
+        },
       );
       const body = (await res.json()) as {
         answers?: Array<{ questionId: string; answer: string }> | null;
@@ -251,8 +258,11 @@ export function createDashboardManager(
 
     try {
       const res = await fetch(
-        `${dashboardBaseUrl}/api/interviews/${interviewId}/nudge?token=${authToken}`,
-        { signal: AbortSignal.timeout(3000) },
+        `${dashboardBaseUrl}/api/interviews/${interviewId}/nudge`,
+        {
+          headers: authHeaders(authToken),
+          signal: AbortSignal.timeout(3000),
+        },
       );
       const body = (await res.json()) as {
         action?: 'more-questions' | 'confirm-complete' | null;
@@ -277,8 +287,11 @@ export function createDashboardManager(
 
     try {
       const res = await fetch(
-        `${dashboardBaseUrl}/api/interviews/${interviewId}/block-comment?token=${authToken}`,
-        { signal: AbortSignal.timeout(3000) },
+        `${dashboardBaseUrl}/api/interviews/${interviewId}/block-comment`,
+        {
+          headers: authHeaders(authToken),
+          signal: AbortSignal.timeout(3000),
+        },
       );
       const body = (await res.json()) as {
         section?: string;
@@ -308,8 +321,11 @@ export function createDashboardManager(
 
     try {
       const res = await fetch(
-        `${dashboardBaseUrl}/api/interviews/${interviewId}/chat?token=${authToken}`,
-        { signal: AbortSignal.timeout(3000) },
+        `${dashboardBaseUrl}/api/interviews/${interviewId}/chat`,
+        {
+          headers: authHeaders(authToken),
+          signal: AbortSignal.timeout(3000),
+        },
       );
       const body = (await res.json()) as {
         message?: string | null;
@@ -337,9 +353,12 @@ export function createDashboardManager(
       registeredSessions.add(sessionID);
 
       if (!isDashboard && dashboardBaseUrl) {
-        fetch(`${dashboardBaseUrl}/api/sessions?token=${authToken}`, {
+        fetch(`${dashboardBaseUrl}/api/sessions`, {
           method: 'POST',
-          headers: { 'content-type': 'application/json' },
+          headers: {
+            ...authHeaders(authToken),
+            'content-type': 'application/json',
+          },
           body: JSON.stringify({
             sessionID,
             directory: ctx.directory,
@@ -362,9 +381,11 @@ export function createDashboardManager(
 
       // Event hook: Session is idle. Check for any pending user submissions
       // queued on the dashboard and deliver them to OpenCode.
-      if (event.type === 'session.status') {
+      if (event.type === 'session.status' || event.type === 'session.idle') {
         const status = properties.status as { type?: string } | undefined;
-        if (sessionID && status?.type === 'idle') {
+        const isIdleEvent =
+          event.type === 'session.idle' || status?.type === 'idle';
+        if (sessionID && isIdleEvent) {
           const interviewId = service.getActiveInterviewId(sessionID);
           if (!isDashboard && dashboardBaseUrl) {
             // Session mode: HTTP poll the dashboard
@@ -427,6 +448,9 @@ export function createDashboardManager(
       // Clean up when a session is deleted
       if (event.type === 'session.deleted' && sessionID) {
         registeredSessions.delete(sessionID);
+        if (!isDashboard && registeredSessions.size === 0) {
+          stopFallbackTimer();
+        }
         dashboard?.removeSession(sessionID);
       }
     },
@@ -434,6 +458,10 @@ export function createDashboardManager(
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────
+
+function authHeaders(token: string): Record<string, string> {
+  return { authorization: `Bearer ${token}` };
+}
 
 function stateToEntry(
   interviewId: string,
@@ -470,15 +498,15 @@ async function pushStateViaHttp(
   state: InterviewState,
 ): Promise<void> {
   const entry = stateToEntry(interviewId, state);
-  await fetch(
-    `${dashboardUrl}/api/interviews/${interviewId}/state?token=${token}`,
-    {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(entry),
-      signal: AbortSignal.timeout(5000),
+  await fetch(`${dashboardUrl}/api/interviews/${interviewId}/state`, {
+    method: 'POST',
+    headers: {
+      ...authHeaders(token),
+      'content-type': 'application/json',
     },
-  );
+    body: JSON.stringify(entry),
+    signal: AbortSignal.timeout(5000),
+  });
 }
 
 async function registerInterviewViaHttp(
@@ -486,9 +514,12 @@ async function registerInterviewViaHttp(
   token: string,
   interview: InterviewRecord,
 ): Promise<void> {
-  await fetch(`${dashboardUrl}/api/interviews?token=${token}`, {
+  await fetch(`${dashboardUrl}/api/interviews`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: {
+      ...authHeaders(token),
+      'content-type': 'application/json',
+    },
     body: JSON.stringify({
       interviewId: interview.id,
       sessionID: interview.sessionID,

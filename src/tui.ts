@@ -100,12 +100,19 @@ function agentRow(
   const modelParts = splitSidebarModelId(model);
   const detailRows: JSX.Element[] = [];
 
-  if (modelParts.provider) {
-    detailRows.push(agentDetailRow('provider', modelParts.provider, theme));
+  function detailRow(fieldLabel: string, value: string) {
+    return box({ width: '100%', flexDirection: 'row', paddingLeft: 2 }, [
+      text({ fg: theme.textMuted, width: 9 }, [fieldLabel]),
+      text({ fg: theme.textMuted }, [value]),
+    ]);
   }
-  detailRows.push(agentDetailRow('model', modelParts.model, theme));
+
+  if (modelParts.provider) {
+    detailRows.push(detailRow('provider', modelParts.provider));
+  }
+  detailRows.push(detailRow('model', modelParts.model));
   if (variant) {
-    detailRows.push(agentDetailRow('variant', variant, theme));
+    detailRows.push(detailRow('variant', variant));
   }
 
   return box({ width: '100%', flexDirection: 'column', marginBottom: 1 }, [
@@ -114,15 +121,24 @@ function agentRow(
   ]);
 }
 
-function agentDetailRow(
+function compactAgentRow(
   label: string,
-  value: string,
+  model: string,
+  variant: string | undefined,
   theme: { textMuted: unknown },
 ): JSX.Element {
-  return box({ width: '100%', flexDirection: 'row', paddingLeft: 2 }, [
-    text({ fg: theme.textMuted, width: 9 }, [label]),
-    text({ fg: theme.textMuted }, [value]),
-  ]);
+  const value = variant ? `${model} (${variant})` : model;
+  return box(
+    {
+      width: '100%',
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    [
+      text({ fg: theme.textMuted, width: 14 }, [label]),
+      text({ fg: theme.textMuted }, [value]),
+    ],
+  );
 }
 
 function renderSidebar(
@@ -136,9 +152,9 @@ function renderSidebar(
     textMuted: unknown;
   },
   configInvalid: boolean,
+  compactSidebar: boolean,
 ): JSX.Element {
   const configStatusRow = buildConfigStatusRow(configInvalid, theme);
-
   return box(
     {
       width: '100%',
@@ -173,6 +189,9 @@ function renderSidebar(
       ...getSidebarAgentNames(snapshot).map((agentName) => {
         const model = snapshot.agentModels[agentName] ?? 'pending';
         const variant = snapshot.agentVariants[agentName];
+        if (compactSidebar) {
+          return compactAgentRow(agentName, model, variant, theme);
+        }
         return agentRow(agentName, model, variant, theme);
       }),
     ],
@@ -199,15 +218,23 @@ function buildConfigStatusRow(
   );
 }
 
-export function readConfigInvalid(directory: string): boolean {
+function readConfigState(directory: string): {
+  configInvalid: boolean;
+  compactSidebar: boolean;
+} {
   let configInvalid = false;
-  loadPluginConfig(directory, {
+  const config = loadPluginConfig(directory, {
     silent: true,
     onWarning: () => {
       configInvalid = true;
     },
   });
-  return configInvalid;
+  const compactSidebar = config.compactSidebar ?? false;
+  return { configInvalid, compactSidebar };
+}
+
+export function readConfigInvalid(directory: string): boolean {
+  return readConfigState(directory).configInvalid;
 }
 
 const plugin: TuiPluginModule & { id: string } = {
@@ -217,7 +244,7 @@ const plugin: TuiPluginModule & { id: string } = {
 
     const version = meta.version ?? (await readPackageVersion()) ?? 'dev';
     let configDirectory = getTuiDirectory(api);
-    let configInvalid = readConfigInvalid(configDirectory);
+    let { configInvalid, compactSidebar } = readConfigState(configDirectory);
     let snapshot = readTuiSnapshot();
     const renderTimer = setInterval(async () => {
       try {
@@ -225,7 +252,8 @@ const plugin: TuiPluginModule & { id: string } = {
         const currentDirectory = getTuiDirectory(api);
         if (currentDirectory !== configDirectory) {
           configDirectory = currentDirectory;
-          configInvalid = readConfigInvalid(configDirectory);
+          ({ configInvalid, compactSidebar } =
+            readConfigState(configDirectory));
         }
         api.renderer.requestRender();
       } catch {
@@ -246,6 +274,7 @@ const plugin: TuiPluginModule & { id: string } = {
             version,
             api.theme.current,
             configInvalid,
+            compactSidebar,
           );
         },
       },
