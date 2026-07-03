@@ -327,6 +327,39 @@ export class BackgroundJobBoard {
     return this.jobs.get(taskID);
   }
 
+  field<K extends keyof BackgroundJobRecord>(
+    taskID: string,
+    key: K,
+  ): BackgroundJobRecord[K] | undefined {
+    return this.get(taskID)?.[key];
+  }
+
+  isRunning(taskID: string): boolean {
+    const job = this.get(taskID);
+    return job?.state === 'running';
+  }
+
+  isTerminalUnreconciled(taskID: string): boolean {
+    const job = this.get(taskID);
+    return !!job?.terminalUnreconciled;
+  }
+
+  getResultSummary(taskID: string): string | undefined {
+    return this.field(taskID, 'resultSummary');
+  }
+
+  getLastLiveBusyAt(taskID: string): number | undefined {
+    return this.field(taskID, 'lastLiveBusyAt');
+  }
+
+  getParentSessionID(taskID: string): string | undefined {
+    return this.field(taskID, 'parentSessionID');
+  }
+
+  getState(taskID: string): BackgroundJobState | undefined {
+    return this.field(taskID, 'state');
+  }
+
   resolve(
     parentSessionID: string,
     taskIDOrAlias: string,
@@ -366,8 +399,11 @@ export class BackgroundJobBoard {
     for (const file of files) {
       const previous = existing.get(file.path);
       if (previous) {
-        previous.lineCount = Math.max(previous.lineCount, file.lineCount);
-        previous.lastReadAt = Math.max(previous.lastReadAt, file.lastReadAt);
+        existing.set(file.path, {
+          ...previous,
+          lineCount: Math.max(previous.lineCount, file.lineCount),
+          lastReadAt: Math.max(previous.lastReadAt, file.lastReadAt),
+        });
       } else {
         existing.set(file.path, { ...file });
       }
