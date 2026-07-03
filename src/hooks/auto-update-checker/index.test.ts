@@ -274,6 +274,45 @@ describe('auto-update-checker/index', () => {
     });
   });
 
+  test('includes staged and customized skills in success toast', async () => {
+    checkerMocks.findPluginEntry.mockImplementation(() => ({
+      pinnedVersion: null,
+      isPinned: false,
+    }));
+    checkerMocks.getCachedVersion.mockImplementation(() => '0.9.1');
+    checkerMocks.getLatestCompatibleVersion.mockImplementation(async () => ({
+      latestVersion: '0.9.11',
+      latestMajorVersion: null,
+      blockedByMajor: false,
+    }));
+    skillSyncMocks.syncBundledSkillsFromPackage.mockImplementation(() => ({
+      installed: ['reflect'],
+      skippedExisting: [],
+      failed: [],
+      staged: ['worktrees'],
+      customized: ['my-custom-skill'],
+    }));
+
+    const { createAutoUpdateCheckerHook } = await import(
+      `./index?test=${importCounter++}`
+    );
+    const { ctx, showToast } = createCtx();
+
+    const hook = createAutoUpdateCheckerHook(ctx as never);
+    hook.event({ event: { type: 'session.created', properties: {} } });
+    await waitForCalls(showToast);
+
+    expect(showToast).toHaveBeenCalledWith({
+      body: {
+        title: 'OMO-Slim Updated!',
+        message:
+          'v0.9.1 → v0.9.11\nAdded bundled skills: reflect\nStaged skill updates: worktrees\nCustomized skills: my-custom-skill\nRestart OpenCode to apply.',
+        variant: 'success',
+        duration: 8000,
+      },
+    });
+  });
+
   test('updates enabled companion after plugin auto-update', async () => {
     checkerMocks.findPluginEntry.mockImplementation(() => ({
       pinnedVersion: null,

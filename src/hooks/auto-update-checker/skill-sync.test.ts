@@ -791,7 +791,7 @@ describe('syncBundledSkillsFromPackage', () => {
     expect(manifest.skills[skillName].updatedAt).not.toBe(originalTime);
   });
 
-  test('deleted to customized: refreshes packageVersion and sourceHash', async () => {
+  test('deleted to customized: stages and marks customized', async () => {
     const skillName = 'recreated-custom-skill';
     const skillSrcDir = path.join(fakePackageRoot, 'src', 'skills', skillName);
     fs.mkdirSync(skillSrcDir, { recursive: true });
@@ -842,12 +842,12 @@ describe('syncBundledSkillsFromPackage', () => {
     const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
     expect(manifest.skills[skillName].status).toBe('customized');
     expect(manifest.skills[skillName].packageVersion).toBe('1.2.3');
-    // Content hash of current source from fakePackageRoot
-    const { computeDirectoryHash } = await import(
-      `./skill-sync?test=${importCounter++}`
-    );
-    expect(manifest.skills[skillName].sourceHash).toBe(
-      computeDirectoryHash(skillSrcDir),
+    expect(manifest.skills[skillName].sourceHash).toBe('');
+    const stagedPath = manifest.skills[skillName].stagedPath as string;
+    expect(stagedPath).toBeDefined();
+    expect(fs.existsSync(stagedPath)).toBe(true);
+    expect(fs.readFileSync(path.join(stagedPath, 'SKILL.md'), 'utf-8')).toBe(
+      '# Current Bundled Content',
     );
   });
 

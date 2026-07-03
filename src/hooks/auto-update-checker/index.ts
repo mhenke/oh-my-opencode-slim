@@ -203,12 +203,16 @@ async function runBackgroundUpdateCheck(
 
   if (installSuccess) {
     let installedSkills: string[] = [];
+    let stagedSkills: string[] = [];
+    let customizedSkills: string[] = [];
     let companionUpdated = false;
     let companionWillRetry = false;
     const packageRoot = path.join(installDir, 'node_modules', PACKAGE_NAME);
     try {
       const syncResult = syncBundledSkillsFromPackage(packageRoot);
       installedSkills = syncResult.installed;
+      stagedSkills = syncResult.staged ?? [];
+      customizedSkills = syncResult.customized ?? [];
       if (syncResult.failed.length > 0) {
         log(
           `[auto-update-checker] Skill sync warnings/failures: ${syncResult.failed.join(', ')}`,
@@ -256,6 +260,12 @@ async function runBackgroundUpdateCheck(
     const messageLines = [`v${currentVersion} → v${latestVersion}`];
     if (installedSkills.length > 0) {
       messageLines.push(`Added bundled skills: ${installedSkills.join(', ')}`);
+    }
+    if (stagedSkills.length > 0) {
+      messageLines.push(`Staged skill updates: ${stagedSkills.join(', ')}`);
+    }
+    if (customizedSkills.length > 0) {
+      messageLines.push(`Customized skills: ${customizedSkills.join(', ')}`);
     }
     if (companionUpdated) {
       messageLines.push('Companion updated.');

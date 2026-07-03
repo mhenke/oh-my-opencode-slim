@@ -1049,15 +1049,47 @@ export function syncBundledSkillsFromPackage(
                 `[skill-sync] Skill ${skill.name} re-created by user (matching current). Adopted as managed.`,
               );
             } else {
-              entry.status = 'customized';
-              entry.packageVersion = packageVersion;
-              entry.sourceHash = sourceHash;
-              entry.lastSeenHash = destHash;
-              entry.updatedAt = new Date().toISOString();
-              skippedExisting.push(skill.name);
-              log(
-                `[skill-sync] Skill ${skill.name} re-created by user (custom). Marked customized.`,
-              );
+              try {
+                const stagedSkillDir = path.join(
+                  manifestDir,
+                  'skill-updates',
+                  packageVersion,
+                  skill.name,
+                );
+                if (entry.stagedPath && entry.stagedPath !== stagedSkillDir) {
+                  removeManagedStagedPath(
+                    entry.stagedPath,
+                    manifestDir,
+                    skill.name,
+                  );
+                }
+                if (existsSync(stagedSkillDir)) {
+                  rmSync(stagedSkillDir, { recursive: true, force: true });
+                }
+                mkdirSync(stagedSkillDir, { recursive: true });
+                copyDirRecursive(sourcePath, stagedSkillDir);
+
+                entry.status = 'customized';
+                entry.packageVersion = packageVersion;
+                entry.sourceHash = '';
+                entry.lastManagedHash = sourceHash;
+                entry.lastSeenHash = destHash;
+                entry.stagedPath = stagedSkillDir;
+                entry.updatedAt = new Date().toISOString();
+
+                staged.push(skill.name);
+                customized.push(skill.name);
+                skippedExisting.push(skill.name);
+                log(
+                  `[skill-sync] Skill ${skill.name} re-created by user (custom). Marked customized and staged.`,
+                );
+              } catch (err) {
+                log(
+                  `[skill-sync] Failed to stage update for deleted/recreated skill ${skill.name}:`,
+                  err,
+                );
+                failed.push(skill.name);
+              }
             }
           } else if (entry.status === 'conflict') {
             skippedExisting.push(skill.name);
