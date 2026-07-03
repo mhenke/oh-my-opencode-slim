@@ -1,4 +1,3 @@
-import path from 'node:path';
 import type { PluginInput } from '@opencode-ai/plugin';
 import type { PluginConfig } from '../config';
 import { log } from '../utils';
@@ -7,7 +6,7 @@ import {
   readDashboardAuthFile,
   tryBecomeDashboard,
 } from './dashboard';
-import { createInterviewServer } from './server';
+import { createPerSessionInterviewServer } from './manager';
 import { createInterviewService } from './service';
 import type {
   InterviewRecord,
@@ -187,23 +186,7 @@ export function createDashboardManager(
       );
       // Fallback: spawn a per-session server exactly like non-dashboard mode
       isDashboard = false;
-      const resolvedOutputPath = path.join(ctx.directory, outputFolder);
-      const server = createInterviewServer({
-        getState: async (interviewId) => service.getInterviewState(interviewId),
-        listInterviewFiles: async () => service.listInterviewFiles(),
-        listInterviews: () => service.listInterviews(),
-        submitAnswers: async (interviewId, answers) =>
-          service.submitAnswers(interviewId, answers),
-        submitBlockComment: async (interviewId, section, comment) =>
-          service.submitBlockComment(interviewId, section, comment),
-        submitChat: async (interviewId, message) =>
-          service.submitChat(interviewId, message),
-        handleNudgeAction: async (interviewId, action) =>
-          service.handleNudgeAction(interviewId, action),
-        outputFolder: resolvedOutputPath,
-        port: 0,
-      });
-      service.setBaseUrlResolver(() => server.ensureStarted());
+      createPerSessionInterviewServer(ctx, interviewConfig, outputFolder);
       service.setStatePushCallback(() => {}); // no-op on fallback
     } finally {
       initDone = true;
