@@ -73,6 +73,40 @@ describe('BackgroundJobBoard', () => {
     });
   });
 
+  test('resets timeout convergence when a timed out job completes', () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'ses_1',
+      parentSessionID: 'parent-1',
+      agent: 'fixer',
+      description: 'implement parser',
+    });
+
+    board.updateStatus({
+      taskID: 'ses_1',
+      state: 'running',
+      timedOut: true,
+    });
+    board.updateStatus({
+      taskID: 'ses_1',
+      state: 'running',
+      timedOut: true,
+    });
+
+    const completed = board.updateStatus({
+      taskID: 'ses_1',
+      state: 'completed',
+      timedOut: true,
+    });
+
+    expect(completed).toMatchObject({
+      state: 'completed',
+      timedOut: true,
+      timeoutCount: 0,
+    });
+    expect(board.hasConvergenceSignals('ses_1')).toBe(false);
+  });
+
   test('formats running and terminal unreconciled jobs for prompt', () => {
     const board = new BackgroundJobBoard();
     board.registerLaunch({
@@ -704,6 +738,12 @@ describe('BackgroundJobBoard', () => {
       const board = new BackgroundJobBoard();
       board.registerLaunch({
         taskID: 'running-1',
+        parentSessionID: 'parent-1',
+        agent: 'fixer',
+        now: 100,
+      });
+      board.registerLaunch({
+        taskID: 'terminal-1',
         parentSessionID: 'parent-1',
         agent: 'fixer',
         now: 100,

@@ -10,7 +10,12 @@ import {
 } from '../../utils';
 import { isRecord as isObjectRecord } from '../../utils/guards';
 import { log } from '../../utils/logger';
-import type { MessagePart, MessageWithParts } from '../types';
+import { isRateLimitError } from '../foreground-fallback/index';
+import {
+  isUserMessageWithParts,
+  type MessagePart,
+  type MessageWithParts,
+} from '../types';
 import type { PendingTaskCall } from './pending-call-tracker';
 import { createPendingCallTracker } from './pending-call-tracker';
 import {
@@ -464,10 +469,12 @@ export function createTaskSessionManagerHook(
 
     'experimental.chat.messages.transform': async (
       _input: Record<string, never>,
-      output: { messages: MessageWithParts[] },
+      output: { messages?: unknown },
     ): Promise<void> => {
-      for (const [messageIndex, message] of output.messages.entries()) {
-        if (message.info.role !== 'user') continue;
+      const messages = Array.isArray(output.messages) ? output.messages : [];
+
+      for (const [messageIndex, message] of messages.entries()) {
+        if (!isUserMessageWithParts(message)) continue;
         if (message.info.agent && message.info.agent !== 'orchestrator') {
           continue;
         }
@@ -483,9 +490,9 @@ export function createTaskSessionManagerHook(
         }
       }
 
-      for (let i = output.messages.length - 1; i >= 0; i -= 1) {
-        const message = output.messages[i];
-        if (message.info.role !== 'user') continue;
+      for (let i = messages.length - 1; i >= 0; i -= 1) {
+        const message = messages[i];
+        if (!isUserMessageWithParts(message)) continue;
         if (message.info.agent && message.info.agent !== 'orchestrator') return;
         if (
           !message.info.sessionID ||
@@ -571,7 +578,17 @@ export function createTaskSessionManagerHook(
         const sessionId =
           input.event.properties?.info?.id ?? input.event.properties?.sessionID;
         if (sessionId && options.shouldManageSession(sessionId)) {
-          terminalJobsInjectedByParent.delete(sessionId);
+          // Only clear injected terminal jobs for fatal errors.
+          // Rate-limit errors are recovered by ForegroundFallbackManager
+          // (abort + reprompt with fallback model); clearing the injected
+          // job state here would make the orchestrator lose track of
+          // completed background tasks and unable to dispatch follow-ups.
+          const props = input.event.properties as
+            | { error?: unknown }
+            | undefined;
+          if (!props?.error || !isRateLimitError(props.error)) {
+            terminalJobsInjectedByParent.delete(sessionId);
+          }
         }
 
         return;

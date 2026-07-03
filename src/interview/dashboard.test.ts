@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import * as fs from 'node:fs/promises';
-import { createServer } from 'node:http';
+import { createServer, get } from 'node:http';
 import * as path from 'node:path';
 import { createDashboardServer } from './dashboard';
 
@@ -47,7 +47,143 @@ async function createTempInterviewDir() {
   return tempDir;
 }
 
+async function openSseConnection(
+  baseUrl: string,
+  authToken: string,
+  interviewId: string,
+) {
+  return new Promise<{
+    firstChunk: Promise<string>;
+    closed: Promise<void>;
+  }>((resolve, reject) => {
+    let responded = false;
+    let sawStateEvent = false;
+
+    let firstChunkResolve!: (value: string) => void;
+    let firstChunkReject!: (reason: Error) => void;
+    const firstChunk = new Promise<string>((resolveFirst, rejectFirst) => {
+      firstChunkResolve = resolveFirst;
+      firstChunkReject = rejectFirst;
+    });
+
+    let closedResolve!: () => void;
+    let closedReject!: (reason: Error) => void;
+    const closed = new Promise<void>((resolveClosed, rejectClosed) => {
+      closedResolve = resolveClosed;
+      closedReject = rejectClosed;
+    });
+
+    const rejectStreams = (error: Error) => {
+      firstChunkReject(error);
+      closedReject(error);
+    };
+
+    const onError = (error: Error) => {
+      rejectStreams(error);
+      if (!responded) {
+        responded = true;
+        reject(error);
+      }
+    };
+
+    const request = get(
+      `${baseUrl}/api/interviews/${interviewId}/events?token=${authToken}`,
+      (response) => {
+        responded = true;
+        response.setEncoding('utf8');
+
+        let buffer = '';
+        response.on('data', (chunk: string) => {
+          buffer += chunk;
+          if (!sawStateEvent && buffer.includes('event: state')) {
+            sawStateEvent = true;
+            firstChunkResolve(buffer);
+          }
+        });
+
+        response.once('close', () => {
+          if (!sawStateEvent) {
+            firstChunkReject(
+              new Error('SSE response closed before initial state event'),
+            );
+          }
+          closedResolve();
+        });
+
+        response.once('error', onError);
+        resolve({ firstChunk, closed });
+      },
+    );
+
+    request.once('error', onError);
+  });
+}
+
 describe('dashboard server', () => {
+  describe('server lifecycle', () => {
+    test('close is safe before start and repeated', () => {
+      const dashboard = createDashboardServer({
+        port: 0,
+        outputFolder: 'interview',
+      });
+
+      expect(() => dashboard.close()).not.toThrow();
+      expect(() => dashboard.close()).not.toThrow();
+    });
+
+    test('closes active SSE responses on shutdown', async () => {
+      const { baseUrl, authToken, dashboard, cleanup } = await startDashboard();
+      try {
+        dashboard.pushState({
+          interviewId: 'lifecycle-sse',
+          sessionID: 'session-lifecycle',
+          idea: 'Lifecycle SSE',
+          mode: 'awaiting-user',
+          summary: 'Test',
+          title: 'Lifecycle SSE',
+          questions: [],
+          pendingAnswers: null,
+          lastUpdatedAt: Date.now(),
+          filePath: '',
+          nudgeAction: null,
+        });
+
+        const { firstChunk, closed } = await openSseConnection(
+          baseUrl,
+          authToken,
+          'lifecycle-sse',
+        );
+
+        expect(await firstChunk).toContain('event: state');
+
+        dashboard.close();
+        dashboard.close();
+
+        await closed;
+      } finally {
+        cleanup();
+      }
+    });
+
+    test('rejects SSE firstChunk when response closes before state', async () => {
+      const { baseUrl, authToken, cleanup } = await startDashboard();
+      try {
+        const connection = await openSseConnection(
+          baseUrl,
+          authToken,
+          'missing-lifecycle-sse',
+        );
+
+        await expect(connection.firstChunk).rejects.toThrow(
+          'SSE response closed before initial state event',
+        );
+        await connection.closed;
+      } finally {
+        cleanup();
+      }
+    });
+  });
+
   describe('health endpoint', () => {
     test('returns 200 with status ok and counts', async () => {
       const { baseUrl, cleanup } = await startDashboard();

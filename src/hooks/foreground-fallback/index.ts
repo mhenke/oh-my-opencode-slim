@@ -15,11 +15,13 @@
  */
 
 import type { PluginInput } from '@opencode-ai/plugin';
+import { ALL_AGENT_NAMES } from '../../config/constants';
 import { log } from '../../utils/logger';
 import {
   abortSessionWithTimeout,
   parseModelReference,
 } from '../../utils/session';
+import { isUserMessageWithParts } from '../types';
 
 type OpencodeClient = PluginInput['client'];
 
@@ -41,6 +43,9 @@ const RATE_LIMIT_PATTERNS = [
   /insufficient.?(quota|balance)/i,
   /high concurrency/i,
   /reduce concurrency/i,
+  /monthly usage limit/i,
+  /5-hour usage limit/i,
+  /weekly usage limit/i,
 ];
 
 export function isRateLimitError(error: unknown): boolean {
@@ -221,7 +226,7 @@ export class ForegroundFallbackManager {
 
     this.inProgress.add(sessionID);
     try {
-      const currentModel = this.sessionModel.get(sessionID);
+      let currentModel = this.sessionModel.get(sessionID);
       const agentName = this.sessionAgent.get(sessionID);
       const chain = this.resolveChain(agentName, currentModel);
       if (!chain.length) {
@@ -232,21 +237,50 @@ export class ForegroundFallbackManager {
         return;
       }
 
+      // When the agent is known but no model was captured (common for
+      // subagent error events that fire before message.updated), infer
+      // the current model as the chain's first entry. Without this, the
+      // fallback would incorrectly re-select the primary model as the
+      // "next" fallback target.
+      if (!currentModel && agentName && chain.length > 0) {
+        currentModel = chain[0];
+      }
+
       if (!this.sessionTried.has(sessionID)) {
         this.sessionTried.set(sessionID, new Set());
       }
       // biome-ignore lint/style/noNonNullAssertion: We just set this above
-      const tried = this.sessionTried.get(sessionID)!;
+      let tried = this.sessionTried.get(sessionID)!;
       if (currentModel) tried.add(currentModel);
 
-      const nextModel = chain.find((m) => !tried.has(m));
+      let nextModel = chain.find((m) => !tried.has(m));
       if (!nextModel) {
-        log('[foreground-fallback] fallback chain exhausted', {
-          sessionID,
-          agentName,
-          tried: [...tried],
-        });
-        return;
+        if (chain.length > 1) {
+          // Chain exhausted but we have fallbacks: reset tried set and
+          // stick to the deepest fallback model so we stop re-trying the
+          // dead primary model on every subsequent message.
+          const primary = chain[0];
+          const stickyFallback = chain[chain.length - 1];
+          log('[foreground-fallback] resetting tried set for re-fallback', {
+            sessionID,
+            agentName,
+            currentModel,
+            prevTried: [...tried],
+            nextModel: stickyFallback,
+          });
+          tried = new Set();
+          if (primary) tried.add(primary);
+          if (currentModel && currentModel !== primary) tried.add(currentModel);
+          this.sessionTried.set(sessionID, tried);
+          nextModel = stickyFallback;
+        } else {
+          log('[foreground-fallback] fallback chain exhausted', {
+            sessionID,
+            agentName,
+            tried: [...tried],
+          });
+          return;
+        }
       }
       tried.add(nextModel);
 
@@ -263,13 +297,11 @@ export class ForegroundFallbackManager {
       const result = await this.client.session.messages({
         path: { id: sessionID },
       });
-      const messages = (result.data ?? []) as Array<{
-        info: { role: string };
-        parts: unknown[];
-      }>;
-      const lastUser = [...messages]
-        .reverse()
-        .find((m) => m.info.role === 'user');
+      // result.data may contain partial/streaming messages whose `info` is
+      // undefined at runtime (OpenCode violates its own declared type), so
+      // guard each entry instead of dereferencing `info` directly.
+      const messages = (result.data ?? []) as unknown[];
+      const lastUser = [...messages].reverse().find(isUserMessageWithParts);
       if (!lastUser) {
         log('[foreground-fallback] no user message found', { sessionID });
         return;
@@ -352,9 +384,18 @@ export class ForegroundFallbackManager {
     currentModel: string | undefined,
   ): string[] {
     if (agentName) {
-      // Agent is known: use its chain exactly, or no chain at all.
-      // Never fall through to cross-agent chains when the agent is identified.
-      return this.chains[agentName] ?? [];
+      // Agent is known: use its chain exactly if configured.
+      const chain = this.chains[agentName];
+      if (chain) return chain;
+      // Known omos built-in agent (oracle, librarian, …) without a
+      // configured chain: keep isolation — do NOT bleed into other
+      // agents' chains (preserves the cross-agent isolation contract
+      // from PR #199).
+      if ((ALL_AGENT_NAMES as readonly string[]).includes(agentName)) return [];
+      // Unknown agent (e.g. OpenCode built-in "compaction" or "title"
+      // that don't appear in the user preset): fall through to
+      // model-matching so they can inherit a chain from a configured
+      // agent that shares their model.
     }
 
     // Agent unknown: try to infer from the current model.

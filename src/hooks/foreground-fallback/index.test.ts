@@ -13,7 +13,7 @@ function createMockClient(overrides?: {
   promptAsyncImpl?: (args: unknown) => Promise<unknown>;
   abortImpl?: () => Promise<unknown>;
   includePromptAsync?: boolean;
-  messagesData?: Array<{ info: { role: string }; parts: unknown[] }>;
+  messagesData?: unknown[];
 }) {
   const promptAsync = mock(async (args: unknown) => {
     if (overrides?.promptAsyncImpl) return overrides.promptAsyncImpl(args);
@@ -87,6 +87,30 @@ describe('isRateLimitError', () => {
 
   test('returns true for "Insufficient balance."', () => {
     expect(isRateLimitError({ message: 'Insufficient balance.' })).toBe(true);
+  });
+
+  test('returns true for "Monthly usage limit reached"', () => {
+    expect(
+      isRateLimitError({
+        message: 'Monthly usage limit reached. Resets in X days.',
+      }),
+    ).toBe(true);
+  });
+
+  test('returns true for "5-hour usage limit reached"', () => {
+    expect(
+      isRateLimitError({
+        message: '5-hour usage limit reached. Resets in 36min.',
+      }),
+    ).toBe(true);
+  });
+
+  test('returns true for "Weekly usage limit reached"', () => {
+    expect(
+      isRateLimitError({
+        message: 'Weekly usage limit reached. Resets in 2 days.',
+      }),
+    ).toBe(true);
   });
 
   test('returns false for non-rate-limit error', () => {
@@ -172,6 +196,50 @@ describe('ForegroundFallbackManager session.error', () => {
     // Should have picked the next model after anthropic/claude-opus-4-5
     expect(call[0].body.model.providerID).toBe('openai');
     expect(call[0].body.model.modelID).toBe('gpt-4o');
+  });
+
+  test('skips malformed messages without info when locating the last user message', async () => {
+    // OpenCode may return partial/streaming messages whose `info` is undefined;
+    // the fallback must ignore those rather than crash, and still re-submit the
+    // real last user message.
+    ({ client, mocks } = createMockClient({
+      messagesData: [
+        {},
+        { info: { role: 'assistant' }, parts: [] },
+        { parts: [{ type: 'text', text: 'no info' }] },
+        {
+          info: { role: 'user' },
+          parts: [{ type: 'text', text: 'real prompt' }],
+        },
+      ],
+    }));
+    mgr = new ForegroundFallbackManager(client, makeChains(), true);
+
+    await mgr.handleEvent({
+      type: 'message.updated',
+      properties: {
+        info: {
+          sessionID: 'sess-1',
+          providerID: 'anthropic',
+          modelID: 'claude-opus-4-5',
+          role: 'assistant',
+        },
+      },
+    });
+
+    await mgr.handleEvent({
+      type: 'session.error',
+      properties: {
+        sessionID: 'sess-1',
+        error: { message: 'Rate limit exceeded' },
+      },
+    });
+
+    expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
+    const call = mocks.promptAsync.mock.calls[0] as [
+      { body: { parts: Array<{ text?: string }> } },
+    ];
+    expect(call[0].body.parts[0]?.text).toBe('real prompt');
   });
 
   test('does nothing when error is not a rate limit', async () => {
@@ -508,7 +576,7 @@ describe('ForegroundFallbackManager deduplication', () => {
 // ---------------------------------------------------------------------------
 
 describe('ForegroundFallbackManager subagent.session.created', () => {
-  test('records agent name from subagent.session.created when agentName provided', async () => {
+  test('records agent name from subagent.session.created and falls back correctly', async () => {
     const { client, mocks } = createMockClient();
     const mgr = new ForegroundFallbackManager(client, makeChains(), true);
 
@@ -531,9 +599,10 @@ describe('ForegroundFallbackManager subagent.session.created', () => {
       },
     ];
     // explorer chain: ['openai/gpt-4o-mini', 'anthropic/claude-haiku']
-    // no current model tracked → first untried = openai/gpt-4o-mini
-    expect(call[0].body.model.providerID).toBe('openai');
-    expect(call[0].body.model.modelID).toBe('gpt-4o-mini');
+    // agentName known → currentModel inferred as chain[0] (primary)
+    // primary is tried → fallback picks claude-haiku
+    expect(call[0].body.model.providerID).toBe('anthropic');
+    expect(call[0].body.model.modelID).toBe('claude-haiku');
   });
 });
 
@@ -697,5 +766,40 @@ describe('ForegroundFallbackManager resolveChain cross-agent isolation', () => {
     ];
     expect(call[0].body.model.providerID).toBe('openai');
     expect(call[0].body.model.modelID).toBe('gpt-4o');
+  });
+
+  test('falls through to model matching for non-omos agents (e.g. compaction)', async () => {
+    // compaction is an OpenCode built-in agent that is NOT an omos agent,
+    // so it has no chain configured. It should fall through to model
+    // matching and inherit a chain from a configured agent that shares
+    // its model, instead of being silently excluded from fallback.
+    const { client, mocks } = createMockClient();
+    const mgr = new ForegroundFallbackManager(
+      client,
+      { orchestrator: ['openai/gpt-5.4', 'new-api/glm-5.2'] },
+      true,
+    );
+
+    await mgr.handleEvent({
+      type: 'message.updated',
+      properties: {
+        info: {
+          sessionID: 'compaction-sess',
+          agent: 'compaction', // NOT a known omos built-in agent
+          providerID: 'openai',
+          modelID: 'gpt-5.4',
+          error: { message: 'rate limit exceeded' },
+        },
+      },
+    });
+
+    // compaction's model (openai/gpt-5.4) matches orchestrator's chain
+    // → should fall back to the next untried model in that chain
+    expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
+    const call = mocks.promptAsync.mock.calls[0] as [
+      { body: { model: { providerID: string; modelID: string } } },
+    ];
+    expect(call[0].body.model.providerID).toBe('new-api');
+    expect(call[0].body.model.modelID).toBe('glm-5.2');
   });
 });
