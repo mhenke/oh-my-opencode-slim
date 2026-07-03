@@ -14,11 +14,13 @@ import { log } from '../utils/logger';
 
 // Only one companion `process.on('exit')` listener should be live per process.
 // The plugin function can re-run (config.update() → Instance.dispose()),
-// constructing a fresh CompanionManager each time; without deduping, every
-// re-init would leak another exit listener and retain the previous manager
-// (and its detached child reference). Module-level state survives re-inits
-// because the module itself is not re-evaluated.
+// constructing fresh CompanionManager instances; without deduping, every
+// re-init would leak another exit listener. Track live managers separately so
+// replacing the listener never drops cleanup for detached companion children.
+// Module-level state survives re-inits because the module itself is not
+// re-evaluated.
 let activeExitListener: (() => void) | null = null;
+const activeManagers = new Set<CompanionManager>();
 
 interface CompanionSession {
   session_id: string;
@@ -152,7 +154,6 @@ export class CompanionManager {
   private readonly busyAgentSessions = new Map<string, string>();
   private readonly config?: CompanionConfig;
   private companionProcess: ChildProcess | null = null;
-  private exitListener: (() => void) | null = null;
 
   constructor(sessionId: string, cwd: string, config?: CompanionConfig) {
     this.id = sessionId;
@@ -162,6 +163,7 @@ export class CompanionManager {
 
   onLoad(): void {
     if (this.config?.enabled !== true) {
+      CompanionManager.disposeActiveManagers(this.id);
       try {
         if (!existsSync(stateFilePath())) return;
         writeState((state) => {
@@ -172,26 +174,35 @@ export class CompanionManager {
       } catch {}
       return;
     }
-    this.registerExitListener();
+    this.registerActiveManager();
     this.flush();
     this.spawnIfAvailable();
   }
 
   /**
-   * Register a single process `exit` listener, replacing any previously
-   * registered companion listener so re-inits don't stack listeners (and so
-   * the prior manager + its child reference become collectable).
+   * Register this manager behind a single process `exit` listener. Re-inits for
+   * the same OpenCode session dispose the superseded manager immediately so its
+   * detached child does not survive until process exit.
    */
-  private registerExitListener(): void {
-    if (activeExitListener) {
-      try {
-        process.removeListener('exit', activeExitListener);
-      } catch {}
+  private registerActiveManager(): void {
+    for (const manager of [...activeManagers]) {
+      if (manager !== this && manager.id === this.id) {
+        manager.onExit();
+      }
     }
-    const listener = () => this.onExit();
-    process.on('exit', listener);
-    activeExitListener = listener;
-    this.exitListener = listener;
+
+    activeManagers.add(this);
+    if (!activeExitListener) {
+      activeExitListener = () => CompanionManager.disposeActiveManagers();
+      process.on('exit', activeExitListener);
+    }
+  }
+
+  private static disposeActiveManagers(sessionId?: string): void {
+    for (const manager of [...activeManagers]) {
+      if (sessionId && manager.id !== sessionId) continue;
+      manager.onExit();
+    }
   }
 
   /**
@@ -249,20 +260,20 @@ export class CompanionManager {
   }
 
   onExit(): void {
-    if (this.config?.enabled !== true) return;
-    if (this.exitListener) {
-      try {
-        process.removeListener('exit', this.exitListener);
-      } catch {}
-      if (activeExitListener === this.exitListener) activeExitListener = null;
-      this.exitListener = null;
-    }
+    activeManagers.delete(this);
     if (this.companionProcess) {
       try {
         this.companionProcess.kill();
       } catch {}
       this.companionProcess = null;
     }
+    if (activeManagers.size === 0 && activeExitListener) {
+      try {
+        process.removeListener('exit', activeExitListener);
+      } catch {}
+      activeExitListener = null;
+    }
+    if (this.config?.enabled !== true) return;
     writeState((state) => {
       state.sessions = state.sessions.filter((s) => s.session_id !== this.id);
     });
