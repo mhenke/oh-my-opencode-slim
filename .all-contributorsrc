@@ -659,6 +659,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "Jiajun0413",
+      "name": "Liu Jiajun",
+      "avatar_url": "https://avatars.githubusercontent.com/u/184531967?v=4",
+      "profile": "https://github.com/Jiajun0413",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commitConvention": "angular"
