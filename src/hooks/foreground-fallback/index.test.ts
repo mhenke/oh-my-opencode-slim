@@ -573,6 +573,63 @@ describe('ForegroundFallbackManager deduplication', () => {
 
     expect(mocks.promptAsync).toHaveBeenCalledTimes(2);
   });
+
+  test('cascade continues when second error arrives within dedup window after model switch', async () => {
+    const { client, mocks } = createMockClient();
+    const mgr = new ForegroundFallbackManager(client, makeChains(), true);
+
+    // Seed session: current model is first entry in orchestrator chain
+    await mgr.handleEvent({
+      type: 'message.updated',
+      properties: {
+        info: {
+          sessionID: 'sess-cascade',
+          providerID: 'anthropic',
+          modelID: 'claude-opus-4-5',
+        },
+      },
+    });
+
+    // First error — model A fails, falls back to model B (openai/gpt-4o)
+    await mgr.handleEvent({
+      type: 'session.error',
+      properties: {
+        sessionID: 'sess-cascade',
+        error: { message: 'Rate limit exceeded' },
+      },
+    });
+
+    expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
+    expect(mocks.promptAsync.mock.calls[0][0]).toEqual(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          model: { providerID: 'openai', modelID: 'gpt-4o' },
+        }),
+      }),
+    );
+
+    // Second error — model B also fails within the 5s dedup window.
+    // This is a DIFFERENT incident (new model), so dedup is bypassed
+    // because the current model differs from lastTriggerModel.
+    await mgr.handleEvent({
+      type: 'session.error',
+      properties: {
+        sessionID: 'sess-cascade',
+        error: { message: 'Monthly usage limit reached' },
+      },
+    });
+
+    // Should trigger a second fallback despite being within the original
+    // 5-second dedup window, because the model changed (modelChanged bypass).
+    expect(mocks.promptAsync).toHaveBeenCalledTimes(2);
+    expect(mocks.promptAsync.mock.calls[1][0]).toEqual(
+      expect.objectContaining({
+        body: expect.objectContaining({
+          model: { providerID: 'google', modelID: 'gemini-2.5-pro' },
+        }),
+      }),
+    );
+  });
 });
 
 // ---------------------------------------------------------------------------
