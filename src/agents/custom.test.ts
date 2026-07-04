@@ -157,11 +157,11 @@ describe('custom-agent creation', () => {
       preset: 'opencode-go',
       presets: {
         'opencode-go': {
-          orchestrator: { model: 'opencode-go/glm-5.1' },
+          orchestrator: { model: 'opencode-go/glm-5.2' },
         },
       },
       agents: {
-        orchestrator: { model: 'opencode-go/glm-5.1' },
+        orchestrator: { model: 'opencode-go/glm-5.2' },
       },
       acpAgents: {
         bridge: {
@@ -177,7 +177,7 @@ describe('custom-agent creation', () => {
     const agents = createAgents(config);
     const wrapper = agents.find((agent) => agent.name === 'bridge');
 
-    expect(wrapper?.config.model).toBe('opencode-go/glm-5.1');
+    expect(wrapper?.config.model).toBe('opencode-go/glm-5.2');
   });
 
   test('falls back to oracle model for ACP wrappers', () => {

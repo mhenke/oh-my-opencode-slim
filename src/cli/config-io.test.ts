@@ -457,7 +457,7 @@ describe('config-io', () => {
     expect(saved.disabled_agents).toEqual([]);
     expect(saved.presets.openai).toBeDefined();
     expect(saved.presets['opencode-go'].orchestrator.model).toBe(
-      'opencode-go/glm-5.1',
+      'opencode-go/glm-5.2',
     );
     expect(saved.presets['opencode-go'].observer.model).toBe(
       'opencode-go/kimi-k2.6',

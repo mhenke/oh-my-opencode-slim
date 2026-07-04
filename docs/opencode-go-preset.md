@@ -48,12 +48,11 @@ role:
 
 | Agent | Model |
 |-------|-------|
-| Orchestrator | `opencode-go/glm-5.1` |
-| Oracle | `opencode-go/deepseek-v4-pro` (`max`) |
-| Council | `opencode-go/deepseek-v4-pro` (`high`) |
-| Librarian | `opencode-go/minimax-m2.7` |
+| Orchestrator | `opencode-go/glm-5.2` |
+| Oracle | `opencode-go/qwen3.7-max` (`max`) |
+| Librarian | `opencode-go/deepseek-v4-flash` |
 | Explorer | `opencode-go/minimax-m2.7` |
-| Designer | `opencode-go/kimi-k2.6` (`medium`) |
+| Designer | `opencode-go/kimi-k2.7-code` (`medium`) |
 | Fixer | `opencode-go/deepseek-v4-flash` (`high`) |
 | Observer | `opencode-go/kimi-k2.6` |
 
@@ -68,19 +67,15 @@ setting the top-level `preset` field:
   "disabled_agents": [],
   "presets": {
     "opencode-go": {
-      "orchestrator": { "model": "opencode-go/glm-5.1" },
+      "orchestrator": { "model": "opencode-go/glm-5.2" },
       "oracle": {
-        "model": "opencode-go/deepseek-v4-pro",
+        "model": "opencode-go/qwen3.7-max",
         "variant": "max"
       },
-      "council": {
-        "model": "opencode-go/deepseek-v4-pro",
-        "variant": "high"
-      },
-      "librarian": { "model": "opencode-go/minimax-m2.7" },
+      "librarian": { "model": "opencode-go/deepseek-v4-flash" },
       "explorer": { "model": "opencode-go/minimax-m2.7" },
       "designer": {
-        "model": "opencode-go/kimi-k2.6",
+        "model": "opencode-go/kimi-k2.7-code",
         "variant": "medium"
       },
       "fixer": {

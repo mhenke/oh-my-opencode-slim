@@ -105,7 +105,7 @@ describe('built-in subagent preset fallback', () => {
       preset: 'opencode-go',
       presets: {
         'opencode-go': {
-          orchestrator: { model: 'opencode-go/glm-5.1' },
+          orchestrator: { model: 'opencode-go/glm-5.2' },
         },
       },
       council: councilConfig(),
@@ -116,7 +116,7 @@ describe('built-in subagent preset fallback', () => {
 
     for (const name of ['observer', 'council', 'councillor'] as const) {
       expect(agents.find((a) => a.name === name)?.config.model).toBe(
-        'opencode-go/glm-5.1',
+        'opencode-go/glm-5.2',
       );
     }
   });

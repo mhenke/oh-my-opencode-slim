@@ -67,6 +67,7 @@ describe('providers', () => {
       hasTmux: false,
       installCustomSkills: false,
       preset: 'opencode-go',
+      backgroundSubagents: 'no',
       reset: false,
     });
 
@@ -75,14 +76,13 @@ describe('providers', () => {
     expect((config.presets as any).openai).toBeDefined();
     const agents = (config.presets as any)['opencode-go'];
     expect(agents).toBeDefined();
-    expect(agents.orchestrator.model).toBe('opencode-go/glm-5.1');
-    expect(agents.oracle.model).toBe('opencode-go/deepseek-v4-pro');
+    expect(agents.orchestrator.model).toBe('opencode-go/glm-5.2');
+    expect(agents.oracle.model).toBe('opencode-go/qwen3.7-max');
     expect(agents.oracle.variant).toBe('max');
-    expect(agents.council.model).toBe('opencode-go/deepseek-v4-pro');
-    expect(agents.council.variant).toBe('high');
-    expect(agents.librarian.model).toBe('opencode-go/minimax-m2.7');
+    expect(agents.council).toBeUndefined();
+    expect(agents.librarian.model).toBe('opencode-go/deepseek-v4-flash');
     expect(agents.explorer.model).toBe('opencode-go/minimax-m2.7');
-    expect(agents.designer.model).toBe('opencode-go/kimi-k2.6');
+    expect(agents.designer.model).toBe('opencode-go/kimi-k2.7-code');
     expect(agents.fixer.model).toBe('opencode-go/deepseek-v4-flash');
     expect(agents.fixer.variant).toBe('high');
     expect(agents.observer.model).toBe('opencode-go/kimi-k2.6');
@@ -94,6 +94,7 @@ describe('providers', () => {
         hasTmux: false,
         installCustomSkills: false,
         preset: 'not-real',
+        backgroundSubagents: 'no',
         reset: false,
       }),
     ).toThrow('Unsupported preset "not-real"');
@@ -105,6 +106,7 @@ describe('providers', () => {
         hasTmux: false,
         installCustomSkills: false,
         preset: 'kimi',
+        backgroundSubagents: 'no',
         reset: false,
       }),
     ).toThrow('Unsupported preset "kimi"');
@@ -116,6 +118,7 @@ describe('providers', () => {
         hasTmux: false,
         installCustomSkills: false,
         preset: 'toString',
+        backgroundSubagents: 'no',
         reset: false,
       }),
     ).toThrow('Unsupported preset "toString"');
@@ -125,6 +128,7 @@ describe('providers', () => {
     const config = generateLiteConfig({
       hasTmux: true,
       installCustomSkills: false,
+      backgroundSubagents: 'no',
       reset: false,
     });
 

@@ -127,12 +127,11 @@ bunx oh-my-opencode-slim@latest install
       "fixer": { "model": "openai/gpt-5.5", "variant": "low", "skills": [], "mcps": [] }
     },
     "opencode-go": {
-      "orchestrator": { "model": "opencode-go/glm-5.1", "skills": [ "*" ], "mcps": [ "*", "!context7" ] },
-      "oracle": { "model": "opencode-go/deepseek-v4-pro", "variant": "max", "skills": ["simplify"], "mcps": [] },
-      "council": { "model": "opencode-go/deepseek-v4-pro", "variant": "high", "skills": [], "mcps": [] },
-      "librarian": { "model": "opencode-go/minimax-m2.7", "skills": [], "mcps": [ "websearch", "context7", "gh_grep" ] },
+      "orchestrator": { "model": "opencode-go/glm-5.2", "skills": [ "*" ], "mcps": [ "*", "!context7" ] },
+      "oracle": { "model": "opencode-go/qwen3.7-max", "variant": "max", "skills": ["simplify"], "mcps": [] },
+      "librarian": { "model": "opencode-go/deepseek-v4-flash", "skills": [], "mcps": [ "websearch", "context7", "gh_grep" ] },
       "explorer": { "model": "opencode-go/minimax-m2.7", "skills": [], "mcps": [] },
-      "designer": { "model": "opencode-go/kimi-k2.6", "variant": "medium", "skills": [], "mcps": [] },
+      "designer": { "model": "opencode-go/kimi-k2.7-code", "variant": "medium", "skills": [], "mcps": [] },
       "fixer": { "model": "opencode-go/deepseek-v4-flash", "variant": "high", "skills": [], "mcps": [] }
     }
   }
