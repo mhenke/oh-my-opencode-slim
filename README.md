@@ -199,18 +199,18 @@ V2 turns oh-my-opencode-slim into a scheduler-first multi-agent workflow system.
 The Orchestrator stays focused on planning, delegation, reconciliation, and
 verification while specialists do the work in their own lanes.
 
-- **[Background agents](#background-agents)** — the Orchestrator now dispatches
+- **[Background agents](#background-agents)** - the Orchestrator now dispatches
   specialists as background tasks, tracks task/session IDs, waits for completion
   events, and reconciles results before continuing.
-- **[Companion](#companion)** — an optional floating desktop window shows which
+- **[Companion](#companion)** - an optional floating desktop window shows which
   agents are currently active, including parallel background specialists.
-- **[Deepwork](#deepwork)** — a structured workflow for large, multi-file, risky,
+- **[Deepwork](#deepwork)** - a structured workflow for large, multi-file, risky,
   or phased coding work using persistent plan files and Oracle review gates.
-- **[Reflect](#reflect)** — reviews repeated work patterns and suggests reusable skills,
+- **[Reflect](#reflect)** - reviews repeated work patterns and suggests reusable skills,
   agents, commands, config rules, prompt rules, or project playbooks.
-- **[Worktrees](#worktrees)** — manages Git worktrees as isolated coding lanes
+- **[Worktrees](#worktrees)** - manages Git worktrees as isolated coding lanes
   with safety protocols for complex, risky, or parallel tasks.
-- **[oh-my-opencode-slim skill](#oh-my-opencode-slim-skill)** — a bundled
+- **[oh-my-opencode-slim skill](#oh-my-opencode-slim-skill)** - a bundled
   configuration skill that helps tune models, prompts, custom agents, MCP access,
   presets, and plugin behavior safely.
 
@@ -466,7 +466,7 @@ rules.
   </tr>
   <tr>
     <td colspan="2">
-      <b>Default Setup:</b> <code>Config-driven</code> — councillors come from <code>council.presets</code> and the Council agent model comes from your normal <code>council</code> agent config
+      <b>Default Setup:</b> <code>Config-driven</code> - councillors come from <code>council.presets</code> and the Council agent model comes from your normal <code>council</code> agent config
     </td>
   </tr>
   <tr>
@@ -621,11 +621,11 @@ rules.
     </td>
     <td width="70%" valign="top">
 
-**Read-only visual analysis** — interprets images, screenshots, PDFs, and diagrams. Returns structured observations to the orchestrator without loading raw file bytes into the main context window.
+**Read-only visual analysis** - interprets images, screenshots, PDFs, and diagrams. Returns structured observations to the orchestrator without loading raw file bytes into the main context window.
 
 - Images, screenshots, diagrams → `read` tool (native image support)
 - PDFs and binary documents → `read` tool (text + structure extraction)
-- **Disabled by default** — enable with `"disabled_agents": []` and configure a vision-capable model; installing with `--preset=opencode-go` enables it with `opencode-go/kimi-k2.6`
+- **Disabled by default** - enable with `"disabled_agents": []` and configure a vision-capable model; installing with `--preset=opencode-go` enables it with `opencode-go/kimi-k2.6`
 
     </td>
   </tr>
@@ -636,7 +636,7 @@ rules.
   </tr>
   <tr>
     <td colspan="2">
-      <b>Default Model:</b> <code>openai/gpt-5.4-mini</code> — <i>configure a vision-capable model to enable</i>
+      <b>Default Model:</b> <code>openai/gpt-5.4-mini</code> - <i>configure a vision-capable model to enable</i>
     </td>
   </tr>
   <tr>
