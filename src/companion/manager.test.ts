@@ -473,16 +473,34 @@ describe('CompanionManager', () => {
     expect(state.sessions[0].session_id).toBe('test-no-pid');
   });
 
-  it('cleans up PID file on exit', () => {
+  it('cleans up PID file on exit when this manager was the spawner', () => {
     mkdirSync(path.dirname(stateFilePath()), { recursive: true });
     const pidFile = path.join(path.dirname(stateFilePath()), 'companion.pid');
-    writeFileSync(pidFile, String(process.pid));
+    writeFileSync(pidFile, '999999999'); // stale PID so spawn proceeds
 
     const m = make('test-pid-cleanup');
+    // Simulate a spawner by writing a PID file as if spawn succeeded.
+    // In reality the binary doesn't exist so spawn fails before writing,
+    // but the cleanup logic only fires when wasSpawner is true.
+    writeFileSync(pidFile, String(process.pid));
+    (m as unknown as { wasSpawner: boolean }).wasSpawner = true;
     m.onLoad();
     m.onExit();
 
     expect(existsSync(pidFile)).toBe(false);
+  });
+
+  it('does not delete PID file on exit when this manager was not the spawner', () => {
+    mkdirSync(path.dirname(stateFilePath()), { recursive: true });
+    const pidFile = path.join(path.dirname(stateFilePath()), 'companion.pid');
+    writeFileSync(pidFile, String(process.pid));
+
+    const m = make('test-pid-no-cleanup');
+    m.onLoad(); // skips spawn because PID is alive, wasSpawner stays false
+    m.onExit();
+
+    // Non-spawner must not delete the guard file
+    expect(existsSync(pidFile)).toBe(true);
   });
 
   it('removes disabled session entries on load', () => {

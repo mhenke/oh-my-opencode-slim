@@ -178,6 +178,7 @@ export class CompanionManager {
   private readonly busyAgentSessions = new Map<string, string>();
   private readonly config?: CompanionConfig;
   private companionProcess: ChildProcess | null = null;
+  private wasSpawner = false;
 
   constructor(sessionId: string, cwd: string, config?: CompanionConfig) {
     this.id = sessionId;
@@ -284,13 +285,13 @@ export class CompanionManager {
   }
 
   onExit(): void {
+    activeManagers.delete(this);
     if (this.wasSpawner) {
       try {
         const pf = pidFilePath();
         if (existsSync(pf)) rmSync(pf, { force: true });
       } catch {}
     }
-    activeManagers.delete(this);
     if (this.companionProcess) {
       try {
         this.companionProcess.kill();
@@ -404,6 +405,7 @@ export class CompanionManager {
       });
       this.companionProcess = child;
       child.unref();
+      this.wasSpawner = true;
       log(
         '[companion] spawned',
         JSON.stringify({
@@ -414,7 +416,7 @@ export class CompanionManager {
       );
       try {
         mkdirSync(path.dirname(pidFile), { recursive: true });
-        writeFileSync(pidFile, String(process.pid));
+        writeFileSync(pidFile, String(child.pid));
       } catch {}
     } catch (err) {
       log('[companion] spawn failed', String(err));
