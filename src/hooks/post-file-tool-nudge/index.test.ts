@@ -149,4 +149,41 @@ describe('post-file-tool-nudge hook', () => {
 
     expect(output.system).toHaveLength(0);
   });
+
+  test('composed: phase-reminder skips when post-file-tool-nudge handles system', async () => {
+    const { createPhaseReminderHook } = await import('../phase-reminder/index');
+    const nudgeHook = createPostFileToolNudgeHook();
+    const phaseHook = createPhaseReminderHook();
+
+    // Simulate Read tool call
+    await nudgeHook['tool.execute.after'](
+      { tool: 'Read', sessionID: 's1' },
+      {},
+    );
+
+    // System transform injects into system array
+    const systemOutput = { system: [] as string[] };
+    await nudgeHook['experimental.chat.system.transform'](
+      { sessionID: 's1' },
+      systemOutput,
+    );
+    expect(systemOutput.system).toContain(PHASE_REMINDER);
+
+    // Messages transform should NOT inject (pending already handled by system)
+    const messagesOutput = {
+      messages: [
+        {
+          info: { role: 'user', sessionID: 's1' },
+          parts: [{ type: 'text', text: 'hello' }],
+        },
+      ],
+    };
+    await phaseHook['experimental.chat.messages.transform']({}, messagesOutput);
+
+    const userParts = messagesOutput.messages[0].parts;
+    const reminderParts = userParts.filter(
+      (p: { text?: string }) => p.text === PHASE_REMINDER,
+    );
+    expect(reminderParts).toHaveLength(0);
+  });
 });

@@ -20,11 +20,22 @@ interface PostFileToolNudgeOptions {
 
 const FILE_TOOLS = new Set(['Read', 'read', 'Write', 'write']);
 
+// Module-scoped for coordination with phase-reminder hook.
+const pendingSessionIds = new Set<string>();
+const everPendingSessionIds = new Set<string>();
+
+/** Check if a session was marked pending by a file tool AND has not yet been
+ *  consumed by system.transform. Allows phase-reminder to skip injection
+ *  when post-file-tool-nudge already handles it. */
+export function hasPendingSession(sessionId: string): boolean {
+  return (
+    everPendingSessionIds.has(sessionId) && !pendingSessionIds.has(sessionId)
+  );
+}
+
 export function createPostFileToolNudgeHook(
   options: PostFileToolNudgeOptions = {},
 ) {
-  const pendingSessionIds = new Set<string>();
-
   return {
     'tool.execute.after': async (
       input: ToolExecuteAfterInput,
@@ -35,6 +46,7 @@ export function createPostFileToolNudgeHook(
       }
 
       pendingSessionIds.add(input.sessionID);
+      everPendingSessionIds.add(input.sessionID);
     },
     'experimental.chat.system.transform': async (
       input: { sessionID?: string },
@@ -43,6 +55,10 @@ export function createPostFileToolNudgeHook(
       if (!input.sessionID || !pendingSessionIds.delete(input.sessionID)) {
         return;
       }
+
+      // Track consumption so phase-reminder can check without consuming.
+      // (already tracked via everPendingSessionIds — delete from pending is
+      // sufficient signal)
 
       if (options.shouldInject && !options.shouldInject(input.sessionID)) {
         return;
@@ -59,7 +75,10 @@ export function createPostFileToolNudgeHook(
       if (input.event.type !== 'session.deleted') return;
       const sid =
         input.event.properties?.sessionID ?? input.event.properties?.info?.id;
-      if (sid) pendingSessionIds.delete(sid);
+      if (sid) {
+        pendingSessionIds.delete(sid);
+        everPendingSessionIds.delete(sid);
+      }
     },
   };
 }
