@@ -30,10 +30,6 @@ The main idea is simple: instead of forcing one model to do everything, the plug
 
 To explore the agents themselves, see **[Meet the Pantheon](#meet-the-pantheon)**. For the full feature set, see **[Features & Workflows](#features-and-workflows)** below.
 
-### Submit Your Preset
-
-Using a model mix that works well? Share it with the community through the **[preset submission form](https://github.com/alvinunreal/oh-my-opencode-slim/issues/new?template=preset_submission.yml)**. Accepted presets are reviewed and displayed in the **[Community Presets gallery](https://ohmyopencodeslim.com/community-presets)** with attribution.
-
 ### Manage Agent Skills with LazySkills
 
 <p align="center">
@@ -87,9 +83,37 @@ Install and configure oh-my-opencode-slim: https://raw.githubusercontent.com/alv
 bunx oh-my-opencode-slim@latest install
 ```
 
+### Run from Master
+
+Use this if you want the latest code, easier bug fixes, or a local setup for
+development and contributions:
+
+```bash
+git clone https://github.com/alvinunreal/oh-my-opencode-slim.git ~/repos/oh-my-opencode-slim
+cd ~/repos/oh-my-opencode-slim
+bun install
+bun run build
+bun dist/cli/index.js install
+```
+
+The installer adds the local repo path to the `plugin` array in
+`~/.config/opencode/opencode.json`, so OpenCode loads the plugin from that
+folder. To update later:
+
+```bash
+cd ~/repos/oh-my-opencode-slim
+git pull
+bun install
+bun run build
+```
+
 ### Getting Started
 
 The installer generates both OpenAI and OpenCode Go presets, with OpenAI active by default.
+
+> [!TIP]
+> Tune the models and agents for your own workflow. The defaults are only a
+> starting point; the plugin is designed for deep flexibility and customization.
 
 To make OpenCode Go active during install, run `bunx oh-my-opencode-slim@latest install --preset=opencode-go` or change the default preset name in `~/.config/opencode/oh-my-opencode-slim.json` after installation.
 
@@ -134,7 +158,7 @@ The default generated configuration includes both `openai` and `opencode-go` pre
       "orchestrator": { "model": "opencode-go/glm-5.2", "skills": [ "*" ], "mcps": [ "*", "!context7" ] },
       "oracle": { "model": "opencode-go/qwen3.7-max", "variant": "max", "skills": ["simplify"], "mcps": [] },
       "librarian": { "model": "opencode-go/deepseek-v4-flash", "skills": [], "mcps": [ "websearch", "context7", "gh_grep" ] },
-      "explorer": { "model": "opencode-go/minimax-m2.7", "skills": [], "mcps": [] },
+      "explorer": { "model": "opencode-go/deepseek-v4-flash", "skills": [], "mcps": [] },
       "designer": { "model": "opencode-go/kimi-k2.7-code", "variant": "medium", "skills": [], "mcps": [] },
       "fixer": { "model": "opencode-go/deepseek-v4-flash", "variant": "high", "skills": [], "mcps": [] }
     }
@@ -145,18 +169,6 @@ The default generated configuration includes both `openai` and `opencode-go` pre
 ### For Alternative Providers
 
 To use custom providers or a mixed-provider setup, use **[Configuration](docs/configuration.md)** for the full reference. If you want a ready-made starting point, check the **[Author's Preset](docs/authors-preset.md)** and **[$30 Preset](docs/thirty-dollars-preset.md)** - the `$30` preset is the best cheap setup.
-
-### Temporarily Disable the Plugin
-
-Set `OH_MY_OPENCODE_SLIM_DISABLE=1` when starting OpenCode to make the plugin
-return without registering agents, tools, MCPs, hooks, Companion, or the TUI
-sidebar:
-
-```bash
-OH_MY_OPENCODE_SLIM_DISABLE=1 opencode
-```
-
-Truthy values are `1`, `true`, `yes`, and `on`.
 
 ### ✅ Verify Your Setup
 

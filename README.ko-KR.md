@@ -86,9 +86,36 @@ Install and configure oh-my-opencode-slim: https://raw.githubusercontent.com/alv
 bunx oh-my-opencode-slim@latest install
 ```
 
+### Master 브랜치에서 실행하기
+
+최신 코드를 사용하거나, 버그를 고치거나, 로컬에서 개발하고 기여하려면 이
+방식을 사용하세요:
+
+```bash
+git clone https://github.com/alvinunreal/oh-my-opencode-slim.git ~/repos/oh-my-opencode-slim
+cd ~/repos/oh-my-opencode-slim
+bun install
+bun run build
+bun dist/cli/index.js install
+```
+
+인스톨러는 로컬 저장소 경로를 `~/.config/opencode/opencode.json`의
+`plugin` 배열에 추가하므로, OpenCode는 해당 폴더에서 플러그인을 로드합니다.
+나중에 업데이트하려면:
+
+```bash
+cd ~/repos/oh-my-opencode-slim
+git pull
+bun install
+bun run build
+```
+
 ### 시작하기
 
 인스톨러는 OpenAI와 OpenCode Go 프리셋을 모두 생성하며, 기본적으로 OpenAI가 활성화됩니다.
+
+> [!TIP]
+> 모델과 에이전트는 자신의 워크플로에 맞게 자유롭게 조정하세요. 기본 프리셋은 시작점일 뿐이며, 이 플러그인은 깊은 유연성과 커스터마이징을 제공하도록 설계되었습니다.
 
 설치 중 OpenCode Go를 활성화하려면 `bunx oh-my-opencode-slim@latest install --preset=opencode-go`를 실행하거나, 설치 후 `~/.config/opencode/oh-my-opencode-slim.json`에서 기본 프리셋 이름을 변경하세요.
 
@@ -133,7 +160,7 @@ bunx oh-my-opencode-slim@latest install
       "orchestrator": { "model": "opencode-go/glm-5.2", "skills": [ "*" ], "mcps": [ "*", "!context7" ] },
       "oracle": { "model": "opencode-go/qwen3.7-max", "variant": "max", "skills": ["simplify"], "mcps": [] },
       "librarian": { "model": "opencode-go/deepseek-v4-flash", "skills": [], "mcps": [ "websearch", "context7", "gh_grep" ] },
-      "explorer": { "model": "opencode-go/minimax-m2.7", "skills": [], "mcps": [] },
+      "explorer": { "model": "opencode-go/deepseek-v4-flash", "skills": [], "mcps": [] },
       "designer": { "model": "opencode-go/kimi-k2.7-code", "variant": "medium", "skills": [], "mcps": [] },
       "fixer": { "model": "opencode-go/deepseek-v4-flash", "variant": "high", "skills": [], "mcps": [] }
     }

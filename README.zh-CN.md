@@ -83,9 +83,34 @@ Install and configure oh-my-opencode-slim: https://raw.githubusercontent.com/alv
 bunx oh-my-opencode-slim@latest install
 ```
 
+### 从 Master 分支运行
+
+如果您想使用最新代码、方便修复问题，或进行本地开发和贡献，可以使用这种方式：
+
+```bash
+git clone https://github.com/alvinunreal/oh-my-opencode-slim.git ~/repos/oh-my-opencode-slim
+cd ~/repos/oh-my-opencode-slim
+bun install
+bun run build
+bun dist/cli/index.js install
+```
+
+安装程序会把本地仓库路径加入 `~/.config/opencode/opencode.json` 的
+`plugin` 数组，因此 OpenCode 会从该文件夹加载插件。之后要更新：
+
+```bash
+cd ~/repos/oh-my-opencode-slim
+git pull
+bun install
+bun run build
+```
+
 ### 入门指南
 
 安装程序会同时生成 OpenAI 和 OpenCode Go 预设，默认启用 OpenAI。
+
+> [!TIP]
+> 根据自己的工作流自由微调模型和智能体。默认预设只是起点；本插件的目标是为用户提供深度灵活性和可定制性。
 
 要在安装期间启用 OpenCode Go，请运行 `bunx oh-my-opencode-slim@latest install --preset=opencode-go`，或在安装后修改 `~/.config/opencode/oh-my-opencode-slim.json` 中的默认预设名称。
 
@@ -130,7 +155,7 @@ bunx oh-my-opencode-slim@latest install
       "orchestrator": { "model": "opencode-go/glm-5.2", "skills": [ "*" ], "mcps": [ "*", "!context7" ] },
       "oracle": { "model": "opencode-go/qwen3.7-max", "variant": "max", "skills": ["simplify"], "mcps": [] },
       "librarian": { "model": "opencode-go/deepseek-v4-flash", "skills": [], "mcps": [ "websearch", "context7", "gh_grep" ] },
-      "explorer": { "model": "opencode-go/minimax-m2.7", "skills": [], "mcps": [] },
+      "explorer": { "model": "opencode-go/deepseek-v4-flash", "skills": [], "mcps": [] },
       "designer": { "model": "opencode-go/kimi-k2.7-code", "variant": "medium", "skills": [], "mcps": [] },
       "fixer": { "model": "opencode-go/deepseek-v4-flash", "variant": "high", "skills": [], "mcps": [] }
     }
