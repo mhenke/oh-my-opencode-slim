@@ -7,6 +7,7 @@
  */
 import { PHASE_REMINDER } from '../../config/constants';
 import { SLIM_INTERNAL_INITIATOR_MARKER } from '../../utils';
+import { hasPendingSession } from '../post-file-tool-nudge';
 import { isUserMessageWithParts } from '../types';
 
 export { PHASE_REMINDER };
@@ -47,6 +48,14 @@ export function createPhaseReminderHook() {
 
       const agent = lastUserMessage.info.agent;
       if (agent && agent !== 'orchestrator') {
+        return;
+      }
+
+      // If post-file-tool-nudge is pending for this session, it handles
+      // injection via system prompt — skip message-level injection.
+      const sessionId = (lastUserMessage as { info?: { sessionID?: string } })
+        ?.info?.sessionID;
+      if (sessionId && hasPendingSession(sessionId)) {
         return;
       }
 

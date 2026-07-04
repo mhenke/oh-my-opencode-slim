@@ -842,6 +842,15 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         },
       );
 
+      await postFileToolNudgeHook.event(
+        input as {
+          event: {
+            type: string;
+            properties?: { info?: { id?: string }; sessionID?: string };
+          };
+        },
+      );
+
       if (
         event.type === 'permission.asked' ||
         event.type === 'question.asked'
@@ -1037,6 +1046,12 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
             (output.system[0] ? `\n\n${output.system[0]}` : '');
         }
       }
+
+      // Inject ephemeral post-file-tool-nudge reminder
+      await postFileToolNudgeHook['experimental.chat.system.transform'](
+        input,
+        output,
+      );
 
       // Collapse to single system message for provider compatibility.
       // Some providers (e.g. Qwen via VLLM/DashScope) reject multiple

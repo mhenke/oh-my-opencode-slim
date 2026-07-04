@@ -1,94 +1,189 @@
 import { describe, expect, test } from 'bun:test';
 
-import { PHASE_REMINDER_TEXT } from '../../config/constants';
+import { PHASE_REMINDER } from '../../config/constants';
 import { createPostFileToolNudgeHook } from './index';
 
-function createOutput(output = 'real content') {
-  return {
-    title: 'Read',
-    output,
-    metadata: {},
-  };
-}
-
-function countReminderInOutput(output: string | unknown): number {
-  if (typeof output !== 'string') return 0;
-  return output.split(PHASE_REMINDER_TEXT).length - 1;
-}
-
 describe('post-file-tool-nudge hook', () => {
-  test('appends delegation reminder to tool output', async () => {
+  test('records pending session on Read tool', async () => {
     const hook = createPostFileToolNudgeHook();
-    const output = createOutput();
+    const output = { system: [] };
 
-    await hook['tool.execute.after']({ tool: 'Read', sessionID: 's1' }, output);
+    await hook['tool.execute.after']({ tool: 'Read', sessionID: 's1' }, {});
+    await hook['experimental.chat.system.transform'](
+      { sessionID: 's1' },
+      output,
+    );
 
-    expect(output.output).toContain(PHASE_REMINDER_TEXT);
-    expect(output.output).toContain('<internal_reminder>');
-    expect(output.output).toContain('</internal_reminder>');
+    expect(output.system).toContain(PHASE_REMINDER);
   });
 
-  test('does not duplicate reminder in same tool output', async () => {
+  test('records pending session on Write tool', async () => {
     const hook = createPostFileToolNudgeHook();
-    const output = createOutput();
+    const output = { system: [] };
 
-    await hook['tool.execute.after']({ tool: 'read', sessionID: 's1' }, output);
-    await hook['tool.execute.after']({ tool: 'read', sessionID: 's1' }, output);
+    await hook['tool.execute.after']({ tool: 'Write', sessionID: 's1' }, {});
+    await hook['experimental.chat.system.transform'](
+      { sessionID: 's1' },
+      output,
+    );
 
-    expect(countReminderInOutput(output.output)).toBe(1);
+    expect(output.system).toContain(PHASE_REMINDER);
+  });
+
+  test('does not mutate tool output', async () => {
+    const hook = createPostFileToolNudgeHook();
+    const toolOutput = { output: 'real content' };
+
+    await hook['tool.execute.after'](
+      { tool: 'Read', sessionID: 's1' },
+      toolOutput,
+    );
+
+    expect(toolOutput.output).toBe('real content');
   });
 
   test('deduplicates multiple Read/Write calls in same session', async () => {
     const hook = createPostFileToolNudgeHook();
-    const output1 = createOutput('content 1');
-    const output2 = createOutput('content 2');
-    const output3 = createOutput('content 3');
 
-    await hook['tool.execute.after'](
-      { tool: 'read', sessionID: 's1' },
-      output1,
-    );
-    await hook['tool.execute.after'](
-      { tool: 'write', sessionID: 's1' },
-      output2,
-    );
-    await hook['tool.execute.after'](
-      { tool: 'Read', sessionID: 's1' },
-      output3,
+    await hook['tool.execute.after']({ tool: 'read', sessionID: 's1' }, {});
+    await hook['tool.execute.after']({ tool: 'write', sessionID: 's1' }, {});
+    await hook['tool.execute.after']({ tool: 'Read', sessionID: 's1' }, {});
+
+    const output = { system: [] };
+    await hook['experimental.chat.system.transform'](
+      { sessionID: 's1' },
+      output,
     );
 
-    expect(output1.output).toContain(PHASE_REMINDER_TEXT);
-    expect(output2.output).toContain(PHASE_REMINDER_TEXT);
-    expect(output3.output).toContain(PHASE_REMINDER_TEXT);
+    expect(output.system.filter((s) => s === PHASE_REMINDER)).toHaveLength(1);
+  });
+
+  test('consumes pending marker after injection', async () => {
+    const hook = createPostFileToolNudgeHook();
+
+    await hook['tool.execute.after']({ tool: 'Read', sessionID: 's1' }, {});
+    await hook['experimental.chat.system.transform'](
+      { sessionID: 's1' },
+      { system: [] },
+    );
+
+    // Second transform should not inject
+    const output = { system: [] };
+    await hook['experimental.chat.system.transform'](
+      { sessionID: 's1' },
+      output,
+    );
+
+    expect(output.system).toHaveLength(0);
   });
 
   test('ignores non-file tools', async () => {
     const hook = createPostFileToolNudgeHook();
-    const output = createOutput('ok');
+    const output = { system: [] };
 
-    await hook['tool.execute.after']({ tool: 'bash', sessionID: 's1' }, output);
+    await hook['tool.execute.after']({ tool: 'bash', sessionID: 's1' }, {});
+    await hook['experimental.chat.system.transform'](
+      { sessionID: 's1' },
+      output,
+    );
 
-    expect(output.output).toBe('ok');
-    expect(output.output).not.toContain(PHASE_REMINDER_TEXT);
+    expect(output.system).toHaveLength(0);
   });
 
   test('skips injection when shouldInject returns false', async () => {
     const hook = createPostFileToolNudgeHook({ shouldInject: () => false });
-    const output = createOutput();
+    const output = { system: [] };
 
-    await hook['tool.execute.after']({ tool: 'read', sessionID: 's1' }, output);
+    await hook['tool.execute.after']({ tool: 'Read', sessionID: 's1' }, {});
+    await hook['experimental.chat.system.transform'](
+      { sessionID: 's1' },
+      output,
+    );
 
-    expect(output.output).toBe('real content');
-    expect(output.output).not.toContain(PHASE_REMINDER_TEXT);
+    expect(output.system).toHaveLength(0);
   });
 
   test('ignores Read/Write without sessionID', async () => {
     const hook = createPostFileToolNudgeHook();
-    const output = createOutput();
+    const output = { system: [] };
 
-    await hook['tool.execute.after']({ tool: 'read' }, output);
+    await hook['tool.execute.after']({ tool: 'read' }, {});
+    await hook['experimental.chat.system.transform'](
+      { sessionID: 's1' },
+      output,
+    );
 
-    expect(output.output).toBe('real content');
-    expect(output.output).not.toContain(PHASE_REMINDER_TEXT);
+    expect(output.system).toHaveLength(0);
+  });
+
+  test('cleans up pending marker on session.deleted', async () => {
+    const hook = createPostFileToolNudgeHook();
+
+    await hook['tool.execute.after']({ tool: 'Read', sessionID: 's1' }, {});
+    await hook.event({
+      event: { type: 'session.deleted', properties: { sessionID: 's1' } },
+    });
+
+    const output = { system: [] };
+    await hook['experimental.chat.system.transform'](
+      { sessionID: 's1' },
+      output,
+    );
+
+    expect(output.system).toHaveLength(0);
+  });
+
+  test('cleans up on session.deleted with info.id shape', async () => {
+    const hook = createPostFileToolNudgeHook();
+
+    await hook['tool.execute.after']({ tool: 'Read', sessionID: 's1' }, {});
+    await hook.event({
+      event: { type: 'session.deleted', properties: { info: { id: 's1' } } },
+    });
+
+    const output = { system: [] };
+    await hook['experimental.chat.system.transform'](
+      { sessionID: 's1' },
+      output,
+    );
+
+    expect(output.system).toHaveLength(0);
+  });
+
+  test('composed: phase-reminder skips when post-file-tool-nudge handles system', async () => {
+    const { createPhaseReminderHook } = await import('../phase-reminder/index');
+    const nudgeHook = createPostFileToolNudgeHook();
+    const phaseHook = createPhaseReminderHook();
+
+    // Simulate Read tool call
+    await nudgeHook['tool.execute.after'](
+      { tool: 'Read', sessionID: 's1' },
+      {},
+    );
+
+    // System transform injects into system array
+    const systemOutput = { system: [] as string[] };
+    await nudgeHook['experimental.chat.system.transform'](
+      { sessionID: 's1' },
+      systemOutput,
+    );
+    expect(systemOutput.system).toContain(PHASE_REMINDER);
+
+    // Messages transform should NOT inject (pending already handled by system)
+    const messagesOutput = {
+      messages: [
+        {
+          info: { role: 'user', sessionID: 's1' },
+          parts: [{ type: 'text', text: 'hello' }],
+        },
+      ],
+    };
+    await phaseHook['experimental.chat.messages.transform']({}, messagesOutput);
+
+    const userParts = messagesOutput.messages[0].parts;
+    const reminderParts = userParts.filter(
+      (p: { text?: string }) => p.text === PHASE_REMINDER,
+    );
+    expect(reminderParts).toHaveLength(0);
   });
 });
