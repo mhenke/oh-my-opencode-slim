@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'bun:test';
 import {
+  chmodSync,
   existsSync,
   mkdirSync,
   readFileSync,
@@ -58,6 +59,10 @@ function attachFakeChild(manager: CompanionManager): { killed: () => boolean } {
     },
   };
   return { killed: () => killed };
+}
+
+function companionPidFile(): string {
+  return path.join(path.dirname(stateFilePath()), 'companion.pid');
 }
 
 describe('CompanionManager', () => {
@@ -254,6 +259,10 @@ describe('CompanionManager', () => {
     const first = make('reload-session');
     first.onLoad();
     const firstChild = attachFakeChild(first);
+    writeFileSync(companionPidFile(), String(process.pid));
+    (first as unknown as { wasSpawner: boolean }).wasSpawner = true;
+    (first as unknown as { spawnedCompanionPid: number }).spawnedCompanionPid =
+      process.pid;
 
     const second = make('reload-session');
     second.onLoad();
@@ -269,6 +278,11 @@ describe('CompanionManager', () => {
     const enabled = make('disable-session');
     enabled.onLoad();
     const child = attachFakeChild(enabled);
+    writeFileSync(companionPidFile(), String(process.pid));
+    (enabled as unknown as { wasSpawner: boolean }).wasSpawner = true;
+    (
+      enabled as unknown as { spawnedCompanionPid: number }
+    ).spawnedCompanionPid = process.pid;
 
     const disabled = new CompanionManager('disable-session', '/path', {
       enabled: false,
@@ -439,7 +453,7 @@ describe('CompanionManager', () => {
   it('skips spawn when PID file points to a live process', () => {
     // Write a PID file with our own PID (which is alive)
     mkdirSync(path.dirname(stateFilePath()), { recursive: true });
-    const pidFile = path.join(path.dirname(stateFilePath()), 'companion.pid');
+    const pidFile = companionPidFile();
     writeFileSync(pidFile, String(process.pid));
 
     const m = make('test-pid-guard');
@@ -453,7 +467,7 @@ describe('CompanionManager', () => {
 
   it('spawns when PID file contains a dead process', () => {
     mkdirSync(path.dirname(stateFilePath()), { recursive: true });
-    const pidFile = path.join(path.dirname(stateFilePath()), 'companion.pid');
+    const pidFile = companionPidFile();
     // Use an impossibly high PID that no kernel will ever assign
     writeFileSync(pidFile, '999999999');
 
@@ -466,6 +480,42 @@ describe('CompanionManager', () => {
     expect(state.sessions[0].session_id).toBe('test-stale-pid');
   });
 
+  it('skips spawn while another process holds the PID file lock', () => {
+    mkdirSync(path.dirname(stateFilePath()), { recursive: true });
+    const pidFile = companionPidFile();
+    const lock = `${pidFile}.lock`;
+    mkdirSync(lock);
+    writeFileSync(path.join(lock, 'owner'), String(process.pid));
+
+    const m = make('test-pending-pid');
+    m.onLoad();
+    m.onExit();
+
+    expect(existsSync(lock)).toBe(true);
+    expect(existsSync(pidFile)).toBe(false);
+  });
+
+  it('stores the spawned child PID in the PID file', () => {
+    const bin = path.join(TEST_DIR, 'fake-companion');
+    writeFileSync(bin, '#!/bin/sh\nexec sleep 30\n');
+    chmodSync(bin, 0o755);
+
+    const m = make('test-child-pid', '/path', {
+      enabled: true,
+      position: 'bottom-right',
+      size: 'medium',
+      binaryPath: bin,
+    });
+    m.onLoad();
+
+    const pid = Number(readFileSync(companionPidFile(), 'utf8'));
+    expect(Number.isInteger(pid)).toBe(true);
+    expect(pid).not.toBe(process.pid);
+    expect(pid).toBe(
+      (m as unknown as { spawnedCompanionPid: number }).spawnedCompanionPid,
+    );
+  });
+
   it('spawns when no PID file exists', () => {
     const m = make('test-no-pid');
     m.onLoad();
@@ -475,7 +525,7 @@ describe('CompanionManager', () => {
 
   it('cleans up PID file on exit when this manager was the spawner', () => {
     mkdirSync(path.dirname(stateFilePath()), { recursive: true });
-    const pidFile = path.join(path.dirname(stateFilePath()), 'companion.pid');
+    const pidFile = companionPidFile();
     writeFileSync(pidFile, '999999999'); // stale PID so spawn proceeds
 
     const m = make('test-pid-cleanup');
@@ -484,6 +534,8 @@ describe('CompanionManager', () => {
     // but the cleanup logic only fires when wasSpawner is true.
     writeFileSync(pidFile, String(process.pid));
     (m as unknown as { wasSpawner: boolean }).wasSpawner = true;
+    (m as unknown as { spawnedCompanionPid: number }).spawnedCompanionPid =
+      process.pid;
     m.onLoad();
     m.onExit();
 
@@ -492,7 +544,7 @@ describe('CompanionManager', () => {
 
   it('does not delete PID file on exit when this manager was not the spawner', () => {
     mkdirSync(path.dirname(stateFilePath()), { recursive: true });
-    const pidFile = path.join(path.dirname(stateFilePath()), 'companion.pid');
+    const pidFile = companionPidFile();
     writeFileSync(pidFile, String(process.pid));
 
     const m = make('test-pid-no-cleanup');
@@ -501,6 +553,38 @@ describe('CompanionManager', () => {
 
     // Non-spawner must not delete the guard file
     expect(existsSync(pidFile)).toBe(true);
+  });
+
+  it('does not delete a PID file owned by a different spawned child', () => {
+    mkdirSync(path.dirname(stateFilePath()), { recursive: true });
+    const pidFile = companionPidFile();
+    writeFileSync(pidFile, '222222222');
+
+    const m = make('test-pid-different-child');
+    (m as unknown as { wasSpawner: boolean }).wasSpawner = true;
+    (m as unknown as { spawnedCompanionPid: number }).spawnedCompanionPid =
+      111111111;
+    m.onExit();
+
+    expect(readFileSync(pidFile, 'utf8')).toBe('222222222');
+  });
+
+  it('does not kill the singleton when another session remains in state', () => {
+    const first = make('first-session');
+    const second = make('second-session');
+    first.onLoad();
+    second.onLoad();
+    const child = attachFakeChild(first);
+    const pidFile = companionPidFile();
+    writeFileSync(pidFile, String(process.pid));
+    (first as unknown as { wasSpawner: boolean }).wasSpawner = true;
+    (first as unknown as { spawnedCompanionPid: number }).spawnedCompanionPid =
+      process.pid;
+
+    first.onExit();
+
+    expect(child.killed()).toBe(false);
+    expect(readFileSync(pidFile, 'utf8')).toBe(String(process.pid));
   });
 
   it('removes disabled session entries on load', () => {
