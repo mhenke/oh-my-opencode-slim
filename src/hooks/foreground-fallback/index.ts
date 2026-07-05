@@ -246,11 +246,11 @@ export class ForegroundFallbackManager {
   // Retry budget
   // ---------------------------------------------------------------------------
 
-  /** True when the budget is exhausted and fallback should proceed.
-   *  When `force` is false (session.error / message.updated), fresh errors
-   *  with no prior retries always intervene immediately.
-   *  When `force` is true (session.status retry), the budget never bypasses
-   *  — even the first retry is counted. */
+  /** Increment retry counter and return true when the budget is exhausted.
+   *  Used by the session.status retry path — each retry counts toward the
+   *  budget and only triggers fallback after maxRetries - 1 absorptions.
+   *  Non-retry paths (session.error / message.updated) use shouldIntervene(),
+   *  which bypasses the counter on first occurrence. */
   private checkRetryBudget(sessionID: string): boolean {
     const tried = this.sessionRetries.get(sessionID) ?? 0;
     if (tried < this.maxRetries - 1) {
