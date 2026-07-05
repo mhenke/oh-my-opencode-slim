@@ -325,14 +325,15 @@ export class ForegroundFallbackManager {
           if (currentModel && currentModel !== primary) tried.add(currentModel);
           this.sessionTried.set(sessionID, tried);
           nextModel = stickyFallback;
-        } else {
-          log('[foreground-fallback] fallback chain exhausted', {
-            sessionID,
-            agentName,
-            tried: [...tried],
-          });
-          return;
-        }
+  } else {
+    log('[foreground-fallback] fallback chain exhausted, aborting', {
+      sessionID,
+      agentName,
+      tried: [...tried],
+    });
+    await abortSessionWithTimeout(this.client, sessionID);
+    return;
+  }
       }
       tried.add(nextModel);
 

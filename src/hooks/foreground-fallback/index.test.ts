@@ -517,28 +517,30 @@ describe('ForegroundFallbackManager chain exhaustion', () => {
     });
     expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
 
-    // Session B (fresh session, different ID): only model-y is in chain and it IS
-    // the current model → tried gets model-y → chain.find() = undefined → exhausted
-    const { client: client2, mocks: mocks2 } = createMockClient();
-    const mgr2 = new ForegroundFallbackManager(
-      client2,
-      { orchestrator: ['openai/model-y'] }, // single-entry chain already in use
-      true,
-    );
-    await mgr2.handleEvent({
-      type: 'message.updated',
-      properties: {
-        info: {
-          sessionID: 'sess-exhaust-2',
-          agent: 'orchestrator',
-          providerID: 'openai',
-          modelID: 'model-y',
-          error: { message: 'rate limit exceeded' },
-        },
+  // Session B (fresh session, different ID): only model-y is in chain and it IS
+  // the current model → tried gets model-y → chain.find() = undefined → exhausted
+  // → abort called to stop the freeze
+  const { client: client2, mocks: mocks2 } = createMockClient();
+  const mgr2 = new ForegroundFallbackManager(
+    client2,
+    { orchestrator: ['openai/model-y'] }, // single-entry chain already in use
+    true,
+  );
+  await mgr2.handleEvent({
+    type: 'message.updated',
+    properties: {
+      info: {
+        sessionID: 'sess-exhaust-2',
+        agent: 'orchestrator',
+        providerID: 'openai',
+        modelID: 'model-y',
+        error: { message: 'rate limit exceeded' },
       },
-    });
-    expect(mocks2.promptAsync).not.toHaveBeenCalled();
+    },
   });
+  expect(mocks2.abort).toHaveBeenCalledTimes(1);
+  expect(mocks2.promptAsync).not.toHaveBeenCalled();
+});
 });
 
 // ---------------------------------------------------------------------------
