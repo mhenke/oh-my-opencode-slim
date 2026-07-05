@@ -222,7 +222,7 @@ In its purest form, Ralph is a Bash loop. That's it.
 
 ### What's Designed But Not Built
 
-The loop engineering spec (`docs/superpowers/specs/2026-06-25-loop-engineering-runtime.md`) defines:
+The planned loop engineering runtime includes:
 
 - **LoopEngine** class with event-driven orchestration
 - **LoopSession** state machine (executing <-> verifying binary oscillation)
