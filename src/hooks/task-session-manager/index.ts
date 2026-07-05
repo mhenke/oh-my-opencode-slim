@@ -606,13 +606,12 @@ export function createTaskSessionManagerHook(
         });
         if (sessionId && options.shouldManageSession(sessionId)) {
           cancelPendingReconciliation(sessionId);
-          pendingReconciliations.set(
-            sessionId,
-            setTimeout(() => {
-              pendingReconciliations.delete(sessionId);
-              reconcileInjectedTerminalJobs(sessionId);
-            }, IDLE_RECONCILE_DELAY_MS),
-          );
+          const timer = setTimeout(() => {
+            pendingReconciliations.delete(sessionId);
+            reconcileInjectedTerminalJobs(sessionId);
+          }, IDLE_RECONCILE_DELAY_MS);
+          timer.unref?.();
+          pendingReconciliations.set(sessionId, timer);
         }
         return;
       }
