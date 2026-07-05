@@ -448,6 +448,62 @@ describe('ForegroundFallbackManager session.status', () => {
 
     expect(mocks.promptAsync).not.toHaveBeenCalled();
   });
+
+  test('tracks retries and only intervenes after maxRetries', async () => {
+    const { client, mocks } = createMockClient();
+    const mgr = new ForegroundFallbackManager(client, makeChains(), true, 3);
+
+    // Pre-seed model
+    await mgr.handleEvent({
+      type: 'message.updated',
+      properties: {
+        info: {
+          sessionID: 'sess-retry',
+          providerID: 'anthropic',
+          modelID: 'claude-opus-4-5',
+        },
+      },
+    });
+
+    // First two retries should be absorbed (maxRetries - 1 = 2)
+    await mgr.handleEvent({
+      type: 'session.status',
+      properties: {
+        sessionID: 'sess-retry',
+        status: {
+          type: 'retry',
+          attempt: 1,
+          message: 'rate limit, retrying...',
+        },
+      },
+    });
+    await mgr.handleEvent({
+      type: 'session.status',
+      properties: {
+        sessionID: 'sess-retry',
+        status: {
+          type: 'retry',
+          attempt: 2,
+          message: 'rate limit, retrying...',
+        },
+      },
+    });
+    expect(mocks.promptAsync).not.toHaveBeenCalled();
+
+    // Third retry exhausts the budget → tryFallback intervenes
+    await mgr.handleEvent({
+      type: 'session.status',
+      properties: {
+        sessionID: 'sess-retry',
+        status: {
+          type: 'retry',
+          attempt: 3,
+          message: 'rate limit, retrying...',
+        },
+      },
+    });
+    expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -486,7 +542,7 @@ describe('ForegroundFallbackManager chain exhaustion', () => {
     expect(mocks.promptAsync).not.toHaveBeenCalled();
   });
 
-  test('does not call promptAsync when all chain models have been tried', async () => {
+  test('aborts when all chain models have been tried', async () => {
     // Scenario: chain = ['anthropic/claude-a', 'openai/gpt-b'].
     // Current model is 'openai/gpt-b' (the last fallback already in use).
     // tried will contain: 'openai/gpt-b' (current) → chain.find() → 'anthropic/claude-a'
@@ -517,30 +573,30 @@ describe('ForegroundFallbackManager chain exhaustion', () => {
     });
     expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
 
-  // Session B (fresh session, different ID): only model-y is in chain and it IS
-  // the current model → tried gets model-y → chain.find() = undefined → exhausted
-  // → abort called to stop the freeze
-  const { client: client2, mocks: mocks2 } = createMockClient();
-  const mgr2 = new ForegroundFallbackManager(
-    client2,
-    { orchestrator: ['openai/model-y'] }, // single-entry chain already in use
-    true,
-  );
-  await mgr2.handleEvent({
-    type: 'message.updated',
-    properties: {
-      info: {
-        sessionID: 'sess-exhaust-2',
-        agent: 'orchestrator',
-        providerID: 'openai',
-        modelID: 'model-y',
-        error: { message: 'rate limit exceeded' },
+    // Session B (fresh session, different ID): only model-y is in chain and it IS
+    // the current model → tried gets model-y → chain.find() = undefined → exhausted
+    // → abort called to stop the freeze
+    const { client: client2, mocks: mocks2 } = createMockClient();
+    const mgr2 = new ForegroundFallbackManager(
+      client2,
+      { orchestrator: ['openai/model-y'] }, // single-entry chain already in use
+      true,
+    );
+    await mgr2.handleEvent({
+      type: 'message.updated',
+      properties: {
+        info: {
+          sessionID: 'sess-exhaust-2',
+          agent: 'orchestrator',
+          providerID: 'openai',
+          modelID: 'model-y',
+          error: { message: 'rate limit exceeded' },
+        },
       },
-    },
+    });
+    expect(mocks2.abort).toHaveBeenCalledTimes(1);
+    expect(mocks2.promptAsync).not.toHaveBeenCalled();
   });
-  expect(mocks2.abort).toHaveBeenCalledTimes(1);
-  expect(mocks2.promptAsync).not.toHaveBeenCalled();
-});
 });
 
 // ---------------------------------------------------------------------------

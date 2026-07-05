@@ -325,17 +325,19 @@ export class ForegroundFallbackManager {
           if (currentModel && currentModel !== primary) tried.add(currentModel);
           this.sessionTried.set(sessionID, tried);
           nextModel = stickyFallback;
-  } else {
-    log('[foreground-fallback] fallback chain exhausted, aborting', {
-      sessionID,
-      agentName,
-      tried: [...tried],
-    });
-    await abortSessionWithTimeout(this.client, sessionID);
-    return;
-  }
+        } else {
+          log('[foreground-fallback] fallback chain exhausted, aborting', {
+            sessionID,
+            agentName,
+            tried: [...tried],
+          });
+          await abortSessionWithTimeout(this.client, sessionID);
+          return;
+        }
       }
       tried.add(nextModel);
+      // Reset retry count on model switch — the new model starts fresh.
+      this.sessionRetries.delete(sessionID);
 
       const ref = parseModelReference(nextModel);
       if (!ref) {
