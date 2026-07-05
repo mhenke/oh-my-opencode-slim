@@ -282,11 +282,10 @@ export class ForegroundFallbackManager {
       const agentName = this.sessionAgent.get(sessionID);
       const chain = this.resolveChain(agentName, currentModel);
       if (!chain.length) {
-        log('[foreground-fallback] no chain configured, aborting session', {
+        log('[foreground-fallback] no chain configured', {
           sessionID,
           agentName,
         });
-        await abortSessionWithTimeout(this.client, sessionID);
         return;
       }
 
@@ -379,24 +378,26 @@ export class ForegroundFallbackManager {
         return;
       }
 
-      // Abort the currently rate-limited prompt so the session becomes idle.
+      // Try queuing the fallback prompt without aborting first. If OpenCode
+      // accepts it (204), the fallback model replaces the retry loop
+      // transparently — no dialog, no session error shown to the user.
+      // If promptAsync throws (e.g. session busy), fall back to abort+retry.
       try {
-        await abortSessionWithTimeout(this.client, sessionID);
-      } catch (error) {
-        // Session may already be idle or abort may be slow; keep fallback best-effort.
-        log('[foreground-fallback] abort did not complete cleanly', {
+        await sessionClient.promptAsync({
+          path: { id: sessionID },
+          body: { parts: lastUser.parts, model: ref },
+        });
+      } catch (_promptErr) {
+        log('[foreground-fallback] promptAsync on busy session, aborting', {
           sessionID,
-          error: error instanceof Error ? error.message : String(error),
+        });
+        await abortSessionWithTimeout(this.client, sessionID);
+        await new Promise((r) => setTimeout(r, REPROMPT_DELAY_MS));
+        await sessionClient.promptAsync({
+          path: { id: sessionID },
+          body: { parts: lastUser.parts, model: ref },
         });
       }
-
-      // Give the server a moment to finalise the abort before re-prompting.
-      await new Promise((r) => setTimeout(r, REPROMPT_DELAY_MS));
-
-      await sessionClient.promptAsync({
-        path: { id: sessionID },
-        body: { parts: lastUser.parts, model: ref },
-      });
 
       this.sessionModel.set(sessionID, nextModel);
       log('[foreground-fallback] switched to fallback model', {

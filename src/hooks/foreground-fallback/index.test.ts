@@ -187,7 +187,8 @@ describe('ForegroundFallbackManager session.error', () => {
       },
     });
 
-    expect(mocks.abort).toHaveBeenCalledTimes(1);
+    // promptAsync is called directly (no abort needed when it succeeds)
+    expect(mocks.abort).toHaveBeenCalledTimes(0);
     expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
 
     const call = mocks.promptAsync.mock.calls[0] as [
@@ -258,7 +259,7 @@ describe('ForegroundFallbackManager session.error', () => {
     expect(mocks.promptAsync).not.toHaveBeenCalled();
   });
 
-  test('aborts session when no chain configured (no fallback model to swap to)', async () => {
+  test('does nothing when no chain configured for session', async () => {
     const emptyMgr = new ForegroundFallbackManager(client, {}, true);
     await emptyMgr.handleEvent({
       type: 'session.error',
@@ -268,7 +269,7 @@ describe('ForegroundFallbackManager session.error', () => {
       },
     });
 
-    expect(mocks.abort).toHaveBeenCalledTimes(1);
+    expect(mocks.abort).not.toHaveBeenCalled();
     expect(mocks.promptAsync).not.toHaveBeenCalled();
   });
 
@@ -288,10 +289,13 @@ describe('ForegroundFallbackManager session.error', () => {
     expect(mocks.promptAsync).not.toHaveBeenCalled();
   });
 
-  test('continues fallback when abort rejects', async () => {
+  test('falls back to abort+retry when promptAsync fails on busy session', async () => {
     const { client, mocks } = createMockClient({
+      promptAsyncImpl: async () => {
+        throw new Error('session busy');
+      },
       abortImpl: async () => {
-        throw new Error('abort failed');
+        // abort succeeds on first call
       },
     });
     const mgr = new ForegroundFallbackManager(client, makeChains(), true);
@@ -299,13 +303,14 @@ describe('ForegroundFallbackManager session.error', () => {
     await mgr.handleEvent({
       type: 'session.error',
       properties: {
-        sessionID: 'sess-abort-rejects',
+        sessionID: 'sess-busy',
         error: { message: 'Rate limit exceeded' },
       },
     });
 
+    // First promptAsync attempt failed → abort called, then promptAsync retried
     expect(mocks.abort).toHaveBeenCalledTimes(1);
-    expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
+    expect(mocks.promptAsync).toHaveBeenCalledTimes(2);
   });
 });
 
