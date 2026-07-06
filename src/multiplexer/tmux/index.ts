@@ -5,6 +5,7 @@
 import type { MultiplexerLayout } from '../../config/schema';
 import { crossSpawn } from '../../utils/compat';
 import { log } from '../../utils/logger';
+import { buildOpencodeAttachCommand, findBinary } from '../shared';
 import type { Multiplexer, PaneResult } from '../types';
 
 const TMUX_LAYOUT_DEBOUNCE_MS = 150;
@@ -30,7 +31,7 @@ export class TmuxMultiplexer implements Multiplexer {
       return this.binaryPath !== null;
     }
 
-    this.binaryPath = await this.findBinary();
+    this.binaryPath = await findBinary('tmux');
     this.hasChecked = true;
     return this.binaryPath !== null;
   }
@@ -53,19 +54,11 @@ export class TmuxMultiplexer implements Multiplexer {
 
     try {
       // Build the attach command
-      const quotedDirectory = quoteShellArg(directory);
-      const quotedUrl = quoteShellArg(serverUrl);
-      const quotedSessionId = quoteShellArg(sessionId);
-
-      const opencodeCmd = [
-        'opencode',
-        'attach',
-        quotedUrl,
-        '--session',
-        quotedSessionId,
-        '--dir',
-        quotedDirectory,
-      ].join(' ');
+      const opencodeCmd = buildOpencodeAttachCommand(
+        sessionId,
+        serverUrl,
+        directory,
+      );
 
       // tmux split-window -h -d -P -F '#{pane_id}' <cmd>
       const args = [
@@ -275,50 +268,4 @@ export class TmuxMultiplexer implements Multiplexer {
   private targetArgs(): string[] {
     return this.targetPane ? ['-t', this.targetPane] : [];
   }
-
-  private async findBinary(): Promise<string | null> {
-    const isWindows = process.platform === 'win32';
-    const cmd = isWindows ? 'where' : 'which';
-
-    try {
-      const proc = crossSpawn([cmd, 'tmux'], {
-        stdout: 'pipe',
-        stderr: 'pipe',
-      });
-
-      const exitCode = await proc.exited;
-      if (exitCode !== 0) {
-        log("[tmux] findBinary: 'which tmux' failed", { exitCode });
-        return null;
-      }
-
-      const stdout = await proc.stdout();
-      const path = stdout.trim().split('\n')[0];
-      if (!path) {
-        log('[tmux] findBinary: no path in output');
-        return null;
-      }
-
-      // Verify it works
-      const verifyProc = crossSpawn([path, '-V'], {
-        stdout: 'pipe',
-        stderr: 'pipe',
-      });
-      const verifyExit = await verifyProc.exited;
-      if (verifyExit !== 0) {
-        log('[tmux] findBinary: tmux -V failed', { path, verifyExit });
-        return null;
-      }
-
-      log('[tmux] findBinary: found', { path });
-      return path;
-    } catch (err) {
-      log('[tmux] findBinary: exception', { error: String(err) });
-      return null;
-    }
-  }
-}
-
-function quoteShellArg(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
 }

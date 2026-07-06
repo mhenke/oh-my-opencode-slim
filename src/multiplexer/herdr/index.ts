@@ -15,6 +15,7 @@
 import type { MultiplexerLayout } from '../../config/schema';
 import { crossSpawn } from '../../utils/compat';
 import { log } from '../../utils/logger';
+import { buildOpencodeAttachCommand, findBinary } from '../shared';
 import type { Multiplexer, PaneResult } from '../types';
 
 type HerdrPaneDirection = 'right' | 'down';
@@ -47,7 +48,7 @@ export class HerdrMultiplexer implements Multiplexer {
       return this.binaryPath !== null;
     }
 
-    this.binaryPath = await this.findBinary();
+    this.binaryPath = await findBinary('herdr');
     this.hasChecked = true;
     return this.binaryPath !== null;
   }
@@ -215,36 +216,6 @@ export class HerdrMultiplexer implements Multiplexer {
     await this.isAvailable();
     return this.binaryPath;
   }
-
-  private async findBinary(): Promise<string | null> {
-    const cmd = process.platform === 'win32' ? 'where' : 'which';
-
-    try {
-      const proc = crossSpawn([cmd, 'herdr'], {
-        stdout: 'pipe',
-        stderr: 'pipe',
-      });
-
-      const exitCode = await proc.exited;
-      if (exitCode !== 0) {
-        log("[herdr] findBinary: 'which herdr' failed", { exitCode });
-        return null;
-      }
-
-      const stdout = await proc.stdout();
-      const path = stdout.trim().split('\n')[0];
-      if (!path) {
-        log('[herdr] findBinary: no path in output');
-        return null;
-      }
-
-      log('[herdr] findBinary: found', { path });
-      return path;
-    } catch (err) {
-      log('[herdr] findBinary: exception', { error: String(err) });
-      return null;
-    }
-  }
 }
 
 /**
@@ -283,24 +254,4 @@ function getPaneDirection(layout: MultiplexerLayout): HerdrPaneDirection {
     case 'tiled':
       return 'right';
   }
-}
-
-function buildOpencodeAttachCommand(
-  sessionId: string,
-  serverUrl: string,
-  directory: string,
-): string {
-  return [
-    'opencode',
-    'attach',
-    quoteShellArg(serverUrl),
-    '--session',
-    quoteShellArg(sessionId),
-    '--dir',
-    quoteShellArg(directory),
-  ].join(' ');
-}
-
-function quoteShellArg(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
