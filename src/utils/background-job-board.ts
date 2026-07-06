@@ -515,6 +515,20 @@ export class BackgroundJobBoard implements BackgroundJobStore {
     this.jobs.delete(taskID);
   }
 
+  // ── Lifecycle policy (board = no policy, always close) ───────────
+
+  deferIfRunning(_sessionId: string): boolean {
+    return true; // No deferral policy at board level
+  }
+
+  retryDeferredClose(_sessionId: string): boolean {
+    return false; // Nothing deferred at board level
+  }
+
+  clearDeferredClose(_sessionId: string): void {
+    // No-op at board level
+  }
+
   private trimReusable(taskID: string): void {
     const job = this.jobs.get(taskID);
     if (!job || !isReusable(job)) return;
