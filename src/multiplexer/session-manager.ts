@@ -15,7 +15,6 @@ import { log } from '../utils/logger';
  */
 interface BackgroundJobReader {
   getState(sessionId: string): BackgroundJobState | undefined;
-  isRunning(sessionId: string): boolean;
   deferIfRunning(sessionId: string): boolean;
   clearDeferredClose(sessionId: string): void;
 }
@@ -319,7 +318,6 @@ export class MultiplexerSessionManager {
       backgroundJobState: this.backgroundJobState(sessionId),
     });
 
-    this.backgroundJobBoard?.clearDeferredClose(sessionId);
     await this.closeSession(sessionId, 'deleted');
   }
 
@@ -621,9 +619,9 @@ export class MultiplexerSessionManager {
     return this.backgroundJobBoard?.deferIfRunning(sessionId) ?? true;
   }
 
-  async closeSessionFromCoordinator(taskID: string): Promise<void> {
+  async closeSessionFromCoordinator(sessionId: string): Promise<void> {
     if (!this.enabled) return;
-    await this.closeSession(taskID, 'idle');
+    await this.closeSession(sessionId, 'idle');
   }
 
   async cleanup(): Promise<void> {

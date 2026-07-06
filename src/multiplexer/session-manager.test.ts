@@ -435,8 +435,8 @@ describe('MultiplexerSessionManager', () => {
         defaultMultiplexerConfig,
         coordinator,
       );
-      coordinator.addTerminalStateListener((taskID) => {
-        void manager.closeSessionFromCoordinator(taskID);
+      coordinator.addTerminalStateListener((sessionId) => {
+        void manager.closeSessionFromCoordinator(sessionId);
       });
 
       await manager.onSessionCreated({
@@ -501,8 +501,8 @@ describe('MultiplexerSessionManager', () => {
           defaultMultiplexerConfig,
           coordinator,
         );
-        coordinator.addTerminalStateListener((taskID) => {
-          void manager.closeSessionFromCoordinator(taskID);
+        coordinator.addTerminalStateListener((sessionId) => {
+          void manager.closeSessionFromCoordinator(sessionId);
         });
 
         await manager.onSessionCreated({
@@ -540,8 +540,8 @@ describe('MultiplexerSessionManager', () => {
         defaultMultiplexerConfig,
         coordinator,
       );
-      coordinator.addTerminalStateListener((taskID) => {
-        void manager.closeSessionFromCoordinator(taskID);
+      coordinator.addTerminalStateListener((sessionId) => {
+        void manager.closeSessionFromCoordinator(sessionId);
       });
 
       await manager.onSessionCreated({
@@ -581,8 +581,8 @@ describe('MultiplexerSessionManager', () => {
         defaultMultiplexerConfig,
         coordinator,
       );
-      coordinator.addTerminalStateListener((taskID) => {
-        void manager.closeSessionFromCoordinator(taskID);
+      coordinator.addTerminalStateListener((sessionId) => {
+        void manager.closeSessionFromCoordinator(sessionId);
       });
 
       await manager.onSessionCreated({
@@ -618,8 +618,8 @@ describe('MultiplexerSessionManager', () => {
         defaultMultiplexerConfig,
         coordinator,
       );
-      coordinator.addTerminalStateListener((taskID) => {
-        void manager.closeSessionFromCoordinator(taskID);
+      coordinator.addTerminalStateListener((sessionId) => {
+        void manager.closeSessionFromCoordinator(sessionId);
       });
 
       await manager.onSessionCreated({
@@ -661,8 +661,8 @@ describe('MultiplexerSessionManager', () => {
         defaultMultiplexerConfig,
         coordinator,
       );
-      coordinator.addTerminalStateListener((taskID) => {
-        void manager.closeSessionFromCoordinator(taskID);
+      coordinator.addTerminalStateListener((sessionId) => {
+        void manager.closeSessionFromCoordinator(sessionId);
       });
 
       await manager.onSessionCreated({
@@ -756,8 +756,8 @@ describe('MultiplexerSessionManager', () => {
         defaultMultiplexerConfig,
         coordinator,
       );
-      coordinator.addTerminalStateListener((taskID) => {
-        void manager.closeSessionFromCoordinator(taskID);
+      coordinator.addTerminalStateListener((sessionId) => {
+        void manager.closeSessionFromCoordinator(sessionId);
       });
 
       await manager.onSessionCreated({
@@ -819,8 +819,8 @@ describe('MultiplexerSessionManager', () => {
         defaultMultiplexerConfig,
         coordinator,
       );
-      coordinator.addTerminalStateListener((taskID) => {
-        void manager.closeSessionFromCoordinator(taskID);
+      coordinator.addTerminalStateListener((sessionId) => {
+        void manager.closeSessionFromCoordinator(sessionId);
       });
 
       await manager.onSessionCreated({
