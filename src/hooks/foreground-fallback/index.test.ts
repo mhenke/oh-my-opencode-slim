@@ -187,7 +187,8 @@ describe('ForegroundFallbackManager session.error', () => {
       },
     });
 
-    expect(mocks.abort).toHaveBeenCalledTimes(1);
+    // promptAsync is called directly (no abort needed when it succeeds)
+    expect(mocks.abort).toHaveBeenCalledTimes(0);
     expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
 
     const call = mocks.promptAsync.mock.calls[0] as [
@@ -268,6 +269,7 @@ describe('ForegroundFallbackManager session.error', () => {
       },
     });
 
+    expect(mocks.abort).not.toHaveBeenCalled();
     expect(mocks.promptAsync).not.toHaveBeenCalled();
   });
 
@@ -287,10 +289,13 @@ describe('ForegroundFallbackManager session.error', () => {
     expect(mocks.promptAsync).not.toHaveBeenCalled();
   });
 
-  test('continues fallback when abort rejects', async () => {
+  test('falls back to abort+retry when promptAsync fails on busy session', async () => {
     const { client, mocks } = createMockClient({
+      promptAsyncImpl: async () => {
+        throw new Error('session busy');
+      },
       abortImpl: async () => {
-        throw new Error('abort failed');
+        // abort succeeds on first call
       },
     });
     const mgr = new ForegroundFallbackManager(client, makeChains(), true);
@@ -298,13 +303,14 @@ describe('ForegroundFallbackManager session.error', () => {
     await mgr.handleEvent({
       type: 'session.error',
       properties: {
-        sessionID: 'sess-abort-rejects',
+        sessionID: 'sess-busy',
         error: { message: 'Rate limit exceeded' },
       },
     });
 
+    // First promptAsync attempt failed → abort called, then promptAsync retried
     expect(mocks.abort).toHaveBeenCalledTimes(1);
-    expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
+    expect(mocks.promptAsync).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -377,9 +383,8 @@ describe('ForegroundFallbackManager message.updated', () => {
 describe('ForegroundFallbackManager session.status', () => {
   test('triggers fallback on retry status with rate limit message', async () => {
     const { client, mocks } = createMockClient();
-    const mgr = new ForegroundFallbackManager(client, makeChains(), true);
+    const mgr = new ForegroundFallbackManager(client, makeChains(), true, 1);
 
-    // Pre-seed model
     await mgr.handleEvent({
       type: 'message.updated',
       properties: {
@@ -404,7 +409,7 @@ describe('ForegroundFallbackManager session.status', () => {
 
   test('triggers fallback on retry status with insufficient balance message', async () => {
     const { client, mocks } = createMockClient();
-    const mgr = new ForegroundFallbackManager(client, makeChains(), true);
+    const mgr = new ForegroundFallbackManager(client, makeChains(), true, 1);
 
     await mgr.handleEvent({
       type: 'message.updated',
@@ -441,6 +446,62 @@ describe('ForegroundFallbackManager session.status', () => {
     });
 
     expect(mocks.promptAsync).not.toHaveBeenCalled();
+  });
+
+  test('tracks retries and only intervenes after maxRetries', async () => {
+    const { client, mocks } = createMockClient();
+    const mgr = new ForegroundFallbackManager(client, makeChains(), true, 3);
+
+    // Pre-seed model
+    await mgr.handleEvent({
+      type: 'message.updated',
+      properties: {
+        info: {
+          sessionID: 'sess-retry',
+          providerID: 'anthropic',
+          modelID: 'claude-opus-4-5',
+        },
+      },
+    });
+
+    // First two retries should be absorbed (maxRetries - 1 = 2)
+    await mgr.handleEvent({
+      type: 'session.status',
+      properties: {
+        sessionID: 'sess-retry',
+        status: {
+          type: 'retry',
+          attempt: 1,
+          message: 'rate limit, retrying...',
+        },
+      },
+    });
+    await mgr.handleEvent({
+      type: 'session.status',
+      properties: {
+        sessionID: 'sess-retry',
+        status: {
+          type: 'retry',
+          attempt: 2,
+          message: 'rate limit, retrying...',
+        },
+      },
+    });
+    expect(mocks.promptAsync).not.toHaveBeenCalled();
+
+    // Third retry exhausts the budget → tryFallback intervenes
+    await mgr.handleEvent({
+      type: 'session.status',
+      properties: {
+        sessionID: 'sess-retry',
+        status: {
+          type: 'retry',
+          attempt: 3,
+          message: 'rate limit, retrying...',
+        },
+      },
+    });
+    expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -480,7 +541,7 @@ describe('ForegroundFallbackManager chain exhaustion', () => {
     expect(mocks.promptAsync).not.toHaveBeenCalled();
   });
 
-  test('does not call promptAsync when all chain models have been tried', async () => {
+  test('aborts when all chain models have been tried', async () => {
     // Scenario: chain = ['anthropic/claude-a', 'openai/gpt-b'].
     // Current model is 'openai/gpt-b' (the last fallback already in use).
     // tried will contain: 'openai/gpt-b' (current) → chain.find() → 'anthropic/claude-a'
@@ -513,6 +574,7 @@ describe('ForegroundFallbackManager chain exhaustion', () => {
 
     // Session B (fresh session, different ID): only model-y is in chain and it IS
     // the current model → tried gets model-y → chain.find() = undefined → exhausted
+    // → abort called to stop the freeze
     const { client: client2, mocks: mocks2 } = createMockClient();
     const mgr2 = new ForegroundFallbackManager(
       client2,
@@ -531,6 +593,7 @@ describe('ForegroundFallbackManager chain exhaustion', () => {
         },
       },
     });
+    expect(mocks2.abort).toHaveBeenCalledTimes(1);
     expect(mocks2.promptAsync).not.toHaveBeenCalled();
   });
 });

@@ -99,6 +99,9 @@ export class ForegroundFallbackManager {
    *  when the model has changed, allowing the cascade to continue when a
    *  new fallback model also fails within the dedup window. */
   private readonly lastTriggerModel = new Map<string, string>();
+  /** sessionID → consecutive 429 count for the current model.
+   *  Reset on model swap or session deletion. */
+  private readonly sessionRetries = new Map<string, number>();
 
   /** Exposed for task-session-manager: prevents idle reconciliation
    *  while a fallback abort/re-prompt is in flight for this session. */
@@ -115,6 +118,8 @@ export class ForegroundFallbackManager {
      */
     private readonly chains: Record<string, string[]>,
     private readonly enabled: boolean,
+    /** Consecutive 429s tolerated on the same model before swap/abort. */
+    private readonly maxRetries: number = 3,
   ) {}
 
   /**
@@ -150,7 +155,12 @@ export class ForegroundFallbackManager {
         }
         // Rate-limit on an individual message
         if (info.error && isRateLimitError(info.error)) {
-          await this.tryFallback(sessionID);
+          if (this.shouldIntervene(sessionID)) {
+            await this.tryFallback(sessionID);
+          }
+        } else {
+          // Successful response: clear retry count so recovery is not forgotten.
+          this.sessionRetries.delete(sessionID);
         }
         break;
       }
@@ -159,7 +169,12 @@ export class ForegroundFallbackManager {
         const props = event.properties as
           | { sessionID?: string; error?: unknown }
           | undefined;
-        if (props?.sessionID && props.error && isRateLimitError(props.error)) {
+        if (
+          props?.sessionID &&
+          props.error &&
+          isRateLimitError(props.error) &&
+          this.shouldIntervene(props.sessionID)
+        ) {
           await this.tryFallback(props.sessionID);
         }
         break;
@@ -169,15 +184,11 @@ export class ForegroundFallbackManager {
         const props = event.properties as
           | {
               sessionID?: string;
-              status?: { type?: string; message?: string };
+              status?: { type?: string; message?: string; attempt?: number };
             }
           | undefined;
         if (!props?.sessionID || !props.status?.message) break;
         const msg = props.status.message.toLowerCase();
-        // Check for rate-limit signals in the status message regardless of
-        // status type. OpenCode proxies may emit monthly/weekly/5-hour usage
-        // limit errors with type 'error' instead of 'retry' on fresh sessions
-        // where no retry is attempted - the retry-type guard would miss them.
         if (
           msg.includes('rate limit') ||
           msg.includes('usage limit') ||
@@ -189,7 +200,14 @@ export class ForegroundFallbackManager {
           msg.includes('high concurrency') ||
           msg.includes('reduce concurrency')
         ) {
-          await this.tryFallback(props.sessionID);
+          // session.status retry path always counts toward the budget
+          // — even the first retry is absorbed before intervening.
+          if (this.checkRetryBudget(props.sessionID)) {
+            await this.tryFallback(props.sessionID);
+          }
+        } else {
+          // Non-rate-limit status: clear retry count (recovery).
+          this.sessionRetries.delete(props.sessionID);
         }
         break;
       }
@@ -223,10 +241,43 @@ export class ForegroundFallbackManager {
           this.inProgress.delete(id);
           this.lastTrigger.delete(id);
           this.lastTriggerModel.delete(id);
+          this.sessionRetries.delete(id);
         }
         break;
       }
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Retry budget
+  // ---------------------------------------------------------------------------
+
+  /** Increment retry counter and return true when the budget is exhausted.
+   *  Used by the session.status retry path — each retry counts toward the
+   *  budget and only triggers fallback after maxRetries - 1 absorptions.
+   *  Non-retry paths (session.error / message.updated) use shouldIntervene(),
+   *  which bypasses the counter on first occurrence. */
+  private checkRetryBudget(sessionID: string): boolean {
+    const tried = this.sessionRetries.get(sessionID) ?? 0;
+    if (tried < this.maxRetries - 1) {
+      this.sessionRetries.set(sessionID, tried + 1);
+      log('[foreground-fallback] rate-limit retry', {
+        sessionID,
+        attempt: tried + 1,
+        remaining: this.maxRetries - tried - 1,
+      });
+      return false;
+    }
+    this.sessionRetries.delete(sessionID);
+    return true;
+  }
+
+  /** For non-retry paths (session.error, message.updated): intervene immediately
+   *  unless the session is already in a retry window (has prior retries). */
+  private shouldIntervene(sessionID: string): boolean {
+    const tried = this.sessionRetries.get(sessionID) ?? 0;
+    if (tried === 0) return true;
+    return this.checkRetryBudget(sessionID);
   }
 
   // ---------------------------------------------------------------------------
@@ -305,15 +356,18 @@ export class ForegroundFallbackManager {
           this.sessionTried.set(sessionID, tried);
           nextModel = stickyFallback;
         } else {
-          log('[foreground-fallback] fallback chain exhausted', {
+          log('[foreground-fallback] fallback chain exhausted, aborting', {
             sessionID,
             agentName,
             tried: [...tried],
           });
+          await abortSessionWithTimeout(this.client, sessionID);
           return;
         }
       }
       tried.add(nextModel);
+      // Reset retry count on model switch — the new model starts fresh.
+      this.sessionRetries.delete(sessionID);
 
       const ref = parseModelReference(nextModel);
       if (!ref) {
@@ -357,24 +411,26 @@ export class ForegroundFallbackManager {
         return;
       }
 
-      // Abort the currently rate-limited prompt so the session becomes idle.
+      // Try queuing the fallback prompt without aborting first. If OpenCode
+      // accepts it (204), the fallback model replaces the retry loop
+      // transparently — no dialog, no session error shown to the user.
+      // If promptAsync throws (e.g. session busy), fall back to abort+retry.
       try {
-        await abortSessionWithTimeout(this.client, sessionID);
-      } catch (error) {
-        // Session may already be idle or abort may be slow; keep fallback best-effort.
-        log('[foreground-fallback] abort did not complete cleanly', {
+        await sessionClient.promptAsync({
+          path: { id: sessionID },
+          body: { parts: lastUser.parts, model: ref },
+        });
+      } catch (_promptErr) {
+        log('[foreground-fallback] promptAsync on busy session, aborting', {
           sessionID,
-          error: error instanceof Error ? error.message : String(error),
+        });
+        await abortSessionWithTimeout(this.client, sessionID);
+        await new Promise((r) => setTimeout(r, REPROMPT_DELAY_MS));
+        await sessionClient.promptAsync({
+          path: { id: sessionID },
+          body: { parts: lastUser.parts, model: ref },
         });
       }
-
-      // Give the server a moment to finalise the abort before re-prompting.
-      await new Promise((r) => setTimeout(r, REPROMPT_DELAY_MS));
-
-      await sessionClient.promptAsync({
-        path: { id: sessionID },
-        body: { parts: lastUser.parts, model: ref },
-      });
 
       this.sessionModel.set(sessionID, nextModel);
       log('[foreground-fallback] switched to fallback model', {
