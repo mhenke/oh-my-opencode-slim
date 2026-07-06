@@ -14,6 +14,11 @@
 
 import type { MultiplexerLayout, ZellijPaneMode } from '../../config/schema';
 import { crossSpawn } from '../../utils/compat';
+import {
+  buildOpencodeAttachCommand,
+  findBinary,
+  quoteShellArg,
+} from '../shared';
 import type { Multiplexer, PaneResult } from '../types';
 
 interface ZellijTabInfo {
@@ -58,7 +63,7 @@ export class ZellijMultiplexer implements Multiplexer {
     if (this.hasChecked) {
       return this.binaryPath !== null;
     }
-    this.binaryPath = await this.findBinary();
+    this.binaryPath = await findBinary('zellij');
     this.hasChecked = true;
     return this.binaryPath !== null;
   }
@@ -584,21 +589,6 @@ export class ZellijMultiplexer implements Multiplexer {
     await this.isAvailable();
     return this.binaryPath;
   }
-
-  private async findBinary(): Promise<string | null> {
-    const cmd = process.platform === 'win32' ? 'where' : 'which';
-    try {
-      const proc = crossSpawn([cmd, 'zellij'], {
-        stdout: 'pipe',
-        stderr: 'pipe',
-      });
-      if ((await proc.exited) !== 0) return null;
-      const stdout = await proc.stdout();
-      return stdout.trim().split('\n')[0] || null;
-    } catch {
-      return null;
-    }
-  }
 }
 
 function normalizePaneId(paneId: string): string {
@@ -620,26 +610,6 @@ function getPaneDirection(
   }
 }
 
-function buildOpencodeAttachCommand(
-  sessionId: string,
-  serverUrl: string,
-  directory: string,
-): string {
-  return [
-    'opencode',
-    'attach',
-    quoteShellArg(serverUrl),
-    '--session',
-    quoteShellArg(sessionId),
-    '--dir',
-    quoteShellArg(directory),
-  ].join(' ');
-}
-
 function buildShellLaunchCommand(command: string): string {
   return ['sh', '-lc', quoteShellArg(command)].join(' ');
-}
-
-function quoteShellArg(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
 }
