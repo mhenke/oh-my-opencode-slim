@@ -28,7 +28,10 @@ export function buildOpencodeAttachCommand(
   ].join(' ');
 }
 
-export async function findBinary(binaryName: string): Promise<string | null> {
+export async function findBinary(
+  binaryName: string,
+  options: { verify?: boolean } = {},
+): Promise<string | null> {
   const isWindows = process.platform === 'win32';
   const cmd = isWindows ? 'where' : 'which';
   const logPrefix = `[${binaryName}]`;
@@ -41,7 +44,7 @@ export async function findBinary(binaryName: string): Promise<string | null> {
 
     const exitCode = await proc.exited;
     if (exitCode !== 0) {
-      log(`${logPrefix} findBinary: 'which ${binaryName}' failed`, {
+      log(`${logPrefix} findBinary: '${cmd} ${binaryName}' failed`, {
         exitCode,
       });
       return null;
@@ -55,6 +58,31 @@ export async function findBinary(binaryName: string): Promise<string | null> {
     }
 
     log(`${logPrefix} findBinary: found`, { path });
+
+    // Verify the binary works if requested
+    if (options.verify) {
+      try {
+        const verifyProc = crossSpawn([path, '-V'], {
+          stdout: 'pipe',
+          stderr: 'pipe',
+        });
+        const verifyExitCode = await verifyProc.exited;
+        if (verifyExitCode !== 0) {
+          log(`${logPrefix} findBinary: verification failed for ${path}`);
+          return null;
+        }
+        const verifyStdout = await verifyProc.stdout();
+        log(`${logPrefix} findBinary: verified`, {
+          version: verifyStdout.trim(),
+        });
+      } catch (verifyErr) {
+        log(`${logPrefix} findBinary: verification exception`, {
+          error: String(verifyErr),
+        });
+        return null;
+      }
+    }
+
     return path;
   } catch (err) {
     log(`${logPrefix} findBinary: exception`, { error: String(err) });

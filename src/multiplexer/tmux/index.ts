@@ -31,7 +31,7 @@ export class TmuxMultiplexer implements Multiplexer {
       return this.binaryPath !== null;
     }
 
-    this.binaryPath = await findBinary('tmux');
+    this.binaryPath = await findBinary('tmux', { verify: true });
     this.hasChecked = true;
     return this.binaryPath !== null;
   }
