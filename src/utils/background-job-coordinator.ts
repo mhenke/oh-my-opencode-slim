@@ -23,6 +23,8 @@ type TerminalStateListener = (taskID: string) => void;
  */
 export class BackgroundJobCoordinator implements BackgroundJobStore {
   private terminalStateListeners: TerminalStateListener[] = [];
+  // Stores session IDs (which equal task IDs) awaiting close after background job completes
+  private readonly deferredIdleCloses = new Set<string>();
 
   constructor(private readonly board: BackgroundJobBoard) {
     // Subscribe to the board's terminal state notifications
@@ -52,10 +54,44 @@ export class BackgroundJobCoordinator implements BackgroundJobStore {
     const state = this.board.getState(taskID);
     if (state === undefined) return; // Job was already cleaned up
 
-    // Notify listeners with guaranteed delivery (synchronous dispatch)
-    for (const listener of this.terminalStateListeners) {
-      listener(taskID);
+    // Check if this session should now close
+    if (this.retryDeferredClose(taskID)) {
+      // Notify listeners that session should close
+      for (const listener of this.terminalStateListeners) {
+        listener(taskID);
+      }
     }
+  }
+
+  // ── Lifecycle policy ─────────────────────────────────────────────
+
+  /**
+   * Evaluate close policy. Returns true if session should close now.
+   * Mutates deferred state: adds to deferred set if running, removes if not.
+   */
+  deferIfRunning(sessionId: string): boolean {
+    if (!this.board.isRunning(sessionId)) {
+      this.deferredIdleCloses.delete(sessionId);
+      return true;
+    }
+    this.deferredIdleCloses.add(sessionId);
+    return false;
+  }
+
+  /**
+   * Retry closing a deferred session. Called when a background job completes.
+   * Returns true if the session should now close.
+   */
+  retryDeferredClose(sessionId: string): boolean {
+    if (!this.deferredIdleCloses.has(sessionId)) return false;
+    return this.deferIfRunning(sessionId);
+  }
+
+  /**
+   * Clear deferred close state for a session being deleted.
+   */
+  clearDeferredClose(sessionId: string): void {
+    this.deferredIdleCloses.delete(sessionId);
   }
 
   // ── Mutation methods (sole writer to board) ──────────────────────
