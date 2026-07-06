@@ -73,7 +73,7 @@ source ~/.zshrc
 source ~/.bashrc
 ```
 
-For a one-shot manual launch without restarting your terminal:
+For a one-shot launch without restarting your terminal:
 
 ```bash
 OPENCODE_EXPERIMENTAL_BACKGROUND_SUBAGENTS=true opencode
@@ -128,7 +128,7 @@ Then run OpenCode and verify the agents:
 ping all agents
 ```
 
-> **💡 Tip: Models are fully customizable.** The installer sets sensible defaults, but you can assign *any* model to *any* agent. Edit `~/.config/opencode/oh-my-opencode-slim.json` (or `.jsonc` for comments support) to override models, adjust reasoning effort, or disable agents entirely.
+> **Tip:** Models are fully customizable. The installer sets sensible defaults, but you can assign any model to any agent. Edit `~/.config/opencode/oh-my-opencode-slim.json` (or `.jsonc` for comments support) to override models, adjust reasoning effort, or disable agents entirely.
 
 ### Alternative: Ask Any Coding Agent
 
@@ -161,7 +161,7 @@ The installer generates OpenAI and OpenCode Go presets, with OpenAI active by de
 bunx oh-my-opencode-slim@latest install --no-tui --skills=yes
 ```
 
-**Examples:**
+Examples:
 ```bash
 # Interactive install
 bunx oh-my-opencode-slim@latest install
@@ -210,9 +210,9 @@ Ask the user to:
 
 Verify all agents respond successfully.
 
-**Crucial Advice for the User:**
-- They can easily assign **different models to different agents** by editing `~/.config/opencode/oh-my-opencode-slim.json` (or `.jsonc`).
-- If they want to add a different provider later (OpenCode Go, Kimi, GitHub Copilot, ZAI), they can update this file manually. See **[Configuration Reference](configuration.md)** and the preset docs for examples.
+**For the user:**
+- They can assign different models to different agents by editing `~/.config/opencode/oh-my-opencode-slim.json` (or `.jsonc`).
+- If they want to add a different provider later (OpenCode Go, Kimi, GitHub Copilot, ZAI), they can update this file manually. See [Configuration Reference](configuration.md) and the preset docs for examples.
 - Read the generated `~/.config/opencode/oh-my-opencode-slim.json` (or `.jsonc`) file to understand the current configuration.
 
 ---
@@ -233,9 +233,9 @@ Then manually create the config files at:
 
 If the installer reports that the configuration already exists, you have two options:
 
-1. **Keep existing config**: The installer will skip the configuration step and continue with other operations (like adding the plugin or installing skills).
+1. Keep existing config. The installer will skip the configuration step and continue with other operations (like adding the plugin or installing skills).
 
-2. **Reset configuration**: Use `--reset` to overwrite:
+2. Reset configuration. Use `--reset` to overwrite:
    ```bash
    bunx oh-my-opencode-slim@latest install --reset
    ```
