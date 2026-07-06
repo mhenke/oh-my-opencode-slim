@@ -306,7 +306,7 @@ export function createAcpRunTool(agents: AcpAgentsConfig = {}): ToolDefinition {
       if (!cwd) throw new Error('acp_run requires a working directory');
 
       await ctx.ask({
-        permission: 'bash',
+        permission: 'acp_run',
         patterns: [`${config.command} ${config.args.join(' ')}`.trim()],
         always: [],
         metadata: {
@@ -324,7 +324,7 @@ export function createAcpRunTool(agents: AcpAgentsConfig = {}): ToolDefinition {
         async (title, metadata) => {
           if (config.permissionMode === 'reject') return;
           await ctx.ask({
-            permission: 'bash',
+            permission: 'acp_run',
             patterns: [`acp:${args.agent}:${title}`],
             always: [],
             metadata,

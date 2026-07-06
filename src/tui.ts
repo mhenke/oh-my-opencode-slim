@@ -229,12 +229,16 @@ function readConfigState(directory: string): {
       configInvalid = true;
     },
   });
-  const compactSidebar = config.compactSidebar ?? false;
+  const compactSidebar = config.compactSidebar ?? true;
   return { configInvalid, compactSidebar };
 }
 
 export function readConfigInvalid(directory: string): boolean {
   return readConfigState(directory).configInvalid;
+}
+
+export function readCompactSidebar(directory: string): boolean {
+  return readConfigState(directory).compactSidebar;
 }
 
 const plugin: TuiPluginModule & { id: string } = {
