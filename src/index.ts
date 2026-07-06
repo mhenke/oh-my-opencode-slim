@@ -270,7 +270,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       backgroundJobCoordinator,
     );
     backgroundJobCoordinator.addTerminalStateListener((taskID) => {
-      void multiplexerSessionManager.retryDeferredIdleClose(taskID);
+      void multiplexerSessionManager.closeSessionFromCoordinator(taskID);
     });
 
     // Initialize auto-update checker hook

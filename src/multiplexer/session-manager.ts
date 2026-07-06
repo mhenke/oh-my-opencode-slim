@@ -621,6 +621,11 @@ export class MultiplexerSessionManager {
     return this.backgroundJobBoard?.deferIfRunning(sessionId) ?? true;
   }
 
+  async closeSessionFromCoordinator(taskID: string): Promise<void> {
+    if (!this.enabled) return;
+    await this.closeSession(taskID, 'idle');
+  }
+
   async cleanup(): Promise<void> {
     this.stopPolling();
 
