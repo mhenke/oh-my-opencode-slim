@@ -339,9 +339,13 @@ See the [Multiplexer Integration Guide](multiplexer-integration.md) for more det
 
    Edit `~/.config/opencode/tui.json` and remove `"oh-my-opencode-slim"` from the `plugin` array.
 
+   Steps 1–2 are the minimum for a functional uninstall. The remaining steps clean up side effects.
+
 3. Re-enable default agents (optional):
 
-   In `~/.config/opencode/opencode.json`, remove the `disable: true` entries the installer added under `agent.explore` and `agent.general`. Also remove `"lsp": true` if the installer added it and you don't want LSP integration.
+   In `~/.config/opencode/opencode.json`:
+   - Remove the `disable: true` entries the installer added under `agent.explore` and `agent.general`
+   - Remove `"lsp": true` if the installer added it and you don't want LSP integration
 
 4. Remove the environment variable (optional):
 
@@ -367,6 +371,8 @@ See the [Multiplexer Integration Guide](multiplexer-integration.md) for more det
    ```bash
    rm -f ~/.local/share/opencode/storage/oh-my-opencode-slim/bin/oh-my-opencode-slim-companion
    ```
+   If you set a custom `XDG_DATA_HOME`, adjust the path:
+   `$XDG_DATA_HOME/opencode/storage/oh-my-opencode-slim/bin/oh-my-opencode-slim-companion`
 
 8. Remove skills (optional):
    ```bash
