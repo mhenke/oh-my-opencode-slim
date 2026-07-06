@@ -53,6 +53,7 @@ import {
 import { recordTuiAgentModel, recordTuiAgentModels } from './tui-state';
 import {
   BackgroundJobBoard,
+  BackgroundJobCoordinator,
   createDisplayNameMentionRewriter,
   resolveRuntimeAgentName,
 } from './utils';
@@ -256,14 +257,19 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       readContextMaxFiles: config.backgroundJobs?.readContextMaxFiles ?? 8,
     });
 
+    // Initialize coordinator as the sole writer to the board
+    const backgroundJobCoordinator = new BackgroundJobCoordinator(
+      backgroundJobBoard,
+    );
+
     // Initialize MultiplexerSessionManager to handle OpenCode's built-in
     // Task tool sessions
     multiplexerSessionManager = new MultiplexerSessionManager(
       ctx,
       multiplexerConfig,
-      backgroundJobBoard,
+      backgroundJobCoordinator,
     );
-    backgroundJobBoard.addTerminalStateListener((taskID) => {
+    backgroundJobCoordinator.addTerminalStateListener((taskID) => {
       void multiplexerSessionManager.retryDeferredIdleClose(taskID);
     });
 
@@ -314,7 +320,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       maxSessionsPerAgent: config.backgroundJobs?.maxSessionsPerAgent ?? 2,
       readContextMinLines: config.backgroundJobs?.readContextMinLines ?? 10,
       readContextMaxFiles: config.backgroundJobs?.readContextMaxFiles ?? 8,
-      backgroundJobBoard,
+      backgroundJobBoard: backgroundJobCoordinator,
       shouldManageSession: (sessionID) =>
         sessionAgentMap.get(sessionID) === 'orchestrator',
       isFallbackInProgress: (sessionID) =>
@@ -329,7 +335,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     );
     cancelTaskTools = createCancelTaskTool({
       client: ctx.client,
-      backgroundJobBoard,
+      backgroundJobBoard: backgroundJobCoordinator,
       shouldManageSession: (sessionID) =>
         sessionAgentMap.get(sessionID) === 'orchestrator',
     });

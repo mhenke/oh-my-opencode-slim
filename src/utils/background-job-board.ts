@@ -1,3 +1,4 @@
+import type { BackgroundJobStore } from './background-job-store';
 import { parseTaskStatusOutput, type TaskOutputState } from './task';
 
 export interface ContextFile {
@@ -80,7 +81,7 @@ const AGENT_PREFIX: Record<string, string> = {
   oracle: 'ora',
 };
 
-export class BackgroundJobBoard {
+export class BackgroundJobBoard implements BackgroundJobStore {
   private readonly jobs = new Map<string, BackgroundJobRecord>();
   private readonly counters = new Map<string, number>();
   private terminalStateListeners: TerminalStateListener[] = [];

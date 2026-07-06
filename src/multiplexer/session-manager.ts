@@ -6,11 +6,17 @@ import {
   isServerRunning,
   type Multiplexer,
 } from '../multiplexer';
-import type {
-  BackgroundJobBoard,
-  BackgroundJobState,
-} from '../utils/background-job-board';
+import type { BackgroundJobState } from '../utils/background-job-board';
 import { log } from '../utils/logger';
+
+/**
+ * Minimal interface for reading background job state.
+ * Both BackgroundJobBoard and BackgroundJobCoordinator satisfy this.
+ */
+interface BackgroundJobReader {
+  getState(sessionId: string): BackgroundJobState | undefined;
+  isRunning(sessionId: string): boolean;
+}
 
 interface TrackedSession {
   sessionId: string;
@@ -102,7 +108,7 @@ export class MultiplexerSessionManager {
   constructor(
     ctx: PluginInput,
     config: MultiplexerConfig,
-    private readonly backgroundJobBoard?: BackgroundJobBoard,
+    private readonly backgroundJobBoard?: BackgroundJobReader,
   ) {
     const sharedState = getSharedState();
     this.sessions = sharedState.sessions;
