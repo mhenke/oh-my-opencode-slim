@@ -37,6 +37,7 @@ export class HerdrMultiplexer implements Multiplexer {
   private readonly layout: MultiplexerLayout;
   private readonly paneDirection: HerdrPaneDirection;
   private agentAreaPaneId: string | null = null;
+  private lastSplitPaneId: string | null = null;
 
   constructor(layout: MultiplexerLayout = 'main-vertical', mainPaneSize = 60) {
     // Herdr does not support exact main pane sizing like tmux.
@@ -73,44 +74,44 @@ export class HerdrMultiplexer implements Multiplexer {
     }
 
     try {
-      // 1. Split the parent pane to create a new one
-      const splitArgs = [
-        herdr,
-        'pane',
-        'split',
-        ...this.targetPaneArg(),
-        '--direction',
-        this.paneDirection,
-        '--cwd',
-        directory,
-        '--no-focus',
-      ];
+      // Determine split target and direction based on layout + agent area state
+      let target: string[] = [];
+      let direction: HerdrPaneDirection = 'right';
+      let wasFirstChild = false;
 
-      log('[herdr] spawnPane: splitting pane', { args: splitArgs });
-
-      const splitProc = crossSpawn(splitArgs, {
-        stdout: 'pipe',
-        stderr: 'pipe',
-      });
-
-      const splitExitCode = await splitProc.exited;
-      const splitStdout = await splitProc.stdout();
-      const splitStderr = await splitProc.stderr();
-
-      if (splitExitCode !== 0) {
-        log('[herdr] spawnPane: split failed', {
-          exitCode: splitExitCode,
-          stderr: splitStderr.trim(),
-        });
-        return { success: false };
+      if (this.layout === 'main-vertical' && this.agentAreaPaneId) {
+        target = [this.agentAreaPaneId];
+        direction = 'down';
+        const agentSplit = await this.runSplit(
+          target,
+          direction,
+          directory,
+        );
+        if (!agentSplit) {
+          log('[herdr] agent area split failed, falling back to parent', {
+            agentAreaPaneId: this.agentAreaPaneId,
+          });
+          this.agentAreaPaneId = null;
+        }
       }
 
-      // Parse JSON response to extract pane_id
-      const paneId = parsePaneId(splitStdout);
+      if (!this.agentAreaPaneId) {
+        // First child OR fallback after stale agent area
+        target = this.targetPaneArg();
+        direction = this.paneDirection;
+        wasFirstChild = true;
+      }
+
+      let paneId: string | null = null;
+      if (wasFirstChild) {
+        paneId = await this.runSplit(target, direction, directory);
+      } else {
+        // agent area split already ran; use its result
+        paneId = this.lastSplitPaneId;
+      }
+
       if (!paneId) {
-        log('[herdr] spawnPane: could not parse pane_id from output', {
-          stdout: splitStdout.trim(),
-        });
+        log('[herdr] spawnPane: could not parse pane_id from output');
         return { success: false };
       }
 
@@ -127,11 +128,6 @@ export class HerdrMultiplexer implements Multiplexer {
         directory,
       );
 
-      log('[herdr] spawnPane: running attach command', {
-        paneId,
-        command: opencodeCmd,
-      });
-
       const runProc = crossSpawn([herdr, 'pane', 'run', paneId, opencodeCmd], {
         stdout: 'pipe',
         stderr: 'pipe',
@@ -145,6 +141,10 @@ export class HerdrMultiplexer implements Multiplexer {
           stderr: runStderr.trim(),
         });
         return { success: false };
+      }
+
+      if (wasFirstChild && this.layout === 'main-vertical') {
+        this.agentAreaPaneId = paneId;
       }
 
       log('[herdr] spawnPane: SUCCESS', { paneId });
@@ -209,6 +209,50 @@ export class HerdrMultiplexer implements Multiplexer {
     // No-op for herdr. Herdr does not support tmux-like exact main pane
     // sizing/rebalancing; layout is applied to future pane creation by
     // mapping configured layouts to pane split directions.
+  }
+
+  private async runSplit(
+    target: string[],
+    direction: HerdrPaneDirection,
+    directory: string,
+  ): Promise<string | null> {
+    const herdr = await this.getBinary();
+    if (!herdr) return null;
+
+    const splitArgs = [
+      herdr,
+      'pane',
+      'split',
+      ...target,
+      '--direction',
+      direction,
+      '--cwd',
+      directory,
+      '--no-focus',
+    ];
+
+    log('[herdr] spawnPane: splitting pane', { args: splitArgs });
+
+    const splitProc = crossSpawn(splitArgs, {
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+
+    const splitExitCode = await splitProc.exited;
+    const splitStdout = await splitProc.stdout();
+    const splitStderr = await splitProc.stderr();
+
+    if (splitExitCode !== 0) {
+      log('[herdr] spawnPane: split failed', {
+        exitCode: splitExitCode,
+        stderr: splitStderr.trim(),
+      });
+      return null;
+    }
+
+    const paneId = parsePaneId(splitStdout);
+    this.lastSplitPaneId = paneId;
+    return paneId;
   }
 
   private targetPaneArg(): string[] {

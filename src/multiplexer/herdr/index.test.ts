@@ -441,6 +441,39 @@ describe('HerdrMultiplexer', () => {
     expect(herdr.agentAreaPaneId).toBeNull();
   });
 
+  test('main-vertical: 2nd spawn splits agent area down', async () => {
+    const { HerdrMultiplexer } = await importFreshHerdr();
+    const herdr = new HerdrMultiplexer('main-vertical', 60);
+
+    await herdr.spawnPane('s1', 'Agent 1', 'http://localhost:4096', '/repo');
+    await herdr.spawnPane('s2', 'Agent 2', 'http://localhost:4096', '/repo');
+
+    const splitCommands = commands().filter((c) => c.includes('split'));
+    expect(splitCommands[0]).toEqual([
+      '/usr/bin/herdr', 'pane', 'split', 'w1:p1',
+      '--direction', 'right', '--cwd', '/repo', '--no-focus',
+    ]);
+    expect(splitCommands[1]).toEqual([
+      '/usr/bin/herdr', 'pane', 'split', 'w1:p2',
+      '--direction', 'down', '--cwd', '/repo', '--no-focus',
+    ]);
+  });
+
+  test('main-vertical: 3rd spawn splits same agent area down', async () => {
+    const { HerdrMultiplexer } = await importFreshHerdr();
+    const herdr = new HerdrMultiplexer('main-vertical', 60);
+
+    await herdr.spawnPane('s1', 'A1', 'http://localhost:4096', '/repo');
+    await herdr.spawnPane('s2', 'A2', 'http://localhost:4096', '/repo');
+    await herdr.spawnPane('s3', 'A3', 'http://localhost:4096', '/repo');
+
+    const splitCommands = commands().filter((c) => c.includes('split'));
+    expect(splitCommands[2]).toEqual([
+      '/usr/bin/herdr', 'pane', 'split', 'w1:p2',
+      '--direction', 'down', '--cwd', '/repo', '--no-focus',
+    ]);
+  });
+
   test('applyLayout is a no-op', async () => {
     const { HerdrMultiplexer } = await importFreshHerdr();
     const herdr = new HerdrMultiplexer('main-vertical', 60);
