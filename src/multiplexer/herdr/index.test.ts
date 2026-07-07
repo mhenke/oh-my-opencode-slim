@@ -406,6 +406,42 @@ describe('HerdrMultiplexer', () => {
     expect(splitCommand?.[directionArgIndex + 1]).toBe('right');
   });
 
+  test('tiled layout always splits parent right (unaffected)', async () => {
+    const { HerdrMultiplexer } = await importFreshHerdr();
+    const herdr = new HerdrMultiplexer('tiled', 60);
+
+    await herdr.spawnPane('s1', 'A1', 'http://localhost:4096', '/repo');
+    await herdr.spawnPane('s2', 'A2', 'http://localhost:4096', '/repo');
+
+    const splitCommands = commands().filter((c) => c.includes('split'));
+    expect(splitCommands[0]).toEqual([
+      '/usr/bin/herdr', 'pane', 'split', 'w1:p1',
+      '--direction', 'right', '--cwd', '/repo', '--no-focus',
+    ]);
+    expect(splitCommands[1]).toEqual([
+      '/usr/bin/herdr', 'pane', 'split', 'w1:p1',
+      '--direction', 'right', '--cwd', '/repo', '--no-focus',
+    ]);
+  });
+
+  test('main-horizontal layout always splits parent down (unaffected)', async () => {
+    const { HerdrMultiplexer } = await importFreshHerdr();
+    const herdr = new HerdrMultiplexer('main-horizontal', 60);
+
+    await herdr.spawnPane('s1', 'A1', 'http://localhost:4096', '/repo');
+    await herdr.spawnPane('s2', 'A2', 'http://localhost:4096', '/repo');
+
+    const splitCommands = commands().filter((c) => c.includes('split'));
+    expect(splitCommands[0]).toEqual([
+      '/usr/bin/herdr', 'pane', 'split', 'w1:p1',
+      '--direction', 'down', '--cwd', '/repo', '--no-focus',
+    ]);
+    expect(splitCommands[1]).toEqual([
+      '/usr/bin/herdr', 'pane', 'split', 'w1:p1',
+      '--direction', 'down', '--cwd', '/repo', '--no-focus',
+    ]);
+  });
+
   test('isInsideSession returns true when HERDR_ENV is set', async () => {
     const { HerdrMultiplexer } = await importFreshHerdr();
     const herdr = new HerdrMultiplexer('main-vertical', 60);
