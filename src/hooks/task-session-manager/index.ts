@@ -2,6 +2,7 @@ import type { PluginInput } from '@opencode-ai/plugin';
 import {
   BackgroundJobBoard,
   type BackgroundJobRecord,
+  type BackgroundJobStore,
   deriveTaskSessionLabel,
   parseTaskIdFromTaskOutput,
   parseTaskLaunchOutput,
@@ -83,7 +84,7 @@ export function createTaskSessionManagerHook(
     maxSessionsPerAgent: number;
     readContextMinLines?: number;
     readContextMaxFiles?: number;
-    backgroundJobBoard?: BackgroundJobBoard;
+    backgroundJobBoard?: BackgroundJobStore;
     shouldManageSession: (sessionID: string) => boolean;
     /** Optional guard: when provided, idle events for a session that is
      *  currently undergoing a foreground-fallback abort/re-prompt cycle

@@ -1,5 +1,7 @@
 export * from './agent-variant';
 export * from './background-job-board';
+export * from './background-job-coordinator';
+export * from './background-job-store';
 export * from './internal-initiator';
 export { getLogDir, initLogger, log } from './logger';
 export * from './polling';

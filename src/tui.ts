@@ -124,10 +124,10 @@ function agentRow(
 function compactAgentRow(
   label: string,
   model: string,
-  variant: string | undefined,
+  _variant: string | undefined,
   theme: { textMuted: unknown },
 ): JSX.Element {
-  const value = variant ? `${model} (${variant})` : model;
+  const modelName = splitSidebarModelId(model).model;
   return box(
     {
       width: '100%',
@@ -136,7 +136,7 @@ function compactAgentRow(
     },
     [
       text({ fg: theme.textMuted, width: 14 }, [label]),
-      text({ fg: theme.textMuted }, [value]),
+      text({ fg: theme.textMuted }, [modelName]),
     ],
   );
 }
@@ -229,12 +229,16 @@ function readConfigState(directory: string): {
       configInvalid = true;
     },
   });
-  const compactSidebar = config.compactSidebar ?? false;
+  const compactSidebar = config.compactSidebar ?? true;
   return { configInvalid, compactSidebar };
 }
 
 export function readConfigInvalid(directory: string): boolean {
   return readConfigState(directory).configInvalid;
+}
+
+export function readCompactSidebar(directory: string): boolean {
+  return readConfigState(directory).compactSidebar;
 }
 
 const plugin: TuiPluginModule & { id: string } = {

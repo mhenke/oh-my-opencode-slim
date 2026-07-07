@@ -3,7 +3,7 @@ import {
   type ToolDefinition,
   tool,
 } from '@opencode-ai/plugin';
-import type { BackgroundJobBoard } from '../utils/background-job-board';
+import type { BackgroundJobStore } from '../utils/background-job-store';
 import { isRecord as isObjectRecord } from '../utils/guards';
 import { log } from '../utils/logger';
 import { abortSessionWithTimeout, withTimeout } from '../utils/session';
@@ -12,7 +12,7 @@ const z = tool.schema;
 
 interface CancelTaskToolOptions {
   client: PluginInput['client'];
-  backgroundJobBoard: BackgroundJobBoard;
+  backgroundJobBoard: BackgroundJobStore;
   shouldManageSession: (sessionID: string) => boolean;
   abortTimeoutMs?: number;
   verifyAbortMs?: number;

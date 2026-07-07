@@ -296,7 +296,9 @@ export const PluginConfigSchema = z
     compactSidebar: z
       .boolean()
       .optional()
-      .describe('Use the compact TUI sidebar layout when enabled.'),
+      .describe(
+        'Use the compact TUI sidebar layout. Defaults to true; set false to use the expanded layout.',
+      ),
     autoUpdate: z
       .boolean()
       .optional()

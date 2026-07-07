@@ -9,7 +9,7 @@
       "type": "boolean"
     },
     "compactSidebar": {
-      "description": "Use the compact TUI sidebar layout when enabled.",
+      "description": "Use the compact TUI sidebar layout. Defaults to true; set false to use the expanded layout.",
       "type": "boolean"
     },
     "autoUpdate": {
