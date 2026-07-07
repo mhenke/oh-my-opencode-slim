@@ -947,6 +947,7 @@ describe('ForegroundFallbackManager runtimeOverride', () => {
       makeChains(),
       true,
       3,
+      undefined,
       true, // runtimeOverride
     );
 
@@ -981,6 +982,7 @@ describe('ForegroundFallbackManager runtimeOverride', () => {
       makeChains(),
       true,
       3,
+      undefined,
       false, // runtimeOverride
     );
 
@@ -1010,6 +1012,7 @@ describe('ForegroundFallbackManager runtimeOverride', () => {
       makeChains(),
       true,
       3,
+      undefined,
       false, // runtimeOverride
     );
 
@@ -1044,6 +1047,7 @@ describe('ForegroundFallbackManager runtimeOverride', () => {
       makeChains(),
       true,
       3,
+      undefined,
       false, // runtimeOverride
     );
 
@@ -1078,6 +1082,7 @@ describe('ForegroundFallbackManager runtimeOverride', () => {
       makeChains(),
       true,
       3,
+      undefined,
       false, // runtimeOverride
     );
 

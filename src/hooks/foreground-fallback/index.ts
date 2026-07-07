@@ -121,6 +121,7 @@ export class ForegroundFallbackManager {
     private readonly enabled: boolean,
     /** Consecutive 429s tolerated on the same model before swap/abort. */
     private readonly maxRetries: number = 3,
+    coordinator?: SessionLifecycle,
     /**
      * When true (default), a runtime model outside the configured chain
      * still triggers fallback on rate-limit errors. When false, out-of-chain
@@ -128,7 +129,6 @@ export class ForegroundFallbackManager {
      * that are members of the chain always fall back regardless.
      */
     private readonly runtimeOverride: boolean = true,
-    coordinator?: SessionLifecycle,
   ) {
     if (coordinator) {
       coordinator.onSessionDeleted((id) => {
