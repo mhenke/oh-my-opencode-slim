@@ -34,8 +34,8 @@ export class HerdrMultiplexer implements Multiplexer {
   private binaryPath: string | null = null;
   private hasChecked = false;
   private readonly parentPaneId = process.env.HERDR_PANE_ID;
-  private readonly layout: MultiplexerLayout;
-  private readonly paneDirection: HerdrPaneDirection;
+  private layout: MultiplexerLayout;
+  private paneDirection: HerdrPaneDirection;
   private agentAreaPaneId: string | null = null;
 
   constructor(layout: MultiplexerLayout = 'main-vertical', mainPaneSize = 60) {
@@ -91,9 +91,6 @@ export class HerdrMultiplexer implements Multiplexer {
           this.paneDirection,
           directory,
         );
-        if (paneId && this.layout === 'main-vertical') {
-          this.agentAreaPaneId = paneId;
-        }
       }
 
       if (!paneId) {
@@ -127,6 +124,11 @@ export class HerdrMultiplexer implements Multiplexer {
           stderr: runStderr.trim(),
         });
         return { success: false };
+      }
+
+      // 4. Track agent area pane ID only after successful attach
+      if (this.layout === 'main-vertical' && !this.agentAreaPaneId) {
+        this.agentAreaPaneId = paneId;
       }
 
       log('[herdr] spawnPane: SUCCESS', { paneId });
@@ -188,12 +190,14 @@ export class HerdrMultiplexer implements Multiplexer {
   }
 
   async applyLayout(
-    _layout: MultiplexerLayout,
+    layout: MultiplexerLayout,
     _mainPaneSize: number,
   ): Promise<void> {
     // ponytail: herdr has no rebalancing API; clear agent area so a layout
     // switch starts fresh from the parent pane.
     this.agentAreaPaneId = null;
+    this.layout = layout;
+    this.paneDirection = getPaneDirection(layout);
   }
 
   private async runSplit(
