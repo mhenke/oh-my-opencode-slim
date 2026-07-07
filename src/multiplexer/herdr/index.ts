@@ -82,11 +82,7 @@ export class HerdrMultiplexer implements Multiplexer {
       if (this.layout === 'main-vertical' && this.agentAreaPaneId) {
         target = [this.agentAreaPaneId];
         direction = 'down';
-        const agentSplit = await this.runSplit(
-          target,
-          direction,
-          directory,
-        );
+        const agentSplit = await this.runSplit(target, direction, directory);
         if (!agentSplit) {
           log('[herdr] agent area split failed, falling back to parent', {
             agentAreaPaneId: this.agentAreaPaneId,

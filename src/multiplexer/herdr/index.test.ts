@@ -415,12 +415,26 @@ describe('HerdrMultiplexer', () => {
 
     const splitCommands = commands().filter((c) => c.includes('split'));
     expect(splitCommands[0]).toEqual([
-      '/usr/bin/herdr', 'pane', 'split', 'w1:p1',
-      '--direction', 'right', '--cwd', '/repo', '--no-focus',
+      '/usr/bin/herdr',
+      'pane',
+      'split',
+      'w1:p1',
+      '--direction',
+      'right',
+      '--cwd',
+      '/repo',
+      '--no-focus',
     ]);
     expect(splitCommands[1]).toEqual([
-      '/usr/bin/herdr', 'pane', 'split', 'w1:p1',
-      '--direction', 'right', '--cwd', '/repo', '--no-focus',
+      '/usr/bin/herdr',
+      'pane',
+      'split',
+      'w1:p1',
+      '--direction',
+      'right',
+      '--cwd',
+      '/repo',
+      '--no-focus',
     ]);
   });
 
@@ -433,12 +447,26 @@ describe('HerdrMultiplexer', () => {
 
     const splitCommands = commands().filter((c) => c.includes('split'));
     expect(splitCommands[0]).toEqual([
-      '/usr/bin/herdr', 'pane', 'split', 'w1:p1',
-      '--direction', 'down', '--cwd', '/repo', '--no-focus',
+      '/usr/bin/herdr',
+      'pane',
+      'split',
+      'w1:p1',
+      '--direction',
+      'down',
+      '--cwd',
+      '/repo',
+      '--no-focus',
     ]);
     expect(splitCommands[1]).toEqual([
-      '/usr/bin/herdr', 'pane', 'split', 'w1:p1',
-      '--direction', 'down', '--cwd', '/repo', '--no-focus',
+      '/usr/bin/herdr',
+      'pane',
+      'split',
+      'w1:p1',
+      '--direction',
+      'down',
+      '--cwd',
+      '/repo',
+      '--no-focus',
     ]);
   });
 
@@ -486,12 +514,26 @@ describe('HerdrMultiplexer', () => {
 
     const splitCommands = commands().filter((c) => c.includes('split'));
     expect(splitCommands[0]).toEqual([
-      '/usr/bin/herdr', 'pane', 'split', 'w1:p1',
-      '--direction', 'right', '--cwd', '/repo', '--no-focus',
+      '/usr/bin/herdr',
+      'pane',
+      'split',
+      'w1:p1',
+      '--direction',
+      'right',
+      '--cwd',
+      '/repo',
+      '--no-focus',
     ]);
     expect(splitCommands[1]).toEqual([
-      '/usr/bin/herdr', 'pane', 'split', 'w1:p2',
-      '--direction', 'down', '--cwd', '/repo', '--no-focus',
+      '/usr/bin/herdr',
+      'pane',
+      'split',
+      'w1:p2',
+      '--direction',
+      'down',
+      '--cwd',
+      '/repo',
+      '--no-focus',
     ]);
   });
 
@@ -505,8 +547,15 @@ describe('HerdrMultiplexer', () => {
 
     const splitCommands = commands().filter((c) => c.includes('split'));
     expect(splitCommands[2]).toEqual([
-      '/usr/bin/herdr', 'pane', 'split', 'w1:p2',
-      '--direction', 'down', '--cwd', '/repo', '--no-focus',
+      '/usr/bin/herdr',
+      'pane',
+      'split',
+      'w1:p2',
+      '--direction',
+      'down',
+      '--cwd',
+      '/repo',
+      '--no-focus',
     ]);
   });
 
@@ -514,7 +563,12 @@ describe('HerdrMultiplexer', () => {
     const { HerdrMultiplexer } = await importFreshHerdr();
     const herdr = new HerdrMultiplexer('main-vertical', 60);
 
-    const r1 = await herdr.spawnPane('s1', 'A1', 'http://localhost:4096', '/repo');
+    const r1 = await herdr.spawnPane(
+      's1',
+      'A1',
+      'http://localhost:4096',
+      '/repo',
+    );
     // Simulate agent area pane being closed externally
     await herdr.closePane(r1.paneId!);
 
@@ -526,8 +580,15 @@ describe('HerdrMultiplexer', () => {
     expect(splitCommands[0]).toContain('w1:p1');
     // 2nd (after close): parent → right again (w1:p1), not w1:p2
     expect(splitCommands[1]).toEqual([
-      '/usr/bin/herdr', 'pane', 'split', 'w1:p1',
-      '--direction', 'right', '--cwd', '/repo', '--no-focus',
+      '/usr/bin/herdr',
+      'pane',
+      'split',
+      'w1:p1',
+      '--direction',
+      'right',
+      '--cwd',
+      '/repo',
+      '--no-focus',
     ]);
   });
 
@@ -535,7 +596,12 @@ describe('HerdrMultiplexer', () => {
     const { HerdrMultiplexer } = await importFreshHerdr();
     const herdr = new HerdrMultiplexer('main-vertical', 60);
 
-    const r1 = await herdr.spawnPane('s1', 'A1', 'http://localhost:4096', '/repo');
+    const r1 = await herdr.spawnPane(
+      's1',
+      'A1',
+      'http://localhost:4096',
+      '/repo',
+    );
     await herdr.closePane(r1.paneId!);
 
     // @ts-expect-error - accessing private for test
