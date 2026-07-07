@@ -299,6 +299,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       runtimeChains,
       config.fallback?.enabled !== false,
       config.fallback?.maxRetries ?? 3,
+      config.fallback?.runtimeOverride ?? true,
       sessionLifecycle,
     );
 
