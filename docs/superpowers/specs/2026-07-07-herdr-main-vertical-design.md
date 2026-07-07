@@ -66,20 +66,9 @@ Key properties:
 - **Explicit `wasFirstChild` flag** avoids fragile implicit detection
 - **Gated on `main-vertical` only** — other layouts unchanged
 
-### Review resolutions (from code review)
-
-**Major 1 — Stale vs. other split failures:**
-The agent-area split failure triggers a parent fallback. On a transient herdr error (not stale pane), the parent split would also likely fail → returns `{success: false}` (existing error path). No duplicate agent area is created because the fallback only *succeeds* when the agent area was genuinely stale (parent split works). Herdr has no reliable `pane list` API to distinguish failure causes, so we accept this limitation and document it. No extra error classification added (YAGNI).
-
-**Major 2 — Focus behavior:**
-`--no-focus` keeps focus on the *target* pane of the split. For the 1st child (split parent → right), focus stays on parent. For 2nd+ (split agent area → down), focus stays on the agent area pane. This is acceptable: the user monitors agents in the right column while the parent retains priority visually. Documented as intended tradeoff; no focus manipulation added (out of scope per issue acceptance criteria).
-
-**Major 3 — closePane insertion point:**
-The agent-area nulling is placed *after* the existing guard `if (!paneId || paneId === 'unknown') return true;` so it never fires for sentinel values. Exact placement: line 156 (after guard), before `getBinary()`.
-
 ### `closePane` Change
 
-Placement: after the existing `if (!paneId || paneId === 'unknown') return true;` guard (line 156), before `getBinary()`.
+Placement: after the existing `if (!paneId || paneId === 'unknown') return true;` guard (after guard), before `getBinary()`.
 
 ```typescript
 async closePane(paneId: string): Promise<boolean> {

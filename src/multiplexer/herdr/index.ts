@@ -37,7 +37,6 @@ export class HerdrMultiplexer implements Multiplexer {
   private readonly layout: MultiplexerLayout;
   private readonly paneDirection: HerdrPaneDirection;
   private agentAreaPaneId: string | null = null;
-  private lastSplitPaneId: string | null = null;
 
   constructor(layout: MultiplexerLayout = 'main-vertical', mainPaneSize = 60) {
     // Herdr does not support exact main pane sizing like tmux.
@@ -74,16 +73,11 @@ export class HerdrMultiplexer implements Multiplexer {
     }
 
     try {
-      // Determine split target and direction based on layout + agent area state
-      let target: string[] = [];
-      let direction: HerdrPaneDirection = 'right';
-      let wasFirstChild = false;
+      let paneId: string | null = null;
 
       if (this.layout === 'main-vertical' && this.agentAreaPaneId) {
-        target = [this.agentAreaPaneId];
-        direction = 'down';
-        const agentSplit = await this.runSplit(target, direction, directory);
-        if (!agentSplit) {
+        paneId = await this.runSplit([this.agentAreaPaneId], 'down', directory);
+        if (!paneId) {
           log('[herdr] agent area split failed, falling back to parent', {
             agentAreaPaneId: this.agentAreaPaneId,
           });
@@ -92,18 +86,14 @@ export class HerdrMultiplexer implements Multiplexer {
       }
 
       if (!this.agentAreaPaneId) {
-        // First child OR fallback after stale agent area
-        target = this.targetPaneArg();
-        direction = this.paneDirection;
-        wasFirstChild = true;
-      }
-
-      let paneId: string | null = null;
-      if (wasFirstChild) {
-        paneId = await this.runSplit(target, direction, directory);
-      } else {
-        // agent area split already ran; use its result
-        paneId = this.lastSplitPaneId;
+        paneId = await this.runSplit(
+          this.targetPaneArg(),
+          this.paneDirection,
+          directory,
+        );
+        if (paneId && this.layout === 'main-vertical') {
+          this.agentAreaPaneId = paneId;
+        }
       }
 
       if (!paneId) {
@@ -139,10 +129,6 @@ export class HerdrMultiplexer implements Multiplexer {
         return { success: false };
       }
 
-      if (wasFirstChild && this.layout === 'main-vertical') {
-        this.agentAreaPaneId = paneId;
-      }
-
       log('[herdr] spawnPane: SUCCESS', { paneId });
       return { success: true, paneId };
     } catch (err) {
@@ -153,10 +139,6 @@ export class HerdrMultiplexer implements Multiplexer {
 
   async closePane(paneId: string): Promise<boolean> {
     if (!paneId || paneId === 'unknown') return true;
-
-    if (paneId === this.agentAreaPaneId) {
-      this.agentAreaPaneId = null;
-    }
 
     const herdr = await this.getBinary();
     if (!herdr) {
@@ -188,6 +170,9 @@ export class HerdrMultiplexer implements Multiplexer {
       log('[herdr] closePane: result', { exitCode, stderr: stderr.trim() });
 
       if (exitCode === 0 || exitCode === 1) {
+        if (paneId === this.agentAreaPaneId) {
+          this.agentAreaPaneId = null;
+        }
         return true;
       }
 
@@ -250,9 +235,7 @@ export class HerdrMultiplexer implements Multiplexer {
       return null;
     }
 
-    const paneId = parsePaneId(splitStdout);
-    this.lastSplitPaneId = paneId;
-    return paneId;
+    return parsePaneId(splitStdout);
   }
 
   private targetPaneArg(): string[] {

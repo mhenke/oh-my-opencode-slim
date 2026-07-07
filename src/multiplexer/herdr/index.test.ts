@@ -570,7 +570,7 @@ describe('HerdrMultiplexer', () => {
       '/repo',
     );
     // Simulate agent area pane being closed externally
-    await herdr.closePane(r1.paneId!);
+    await herdr.closePane(r1.paneId as string);
 
     // Next spawn should split from parent (w1:p1) → right, not from stale w1:p2
     await herdr.spawnPane('s2', 'A2', 'http://localhost:4096', '/repo');
@@ -602,7 +602,7 @@ describe('HerdrMultiplexer', () => {
       'http://localhost:4096',
       '/repo',
     );
-    await herdr.closePane(r1.paneId!);
+    await herdr.closePane(r1.paneId as string);
 
     // @ts-expect-error - accessing private for test
     expect(herdr.agentAreaPaneId).toBeNull();
@@ -631,13 +631,13 @@ describe('HerdrMultiplexer', () => {
     expect(herdr.agentAreaPaneId).toBeNull();
   });
 
-  test('applyLayout is a no-op', async () => {
+  test('applyLayout issues no CLI commands', async () => {
     const { HerdrMultiplexer } = await importFreshHerdr();
     const herdr = new HerdrMultiplexer('main-vertical', 60);
 
     await herdr.applyLayout('tiled', 50);
 
-    // Only the binary check command should have been issued
+    // No CLI commands should be issued
     expect(commands()).toHaveLength(0);
   });
 });
