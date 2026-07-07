@@ -432,6 +432,15 @@ describe('HerdrMultiplexer', () => {
     expect(herdr.isInsideSession()).toBe(false);
   });
 
+  test('stores layout from constructor', async () => {
+    const { HerdrMultiplexer } = await importFreshHerdr();
+    const herdr = new HerdrMultiplexer('main-vertical', 60);
+    // @ts-expect-error - accessing private for test
+    expect(herdr.layout).toBe('main-vertical');
+    // @ts-expect-error
+    expect(herdr.agentAreaPaneId).toBeNull();
+  });
+
   test('applyLayout is a no-op', async () => {
     const { HerdrMultiplexer } = await importFreshHerdr();
     const herdr = new HerdrMultiplexer('main-vertical', 60);

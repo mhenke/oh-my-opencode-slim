@@ -34,12 +34,15 @@ export class HerdrMultiplexer implements Multiplexer {
   private binaryPath: string | null = null;
   private hasChecked = false;
   private readonly parentPaneId = process.env.HERDR_PANE_ID;
+  private readonly layout: MultiplexerLayout;
   private readonly paneDirection: HerdrPaneDirection;
+  private agentAreaPaneId: string | null = null;
 
   constructor(layout: MultiplexerLayout = 'main-vertical', mainPaneSize = 60) {
     // Herdr does not support exact main pane sizing like tmux.
     // Layout config is mapped to pane split direction.
     void mainPaneSize;
+    this.layout = layout;
     this.paneDirection = getPaneDirection(layout);
   }
 
