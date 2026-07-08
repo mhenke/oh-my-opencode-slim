@@ -6,12 +6,6 @@ It uses Codex Plus for the OpenAI models and GitHub Copilot for the premium desi
 
 ---
 
-## Skill Reference
-
-| Skill | Description |
-| --- | --- |
-| `*` | All installed skills (wildcard) |
-
 ## The Config
 
 ```jsonc
@@ -28,3 +22,9 @@ It uses Codex Plus for the OpenAI models and GitHub Copilot for the premium desi
     }
   }
 ```
+
+## Skill Reference
+
+| Skill | Description |
+| --- | --- |
+| `*` | All installed skills (wildcard) |

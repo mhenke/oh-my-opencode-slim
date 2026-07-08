@@ -4,36 +4,6 @@ This is the exact configuration the author runs day-to-day.
 
 ---
 
-## Skill Reference
-
-Each skill is listed with a short description. The config block above shows which agent uses it. These are the author's own third party skills and are not part of the plugin.
-
-| Skill | Description |
-| --- | --- |
-| `*` (excl. `!make-interfaces-feel-better`) | All installed skills except those explicitly excluded |
-| `better-icons` | Icon design |
-| `ce-brainstorm` | Brainstorming workflow |
-| `codegraph` | (MCP) code graph navigation |
-| `context7` | (MCP) library docs lookup |
-| `crawl4ai` | (MCP) web crawling |
-| `customer-research` | Customer research |
-| `gh_app` | (MCP) GitHub app access |
-| `image` | Image generation/editing |
-| `make-interfaces-feel-better` | UI/UX polish |
-| `marketing-psychology` | Marketing psychology |
-| `motion` | Animation/motion design |
-| `nuxt` | Nuxt framework |
-| `pnpm` | pnpm package manager |
-| `searxng` | (MCP) metasearch engine |
-| `tsdown` | tsdown bundler |
-| `video` | Video generation/editing |
-| `vitest` | Vitest test runner |
-| `vite` | Vite build tool |
-| `vue` | Vue framework |
-| `web-perf` | Web performance optimization |
-| `websearch` | (MCP) web search |
-| `workers-best-practices` | Worker best practices |
-
 ## The Config
 
 ```jsonc
@@ -148,3 +118,34 @@ Each skill is listed with a short description. The config block above shows whic
 }
 
 ```
+
+## Skill Reference
+
+Each skill is listed with a short description and its source. The config block above shows which agent uses it. `author` means the author's own third party skill (not part of the plugin); `public` means a public tool, framework, or MCP server.
+
+| Skill | Description | Source |
+| --- | --- | --- |
+| `*` (excl. `!make-interfaces-feel-better`) | All installed skills except those explicitly excluded | `author` |
+| `better-icons` | Icon design | `author` |
+| `ce-brainstorm` | Brainstorming workflow | `author` |
+| `codegraph` | (MCP) code graph navigation | `public` |
+| `context7` | (MCP) library docs lookup | `public` |
+| `crawl4ai` | (MCP) web crawling | `public` |
+| `customer-research` | Customer research | `author` |
+| `gh_app` | (MCP) GitHub app access | `public` |
+| `image` | Image generation/editing | `author` |
+| `make-interfaces-feel-better` | UI/UX polish | `author` |
+| `marketing-psychology` | Marketing psychology | `author` |
+| `motion` | Animation/motion design | `author` |
+| `nuxt` | Nuxt framework | `public` |
+| `pnpm` | pnpm package manager | `public` |
+| `searxng` | (MCP) metasearch engine | `public` |
+| `tsdown` | tsdown bundler | `public` |
+| `video` | Video generation/editing | `author` |
+| `vitest` | Vitest test runner | `public` |
+| `vite` | Vite build tool | `public` |
+| `vue` | Vue framework | `public` |
+| `web-perf` | Web performance optimization | `author` |
+| `websearch` | (MCP) web search | `public` |
+| `workers-best-practices` | Worker best practices | `author` |
+
