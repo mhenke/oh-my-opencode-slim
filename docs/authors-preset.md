@@ -149,3 +149,5 @@ Each skill is listed with a short description and its source. The config block a
 | `websearch` | (MCP) web search | `public` |
 | `workers-best-practices` | Worker best practices | `author` |
 
+For the complete configuration reference, see [Configuration](configuration.md).
+

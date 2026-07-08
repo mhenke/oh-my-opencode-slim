@@ -1,8 +1,8 @@
 # $30 Preset
 
-This preset is for people who want a strong setup built around **Codex Plus ($20/month)** and **GitHub Copilot Pro ($10/month)**.
+This preset pairs **Codex Plus ($20/month)** with **GitHub Copilot Pro ($10/month)**.
 
-It uses Codex Plus for the OpenAI models and GitHub Copilot for the premium design models, giving you a mixed-provider setup for about **$30/month total**.
+Codex Plus covers the OpenAI models and Copilot covers the design models, so you get a mixed-provider setup for about **$30/month total**.
 
 ---
 
@@ -25,6 +25,8 @@ It uses Codex Plus for the OpenAI models and GitHub Copilot for the premium desi
 
 ## Skill Reference
 
-| Skill | Description |
-| --- | --- |
-| `*` | All installed skills (wildcard) |
+| Skill | Description | Source |
+| --- | --- | --- |
+| `*` | All installed skills (wildcard) | public |
+
+For the complete configuration reference, see [Configuration](configuration.md).

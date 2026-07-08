@@ -1,7 +1,7 @@
 # OpenAI Preset
 
-`openai` is the bundled default generated preset. The installer generates both
-`openai` and `opencode-go` presets; OpenAI is active by default.
+`openai` is the default generated preset. The installer builds both `openai`
+and `opencode-go`; OpenAI is the one that runs unless you pick the other.
 
 ## Install with OpenAI Active
 
@@ -29,8 +29,7 @@ workflow.
 
 ## Bundled Model Mapping
 
-The generated `openai` preset maps each specialist to an OpenAI model tuned for
-its role:
+The generated `openai` preset assigns each specialist an OpenAI model:
 
 | Agent | Model |
 |-------|-------|
