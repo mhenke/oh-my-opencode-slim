@@ -125,7 +125,12 @@ export class TmuxMultiplexer implements Multiplexer {
     }
 
     try {
-      // Send Ctrl+C for graceful shutdown
+      // Graceful shutdown sequence:
+      // 1. Send Ctrl+C to the pane to trigger graceful termination of child processes
+      // 2. Wait 250ms to allow processes time to handle SIGINT and clean up
+      // 3. Fallback to kill-pane if graceful termination fails or times out
+      // This ensures child processes (e.g., opencode attach sessions) can exit cleanly
+      // before we forcefully terminate the tmux pane.
       log('[tmux] closePane: sending Ctrl+C', { paneId });
       const ctrlCProc = crossSpawn([tmux, 'send-keys', '-t', paneId, 'C-c'], {
         stdout: 'pipe',

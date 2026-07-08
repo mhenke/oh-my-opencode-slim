@@ -314,9 +314,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       shouldManageSession: (sessionID) =>
         sessionAgentMap.get(sessionID) === 'orchestrator',
       registerSessionAsOrchestrator: (sessionID) => {
-        if (!sessionAgentMap.has(sessionID)) {
-          sessionAgentMap.set(sessionID, 'orchestrator');
-        }
+        sessionAgentMap.set(sessionID, 'orchestrator');
       },
       isFallbackInProgress: (sessionID) =>
         foregroundFallback.isFallbackInProgress(sessionID),
