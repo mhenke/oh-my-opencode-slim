@@ -4,6 +4,36 @@ This is the exact configuration the author runs day-to-day.
 
 ---
 
+## Skill Reference
+
+Each skill is listed with a short description. The config block above shows which agent uses it. These are the author's own third party skills and are not part of the plugin.
+
+| Skill | Description |
+| --- | --- |
+| `*` (excl. `!make-interfaces-feel-better`) | All installed skills except those explicitly excluded |
+| `better-icons` | Icon design |
+| `ce-brainstorm` | Brainstorming workflow |
+| `codegraph` | (MCP) code graph navigation |
+| `context7` | (MCP) library docs lookup |
+| `crawl4ai` | (MCP) web crawling |
+| `customer-research` | Customer research |
+| `gh_app` | (MCP) GitHub app access |
+| `image` | Image generation/editing |
+| `make-interfaces-feel-better` | UI/UX polish |
+| `marketing-psychology` | Marketing psychology |
+| `motion` | Animation/motion design |
+| `nuxt` | Nuxt framework |
+| `pnpm` | pnpm package manager |
+| `searxng` | (MCP) metasearch engine |
+| `tsdown` | tsdown bundler |
+| `video` | Video generation/editing |
+| `vitest` | Vitest test runner |
+| `vite` | Vite build tool |
+| `vue` | Vue framework |
+| `web-perf` | Web performance optimization |
+| `websearch` | (MCP) web search |
+| `workers-best-practices` | Worker best practices |
+
 ## The Config
 
 ```jsonc
