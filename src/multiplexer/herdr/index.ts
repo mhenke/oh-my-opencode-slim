@@ -39,8 +39,6 @@ export class HerdrMultiplexer implements Multiplexer {
   constructor(layout: MultiplexerLayout = 'main-vertical', mainPaneSize = 60) {
     // Herdr does not support exact main pane sizing like tmux.
     // Layout config is mapped to pane split direction.
-    // ponytail: direction computed once; runtime reconfiguration requires
-    // storing layout and updating paneDirection.
     void mainPaneSize;
     this.paneDirection = getPaneDirection(layout);
   }
@@ -205,7 +203,9 @@ export class HerdrMultiplexer implements Multiplexer {
     _layout: MultiplexerLayout,
     _mainPaneSize: number,
   ): Promise<void> {
-    // No-op. Layout direction is set at construction time.
+    // No-op for herdr. Herdr does not support tmux-like exact main pane
+    // sizing/rebalancing; layout is applied to future pane creation by
+    // mapping configured layouts to pane split directions.
   }
 
   private targetPaneArg(): string[] {
