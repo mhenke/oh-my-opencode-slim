@@ -41,7 +41,7 @@ describe('gracefulClosePane', () => {
       };
     });
 
-    const { gracefulClosePane, GRACEFUL_SHUTDOWN_DELAY_MS } =
+    const { gracefulClosePane } =
       await importShared();
     const ok = await gracefulClosePane('tmux', '%1', {
       ctrlC: ['send-keys', '-t', '%1', 'C-c'],

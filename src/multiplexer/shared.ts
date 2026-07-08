@@ -123,8 +123,8 @@ export async function gracefulClosePane(
     await new Promise((r) => setTimeout(r, GRACEFUL_SHUTDOWN_DELAY_MS));
 
     const proc = crossSpawn([binary, ...options.close], {
-      stdout: 'pipe',
-      stderr: 'pipe',
+      stdout: 'ignore',
+      stderr: 'ignore',
     });
     const exitCode = await proc.exited;
 
