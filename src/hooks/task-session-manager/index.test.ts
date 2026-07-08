@@ -29,8 +29,7 @@ function createHook(options?: {
       readContextMaxFiles: options?.readContextMaxFiles,
       backgroundJobBoard: options?.backgroundJobBoard,
       shouldManageSession: options?.shouldManageSession ?? (() => true),
-      registerSessionAsOrchestrator:
-        options?.registerSessionAsOrchestrator,
+      registerSessionAsOrchestrator: options?.registerSessionAsOrchestrator,
       isFallbackInProgress: options?.isFallbackInProgress,
       coordinator: options?.coordinator,
     },

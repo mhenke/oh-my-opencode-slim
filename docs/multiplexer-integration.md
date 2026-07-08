@@ -225,6 +225,8 @@ For Herdr:
 | `even-vertical` | Opens new subagent panes down |
 | `tiled` | Opens new subagent panes to the right |
 
+> **Note:** `main_pane_size` is ignored by herdr. All layouts split from the parent pane.
+
 **Example: wide-screen layout**
 
 ```jsonc

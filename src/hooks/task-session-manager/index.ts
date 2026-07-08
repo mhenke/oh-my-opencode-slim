@@ -334,7 +334,13 @@ export function createTaskSessionManagerHook(
       if (toolName !== 'task') return;
       if (!input.sessionID) return;
       if (!options.shouldManageSession(input.sessionID)) {
+        // No agent-type guard here: at tool.execute.before time there's no
+        // message to inspect. The transform hook (messages.transform) has
+        // the message.info.agent guard instead.
         options.registerSessionAsOrchestrator?.(input.sessionID);
+        log('[task-session-manager] recovered stale orchestrator mapping', {
+          sessionID: input.sessionID,
+        });
         if (!options.shouldManageSession(input.sessionID)) return;
       }
       if (!isObjectRecord(output.args)) return;
