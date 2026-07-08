@@ -332,8 +332,10 @@ export function createTaskSessionManagerHook(
     ): Promise<void> => {
       const toolName = input.tool.toLowerCase();
       if (toolName !== 'task') return;
-      if (!input.sessionID || !options.shouldManageSession(input.sessionID)) {
-        return;
+      if (!input.sessionID) return;
+      if (!options.shouldManageSession(input.sessionID)) {
+        options.registerSessionAsOrchestrator?.(input.sessionID);
+        if (!options.shouldManageSession(input.sessionID)) return;
       }
       if (!isObjectRecord(output.args)) return;
 
