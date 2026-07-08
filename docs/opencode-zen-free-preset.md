@@ -1,7 +1,6 @@
 # OpenCode Zen Free Preset
 
-This preset runs entirely on free-tier models. Every agent uses an `opencode/...-free`
-model, so there is no usage cost.
+Every agent runs on an opencode free model; no usage cost.
 
 You need an API key for the `opencode` provider. Sign up at [OpenCode Zen](https://opencode.ai/zen) (skip billing; the free models need no balance) and connect it with `/connect`.
 
