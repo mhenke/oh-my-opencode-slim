@@ -17,6 +17,9 @@ export function buildOpencodeAttachCommand(
   serverUrl: string,
   directory: string,
 ): string {
+  // Normalize backslashes to forward slashes on Windows: when the command runs
+  // under sh -lc (MSYS2/Git Bash), backslashes are treated as escape chars and
+  // corrupt the --dir path (issue #568).
   const attachDir =
     process.platform === 'win32' ? directory.replace(/\\/g, '/') : directory;
   return [

@@ -83,6 +83,7 @@ export class HerdrMultiplexer implements Multiplexer {
         '--direction',
         this.paneDirection,
         '--cwd',
+        // Normalize Windows backslashes→/ so sh -lc (MSYS2) doesn't corrupt --cwd (issue #568)
         process.platform === 'win32'
           ? directory.replace(/\\/g, '/')
           : directory,
