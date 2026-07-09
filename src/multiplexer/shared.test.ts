@@ -127,8 +127,20 @@ describe('buildOpencodeAttachCommand', () => {
   });
 
   test('leaves non-Windows paths unchanged', async () => {
-    const { buildOpencodeAttachCommand } = await importShared();
-    const cmd = buildOpencodeAttachCommand('sess', 'url', '/home/user/repo');
-    expect(cmd).toContain('/home/user/repo');
+    const original = process.platform;
+    Object.defineProperty(process, 'platform', {
+      value: 'linux',
+      configurable: true,
+    });
+    try {
+      const { buildOpencodeAttachCommand } = await importShared();
+      const cmd = buildOpencodeAttachCommand('sess', 'url', '/home/user/repo');
+      expect(cmd).toContain('/home/user/repo');
+    } finally {
+      Object.defineProperty(process, 'platform', {
+        value: original,
+        configurable: true,
+      });
+    }
   });
 });

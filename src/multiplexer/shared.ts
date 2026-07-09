@@ -12,16 +12,19 @@ export function quoteShellArg(value: string): string {
   return `'${value.replace(/'/g, `'\\''`)}'`;
 }
 
+/** Normalize Windows backslashes to / so sh -lc (MSYS2/Git Bash) doesn't treat them as escape chars. */
+export function normalizePathForShell(directory: string): string {
+  return process.platform === 'win32'
+    ? directory.replace(/\\/g, '/')
+    : directory;
+}
+
 export function buildOpencodeAttachCommand(
   sessionId: string,
   serverUrl: string,
   directory: string,
 ): string {
-  // Normalize backslashes to forward slashes on Windows: when the command runs
-  // under sh -lc (MSYS2/Git Bash), backslashes are treated as escape chars and
-  // corrupt the --dir path (issue #568).
-  const attachDir =
-    process.platform === 'win32' ? directory.replace(/\\/g, '/') : directory;
+  const attachDir = normalizePathForShell(directory);
   return [
     'opencode',
     'attach',
