@@ -15,6 +15,12 @@
 import type { MultiplexerLayout } from '../../config/schema';
 import { crossSpawn } from '../../utils/compat';
 import { log } from '../../utils/logger';
+import {
+  buildOpencodeAttachCommand,
+  findBinary,
+  gracefulClosePane,
+  normalizePathForShell,
+} from '../shared';
 import type { Multiplexer, PaneResult } from '../types';
 
 type HerdrPaneDirection = 'right' | 'down';
@@ -47,7 +53,7 @@ export class HerdrMultiplexer implements Multiplexer {
       return this.binaryPath !== null;
     }
 
-    this.binaryPath = await this.findBinary();
+    this.binaryPath = await findBinary('herdr');
     this.hasChecked = true;
     return this.binaryPath !== null;
   }
@@ -69,6 +75,10 @@ export class HerdrMultiplexer implements Multiplexer {
     }
 
     try {
+      // Normalize Windows backslashes→/ so sh -lc (MSYS2) doesn't
+      // corrupt --cwd (issue #568).
+      const attachDir = normalizePathForShell(directory);
+
       // 1. Split the parent pane to create a new one
       const splitArgs = [
         herdr,
@@ -78,7 +88,7 @@ export class HerdrMultiplexer implements Multiplexer {
         '--direction',
         this.paneDirection,
         '--cwd',
-        directory,
+        attachDir,
         '--no-focus',
       ];
 
@@ -120,7 +130,7 @@ export class HerdrMultiplexer implements Multiplexer {
       const opencodeCmd = buildOpencodeAttachCommand(
         sessionId,
         serverUrl,
-        directory,
+        attachDir,
       );
 
       log('[herdr] spawnPane: running attach command', {
@@ -152,50 +162,13 @@ export class HerdrMultiplexer implements Multiplexer {
   }
 
   async closePane(paneId: string): Promise<boolean> {
-    if (!paneId || paneId === 'unknown') return true;
-
     const herdr = await this.getBinary();
-    if (!herdr) {
-      log('[herdr] closePane: herdr binary not found');
-      return false;
-    }
-
-    try {
-      // Send Ctrl+C for graceful shutdown
-      log('[herdr] closePane: sending Ctrl+C', { paneId });
-      await crossSpawn([herdr, 'pane', 'send-keys', paneId, 'ctrl+c'], {
-        stdout: 'ignore',
-        stderr: 'ignore',
-      }).exited;
-
-      // Wait for graceful shutdown
-      await new Promise((r) => setTimeout(r, 250));
-
-      // Close the pane
-      log('[herdr] closePane: closing pane', { paneId });
-      const proc = crossSpawn([herdr, 'pane', 'close', paneId], {
-        stdout: 'pipe',
-        stderr: 'pipe',
-      });
-
-      const exitCode = await proc.exited;
-      const stderr = await proc.stderr();
-
-      log('[herdr] closePane: result', { exitCode, stderr: stderr.trim() });
-
-      if (exitCode === 0 || exitCode === 1) {
-        return true;
-      }
-
-      // Pane might already be closed
-      log('[herdr] closePane: failed (pane may already be closed)', {
-        paneId,
-      });
-      return false;
-    } catch (err) {
-      log('[herdr] closePane: exception', { error: String(err) });
-      return false;
-    }
+    return gracefulClosePane(herdr, paneId, {
+      ctrlC: ['pane', 'send-keys', paneId, 'ctrl+c'],
+      close: ['pane', 'close', paneId],
+      acceptExitCode1: true,
+      emptyPaneReturnsTrue: true,
+    });
   }
 
   async applyLayout(
@@ -214,36 +187,6 @@ export class HerdrMultiplexer implements Multiplexer {
   private async getBinary(): Promise<string | null> {
     await this.isAvailable();
     return this.binaryPath;
-  }
-
-  private async findBinary(): Promise<string | null> {
-    const cmd = process.platform === 'win32' ? 'where' : 'which';
-
-    try {
-      const proc = crossSpawn([cmd, 'herdr'], {
-        stdout: 'pipe',
-        stderr: 'pipe',
-      });
-
-      const exitCode = await proc.exited;
-      if (exitCode !== 0) {
-        log("[herdr] findBinary: 'which herdr' failed", { exitCode });
-        return null;
-      }
-
-      const stdout = await proc.stdout();
-      const path = stdout.trim().split('\n')[0];
-      if (!path) {
-        log('[herdr] findBinary: no path in output');
-        return null;
-      }
-
-      log('[herdr] findBinary: found', { path });
-      return path;
-    } catch (err) {
-      log('[herdr] findBinary: exception', { error: String(err) });
-      return null;
-    }
   }
 }
 
@@ -283,24 +226,4 @@ function getPaneDirection(layout: MultiplexerLayout): HerdrPaneDirection {
     case 'tiled':
       return 'right';
   }
-}
-
-function buildOpencodeAttachCommand(
-  sessionId: string,
-  serverUrl: string,
-  directory: string,
-): string {
-  return [
-    'opencode',
-    'attach',
-    quoteShellArg(serverUrl),
-    '--session',
-    quoteShellArg(sessionId),
-    '--dir',
-    quoteShellArg(directory),
-  ].join(' ');
-}
-
-function quoteShellArg(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
 }

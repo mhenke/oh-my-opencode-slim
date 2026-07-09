@@ -28,6 +28,15 @@ OH_MY_OPENCODE_SLIM_DISABLE=1 opencode
 
 If OmO-slim detects an invalid plugin config for the current project, the TUI sidebar shows a warning. Run `oh-my-opencode-slim doctor` from your project root for full diagnostics.
 
+The TUI sidebar uses the compact layout by default. Set `compactSidebar` to
+`false` in `oh-my-opencode-slim.jsonc` to use the expanded layout:
+
+```jsonc
+{
+  "compactSidebar": false
+}
+```
+
 ---
 
 ## Prompt Overriding

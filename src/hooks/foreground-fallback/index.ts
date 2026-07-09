@@ -21,6 +21,7 @@ import {
   abortSessionWithTimeout,
   parseModelReference,
 } from '../../utils/session';
+import type { SessionLifecycle } from '../session-lifecycle';
 import { isUserMessageWithParts } from '../types';
 
 type OpencodeClient = PluginInput['client'];
@@ -99,6 +100,15 @@ export class ForegroundFallbackManager {
    *  when the model has changed, allowing the cascade to continue when a
    *  new fallback model also fails within the dedup window. */
   private readonly lastTriggerModel = new Map<string, string>();
+  /** sessionID → consecutive 429 count for the current model.
+   *  Reset on model swap or session deletion. */
+  private readonly sessionRetries = new Map<string, number>();
+
+  /** Exposed for task-session-manager: prevents idle reconciliation
+   *  while a fallback abort/re-prompt is in flight for this session. */
+  isFallbackInProgress(sessionID: string): boolean {
+    return this.inProgress.has(sessionID);
+  }
 
   constructor(
     private readonly client: OpencodeClient,
@@ -109,7 +119,29 @@ export class ForegroundFallbackManager {
      */
     private readonly chains: Record<string, string[]>,
     private readonly enabled: boolean,
-  ) {}
+    /** Consecutive 429s tolerated on the same model before swap/abort. */
+    private readonly maxRetries: number = 3,
+    coordinator?: SessionLifecycle,
+    /**
+     * When true (default), a runtime model outside the configured chain
+     * still triggers fallback on rate-limit errors. When false, out-of-chain
+     * runtime picks are respected and the error surfaces instead. Models
+     * that are members of the chain always fall back regardless.
+     */
+    private readonly runtimeOverride: boolean = true,
+  ) {
+    if (coordinator) {
+      coordinator.onSessionDeleted((id) => {
+        this.sessionModel.delete(id);
+        this.sessionAgent.delete(id);
+        this.sessionTried.delete(id);
+        this.inProgress.delete(id);
+        this.lastTrigger.delete(id);
+        this.lastTriggerModel.delete(id);
+        this.sessionRetries.delete(id);
+      });
+    }
+  }
 
   /**
    * Process an OpenCode plugin event.
@@ -144,7 +176,12 @@ export class ForegroundFallbackManager {
         }
         // Rate-limit on an individual message
         if (info.error && isRateLimitError(info.error)) {
-          await this.tryFallback(sessionID);
+          if (this.shouldIntervene(sessionID)) {
+            await this.tryFallback(sessionID);
+          }
+        } else {
+          // Successful response: clear retry count so recovery is not forgotten.
+          this.sessionRetries.delete(sessionID);
         }
         break;
       }
@@ -153,7 +190,12 @@ export class ForegroundFallbackManager {
         const props = event.properties as
           | { sessionID?: string; error?: unknown }
           | undefined;
-        if (props?.sessionID && props.error && isRateLimitError(props.error)) {
+        if (
+          props?.sessionID &&
+          props.error &&
+          isRateLimitError(props.error) &&
+          this.shouldIntervene(props.sessionID)
+        ) {
           await this.tryFallback(props.sessionID);
         }
         break;
@@ -163,15 +205,11 @@ export class ForegroundFallbackManager {
         const props = event.properties as
           | {
               sessionID?: string;
-              status?: { type?: string; message?: string };
+              status?: { type?: string; message?: string; attempt?: number };
             }
           | undefined;
         if (!props?.sessionID || !props.status?.message) break;
         const msg = props.status.message.toLowerCase();
-        // Check for rate-limit signals in the status message regardless of
-        // status type. OpenCode proxies may emit monthly/weekly/5-hour usage
-        // limit errors with type 'error' instead of 'retry' on fresh sessions
-        // where no retry is attempted - the retry-type guard would miss them.
         if (
           msg.includes('rate limit') ||
           msg.includes('usage limit') ||
@@ -183,7 +221,14 @@ export class ForegroundFallbackManager {
           msg.includes('high concurrency') ||
           msg.includes('reduce concurrency')
         ) {
-          await this.tryFallback(props.sessionID);
+          // session.status retry path always counts toward the budget
+          // — even the first retry is absorbed before intervening.
+          if (this.checkRetryBudget(props.sessionID)) {
+            await this.tryFallback(props.sessionID);
+          }
+        } else {
+          // Non-rate-limit status: clear retry count (recovery).
+          this.sessionRetries.delete(props.sessionID);
         }
         break;
       }
@@ -200,27 +245,50 @@ export class ForegroundFallbackManager {
       }
 
       case 'session.deleted': {
-        // Clean up all per-session state to prevent unbounded memory growth
-        // in long-running instances with many subagent sessions.
-        // OpenCode emits two shapes depending on context:
-        //   { properties: { sessionID } }   - subagent / task sessions
-        //   { properties: { info: { id } } } - top-level session deletion
-        // Mirror the same dual-shape lookup used elsewhere in the plugin.
         const props = event.properties as
           | { sessionID?: string; info?: { id?: string } }
           | undefined;
-        const id = props?.info?.id ?? props?.sessionID;
+        const id = props?.info?.id || props?.sessionID;
         if (id) {
-          this.sessionModel.delete(id);
-          this.sessionAgent.delete(id);
-          this.sessionTried.delete(id);
-          this.inProgress.delete(id);
-          this.lastTrigger.delete(id);
-          this.lastTriggerModel.delete(id);
+          log('[foreground-fallback] session.deleted observed', {
+            sessionID: id,
+          });
         }
         break;
       }
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Retry budget
+  // ---------------------------------------------------------------------------
+
+  /** Increment retry counter and return true when the budget is exhausted.
+   *  Used by the session.status retry path — each retry counts toward the
+   *  budget and only triggers fallback after maxRetries - 1 absorptions.
+   *  Non-retry paths (session.error / message.updated) use shouldIntervene(),
+   *  which bypasses the counter on first occurrence. */
+  private checkRetryBudget(sessionID: string): boolean {
+    const tried = this.sessionRetries.get(sessionID) ?? 0;
+    if (tried < this.maxRetries - 1) {
+      this.sessionRetries.set(sessionID, tried + 1);
+      log('[foreground-fallback] rate-limit retry', {
+        sessionID,
+        attempt: tried + 1,
+        remaining: this.maxRetries - tried - 1,
+      });
+      return false;
+    }
+    this.sessionRetries.delete(sessionID);
+    return true;
+  }
+
+  /** For non-retry paths (session.error, message.updated): intervene immediately
+   *  unless the session is already in a retry window (has prior retries). */
+  private shouldIntervene(sessionID: string): boolean {
+    const tried = this.sessionRetries.get(sessionID) ?? 0;
+    if (tried === 0) return true;
+    return this.checkRetryBudget(sessionID);
   }
 
   // ---------------------------------------------------------------------------
@@ -271,6 +339,29 @@ export class ForegroundFallbackManager {
         currentModel = chain[0];
       }
 
+      // Guard: when runtimeOverride is false, skip fallback for models
+      // that are not members of the configured chain. This respects a
+      // deliberate runtime `/model` pick (e.g. an expensive model outside
+      // the chain) and lets the error surface instead of silently swapping
+      // to the chain's default. Models that ARE in the chain always fall
+      // back normally regardless of this setting.
+      if (
+        !this.runtimeOverride &&
+        currentModel &&
+        !chain.includes(currentModel)
+      ) {
+        log('[foreground-fallback] current model not in chain, skipping fallback (runtimeOverride=false)', {
+          sessionID,
+          agentName,
+          currentModel,
+          chain,
+        });
+        // Abort the session so the rate-limit error surfaces to the user
+        // instead of leaving the session in a silent retry loop.
+        await abortSessionWithTimeout(this.client, sessionID);
+        return;
+      }
+
       if (!this.sessionTried.has(sessionID)) {
         this.sessionTried.set(sessionID, new Set());
       }
@@ -299,15 +390,18 @@ export class ForegroundFallbackManager {
           this.sessionTried.set(sessionID, tried);
           nextModel = stickyFallback;
         } else {
-          log('[foreground-fallback] fallback chain exhausted', {
+          log('[foreground-fallback] fallback chain exhausted, aborting', {
             sessionID,
             agentName,
             tried: [...tried],
           });
+          await abortSessionWithTimeout(this.client, sessionID);
           return;
         }
       }
       tried.add(nextModel);
+      // Reset retry count on model switch — the new model starts fresh.
+      this.sessionRetries.delete(sessionID);
 
       const ref = parseModelReference(nextModel);
       if (!ref) {
@@ -351,24 +445,26 @@ export class ForegroundFallbackManager {
         return;
       }
 
-      // Abort the currently rate-limited prompt so the session becomes idle.
+      // Try queuing the fallback prompt without aborting first. If OpenCode
+      // accepts it (204), the fallback model replaces the retry loop
+      // transparently — no dialog, no session error shown to the user.
+      // If promptAsync throws (e.g. session busy), fall back to abort+retry.
       try {
-        await abortSessionWithTimeout(this.client, sessionID);
-      } catch (error) {
-        // Session may already be idle or abort may be slow; keep fallback best-effort.
-        log('[foreground-fallback] abort did not complete cleanly', {
+        await sessionClient.promptAsync({
+          path: { id: sessionID },
+          body: { parts: lastUser.parts, model: ref },
+        });
+      } catch (_promptErr) {
+        log('[foreground-fallback] promptAsync on busy session, aborting', {
           sessionID,
-          error: error instanceof Error ? error.message : String(error),
+        });
+        await abortSessionWithTimeout(this.client, sessionID);
+        await new Promise((r) => setTimeout(r, REPROMPT_DELAY_MS));
+        await sessionClient.promptAsync({
+          path: { id: sessionID },
+          body: { parts: lastUser.parts, model: ref },
         });
       }
-
-      // Give the server a moment to finalise the abort before re-prompting.
-      await new Promise((r) => setTimeout(r, REPROMPT_DELAY_MS));
-
-      await sessionClient.promptAsync({
-        path: { id: sessionID },
-        body: { parts: lastUser.parts, model: ref },
-      });
 
       this.sessionModel.set(sessionID, nextModel);
       log('[foreground-fallback] switched to fallback model', {

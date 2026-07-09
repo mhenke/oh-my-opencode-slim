@@ -4,6 +4,7 @@ import * as os from 'node:os';
 import * as path from 'node:path';
 import {
   getSidebarAgentNames,
+  readCompactSidebar,
   readConfigInvalid,
   splitSidebarModelId,
   default as tuiPlugin,
@@ -115,6 +116,35 @@ describe('readConfigInvalid', () => {
       );
 
       expect(readConfigInvalid(projectDir)).toBe(false);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('uses compact sidebar by default', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'omos-tui-'));
+    try {
+      const projectDir = path.join(tempDir, 'project');
+      fs.mkdirSync(projectDir, { recursive: true });
+
+      expect(readCompactSidebar(projectDir)).toBe(true);
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('allows expanded sidebar config', () => {
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'omos-tui-'));
+    try {
+      const projectDir = path.join(tempDir, 'project');
+      const configDir = path.join(projectDir, '.opencode');
+      fs.mkdirSync(configDir, { recursive: true });
+      fs.writeFileSync(
+        path.join(configDir, 'oh-my-opencode-slim.json'),
+        JSON.stringify({ compactSidebar: false }),
+      );
+
+      expect(readCompactSidebar(projectDir)).toBe(false);
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true });
     }

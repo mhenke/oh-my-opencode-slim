@@ -14,6 +14,12 @@
 
 import type { MultiplexerLayout, ZellijPaneMode } from '../../config/schema';
 import { crossSpawn } from '../../utils/compat';
+import {
+  buildOpencodeAttachCommand,
+  findBinary,
+  gracefulClosePane,
+  quoteShellArg,
+} from '../shared';
 import type { Multiplexer, PaneResult } from '../types';
 
 interface ZellijTabInfo {
@@ -58,7 +64,7 @@ export class ZellijMultiplexer implements Multiplexer {
     if (this.hasChecked) {
       return this.binaryPath !== null;
     }
-    this.binaryPath = await this.findBinary();
+    this.binaryPath = await findBinary('zellij');
     this.hasChecked = true;
     return this.binaryPath !== null;
   }
@@ -489,34 +495,13 @@ export class ZellijMultiplexer implements Multiplexer {
   }
 
   async closePane(paneId: string): Promise<boolean> {
-    if (!paneId || paneId === 'unknown') return true;
-
     const zellij = await this.getBinary();
-    if (!zellij) return false;
-
-    try {
-      // Send Ctrl+C for graceful shutdown
-      await crossSpawn(
-        [zellij, 'action', 'write', '--pane-id', paneId, '\u0003'],
-        {
-          stdout: 'ignore',
-          stderr: 'ignore',
-        },
-      ).exited;
-
-      await new Promise((r) => setTimeout(r, 250));
-
-      // Close the pane
-      const proc = crossSpawn(
-        [zellij, 'action', 'close-pane', '--pane-id', paneId],
-        { stdout: 'pipe', stderr: 'pipe' },
-      );
-
-      const exitCode = await proc.exited;
-      return exitCode === 0 || exitCode === 1;
-    } catch {
-      return false;
-    }
+    return gracefulClosePane(zellij, paneId, {
+      ctrlC: ['action', 'write', '--pane-id', paneId, '\u0003'],
+      close: ['action', 'close-pane', '--pane-id', paneId],
+      acceptExitCode1: true,
+      emptyPaneReturnsTrue: true,
+    });
   }
 
   async applyLayout(
@@ -584,21 +569,6 @@ export class ZellijMultiplexer implements Multiplexer {
     await this.isAvailable();
     return this.binaryPath;
   }
-
-  private async findBinary(): Promise<string | null> {
-    const cmd = process.platform === 'win32' ? 'where' : 'which';
-    try {
-      const proc = crossSpawn([cmd, 'zellij'], {
-        stdout: 'pipe',
-        stderr: 'pipe',
-      });
-      if ((await proc.exited) !== 0) return null;
-      const stdout = await proc.stdout();
-      return stdout.trim().split('\n')[0] || null;
-    } catch {
-      return null;
-    }
-  }
 }
 
 function normalizePaneId(paneId: string): string {
@@ -620,26 +590,6 @@ function getPaneDirection(
   }
 }
 
-function buildOpencodeAttachCommand(
-  sessionId: string,
-  serverUrl: string,
-  directory: string,
-): string {
-  return [
-    'opencode',
-    'attach',
-    quoteShellArg(serverUrl),
-    '--session',
-    quoteShellArg(sessionId),
-    '--dir',
-    quoteShellArg(directory),
-  ].join(' ');
-}
-
 function buildShellLaunchCommand(command: string): string {
   return ['sh', '-lc', quoteShellArg(command)].join(' ');
-}
-
-function quoteShellArg(value: string): string {
-  return `'${value.replace(/'/g, `'\\''`)}'`;
 }

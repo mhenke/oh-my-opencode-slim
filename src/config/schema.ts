@@ -180,12 +180,33 @@ export const FailoverConfigSchema = z
     enabled: z.boolean().default(true),
     timeoutMs: z.number().min(0).default(15000),
     retryDelayMs: z.number().min(0).default(500),
+    maxRetries: z
+      .number()
+      .int()
+      .min(0)
+      .default(3)
+      .describe(
+        'Number of consecutive 429/rate-limit responses tolerated on the ' +
+          'same model before aborting (or swapping to the next fallback ' +
+          'model when a chain is configured).',
+      ),
     retry_on_empty: z
       .boolean()
       .default(true)
       .describe(
         'When true (default), empty provider responses are treated as failures, ' +
           'triggering fallback/retry. Set to false to treat them as successes.',
+      ),
+    runtimeOverride: z
+      .boolean()
+      .default(true)
+      .describe(
+        'When true (default), a runtime model selected via /model that is ' +
+          'outside the configured fallback chain will still trigger the chain ' +
+          'on rate-limit errors. When false, out-of-chain runtime picks are ' +
+          'respected and the error surfaces instead of silently falling back ' +
+          'to the chain. Models that are members of the chain always fall back ' +
+          'regardless of this setting.',
       ),
   })
   .strict();
@@ -286,7 +307,9 @@ export const PluginConfigSchema = z
     compactSidebar: z
       .boolean()
       .optional()
-      .describe('Use the compact TUI sidebar layout when enabled.'),
+      .describe(
+        'Use the compact TUI sidebar layout. Defaults to true; set false to use the expanded layout.',
+      ),
     autoUpdate: z
       .boolean()
       .optional()
