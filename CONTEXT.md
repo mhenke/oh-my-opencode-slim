@@ -31,7 +31,7 @@ A glossary of the terms used in this project's domain. Definitions describe what
 
 ## Multiplexer & Sessions
 
-- **Multiplexer** — A terminal backend (tmux, zellij, or herdr) that hosts child agent panes.
+- **Multiplexer** — A terminal backend (tmux, zellij, or herdr) that hosts child agent panes. Set via \`multiplexer.type\`, which also accepts \`auto\` (auto-detect) and \`none\` (disabled).
 - **Multiplexer type** — The selected backend: `auto`, `tmux`, `zellij`, `herdr`, or `none`.
 - **Pane** — A terminal region spawned by the multiplexer to run a child agent session.
 - **Child session** — A background agent session hosted in a multiplexer pane and tracked by the session manager.

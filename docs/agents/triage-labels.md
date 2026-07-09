@@ -19,9 +19,11 @@ translation layer ("roles are skill behavior; strings are repo policy").
 
 - `needs-triage` has **no label** by design: an unlabeled issue is implicitly in
   the `needs-triage` state.
-- `ready-for-agent` and `ready-for-human` both map to `good-to-code`. If you want
-  to distinguish "ready for a human to merge" from "ready for an agent to pick
-  up", apply `status:in-review` alongside `good-to-code` for the human case.
+- `ready-for-agent` and `ready-for-human` both map to `good-to-code`. The
+  difference is who implements: an agent picks up `ready-for-agent`; a human
+  implements `ready-for-human`. `status:in-review` is a separate human-review
+  state (for when code already exists and awaits review) — do not apply it to
+  issues that still need implementation.
 - The following repo labels are intentionally **outside** the triage taxonomy
   and should not be applied by `/triage`:
   - `confirmed` — maintainer-acknowledged signal after `needs-triage`
