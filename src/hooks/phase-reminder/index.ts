@@ -6,7 +6,7 @@
  * of the user's actual turn.
  */
 import { PHASE_REMINDER } from '../../config/constants';
-import { SLIM_INTERNAL_INITIATOR_MARKER } from '../../utils';
+import { isBrandedInternalInitiatorPart } from '../../utils';
 import { hasPendingSession } from '../post-file-tool-nudge';
 import { isUserMessageWithParts } from '../types';
 
@@ -67,8 +67,8 @@ export function createPhaseReminderHook() {
         return;
       }
 
-      const originalText = lastUserMessage.parts[textPartIndex].text ?? '';
-      if (originalText.includes(SLIM_INTERNAL_INITIATOR_MARKER)) {
+      const originalPart = lastUserMessage.parts[textPartIndex];
+      if (isBrandedInternalInitiatorPart(originalPart)) {
         return;
       }
       // Prevent duplicate injection: check if any existing part already contains

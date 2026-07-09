@@ -1,5 +1,8 @@
 import { describe, expect, test } from 'bun:test';
-import { SLIM_INTERNAL_INITIATOR_MARKER } from '../../utils';
+import {
+  createInternalAgentTextPart,
+  SLIM_INTERNAL_INITIATOR_MARKER,
+} from '../../utils';
 import { createPhaseReminderHook, PHASE_REMINDER } from './index';
 
 describe('createPhaseReminderHook', () => {
@@ -20,6 +23,8 @@ describe('createPhaseReminderHook', () => {
     expect(output.messages[0].parts.length).toBe(2);
     expect(output.messages[0].parts[0].text).toBe('hello');
     expect(output.messages[0].parts[1].text).toBe(PHASE_REMINDER);
+    expect(output.messages[0].parts[1].text).toStartWith('<system-reminder>');
+    expect(output.messages[0].parts[1].text).toEndWith('</system-reminder>');
   });
 
   test('skips non-orchestrator sessions', async () => {
@@ -46,7 +51,9 @@ describe('createPhaseReminderHook', () => {
       messages: [
         {
           info: { role: 'user' },
-          parts: [{ type: 'text', text }],
+          parts: [
+            createInternalAgentTextPart('[Background task "x" completed]'),
+          ],
         },
       ],
     };
@@ -55,6 +62,29 @@ describe('createPhaseReminderHook', () => {
 
     expect(output.messages[0].parts[0].text).toBe(text);
     expect(output.messages[0].parts.length).toBe(1);
+  });
+
+  test('does not let user-visible internal marker suppress injection', async () => {
+    const hook = createPhaseReminderHook();
+    const output = {
+      messages: [
+        {
+          info: { role: 'user', agent: 'orchestrator' },
+          parts: [
+            {
+              type: 'text',
+              synthetic: true,
+              text: `hello ${SLIM_INTERNAL_INITIATOR_MARKER}`,
+            },
+          ],
+        },
+      ],
+    };
+
+    await hook['experimental.chat.messages.transform']({}, output);
+
+    expect(output.messages[0].parts).toHaveLength(2);
+    expect(output.messages[0].parts[1].text).toBe(PHASE_REMINDER);
   });
 
   test('does not append duplicate reminder', async () => {

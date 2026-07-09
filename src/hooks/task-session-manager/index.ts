@@ -3,10 +3,10 @@ import {
   BackgroundJobBoard,
   type BackgroundJobRecord,
   deriveTaskSessionLabel,
+  isBrandedInternalInitiatorPart,
   parseTaskIdFromTaskOutput,
   parseTaskLaunchOutput,
   parseTaskStatusOutput,
-  SLIM_INTERNAL_INITIATOR_MARKER,
 } from '../../utils';
 import { isRecord as isObjectRecord } from '../../utils/guards';
 import { log } from '../../utils/logger';
@@ -30,7 +30,7 @@ interface TaskArgs {
   task_id?: unknown;
 }
 
-const BACKGROUND_JOB_BOARD_SENTINEL = 'SENTINEL: background-job-board-v2';
+const BACKGROUND_JOB_BOARD_PART_BRAND = Symbol('slim.backgroundJobBoardPart');
 const BACKGROUND_COMPLETION_COMPLETED = /^Background task completed: /;
 const BACKGROUND_COMPLETION_FAILED = /^Background task failed: /;
 const MAX_PROCESSED_INJECTED_COMPLETIONS = 500;
@@ -531,13 +531,31 @@ export function createTaskSessionManagerHook(
           (part) => part.type === 'text' && typeof part.text === 'string',
         );
         if (!textPart) return;
-        if (textPart.text?.includes(SLIM_INTERNAL_INITIATOR_MARKER)) return;
-        if (textPart.text?.includes(BACKGROUND_JOB_BOARD_SENTINEL)) return;
+        if (isBrandedInternalInitiatorPart(textPart)) {
+          return;
+        }
+        if (
+          message.parts.some(
+            (part) =>
+              (part as Record<PropertyKey, unknown>)[
+                BACKGROUND_JOB_BOARD_PART_BRAND
+              ] === true,
+          )
+        ) {
+          return;
+        }
 
         rememberInjectedTerminalJobs(message.info.sessionID);
-        textPart.text = [textPart.text ?? '', '', reminders.join('\n\n')].join(
-          '\n',
-        );
+        const boardPart = {
+          type: 'text',
+          synthetic: true,
+          text: reminders.join('\n\n'),
+        };
+        Object.defineProperty(boardPart, BACKGROUND_JOB_BOARD_PART_BRAND, {
+          enumerable: true,
+          value: true,
+        });
+        message.parts.unshift(boardPart);
         return;
       }
     },
