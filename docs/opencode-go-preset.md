@@ -1,11 +1,10 @@
 # OpenCode Go Preset
 
-`opencode-go` is a bundled generated preset for users who want to run the
-Pantheon agents through OpenCode Go models instead of the default OpenAI setup.
+`opencode-go` runs the Pantheon agents on OpenCode Go models instead of the
+default OpenAI setup.
 
-The installer generates both `openai` and `opencode-go` presets. OpenAI stays
-active by default unless you select OpenCode Go during install or switch to it
-later.
+The installer builds both `openai` and `opencode-go`. OpenAI stays active unless
+you choose OpenCode Go at install time or switch to it later.
 
 Because the `opencode-go` preset uses GLM-5.1 for Orchestrator and GLM is not
 multimodal, installing with `--preset=opencode-go` also enables the Observer
@@ -67,13 +66,19 @@ setting the top-level `preset` field:
   "disabled_agents": [],
   "presets": {
     "opencode-go": {
-      "orchestrator": { "model": "opencode-go/glm-5.2" },
+      "orchestrator": {
+        "model": "opencode-go/glm-5.2"
+      },
       "oracle": {
         "model": "opencode-go/qwen3.7-max",
         "variant": "max"
       },
-      "librarian": { "model": "opencode-go/deepseek-v4-flash" },
-      "explorer": { "model": "opencode-go/deepseek-v4-flash" },
+      "librarian": {
+        "model": "opencode-go/deepseek-v4-flash"
+      },
+      "explorer": {
+        "model": "opencode-go/deepseek-v4-flash"
+      },
       "designer": {
         "model": "opencode-go/kimi-k2.7-code",
         "variant": "medium"
@@ -82,11 +87,21 @@ setting the top-level `preset` field:
         "model": "opencode-go/deepseek-v4-flash",
         "variant": "high"
       },
-      "observer": { "model": "opencode-go/kimi-k2.6" }
+      "observer": {
+        "model": "opencode-go/kimi-k2.6"
+      }
     }
   }
 }
 ```
+
+## Skill Reference
+
+This preset defines no per-agent `skills` or `mcps`. All agents use whatever skills are globally installed (the `*` wildcard).
+
+| Skill | Description | Source |
+| --- | --- | --- |
+| `*` | All installed skills (wildcard) | `public` |
 
 For the complete configuration reference, see
 [Configuration](configuration.md).
