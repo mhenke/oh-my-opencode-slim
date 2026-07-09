@@ -5,7 +5,7 @@ import type { PluginInput } from '@opencode-ai/plugin';
 import type { InterviewConfig } from '../config';
 import {
   createInternalAgentTextPart,
-  hasInternalInitiatorMarker,
+  isInternalInitiatorPart,
   log,
 } from '../utils';
 import { parseModelReference } from '../utils/session';
@@ -135,7 +135,14 @@ export function createInterviewService(
   registerCommand: (config: Record<string, unknown>) => void;
   handleCommandExecuteBefore: (
     input: { command: string; sessionID: string; arguments: string },
-    output: { parts: Array<{ type: string; text?: string }> },
+    output: {
+      parts: Array<{
+        type: string;
+        text?: string;
+        synthetic?: boolean;
+        metadata?: Record<string, unknown>;
+      }>;
+    },
   ) => Promise<void>;
   handleEvent: (input: {
     event: { type: string; properties?: Record<string, unknown> };
@@ -287,9 +294,7 @@ export function createInterviewService(
   }
 
   function isUserVisibleMessage(message: InterviewMessage): boolean {
-    return !(message.parts ?? []).some((part) =>
-      hasInternalInitiatorMarker(part),
-    );
+    return !(message.parts ?? []).some((part) => isInternalInitiatorPart(part));
   }
 
   function getInterviewById(interviewId: string): InterviewRecord | null {

@@ -6,11 +6,14 @@ import {
   isServerRunning,
   type Multiplexer,
 } from '../multiplexer';
-import type {
-  BackgroundJobBoard,
-  BackgroundJobState,
-} from '../utils/background-job-board';
+import type { BackgroundJobState } from '../utils/background-job-board';
+import type { BackgroundJobStore } from '../utils/background-job-store';
 import { log } from '../utils/logger';
+
+type BackgroundJobReader = Pick<
+  BackgroundJobStore,
+  'getState' | 'deferIfRunning' | 'clearDeferredClose'
+>;
 
 interface TrackedSession {
   sessionId: string;
@@ -32,7 +35,6 @@ interface SharedSessionState {
   knownSessions: Map<string, KnownSession>;
   spawningSessions: Set<string>;
   closingSessions: Map<string, Promise<void>>;
-  deferredIdleCloses: Set<string>;
 }
 
 interface SessionEvent {
@@ -65,7 +67,6 @@ function getSharedState(): SharedSessionState {
     knownSessions: new Map(),
     spawningSessions: new Set(),
     closingSessions: new Map(),
-    deferredIdleCloses: new Set(),
   };
 
   return globalWithState[SHARED_STATE_KEY];
@@ -77,7 +78,6 @@ export function resetMultiplexerSessionManagerState(): void {
   state.knownSessions.clear();
   state.spawningSessions.clear();
   state.closingSessions.clear();
-  state.deferredIdleCloses.clear();
 }
 
 /**
@@ -95,21 +95,19 @@ export class MultiplexerSessionManager {
   private knownSessions: SharedSessionState['knownSessions'];
   private spawningSessions: SharedSessionState['spawningSessions'];
   private closingSessions: SharedSessionState['closingSessions'];
-  private deferredIdleCloses: SharedSessionState['deferredIdleCloses'];
   private pollInterval?: ReturnType<typeof setInterval>;
   private enabled = false;
 
   constructor(
     ctx: PluginInput,
     config: MultiplexerConfig,
-    private readonly backgroundJobBoard?: BackgroundJobBoard,
+    private readonly backgroundJobBoard?: BackgroundJobReader,
   ) {
     const sharedState = getSharedState();
     this.sessions = sharedState.sessions;
     this.knownSessions = sharedState.knownSessions;
     this.spawningSessions = sharedState.spawningSessions;
     this.closingSessions = sharedState.closingSessions;
-    this.deferredIdleCloses = sharedState.deferredIdleCloses;
 
     this.directory = ctx.directory;
     const defaultPort = process.env.OPENCODE_PORT ?? '4096';
@@ -284,7 +282,7 @@ export class MultiplexerSessionManager {
 
     if (statusType) {
       if (statusType !== 'busy') {
-        this.deferredIdleCloses.delete(sessionId);
+        this.backgroundJobBoard?.clearDeferredClose(sessionId);
         return;
       }
 
@@ -316,7 +314,6 @@ export class MultiplexerSessionManager {
       backgroundJobState: this.backgroundJobState(sessionId),
     });
 
-    this.deferredIdleCloses.delete(sessionId);
     await this.closeSession(sessionId, 'deleted');
   }
 
@@ -368,7 +365,7 @@ export class MultiplexerSessionManager {
         if (!status) continue;
 
         if (status.type !== 'idle') {
-          this.deferredIdleCloses.delete(sessionId);
+          this.backgroundJobBoard?.clearDeferredClose(sessionId);
           continue;
         }
 
@@ -410,10 +407,11 @@ export class MultiplexerSessionManager {
   private async closeSession(
     sessionId: string,
     reason: CloseReason,
+    skipPolicyCheck = false,
   ): Promise<void> {
     if (reason === 'deleted') {
       this.knownSessions.delete(sessionId);
-      this.deferredIdleCloses.delete(sessionId);
+      this.backgroundJobBoard?.clearDeferredClose(sessionId);
     }
 
     const existingClose = this.closingSessions.get(sessionId);
@@ -451,8 +449,11 @@ export class MultiplexerSessionManager {
       });
     }
 
-    if (reason === 'idle' && this.isRunningBackgroundJob(sessionId)) {
-      this.deferredIdleCloses.add(sessionId);
+    if (
+      reason === 'idle' &&
+      !skipPolicyCheck &&
+      !this.shouldCloseNow(sessionId)
+    ) {
       log(
         '[multiplexer-session-manager] close skipped; background job running',
         {
@@ -466,7 +467,6 @@ export class MultiplexerSessionManager {
       return;
     }
 
-    this.deferredIdleCloses.delete(sessionId);
     this.sessions.delete(sessionId);
 
     log('[multiplexer-session-manager] closing session pane', {
@@ -580,7 +580,7 @@ export class MultiplexerSessionManager {
         directory: known.directory,
         ownerInstanceId: this.instanceId,
       });
-      this.deferredIdleCloses.delete(sessionId);
+      this.backgroundJobBoard?.clearDeferredClose(sessionId);
 
       log('[multiplexer-session-manager] pane respawned on busy', {
         instanceId: this.instanceId,
@@ -607,7 +607,7 @@ export class MultiplexerSessionManager {
   }
 
   private getSessionId(event: SessionEvent): string | undefined {
-    return event.properties?.info?.id ?? event.properties?.sessionID;
+    return event.properties?.info?.id || event.properties?.sessionID;
   }
 
   private backgroundJobState(
@@ -616,14 +616,16 @@ export class MultiplexerSessionManager {
     return this.backgroundJobBoard?.getState(sessionId);
   }
 
-  private isRunningBackgroundJob(sessionId: string): boolean {
-    return this.backgroundJobBoard?.isRunning(sessionId) ?? false; // ponytail: intent-revealing query
+  private shouldCloseNow(sessionId: string): boolean {
+    return this.backgroundJobBoard?.deferIfRunning(sessionId) ?? true;
   }
 
-  async retryDeferredIdleClose(sessionId: string): Promise<void> {
+  async closeSessionFromCoordinator(sessionId: string): Promise<void> {
     if (!this.enabled) return;
-    if (!this.deferredIdleCloses.has(sessionId)) return;
-    await this.closeSession(sessionId, 'idle');
+    // Coordinator already vetted lifecycle policy; skip re-check
+    // ponytail: theoretical race if new job starts between coordinator's
+    // retryDeferredClose() and this call, but session IDs are unique per launch
+    await this.closeSession(sessionId, 'idle', true);
   }
 
   async cleanup(): Promise<void> {
@@ -653,7 +655,8 @@ export class MultiplexerSessionManager {
     this.knownSessions.clear();
     this.spawningSessions.clear();
     this.closingSessions.clear();
-    this.deferredIdleCloses.clear();
+    // ponytail: deferred state lives in coordinator, not here
+    // Note: coordinator has same lifetime as plugin, so no explicit cleanup needed
 
     log('[multiplexer-session-manager] cleanup complete');
   }

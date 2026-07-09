@@ -21,6 +21,7 @@ import {
   abortSessionWithTimeout,
   parseModelReference,
 } from '../../utils/session';
+import type { SessionLifecycle } from '../session-lifecycle';
 import { isUserMessageWithParts } from '../types';
 
 type OpencodeClient = PluginInput['client'];
@@ -120,7 +121,27 @@ export class ForegroundFallbackManager {
     private readonly enabled: boolean,
     /** Consecutive 429s tolerated on the same model before swap/abort. */
     private readonly maxRetries: number = 3,
-  ) {}
+    coordinator?: SessionLifecycle,
+    /**
+     * When true (default), a runtime model outside the configured chain
+     * still triggers fallback on rate-limit errors. When false, out-of-chain
+     * runtime picks are respected and the error surfaces instead. Models
+     * that are members of the chain always fall back regardless.
+     */
+    private readonly runtimeOverride: boolean = true,
+  ) {
+    if (coordinator) {
+      coordinator.onSessionDeleted((id) => {
+        this.sessionModel.delete(id);
+        this.sessionAgent.delete(id);
+        this.sessionTried.delete(id);
+        this.inProgress.delete(id);
+        this.lastTrigger.delete(id);
+        this.lastTriggerModel.delete(id);
+        this.sessionRetries.delete(id);
+      });
+    }
+  }
 
   /**
    * Process an OpenCode plugin event.
@@ -224,24 +245,14 @@ export class ForegroundFallbackManager {
       }
 
       case 'session.deleted': {
-        // Clean up all per-session state to prevent unbounded memory growth
-        // in long-running instances with many subagent sessions.
-        // OpenCode emits two shapes depending on context:
-        //   { properties: { sessionID } }   - subagent / task sessions
-        //   { properties: { info: { id } } } - top-level session deletion
-        // Mirror the same dual-shape lookup used elsewhere in the plugin.
         const props = event.properties as
           | { sessionID?: string; info?: { id?: string } }
           | undefined;
-        const id = props?.info?.id ?? props?.sessionID;
+        const id = props?.info?.id || props?.sessionID;
         if (id) {
-          this.sessionModel.delete(id);
-          this.sessionAgent.delete(id);
-          this.sessionTried.delete(id);
-          this.inProgress.delete(id);
-          this.lastTrigger.delete(id);
-          this.lastTriggerModel.delete(id);
-          this.sessionRetries.delete(id);
+          log('[foreground-fallback] session.deleted observed', {
+            sessionID: id,
+          });
         }
         break;
       }
@@ -326,6 +337,32 @@ export class ForegroundFallbackManager {
       // "next" fallback target.
       if (!currentModel && agentName && chain.length > 0) {
         currentModel = chain[0];
+      }
+
+      // Guard: when runtimeOverride is false, skip fallback for models
+      // that are not members of the configured chain. This respects a
+      // deliberate runtime `/model` pick (e.g. an expensive model outside
+      // the chain) and lets the error surface instead of silently swapping
+      // to the chain's default. Models that ARE in the chain always fall
+      // back normally regardless of this setting.
+      if (
+        !this.runtimeOverride &&
+        currentModel &&
+        !chain.includes(currentModel)
+      ) {
+        log(
+          '[foreground-fallback] current model not in chain, skipping fallback (runtimeOverride=false)',
+          {
+            sessionID,
+            agentName,
+            currentModel,
+            chain,
+          },
+        );
+        // Abort the session so the rate-limit error surfaces to the user
+        // instead of leaving the session in a silent retry loop.
+        await abortSessionWithTimeout(this.client, sessionID);
+        return;
       }
 
       if (!this.sessionTried.has(sessionID)) {

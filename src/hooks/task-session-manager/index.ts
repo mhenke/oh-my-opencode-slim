@@ -2,8 +2,9 @@ import type { PluginInput } from '@opencode-ai/plugin';
 import {
   BackgroundJobBoard,
   type BackgroundJobRecord,
+  type BackgroundJobStore,
   deriveTaskSessionLabel,
-  isBrandedInternalInitiatorPart,
+  isInternalInitiatorPart,
   parseTaskIdFromTaskOutput,
   parseTaskLaunchOutput,
   parseTaskStatusOutput,
@@ -11,6 +12,7 @@ import {
 import { isRecord as isObjectRecord } from '../../utils/guards';
 import { log } from '../../utils/logger';
 import { isRateLimitError } from '../foreground-fallback/index';
+import type { SessionLifecycle } from '../session-lifecycle';
 import {
   isUserMessageWithParts,
   type MessagePart,
@@ -30,7 +32,8 @@ interface TaskArgs {
   task_id?: unknown;
 }
 
-const BACKGROUND_JOB_BOARD_PART_BRAND = Symbol('slim.backgroundJobBoardPart');
+export const BACKGROUND_JOB_BOARD_METADATA_KEY =
+  'oh-my-opencode-slim.backgroundJobBoard';
 const BACKGROUND_COMPLETION_COMPLETED = /^Background task completed: /;
 const BACKGROUND_COMPLETION_FAILED = /^Background task failed: /;
 const MAX_PROCESSED_INJECTED_COMPLETIONS = 500;
@@ -82,14 +85,15 @@ export function createTaskSessionManagerHook(
     maxSessionsPerAgent: number;
     readContextMinLines?: number;
     readContextMaxFiles?: number;
-    backgroundJobBoard?: BackgroundJobBoard;
+    backgroundJobBoard?: BackgroundJobStore;
     shouldManageSession: (sessionID: string) => boolean;
     /** Optional guard: when provided, idle events for a session that is
      *  currently undergoing a foreground-fallback abort/re-prompt cycle
-     *  will NOT trigger idle reconciliation. Prevents marking a still-
+     *  will NOT trigger idle reconciliation. prevents marking a still-
      *  active child job as completed when the session was aborted for
      *  model fallback rather than natural completion. */
     isFallbackInProgress?: (sessionID: string) => boolean;
+    coordinator?: SessionLifecycle;
   },
 ) {
   const backgroundJobBoard =
@@ -106,6 +110,17 @@ export function createTaskSessionManagerHook(
   const processedInjectedCompletions = new Set<string>();
   const processedInjectedCompletionOrder: string[] = [];
   const terminalJobsInjectedByParent = new Map<string, Set<string>>();
+
+  if (options.coordinator) {
+    options.coordinator.onSessionDeleted((sessionId) => {
+      backgroundJobBoard.drop(sessionId);
+      backgroundJobBoard.clearParent(sessionId);
+      terminalJobsInjectedByParent.delete(sessionId);
+      taskContextTracker.clearSession(sessionId);
+      taskContextTracker.prune(backgroundJobBoard);
+      pendingCallTracker.clearSession(sessionId);
+    });
+  }
 
   function updateBackgroundJobFromOutput(
     output: unknown,
@@ -531,15 +546,15 @@ export function createTaskSessionManagerHook(
           (part) => part.type === 'text' && typeof part.text === 'string',
         );
         if (!textPart) return;
-        if (isBrandedInternalInitiatorPart(textPart)) {
+        if (isInternalInitiatorPart(textPart)) {
           return;
         }
         if (
           message.parts.some(
             (part) =>
-              (part as Record<PropertyKey, unknown>)[
-                BACKGROUND_JOB_BOARD_PART_BRAND
-              ] === true,
+              part.synthetic === true &&
+              isObjectRecord(part.metadata) &&
+              part.metadata[BACKGROUND_JOB_BOARD_METADATA_KEY] === true,
           )
         ) {
           return;
@@ -550,11 +565,8 @@ export function createTaskSessionManagerHook(
           type: 'text',
           synthetic: true,
           text: reminders.join('\n\n'),
+          metadata: { [BACKGROUND_JOB_BOARD_METADATA_KEY]: true },
         };
-        Object.defineProperty(boardPart, BACKGROUND_JOB_BOARD_PART_BRAND, {
-          enumerable: true,
-          value: true,
-        });
         message.parts.unshift(boardPart);
         return;
       }
@@ -597,7 +609,7 @@ export function createTaskSessionManagerHook(
             ?.status?.type === 'idle')
       ) {
         const sessionId =
-          input.event.properties?.info?.id ?? input.event.properties?.sessionID;
+          input.event.properties?.info?.id || input.event.properties?.sessionID;
         const job = sessionId ? backgroundJobBoard.get(sessionId) : undefined;
         log('[task-session-manager] idle/status idle observed', {
           sessionID: sessionId,
@@ -650,7 +662,7 @@ export function createTaskSessionManagerHook(
 
       if (input.event.type === 'session.error') {
         const sessionId =
-          input.event.properties?.info?.id ?? input.event.properties?.sessionID;
+          input.event.properties?.info?.id || input.event.properties?.sessionID;
         if (sessionId && options.shouldManageSession(sessionId)) {
           // Only clear injected terminal jobs for fatal errors.
           // Rate-limit errors are recovered by ForegroundFallbackManager
@@ -674,7 +686,7 @@ export function createTaskSessionManagerHook(
           ?.status?.type === 'busy'
       ) {
         const sessionId =
-          input.event.properties?.info?.id ?? input.event.properties?.sessionID;
+          input.event.properties?.info?.id || input.event.properties?.sessionID;
         const before = sessionId
           ? backgroundJobBoard.get(sessionId)
           : undefined;
@@ -708,34 +720,12 @@ export function createTaskSessionManagerHook(
 
       if (input.event.type !== 'session.deleted') return;
       const sessionId =
-        input.event.properties?.info?.id ?? input.event.properties?.sessionID;
+        input.event.properties?.info?.id || input.event.properties?.sessionID;
       if (!sessionId) return;
 
-      log(
-        '[task-session-manager] session.deleted observed; clearing job state',
-        {
-          sessionID: sessionId,
-          deletedJob: (() => {
-            const record = backgroundJobBoard.get(sessionId);
-            return record
-              ? {
-                  state: record.state,
-                  parentSessionID: record.parentSessionID,
-                  alias: record.alias,
-                }
-              : undefined;
-          })(),
-          childJobCount: backgroundJobBoard.list(sessionId).length,
-          managesSession: options.shouldManageSession(sessionId),
-        },
-      );
-
-      backgroundJobBoard.drop(sessionId);
-      backgroundJobBoard.clearParent(sessionId);
-      terminalJobsInjectedByParent.delete(sessionId);
-      taskContextTracker.clearSession(sessionId);
-      taskContextTracker.prune(backgroundJobBoard);
-      pendingCallTracker.clearSession(sessionId);
+      log('[task-session-manager] session.deleted observed', {
+        sessionID: sessionId,
+      });
     },
   };
 

@@ -1,9 +1,14 @@
 import { describe, expect, mock, test } from 'bun:test';
+import { SessionLifecycle } from '../../hooks/session-lifecycle';
 import {
   BackgroundJobBoard,
+  createInternalAgentTextPart,
   SLIM_INTERNAL_INITIATOR_MARKER,
 } from '../../utils';
-import { createTaskSessionManagerHook } from './index';
+import {
+  BACKGROUND_JOB_BOARD_METADATA_KEY,
+  createTaskSessionManagerHook,
+} from './index';
 
 function createHook(options?: {
   shouldManageSession?: (sessionID: string) => boolean;
@@ -12,6 +17,7 @@ function createHook(options?: {
   backgroundJobBoard?: BackgroundJobBoard;
   sessionStatus?: unknown;
   isFallbackInProgress?: (sessionID: string) => boolean;
+  coordinator?: SessionLifecycle;
 }) {
   const hook = createTaskSessionManagerHook(
     {
@@ -30,6 +36,7 @@ function createHook(options?: {
       backgroundJobBoard: options?.backgroundJobBoard,
       shouldManageSession: options?.shouldManageSession ?? (() => true),
       isFallbackInProgress: options?.isFallbackInProgress,
+      coordinator: options?.coordinator,
     },
   );
 
@@ -133,6 +140,9 @@ describe('task-session-manager hook', () => {
     };
     expect(boardPart.text).toContain('### Background Job Board');
     expect(boardPart.synthetic).toBe(true);
+    expect(boardPart).toMatchObject({
+      metadata: { [BACKGROUND_JOB_BOARD_METADATA_KEY]: true },
+    });
     expect(boardPart.text).toStartWith('<system-reminder>');
     expect(boardPart.text).toEndWith('</system-reminder>');
     expect(boardPart.text).toContain('exp-1 / child-1 / explorer / running');
@@ -178,7 +188,7 @@ describe('task-session-manager hook', () => {
     );
   });
 
-  test('does not duplicate board part after object spread normalization', async () => {
+  test('does not duplicate board part after JSON persistence', async () => {
     const board = new BackgroundJobBoard();
     board.registerLaunch({
       taskID: 'child-1',
@@ -190,9 +200,9 @@ describe('task-session-manager hook', () => {
     const messages = createMessages('parent-1', 'continue');
 
     await hook['experimental.chat.messages.transform']({}, messages);
-    messages.messages[0].parts = messages.messages[0].parts.map((part) => ({
-      ...part,
-    }));
+    messages.messages[0].parts = JSON.parse(
+      JSON.stringify(messages.messages[0].parts),
+    );
     await hook['experimental.chat.messages.transform']({}, messages);
 
     expect(
@@ -238,6 +248,41 @@ describe('task-session-manager hook', () => {
     expect(messages.messages[0].parts[1].text).toBe(
       SLIM_INTERNAL_INITIATOR_MARKER,
     );
+  });
+
+  test('does not inject board context into persisted internal turns', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    const { hook } = createHook({ backgroundJobBoard: board });
+    const internalPart = JSON.parse(
+      JSON.stringify(createInternalAgentTextPart('internal notification')),
+    ) as ReturnType<typeof createInternalAgentTextPart>;
+    const messages = {
+      messages: [
+        {
+          info: {
+            role: 'user',
+            agent: 'orchestrator',
+            sessionID: 'parent-1',
+          },
+          parts: [internalPart],
+        },
+      ],
+    };
+
+    await hook['experimental.chat.messages.transform']({}, messages);
+
+    expect(messages.messages[0].parts).toHaveLength(1);
+    expect(
+      messages.messages[0].parts.some((part) =>
+        part.text.includes('### Background Job Board'),
+      ),
+    ).toBe(false);
   });
 
   test('updates background job board from task output', async () => {
@@ -1850,7 +1895,8 @@ describe('task-session-manager hook', () => {
   });
 
   test('cleans up background jobs when parent or child is deleted', async () => {
-    const { hook } = createHook();
+    const coordinator = new SessionLifecycle(() => {});
+    const { hook } = createHook({ coordinator });
 
     await hook['tool.execute.before'](
       {
@@ -1877,12 +1923,7 @@ describe('task-session-manager hook', () => {
       },
     );
 
-    await hook.event({
-      event: {
-        type: 'session.deleted',
-        properties: { sessionID: 'child-1' },
-      },
-    });
+    coordinator.dispatchSessionDeleted('child-1');
 
     const messages = createMessages('parent-1', 'do something');
     await hook['experimental.chat.messages.transform']({}, messages);
@@ -1891,7 +1932,8 @@ describe('task-session-manager hook', () => {
   });
 
   test('cleans pending calls when parent session is deleted', async () => {
-    const { hook } = createHook();
+    const coordinator = new SessionLifecycle(() => {});
+    const { hook } = createHook({ coordinator });
 
     await hook['tool.execute.before'](
       {
@@ -1907,12 +1949,7 @@ describe('task-session-manager hook', () => {
       },
     );
 
-    await hook.event({
-      event: {
-        type: 'session.deleted',
-        properties: { sessionID: 'parent-1' },
-      },
-    });
+    coordinator.dispatchSessionDeleted('parent-1');
 
     await hook['tool.execute.after'](
       {
@@ -2135,8 +2172,9 @@ describe('task-session-manager hook', () => {
   });
 
   test('parent deletion clears jobs and pending calls', async () => {
+    const coordinator = new SessionLifecycle(() => {});
     const board = new BackgroundJobBoard();
-    const { hook } = createHook({ backgroundJobBoard: board });
+    const { hook } = createHook({ backgroundJobBoard: board, coordinator });
     await hook['tool.execute.before'](
       { tool: 'task', sessionID: 'parent-1', callID: 'call-1' },
       { args: { subagent_type: 'oracle', description: 'architecture review' } },
@@ -2148,9 +2186,7 @@ describe('task-session-manager hook', () => {
       description: 'architecture review',
     });
 
-    await hook.event({
-      event: { type: 'session.deleted', properties: { sessionID: 'parent-1' } },
-    });
+    coordinator.dispatchSessionDeleted('parent-1');
     await hook['tool.execute.after'](
       { tool: 'task', sessionID: 'parent-1', callID: 'call-1' },
       { output: ['task_id: child-2', 'state: running'].join('\n') },

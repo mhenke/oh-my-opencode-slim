@@ -1,4 +1,5 @@
 import { formatSystemReminder } from '../config/constants';
+import type { BackgroundJobStore } from './background-job-store';
 import { parseTaskStatusOutput, type TaskOutputState } from './task';
 
 export interface ContextFile {
@@ -81,7 +82,7 @@ const AGENT_PREFIX: Record<string, string> = {
   oracle: 'ora',
 };
 
-export class BackgroundJobBoard {
+export class BackgroundJobBoard implements BackgroundJobStore {
   private readonly jobs = new Map<string, BackgroundJobRecord>();
   private readonly counters = new Map<string, number>();
   private terminalStateListeners: TerminalStateListener[] = [];
@@ -515,6 +516,20 @@ export class BackgroundJobBoard {
 
   drop(taskID: string): void {
     this.jobs.delete(taskID);
+  }
+
+  // ── Lifecycle policy (board = no policy, always close) ───────────
+
+  deferIfRunning(_sessionId: string): boolean {
+    return false; // ponytail: safe default - don't close
+  }
+
+  retryDeferredClose(_sessionId: string): boolean {
+    return false; // Nothing deferred at board level
+  }
+
+  clearDeferredClose(_sessionId: string): void {
+    // No-op at board level
   }
 
   private trimReusable(taskID: string): void {
