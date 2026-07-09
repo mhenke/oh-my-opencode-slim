@@ -101,7 +101,7 @@ This preset defines no per-agent `skills` or `mcps`. All agents use whatever ski
 
 | Skill | Description | Source |
 | --- | --- | --- |
-| `*` | All installed skills (wildcard) | public |
+| `*` | All installed skills (wildcard) | `public` |
 
 For the complete configuration reference, see
 [Configuration](configuration.md).

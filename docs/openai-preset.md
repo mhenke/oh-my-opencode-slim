@@ -100,8 +100,8 @@ server.
 
 | Skill | Description | Source |
 | --- | --- | --- |
-| `*` | All installed skills (wildcard) | public |
-| `simplify` | Code simplification | public |
+| `*` | All installed skills (wildcard) | `public` |
+| `simplify` | Code simplification | `public` |
 
 For the complete configuration reference, see
 [Configuration](configuration.md).

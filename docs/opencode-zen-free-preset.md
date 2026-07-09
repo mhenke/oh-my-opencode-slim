@@ -68,7 +68,7 @@ You need an API key for the `opencode` provider. Sign up at [OpenCode Zen](https
 
 | Skill | Description | Source |
 | --- | --- | --- |
-| `*` | All installed skills (wildcard) | public |
-| `simplify` | Code simplification | public |
+| `*` | All installed skills (wildcard) | `public` |
+| `simplify` | Code simplification | `public` |
 
 For the complete configuration reference, see [Configuration](configuration.md).
