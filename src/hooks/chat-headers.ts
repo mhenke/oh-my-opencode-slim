@@ -1,6 +1,6 @@
 import type { PluginInput, ProviderContext } from '@opencode-ai/plugin';
 import type { Model, UserMessage } from '@opencode-ai/sdk';
-import { hasInternalInitiatorMarker } from '../utils';
+import { isInternalInitiatorPart } from '../utils';
 
 interface ChatHeadersInput {
   sessionID: string;
@@ -47,7 +47,7 @@ async function hasInternalMarker(
       path: { id: sessionID, messageID },
     });
     const hasMarker = (response.data?.parts ?? []).some(
-      hasInternalInitiatorMarker,
+      isInternalInitiatorPart,
     );
 
     if (hasMarker) {

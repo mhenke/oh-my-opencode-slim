@@ -15,7 +15,12 @@
 import type { MultiplexerLayout } from '../../config/schema';
 import { crossSpawn } from '../../utils/compat';
 import { log } from '../../utils/logger';
-import { buildOpencodeAttachCommand, findBinary } from '../shared';
+import {
+  buildOpencodeAttachCommand,
+  findBinary,
+  gracefulClosePane,
+  normalizePathForShell,
+} from '../shared';
 import type { Multiplexer, PaneResult } from '../types';
 
 type HerdrPaneDirection = 'right' | 'down';
@@ -73,6 +78,10 @@ export class HerdrMultiplexer implements Multiplexer {
     }
 
     try {
+      // Normalize Windows backslashes→/ so sh -lc (MSYS2) doesn't
+      // corrupt --cwd (issue #568).
+      const attachDir = normalizePathForShell(directory);
+
       let paneId: string | null = null;
       let lastRawOutput = '';
 
@@ -118,7 +127,7 @@ export class HerdrMultiplexer implements Multiplexer {
       const opencodeCmd = buildOpencodeAttachCommand(
         sessionId,
         serverUrl,
-        directory,
+        attachDir,
       );
 
       const runProc = crossSpawn([herdr, 'pane', 'run', paneId, opencodeCmd], {
@@ -161,53 +170,17 @@ export class HerdrMultiplexer implements Multiplexer {
   }
 
   async closePane(paneId: string): Promise<boolean> {
-    if (!paneId || paneId === 'unknown') return true;
-
     const herdr = await this.getBinary();
-    if (!herdr) {
-      log('[herdr] closePane: herdr binary not found');
-      return false;
+    const closed = await gracefulClosePane(herdr, paneId, {
+      ctrlC: ['pane', 'send-keys', paneId, 'ctrl+c'],
+      close: ['pane', 'close', paneId],
+      acceptExitCode1: true,
+      emptyPaneReturnsTrue: true,
+    });
+    if (closed && paneId === this.agentAreaPaneId) {
+      this.agentAreaPaneId = null;
     }
-
-    try {
-      // Send Ctrl+C for graceful shutdown
-      log('[herdr] closePane: sending Ctrl+C', { paneId });
-      await crossSpawn([herdr, 'pane', 'send-keys', paneId, 'ctrl+c'], {
-        stdout: 'ignore',
-        stderr: 'ignore',
-      }).exited;
-
-      // Wait for graceful shutdown
-      await new Promise((r) => setTimeout(r, 250));
-
-      // Close the pane
-      log('[herdr] closePane: closing pane', { paneId });
-      const proc = crossSpawn([herdr, 'pane', 'close', paneId], {
-        stdout: 'pipe',
-        stderr: 'pipe',
-      });
-
-      const exitCode = await proc.exited;
-      const stderr = await proc.stderr();
-
-      log('[herdr] closePane: result', { exitCode, stderr: stderr.trim() });
-
-      if (exitCode === 0 || exitCode === 1) {
-        if (paneId === this.agentAreaPaneId) {
-          this.agentAreaPaneId = null;
-        }
-        return true;
-      }
-
-      // Pane might already be closed
-      log('[herdr] closePane: failed (pane may already be closed)', {
-        paneId,
-      });
-      return false;
-    } catch (err) {
-      log('[herdr] closePane: exception', { error: String(err) });
-      return false;
-    }
+    return closed;
   }
 
   async applyLayout(

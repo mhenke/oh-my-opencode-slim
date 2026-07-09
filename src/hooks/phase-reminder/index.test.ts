@@ -1,6 +1,13 @@
 import { describe, expect, test } from 'bun:test';
-import { SLIM_INTERNAL_INITIATOR_MARKER } from '../../utils';
-import { createPhaseReminderHook, PHASE_REMINDER } from './index';
+import {
+  createInternalAgentTextPart,
+  SLIM_INTERNAL_INITIATOR_MARKER,
+} from '../../utils';
+import {
+  createPhaseReminderHook,
+  PHASE_REMINDER,
+  PHASE_REMINDER_METADATA_KEY,
+} from './index';
 
 describe('createPhaseReminderHook', () => {
   test('appends reminder as a separate part for orchestrator sessions', async () => {
@@ -20,6 +27,12 @@ describe('createPhaseReminderHook', () => {
     expect(output.messages[0].parts.length).toBe(2);
     expect(output.messages[0].parts[0].text).toBe('hello');
     expect(output.messages[0].parts[1].text).toBe(PHASE_REMINDER);
+    expect(output.messages[0].parts[1].text).toStartWith('<system-reminder>');
+    expect(output.messages[0].parts[1].text).toEndWith('</system-reminder>');
+    expect(output.messages[0].parts[1]).toMatchObject({
+      synthetic: true,
+      metadata: { [PHASE_REMINDER_METADATA_KEY]: true },
+    });
   });
 
   test('skips non-orchestrator sessions', async () => {
@@ -46,7 +59,9 @@ describe('createPhaseReminderHook', () => {
       messages: [
         {
           info: { role: 'user' },
-          parts: [{ type: 'text', text }],
+          parts: [
+            createInternalAgentTextPart('[Background task "x" completed]'),
+          ],
         },
       ],
     };
@@ -57,7 +72,52 @@ describe('createPhaseReminderHook', () => {
     expect(output.messages[0].parts.length).toBe(1);
   });
 
-  test('does not append duplicate reminder', async () => {
+  test('does not mutate persisted internal notification turns', async () => {
+    const hook = createPhaseReminderHook();
+    const internalPart = JSON.parse(
+      JSON.stringify(createInternalAgentTextPart('internal notification')),
+    ) as ReturnType<typeof createInternalAgentTextPart>;
+    const output = {
+      messages: [
+        {
+          info: { role: 'user', agent: 'orchestrator' },
+          parts: [internalPart],
+        },
+      ],
+    };
+
+    await hook['experimental.chat.messages.transform']({}, output);
+
+    expect(output.messages[0].parts).toHaveLength(1);
+    expect(
+      output.messages[0].parts.some((part) => part.text === PHASE_REMINDER),
+    ).toBe(false);
+  });
+
+  test('does not let user-visible internal marker suppress injection', async () => {
+    const hook = createPhaseReminderHook();
+    const output = {
+      messages: [
+        {
+          info: { role: 'user', agent: 'orchestrator' },
+          parts: [
+            {
+              type: 'text',
+              synthetic: true,
+              text: `hello ${SLIM_INTERNAL_INITIATOR_MARKER}`,
+            },
+          ],
+        },
+      ],
+    };
+
+    await hook['experimental.chat.messages.transform']({}, output);
+
+    expect(output.messages[0].parts).toHaveLength(2);
+    expect(output.messages[0].parts[1].text).toBe(PHASE_REMINDER);
+  });
+
+  test('does not append duplicate reminder after JSON persistence', async () => {
     const hook = createPhaseReminderHook();
     const output = {
       messages: [
@@ -65,7 +125,14 @@ describe('createPhaseReminderHook', () => {
           info: { role: 'user', agent: 'orchestrator' },
           parts: [
             { type: 'text', text: 'hello' },
-            { type: 'text', text: PHASE_REMINDER },
+            JSON.parse(
+              JSON.stringify({
+                type: 'text',
+                synthetic: true,
+                text: PHASE_REMINDER,
+                metadata: { [PHASE_REMINDER_METADATA_KEY]: true },
+              }),
+            ),
           ],
         },
       ],
@@ -75,6 +142,22 @@ describe('createPhaseReminderHook', () => {
 
     expect(output.messages[0].parts.length).toBe(2);
     expect(output.messages[0].parts[0].text).toBe('hello');
+  });
+
+  test('does not trust ordinary reminder text for dedupe', async () => {
+    const hook = createPhaseReminderHook();
+    const output = {
+      messages: [
+        {
+          info: { role: 'user', agent: 'orchestrator' },
+          parts: [{ type: 'text', text: PHASE_REMINDER }],
+        },
+      ],
+    };
+
+    await hook['experimental.chat.messages.transform']({}, output);
+
+    expect(output.messages[0].parts).toHaveLength(2);
   });
 
   test('does not modify original user message text (bug #448)', async () => {

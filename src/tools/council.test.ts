@@ -99,6 +99,18 @@ describe('council_session tool', () => {
       expect(tools.council_session.args.preset).toBeDefined();
       expect(tools.council_session.args).toHaveProperty('preset');
     });
+
+    test('preset description does not hardcode the "default" preset', () => {
+      const ctx = createMockPluginContext();
+      const councilManager = createMockCouncilManager();
+      const tools = createCouncilTool(ctx, councilManager);
+
+      const description = (tools.council_session.args.preset as any)
+        .description;
+      expect(description).toBeDefined();
+      expect(description).not.toContain('(default: "default")');
+      expect(description).toContain('configured default');
+    });
   });
 
   describe('execute', () => {

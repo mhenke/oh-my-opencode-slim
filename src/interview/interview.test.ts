@@ -3,6 +3,7 @@ import * as fs from 'node:fs/promises';
 import { createServer } from 'node:http';
 import * as path from 'node:path';
 import { InterviewConfigSchema } from '../config/schema';
+import { INTERNAL_INITIATOR_METADATA_KEY } from '../utils';
 import { createInterviewServer } from './server';
 import {
   createInterviewService as createRealInterviewService,
@@ -130,7 +131,14 @@ describe('interview service', () => {
       const service = createInterviewService(ctx);
       // Set up base URL resolver to avoid server error
       service.setBaseUrlResolver(async () => 'http://localhost:9999');
-      const output = { parts: [] as Array<{ type: string; text?: string }> };
+      const output = {
+        parts: [] as Array<{
+          type: string;
+          text?: string;
+          synthetic?: boolean;
+          metadata?: Record<string, unknown>;
+        }>,
+      };
 
       await service.handleCommandExecuteBefore(
         {
@@ -146,6 +154,10 @@ describe('interview service', () => {
       expect(output.parts[0].type).toBe('text');
       expect(output.parts[0].text).toContain('My App Idea');
       expect(output.parts[0].text).toContain('<interview_state>');
+      expect(output.parts[0]).toMatchObject({
+        synthetic: true,
+        metadata: { [INTERNAL_INITIATOR_METADATA_KEY]: true },
+      });
 
       // Should send UI notification prompt to session
       expect(ctx.client.session.prompt).toHaveBeenCalled();
