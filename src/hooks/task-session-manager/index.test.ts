@@ -17,6 +17,7 @@ function flushIdleReconcileDelay() {
 
 function createHook(options?: {
   shouldManageSession?: (sessionID: string) => boolean;
+  registerSessionAsOrchestrator?: (sessionID: string) => void;
   readContextMinLines?: number;
   readContextMaxFiles?: number;
   backgroundJobBoard?: BackgroundJobBoard;
@@ -40,6 +41,7 @@ function createHook(options?: {
       readContextMaxFiles: options?.readContextMaxFiles,
       backgroundJobBoard: options?.backgroundJobBoard,
       shouldManageSession: options?.shouldManageSession ?? (() => true),
+      registerSessionAsOrchestrator: options?.registerSessionAsOrchestrator,
       isFallbackInProgress: options?.isFallbackInProgress,
       coordinator: options?.coordinator,
     },
@@ -2260,5 +2262,109 @@ describe('task-session-manager hook', () => {
     );
 
     expect(board.list('parent-1')).toHaveLength(0);
+  });
+
+  test('recovers stale orchestrator mapping in tool.execute.before', async () => {
+    const agentMap = new Map<string, string>();
+    agentMap.set('orchestrator-1', 'explorer'); // stale non-orchestrator value
+
+    const board = new BackgroundJobBoard();
+
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      shouldManageSession: (id) => agentMap.get(id) === 'orchestrator',
+      registerSessionAsOrchestrator: (id) => {
+        agentMap.set(id, 'orchestrator');
+      },
+    });
+
+    // Before recovery: stale mapping blocks pending call creation
+    await hook['tool.execute.before'](
+      {
+        tool: 'task',
+        sessionID: 'orchestrator-1',
+        callID: 'call-recovery',
+      },
+      {
+        args: {
+          subagent_type: 'explorer',
+          description: 'test recovery',
+        },
+      },
+    );
+
+    // After recovery: agentMap now has 'orchestrator' for this session
+    expect(agentMap.get('orchestrator-1')).toBe('orchestrator');
+
+    // executeTool.after finds the pending call and registers the board entry
+    await hook['tool.execute.after'](
+      {
+        tool: 'task',
+        sessionID: 'orchestrator-1',
+        callID: 'call-recovery',
+      },
+      {
+        output: [
+          'task_id: child-recovery-1',
+          'state: running',
+          '',
+          '<task_result>',
+          'Background task started.',
+          '</task_result>',
+        ].join('\n'),
+      },
+    );
+
+    const jobs = board.list('orchestrator-1');
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0]).toMatchObject({
+      taskID: 'child-recovery-1',
+      parentSessionID: 'orchestrator-1',
+      state: 'running',
+    });
+  });
+
+  test('recovers stale orchestrator mapping in messages.transform', async () => {
+    const agentMap = new Map<string, string>();
+    agentMap.set('orchestrator-1', 'explorer'); // stale non-orchestrator value
+
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-transform-1',
+      parentSessionID: 'orchestrator-1',
+      agent: 'explorer',
+      description: 'transform recovery test',
+    });
+
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      shouldManageSession: (id) => agentMap.get(id) === 'orchestrator',
+      registerSessionAsOrchestrator: (id) => {
+        agentMap.set(id, 'orchestrator');
+      },
+    });
+
+    // Before recovery: stale mapping blocks transform processing
+    const messages = {
+      messages: [
+        {
+          info: {
+            role: 'user',
+            agent: 'orchestrator',
+            sessionID: 'orchestrator-1',
+          },
+          parts: [{ type: 'text', text: 'continue working' }],
+        },
+      ],
+    };
+
+    await hook['experimental.chat.messages.transform']({}, messages as never);
+
+    // After recovery: agentMap corrected, board reminders injected
+    expect(agentMap.get('orchestrator-1')).toBe('orchestrator');
+    expect(messages.messages[0].parts[0].text).toContain(
+      '### Background Job Board',
+    );
+    expect(messages.messages[0].parts[0].text).toContain('child-transform-1');
   });
 });

@@ -99,6 +99,9 @@ export function createTaskSessionManagerHook(
     readContextMaxFiles?: number;
     backgroundJobBoard?: BackgroundJobStore;
     shouldManageSession: (sessionID: string) => boolean;
+    /** Register a session as orchestrator when the transform hook detects
+     *  an orchestrator message but the session isn't in the agent map yet. */
+    registerSessionAsOrchestrator?: (sessionID: string) => void;
     /** Optional guard: when provided, idle events for a session that is
      *  currently undergoing a foreground-fallback abort/re-prompt cycle
      *  will NOT trigger idle reconciliation. prevents marking a still-
@@ -210,7 +213,12 @@ export function createTaskSessionManagerHook(
     if (part.synthetic !== true) return undefined;
 
     const status = parseTaskStatusOutput(part.text);
-    if (!status) return undefined;
+    if (!status) {
+      log('[task-session-manager] synthetic part missing task status', {
+        textPreview: part.text.slice(0, 120),
+      });
+      return undefined;
+    }
     if (status.state !== 'completed' && status.state !== 'error') {
       return undefined;
     }
@@ -329,8 +337,17 @@ export function createTaskSessionManagerHook(
     ): Promise<void> => {
       const toolName = input.tool.toLowerCase();
       if (toolName !== 'task') return;
-      if (!input.sessionID || !options.shouldManageSession(input.sessionID)) {
-        return;
+      if (!input.sessionID) return;
+      if (!options.shouldManageSession(input.sessionID)) {
+        // ponytail: no agent-identity guard here — at tool.execute.before
+        // time there's no message to inspect. Only orchestrators call `task`
+        // in standard architecture; non-orchestrator false-positives are
+        // accepted because leaf agents don't use this tool.
+        options.registerSessionAsOrchestrator?.(input.sessionID);
+        if (!options.shouldManageSession(input.sessionID)) return;
+        log('[task-session-manager] recovered stale orchestrator mapping', {
+          sessionID: input.sessionID,
+        });
       }
       if (!isObjectRecord(output.args)) return;
 
@@ -361,6 +378,17 @@ export function createTaskSessionManagerHook(
         label,
       };
       pendingCallTracker.add(pendingCall);
+      log(
+        '[task-session-manager] tool.execute.before task — pending call created',
+        {
+          callId: pendingCall.callId,
+          parentSessionId: pendingCall.parentSessionId,
+          agentType: pendingCall.agentType,
+          label: pendingCall.label,
+          inputCallID: input.callID,
+          inputSessionID: input.sessionID,
+        },
+      );
 
       if (typeof args.task_id !== 'string' || args.task_id.trim() === '') {
         return;
@@ -427,6 +455,16 @@ export function createTaskSessionManagerHook(
       if (input.tool.toLowerCase() !== 'task') return;
 
       const pending = pendingCallTracker.take(input.callID, input.sessionID);
+      log('[task-session-manager] tool.execute.after task', {
+        callID: input.callID,
+        sessionID: input.sessionID,
+        hasPending: !!pending,
+        outputType: typeof output.output,
+        outputPreview:
+          typeof output.output === 'string'
+            ? output.output.slice(0, 120)
+            : undefined,
+      });
 
       if (!pending || typeof output.output !== 'string') return;
       const launch = parseTaskLaunchOutput(output.output);
@@ -530,7 +568,12 @@ export function createTaskSessionManagerHook(
           !message.info.sessionID ||
           !options.shouldManageSession(message.info.sessionID)
         ) {
-          continue;
+          const sessionID = message.info.sessionID;
+          if (!sessionID || message.info.agent !== 'orchestrator') {
+            continue;
+          }
+          options.registerSessionAsOrchestrator?.(sessionID);
+          if (!options.shouldManageSession(sessionID)) continue;
         }
 
         for (const [partIndex, part] of message.parts.entries()) {
