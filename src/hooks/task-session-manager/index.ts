@@ -47,6 +47,9 @@ const RAW_SESSION_ID_PATTERN = /^ses_[A-Za-z0-9_-]+$/;
  */
 const IDLE_RECONCILE_DELAY_MS = 2_000;
 
+/** Track idle reconciliation timers to cancel on busy/error/deleted. */
+const idleReconcileTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
 function djb2Hash(str: string): string {
   let hash = 5381;
   for (let i = 0; i < str.length; i++) {
@@ -615,10 +618,11 @@ export function createTaskSessionManagerHook(
           runningJobForSession: job?.state === 'running' || false,
         });
         if (sessionId && options.shouldManageSession(sessionId)) {
-          setTimeout(
-            () => reconcileInjectedTerminalJobs(sessionId),
-            IDLE_RECONCILE_DELAY_MS,
-          ).unref?.();
+          const timer = setTimeout(() => {
+            idleReconcileTimers.delete(sessionId);
+            reconcileInjectedTerminalJobs(sessionId);
+          }, IDLE_RECONCILE_DELAY_MS).unref?.();
+          idleReconcileTimers.set(sessionId, timer);
         }
 
         // Fallback: for background child sessions that go idle without
@@ -658,6 +662,13 @@ export function createTaskSessionManagerHook(
       if (input.event.type === 'session.error') {
         const sessionId =
           input.event.properties?.info?.id || input.event.properties?.sessionID;
+        if (sessionId) {
+          const timer = idleReconcileTimers.get(sessionId);
+          if (timer) {
+            clearTimeout(timer);
+            idleReconcileTimers.delete(sessionId);
+          }
+        }
         if (sessionId && options.shouldManageSession(sessionId)) {
           // Only clear injected terminal jobs for fatal errors.
           // Rate-limit errors are recovered by ForegroundFallbackManager
@@ -682,6 +693,13 @@ export function createTaskSessionManagerHook(
       ) {
         const sessionId =
           input.event.properties?.info?.id || input.event.properties?.sessionID;
+        if (sessionId) {
+          const timer = idleReconcileTimers.get(sessionId);
+          if (timer) {
+            clearTimeout(timer);
+            idleReconcileTimers.delete(sessionId);
+          }
+        }
         const before = sessionId
           ? backgroundJobBoard.get(sessionId)
           : undefined;
@@ -717,6 +735,12 @@ export function createTaskSessionManagerHook(
       const sessionId =
         input.event.properties?.info?.id || input.event.properties?.sessionID;
       if (!sessionId) return;
+
+      const timer = idleReconcileTimers.get(sessionId);
+      if (timer) {
+        clearTimeout(timer);
+        idleReconcileTimers.delete(sessionId);
+      }
 
       log('[task-session-manager] session.deleted observed', {
         sessionID: sessionId,
