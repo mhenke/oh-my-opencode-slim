@@ -2,10 +2,11 @@ import { describe, expect, mock, test } from 'bun:test';
 import { BackgroundJobBoard } from './background-job-board';
 import { BackgroundJobCoordinator } from './background-job-coordinator';
 
-function createMockBoard(isRunning = false) {
+function createMockBoard(isRunning = false, timedOut = false) {
   return {
     isRunning: mock(() => isRunning),
     getState: mock(() => (isRunning ? 'running' : 'completed')),
+    get: mock(() => ({ state: isRunning ? 'running' : 'completed', timedOut })),
     addTerminalStateListener: mock(() => {}),
     removeTerminalStateListener: mock(() => {}),
   } as any;
@@ -75,7 +76,7 @@ describe('BackgroundJobCoordinator', () => {
     expect(listener).toHaveBeenCalledWith('ses_123');
   });
 
-  test('handleTerminalState does not notify when not in deferred set', () => {
+  test('handleTerminalState notifies listeners even when not in deferred set', () => {
     const board = createMockBoard(false);
     const coordinator = new BackgroundJobCoordinator(board);
     const listener = mock(() => {});
@@ -87,7 +88,7 @@ describe('BackgroundJobCoordinator', () => {
     const boardListener = board.addTerminalStateListener.mock.calls[0]?.[0];
     boardListener?.('ses_123');
 
-    expect(listener).not.toHaveBeenCalled();
+    expect(listener).toHaveBeenCalledWith('ses_123');
   });
 
   test('full chain: board terminal → coordinator → listener for deferred job', () => {
