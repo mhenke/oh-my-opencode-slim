@@ -1,3 +1,4 @@
+import { formatSystemReminder } from '../config/constants';
 import type { BackgroundJobStore } from './background-job-store';
 import { parseTaskStatusOutput, type TaskOutputState } from './task';
 
@@ -485,24 +486,26 @@ export class BackgroundJobBoard implements BackgroundJobStore {
 
     if (active.length === 0 && reusable.length === 0) return undefined;
 
-    return [
-      '### Background Job Board',
-      'SENTINEL: background-job-board-v2',
-      'Do not poll running jobs. Wait for hook-driven completion, or use cancel_task only for explicit cancellation. Reconcile terminal jobs before final response.',
-      'Completed or reconciled sessions are reusable by alias for the same specialist/context.',
-      'Timed-out running sessions are recoverable by alias for safe resume after a live busy signal.',
-      'Cancelled or errored sessions are not reusable.',
-      '',
-      '#### Active / Unreconciled',
-      ...(active.length > 0
-        ? active.map((job) => formatJob(job, now))
-        : ['- none']),
-      '',
-      '#### Reusable Sessions',
-      ...(reusable.length > 0
-        ? reusable.map((job) => this.formatReusableJob(job))
-        : ['- none']),
-    ].join('\n');
+    return formatSystemReminder(
+      [
+        '### Background Job Board',
+        'SENTINEL: background-job-board-v2',
+        'Do not poll running jobs. Wait for hook-driven completion, or use cancel_task only for explicit cancellation. Reconcile terminal jobs before final response.',
+        'Completed or reconciled sessions are reusable by alias for the same specialist/context.',
+        'Timed-out running sessions are recoverable by alias for safe resume after a live busy signal.',
+        'Cancelled or errored sessions are not reusable.',
+        '',
+        '#### Active / Unreconciled',
+        ...(active.length > 0
+          ? active.map((job) => formatJob(job, now))
+          : ['- none']),
+        '',
+        '#### Reusable Sessions',
+        ...(reusable.length > 0
+          ? reusable.map((job) => this.formatReusableJob(job))
+          : ['- none']),
+      ].join('\n'),
+    );
   }
 
   clearParent(parentSessionID: string): void {
@@ -548,8 +551,8 @@ export class BackgroundJobBoard implements BackgroundJobStore {
       ? 'unreconciled'
       : 'reconciled';
     const lines = [
-      `- ${job.alias} / ${job.taskID} / ${job.agent} / ${terminal ?? job.state}, ${reconciliation}`,
-      `  Objective: ${job.objective || job.description}`,
+      `- ${promptSafe(job.alias)} / ${promptSafe(job.taskID)} / ${promptSafe(job.agent)} / ${promptSafe(terminal ?? job.state)}, ${reconciliation}`,
+      `  Objective: ${promptSafe(job.objective || job.description)}`,
     ];
     const context = formatContextFiles(
       job.contextFiles,
@@ -603,7 +606,7 @@ function formatContextFiles(files: ContextFile[], maxFiles: number): string {
   const shown = files.slice(0, maxFiles);
   const rest = files.length - shown.length;
   const rendered = shown.map(
-    (file) => `${file.path} (${file.lineCount} lines)`,
+    (file) => `${promptSafe(file.path)} (${file.lineCount} lines)`,
   );
   return `${rendered.join(', ')}${rest > 0 ? ` (+${rest} more)` : ''}`;
 }
@@ -627,14 +630,14 @@ function formatJob(job: BackgroundJobRecord, now = Date.now()): string {
         ? `${job.state}, timed out`
         : `${job.state}${ageLabel}`;
   const lines = [
-    `- ${job.alias} / ${job.taskID} / ${job.agent} / ${status}`,
-    `  Objective: ${job.objective || job.description}`,
+    `- ${promptSafe(job.alias)} / ${promptSafe(job.taskID)} / ${promptSafe(job.agent)} / ${promptSafe(status)}`,
+    `  Objective: ${promptSafe(job.objective || job.description)}`,
   ];
 
   if (job.resultSummary && job.terminalUnreconciled) {
-    lines.push(`  Result: ${singleLine(job.resultSummary)}`);
+    lines.push(`  Result: ${promptSafe(job.resultSummary)}`);
   } else if (job.lastStatusError && job.statusUncertain) {
-    lines.push(`  Status: ${singleLine(job.lastStatusError)}`);
+    lines.push(`  Status: ${promptSafe(job.lastStatusError)}`);
   }
 
   return lines.join('\n');
@@ -644,6 +647,13 @@ function singleLine(value: string): string {
   const normalized = value.replace(/\s+/g, ' ').trim();
   if (normalized.length <= 160) return normalized;
   return `${normalized.slice(0, 157)}...`;
+}
+
+function promptSafe(value: string): string {
+  return singleLine(value)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
 }
 
 function normalizeCancelReason(reason?: string): string {

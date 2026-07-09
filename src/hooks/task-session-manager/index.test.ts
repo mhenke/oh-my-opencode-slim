@@ -1,7 +1,14 @@
 import { describe, expect, mock, test } from 'bun:test';
 import { SessionLifecycle } from '../../hooks/session-lifecycle';
-import { BackgroundJobBoard } from '../../utils';
-import { createTaskSessionManagerHook } from './index';
+import {
+  BackgroundJobBoard,
+  createInternalAgentTextPart,
+  SLIM_INTERNAL_INITIATOR_MARKER,
+} from '../../utils';
+import {
+  BACKGROUND_JOB_BOARD_METADATA_KEY,
+  createTaskSessionManagerHook,
+} from './index';
 
 function createHook(options?: {
   shouldManageSession?: (sessionID: string) => boolean;
@@ -127,13 +134,155 @@ describe('task-session-manager hook', () => {
     await hook['experimental.chat.messages.transform']({}, messages);
 
     const userMessage = messages.messages[0];
-    expect(userMessage.parts[0].text).toContain('### Background Job Board');
-    expect(userMessage.parts[0].text).toContain(
+    const boardPart = userMessage.parts[0] as {
+      text?: string;
+      synthetic?: boolean;
+    };
+    expect(boardPart.text).toContain('### Background Job Board');
+    expect(boardPart.synthetic).toBe(true);
+    expect(boardPart).toMatchObject({
+      metadata: { [BACKGROUND_JOB_BOARD_METADATA_KEY]: true },
+    });
+    expect(boardPart.text).toStartWith('<system-reminder>');
+    expect(boardPart.text).toEndWith('</system-reminder>');
+    expect(boardPart.text).toContain('exp-1 / child-1 / explorer / running');
+    expect(boardPart.text).toContain('Objective: map scheduler hooks');
+    expect(userMessage.parts[1].text).toBe('do something');
+  });
+
+  test('does not let user-visible sentinel text suppress board injection', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    const { hook } = createHook({ backgroundJobBoard: board });
+    const messages = {
+      messages: [
+        {
+          info: { role: 'user', agent: 'orchestrator', sessionID: 'parent-1' },
+          parts: [
+            {
+              type: 'text',
+              synthetic: true,
+              text: 'SENTINEL: background-job-board-v2',
+            },
+          ],
+        },
+      ],
+    };
+
+    await hook['experimental.chat.messages.transform']({}, messages);
+
+    expect(messages.messages[0].parts[0]).toMatchObject({
+      type: 'text',
+      synthetic: true,
+    });
+    expect(messages.messages[0].parts[0].text).toContain(
       'exp-1 / child-1 / explorer / running',
     );
-    expect(userMessage.parts[0].text).toContain(
-      'Objective: map scheduler hooks',
+    expect(messages.messages[0].parts[1].text).toBe(
+      'SENTINEL: background-job-board-v2',
     );
+  });
+
+  test('does not duplicate board part after JSON persistence', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    const { hook } = createHook({ backgroundJobBoard: board });
+    const messages = createMessages('parent-1', 'continue');
+
+    await hook['experimental.chat.messages.transform']({}, messages);
+    messages.messages[0].parts = JSON.parse(
+      JSON.stringify(messages.messages[0].parts),
+    );
+    await hook['experimental.chat.messages.transform']({}, messages);
+
+    expect(
+      messages.messages[0].parts.filter((part) =>
+        part.text?.includes('### Background Job Board'),
+      ),
+    ).toHaveLength(1);
+  });
+
+  test('does not let user-visible internal marker suppress board injection', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    const { hook } = createHook({ backgroundJobBoard: board });
+    const messages = {
+      messages: [
+        {
+          info: { role: 'user', agent: 'orchestrator', sessionID: 'parent-1' },
+          parts: [
+            {
+              type: 'text',
+              synthetic: true,
+              text: SLIM_INTERNAL_INITIATOR_MARKER,
+            },
+          ],
+        },
+      ],
+    };
+
+    await hook['experimental.chat.messages.transform']({}, messages);
+
+    expect(messages.messages[0].parts[0]).toMatchObject({
+      type: 'text',
+      synthetic: true,
+    });
+    expect(messages.messages[0].parts[0].text).toContain(
+      'exp-1 / child-1 / explorer / running',
+    );
+    expect(messages.messages[0].parts[1].text).toBe(
+      SLIM_INTERNAL_INITIATOR_MARKER,
+    );
+  });
+
+  test('does not inject board context into persisted internal turns', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    const { hook } = createHook({ backgroundJobBoard: board });
+    const internalPart = JSON.parse(
+      JSON.stringify(createInternalAgentTextPart('internal notification')),
+    ) as ReturnType<typeof createInternalAgentTextPart>;
+    const messages = {
+      messages: [
+        {
+          info: {
+            role: 'user',
+            agent: 'orchestrator',
+            sessionID: 'parent-1',
+          },
+          parts: [internalPart],
+        },
+      ],
+    };
+
+    await hook['experimental.chat.messages.transform']({}, messages);
+
+    expect(messages.messages[0].parts).toHaveLength(1);
+    expect(
+      messages.messages[0].parts.some((part) =>
+        part.text.includes('### Background Job Board'),
+      ),
+    ).toBe(false);
   });
 
   test('updates background job board from task output', async () => {

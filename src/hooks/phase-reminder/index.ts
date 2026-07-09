@@ -6,11 +6,14 @@
  * of the user's actual turn.
  */
 import { PHASE_REMINDER } from '../../config/constants';
-import { SLIM_INTERNAL_INITIATOR_MARKER } from '../../utils';
+import { isInternalInitiatorPart } from '../../utils';
+import { isRecord } from '../../utils/guards';
 import type { SessionLifecycle } from '../session-lifecycle';
 import { isUserMessageWithParts } from '../types';
 
 export { PHASE_REMINDER };
+
+export const PHASE_REMINDER_METADATA_KEY = 'oh-my-opencode-slim.phaseReminder';
 
 /**
  * Creates the experimental.chat.messages.transform hook for phase reminder injection.
@@ -67,13 +70,18 @@ export function createPhaseReminderHook(coordinator?: SessionLifecycle) {
         return;
       }
 
-      const originalText = lastUserMessage.parts[textPartIndex].text ?? '';
-      if (originalText.includes(SLIM_INTERNAL_INITIATOR_MARKER)) {
+      const originalPart = lastUserMessage.parts[textPartIndex];
+      if (isInternalInitiatorPart(originalPart)) {
         return;
       }
-      // Prevent duplicate injection: check if any existing part already contains
-      // the phase reminder (either merged into text or as a standalone part).
-      if (lastUserMessage.parts.some((p) => p.text?.includes(PHASE_REMINDER))) {
+      if (
+        lastUserMessage.parts.some(
+          (part) =>
+            part.synthetic === true &&
+            isRecord(part.metadata) &&
+            part.metadata[PHASE_REMINDER_METADATA_KEY] === true,
+        )
+      ) {
         return;
       }
 
@@ -82,7 +90,9 @@ export function createPhaseReminderHook(coordinator?: SessionLifecycle) {
       // the UI display and chat history (issue #448).
       lastUserMessage.parts.push({
         type: 'text',
+        synthetic: true,
         text: PHASE_REMINDER,
+        metadata: { [PHASE_REMINDER_METADATA_KEY]: true },
       });
     },
   };

@@ -4,10 +4,10 @@ import {
   type BackgroundJobRecord,
   type BackgroundJobStore,
   deriveTaskSessionLabel,
+  isInternalInitiatorPart,
   parseTaskIdFromTaskOutput,
   parseTaskLaunchOutput,
   parseTaskStatusOutput,
-  SLIM_INTERNAL_INITIATOR_MARKER,
 } from '../../utils';
 import { isRecord as isObjectRecord } from '../../utils/guards';
 import { log } from '../../utils/logger';
@@ -32,7 +32,8 @@ interface TaskArgs {
   task_id?: unknown;
 }
 
-const BACKGROUND_JOB_BOARD_SENTINEL = 'SENTINEL: background-job-board-v2';
+export const BACKGROUND_JOB_BOARD_METADATA_KEY =
+  'oh-my-opencode-slim.backgroundJobBoard';
 const BACKGROUND_COMPLETION_COMPLETED = /^Background task completed: /;
 const BACKGROUND_COMPLETION_FAILED = /^Background task failed: /;
 const MAX_PROCESSED_INJECTED_COMPLETIONS = 500;
@@ -545,13 +546,28 @@ export function createTaskSessionManagerHook(
           (part) => part.type === 'text' && typeof part.text === 'string',
         );
         if (!textPart) return;
-        if (textPart.text?.includes(SLIM_INTERNAL_INITIATOR_MARKER)) return;
-        if (textPart.text?.includes(BACKGROUND_JOB_BOARD_SENTINEL)) return;
+        if (isInternalInitiatorPart(textPart)) {
+          return;
+        }
+        if (
+          message.parts.some(
+            (part) =>
+              part.synthetic === true &&
+              isObjectRecord(part.metadata) &&
+              part.metadata[BACKGROUND_JOB_BOARD_METADATA_KEY] === true,
+          )
+        ) {
+          return;
+        }
 
         rememberInjectedTerminalJobs(message.info.sessionID);
-        textPart.text = [textPart.text ?? '', '', reminders.join('\n\n')].join(
-          '\n',
-        );
+        const boardPart = {
+          type: 'text',
+          synthetic: true,
+          text: reminders.join('\n\n'),
+          metadata: { [BACKGROUND_JOB_BOARD_METADATA_KEY]: true },
+        };
+        message.parts.unshift(boardPart);
         return;
       }
     },
