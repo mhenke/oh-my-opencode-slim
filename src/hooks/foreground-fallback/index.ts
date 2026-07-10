@@ -221,10 +221,13 @@ export class ForegroundFallbackManager {
           msg.includes('high concurrency') ||
           msg.includes('reduce concurrency')
         ) {
-          // session.status retry path always counts toward the budget
-          // — even the first retry is absorbed before intervening.
-          if (this.checkRetryBudget(props.sessionID)) {
+          // Abort retry loop before falling back — promptAsync alone
+          // is ignored when the session is in retry mode.
+          if (this.shouldIntervene(props.sessionID)) {
+            await abortSessionWithTimeout(this.client, props.sessionID);
+            await new Promise((r) => setTimeout(r, REPROMPT_DELAY_MS));
             await this.tryFallback(props.sessionID);
+            this.sessionRetries.set(props.sessionID, 1);
           }
         } else {
           // Non-rate-limit status: clear retry count (recovery).

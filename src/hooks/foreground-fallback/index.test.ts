@@ -449,11 +449,10 @@ describe('ForegroundFallbackManager session.status', () => {
     expect(mocks.promptAsync).not.toHaveBeenCalled();
   });
 
-  test('tracks retries and only intervenes after maxRetries', async () => {
+  test('triggers fallback on first session.status retry (uses shouldIntervene)', async () => {
     const { client, mocks } = createMockClient();
     const mgr = new ForegroundFallbackManager(client, makeChains(), true, 3);
 
-    // Pre-seed model
     await mgr.handleEvent({
       type: 'message.updated',
       properties: {
@@ -465,7 +464,7 @@ describe('ForegroundFallbackManager session.status', () => {
       },
     });
 
-    // First two retries should be absorbed (maxRetries - 1 = 2)
+    // First retry triggers fallback immediately — no budget absorption
     await mgr.handleEvent({
       type: 'session.status',
       properties: {
@@ -473,36 +472,54 @@ describe('ForegroundFallbackManager session.status', () => {
         status: {
           type: 'retry',
           attempt: 1,
-          message: 'rate limit, retrying...',
-        },
-      },
-    });
-    await mgr.handleEvent({
-      type: 'session.status',
-      properties: {
-        sessionID: 'sess-retry',
-        status: {
-          type: 'retry',
-          attempt: 2,
-          message: 'rate limit, retrying...',
-        },
-      },
-    });
-    expect(mocks.promptAsync).not.toHaveBeenCalled();
-
-    // Third retry exhausts the budget → tryFallback intervenes
-    await mgr.handleEvent({
-      type: 'session.status',
-      properties: {
-        sessionID: 'sess-retry',
-        status: {
-          type: 'retry',
-          attempt: 3,
-          message: 'rate limit, retrying...',
+          message: 'Free usage exceeded, subscribe to Go',
         },
       },
     });
     expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
+  });
+
+  test('second session.status retry goes through budget after first triggered fallback', async () => {
+    const { client, mocks } = createMockClient();
+    const mgr = new ForegroundFallbackManager(client, makeChains(), true, 3);
+
+    await mgr.handleEvent({
+      type: 'message.updated',
+      properties: {
+        info: {
+          sessionID: 'sess-retry2',
+          providerID: 'anthropic',
+          modelID: 'claude-opus-4-5',
+        },
+      },
+    });
+
+    // First retry triggers immediately
+    await mgr.handleEvent({
+      type: 'session.status',
+      properties: {
+        sessionID: 'sess-retry2',
+        status: { type: 'retry', attempt: 1, message: 'rate limit, retrying...' },
+      },
+    });
+    expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
+
+    // Second retry absorbed by budget (tried > 0 → checkRetryBudget)
+    await mgr.handleEvent({
+      type: 'session.status',
+      properties: {
+        sessionID: 'sess-retry2',
+        status: { type: 'retry', attempt: 2, message: 'rate limit, retrying...' },
+      },
+    });
+    await mgr.handleEvent({
+      type: 'session.status',
+      properties: {
+        sessionID: 'sess-retry2',
+        status: { type: 'retry', attempt: 3, message: 'rate limit, retrying...' },
+      },
+    });
+    expect(mocks.promptAsync).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -1142,7 +1159,7 @@ describe('ForegroundFallbackManager runtimeOverride', () => {
     expect(mocks.abort).toHaveBeenCalledTimes(1);
   });
 
-  test('session.status with runtimeOverride=false and out-of-chain model aborts after retry budget exhausted', async () => {
+  test('session.status with runtimeOverride=false and out-of-chain model triggers immediate fallback which aborts', async () => {
     const { client, mocks } = createMockClient();
     const mgr = new ForegroundFallbackManager(
       client,
@@ -1166,27 +1183,7 @@ describe('ForegroundFallbackManager runtimeOverride', () => {
       },
     });
 
-    // First retry (attempt 1) — absorbed by retry budget
-    await mgr.handleEvent({
-      type: 'session.status',
-      properties: {
-        sessionID: 'sess-status-override',
-        status: { type: 'retry', message: 'rate limit, retrying...' },
-      },
-    });
-    expect(mocks.abort).toHaveBeenCalledTimes(0);
-
-    // Second retry (attempt 2) — absorbed
-    await mgr.handleEvent({
-      type: 'session.status',
-      properties: {
-        sessionID: 'sess-status-override',
-        status: { type: 'retry', message: 'rate limit, retrying...' },
-      },
-    });
-    expect(mocks.abort).toHaveBeenCalledTimes(0);
-
-    // Third retry (attempt 3) — budget exhausted, tryFallback runs, guard aborts
+    // First retry triggers shouldIntervene → immediate fallback → abort
     await mgr.handleEvent({
       type: 'session.status',
       properties: {
@@ -1195,6 +1192,6 @@ describe('ForegroundFallbackManager runtimeOverride', () => {
       },
     });
     expect(mocks.promptAsync).toHaveBeenCalledTimes(0);
-    expect(mocks.abort).toHaveBeenCalledTimes(1);
+    expect(mocks.abort).toHaveBeenCalled();
   });
 });
