@@ -229,10 +229,14 @@ export class ForegroundFallbackManager {
             await this.tryFallback(props.sessionID);
             this.sessionRetries.set(props.sessionID, 1);
           }
-        } else {
-          // Non-rate-limit status: clear retry count (recovery).
-          this.sessionRetries.delete(props.sessionID);
         }
+        // Note: do NOT clear sessionRetries here on non-rate-limit statuses.
+        // Abort events triggered by our own fallback carry non-rate-limit
+        // messages and would reset the counter, creating an infinite loop:
+        // abort → fallback → set retries to 1 → abort event clears retries
+        // → next retry sees tried=0 → abort+fallback again → repeat.
+        // Retries are only cleared on successful response (message.updated
+        // without error) or session deletion.
         break;
       }
 

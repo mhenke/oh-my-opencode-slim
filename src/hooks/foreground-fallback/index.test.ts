@@ -499,7 +499,11 @@ describe('ForegroundFallbackManager session.status', () => {
       type: 'session.status',
       properties: {
         sessionID: 'sess-retry2',
-        status: { type: 'retry', attempt: 1, message: 'rate limit, retrying...' },
+        status: {
+          type: 'retry',
+          attempt: 1,
+          message: 'rate limit, retrying...',
+        },
       },
     });
     expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
@@ -509,14 +513,22 @@ describe('ForegroundFallbackManager session.status', () => {
       type: 'session.status',
       properties: {
         sessionID: 'sess-retry2',
-        status: { type: 'retry', attempt: 2, message: 'rate limit, retrying...' },
+        status: {
+          type: 'retry',
+          attempt: 2,
+          message: 'rate limit, retrying...',
+        },
       },
     });
     await mgr.handleEvent({
       type: 'session.status',
       properties: {
         sessionID: 'sess-retry2',
-        status: { type: 'retry', attempt: 3, message: 'rate limit, retrying...' },
+        status: {
+          type: 'retry',
+          attempt: 3,
+          message: 'rate limit, retrying...',
+        },
       },
     });
     expect(mocks.promptAsync).toHaveBeenCalledTimes(2);
