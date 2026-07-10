@@ -30,6 +30,15 @@ The main idea is simple: instead of forcing one model to do everything, the plug
 
 To explore the agents themselves, see **[Meet the Pantheon](#meet-the-pantheon)**. For the full feature set, see **[Features & Workflows](#features-and-workflows)** below.
 
+### OpenAI GPT-5.6
+
+<p align="center">
+  <img src="img/openai-gpt-5-6-pantheon.jpeg" alt="OpenAI GPT-5.6 Pantheon: Terra, Sol, and Luna" width="720">
+</p>
+
+The default [OpenAI preset](docs/openai-preset.md) maps Terra to Orchestrator,
+Sol to Oracle, and Luna to the fast specialist lanes.
+
 ### Manage Agent Skills with LazySkills
 
 <p align="center">
@@ -228,7 +237,7 @@ V2 makes background specialists the default mental model: the Orchestrator plans
 the work graph, launches the right agents, avoids overlapping write ownership,
 and waits for terminal task results before acting on them.
 
-See **[Background Orchestration](docs/v2-background-orchestration.md)** for the
+See **[Background Orchestration](docs/background-orchestration.md)** for the
 full scheduler model.
 
 #### Companion
