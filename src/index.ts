@@ -1122,6 +1122,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       processImageAttachments({
         messages: typedOutput.messages,
         workDir: ctx.directory,
+        imageRouting: 'auto', // TODO(task-3): wire from config
         disabledAgents,
         log,
       });

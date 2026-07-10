@@ -156,11 +156,18 @@ function writeUniqueFile(
 export function processImageAttachments(args: {
   messages: MessageWithParts[];
   workDir: string;
+  imageRouting: 'auto' | 'direct';
   disabledAgents: Set<string>;
   log: (msg: string) => void;
 }): void {
-  const { messages, workDir, disabledAgents, log } = args;
+  const { messages, workDir, imageRouting, disabledAgents, log } = args;
 
+  // direct mode: never intercept attachments; the orchestrator handles them
+  // inline. @observer remains available for manual delegation.
+  if (imageRouting === 'direct') return;
+
+  // auto mode: observer must be enabled (enforced at config load). Retain
+  // this guard as defense-in-depth in case validation is bypassed.
   const observerEnabled = !disabledAgents.has('observer');
   if (!observerEnabled) return;
 
@@ -239,6 +246,9 @@ export function processImageAttachments(args: {
     const pathsText =
       savedPaths.length > 0 ? ` Saved to: ${savedPaths.join(', ')}` : '';
     log(`[image-hook] stripping image/file parts, saving to disk${pathsText}`);
+    log(
+      `[image-routing] auto mode: intercepted ${savedPaths.length} image(s), delegating to @observer`,
+    );
 
     msg.parts = msg.parts
       .filter((p) => !isImagePart(p as ImagePart))
