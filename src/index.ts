@@ -10,7 +10,7 @@ import {
   type MultiplexerConfig,
 } from './config';
 import { parseList } from './config/agent-mcps';
-import { AGENT_ALIASES } from './config/constants';
+import { AGENT_ALIASES, DEFAULT_IMAGE_ROUTING } from './config/constants';
 import {
   getActiveRuntimePreset,
   getPreviousRuntimePreset,
@@ -1122,7 +1122,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       processImageAttachments({
         messages: typedOutput.messages,
         workDir: ctx.directory,
-        imageRouting: 'auto', // TODO(task-3): wire from config
+        imageRouting: config.image_routing ?? DEFAULT_IMAGE_ROUTING,
         disabledAgents,
         log,
       });
