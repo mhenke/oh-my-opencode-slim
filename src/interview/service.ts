@@ -686,6 +686,26 @@ export function createInterviewService(
     output.parts.push(
       createInternalAgentTextPart(buildKickoffPrompt(idea, maxQuestions)),
     );
+
+    // best-effort: rename the session so it's identifiable in the session list.
+    // strip a leading imperative verb (e.g. "build a") and cap length so the
+    // title stays short in the session list. never block interview creation
+    // if the rename fails.
+    const titleIdea = idea.replace(
+      /^(build|create|make|write|design|implement|add|set up)\s+(a|an|the)\s+/i,
+      '',
+    );
+    let sessionTitle = `Interview: ${titleIdea}`;
+    const MAX_TITLE = 50;
+    if (sessionTitle.length > MAX_TITLE) {
+      sessionTitle = `${sessionTitle.slice(0, MAX_TITLE - 1)}…`;
+    }
+    ctx.client.session
+      .update({
+        path: { id: input.sessionID },
+        body: { title: sessionTitle },
+      })
+      .catch(() => {});
   }
 
   async function handleEvent(input: {

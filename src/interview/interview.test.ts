@@ -40,6 +40,7 @@ function createMockContext(overrides?: {
           }
           return {};
         }),
+        update: mock(async () => ({})),
       },
     },
     directory: overrides?.directory ?? '/test/directory',
