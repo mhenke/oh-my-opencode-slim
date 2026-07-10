@@ -224,11 +224,12 @@ export class ForegroundFallbackManager {
               msg.includes('reduce concurrency'))) ||
           isRateLimitError(props.error);
         if (isRateLimit) {
-          // Abort retry loop before falling back — promptAsync alone
-          // is ignored when the session is in retry mode.
           if (this.shouldIntervene(props.sessionID)) {
-            await abortSessionWithTimeout(this.client, props.sessionID);
-            await new Promise((r) => setTimeout(r, REPROMPT_DELAY_MS));
+            // Let tryFallback handle retry-loop breaking internally —
+            // it sets inProgress first, so the task-session-manager sees
+            // isFallbackInProgress()=true during the abort idle window.
+            // External abort+wait would leave inProgress unset and the
+            // task manager would cancel the pending call on idle.
             await this.tryFallback(props.sessionID);
             this.sessionRetries.set(props.sessionID, 1);
           }
