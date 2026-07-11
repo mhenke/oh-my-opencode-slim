@@ -561,6 +561,14 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           const existing = (opencodeConfig.agent as Record<string, unknown>)[
             name
           ] as Record<string, unknown> | undefined;
+          // User picked a model via /model → disable fallback for that agent.
+          if (existing && typeof existing.model === 'string') {
+            foregroundFallback.disableChain(name);
+            log('[plugin] disabled fallback chain for model-switched agent', {
+              agent: name,
+              model: existing.model,
+            });
+          }
           if (existing) {
             // Shallow merge: plugin defaults first, user overrides win
             (opencodeConfig.agent as Record<string, unknown>)[name] = {
@@ -737,28 +745,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
               model: entry.model as string,
             });
           }
-        }
-      }
-
-      // Disable fallback for agents whose model was switched via /model.
-      // Empty chain → rate-limit errors surface instead of falling back.
-      for (const agentName of Object.keys(runtimeChains)) {
-        const chain = runtimeChains[agentName];
-        if (!chain || chain.length === 0) continue;
-        const entry = configAgent[agentName] as
-          | Record<string, unknown>
-          | undefined;
-        if (
-          entry &&
-          typeof entry.model === 'string' &&
-          entry.model !== chain[0]
-        ) {
-          foregroundFallback.disableChain(agentName);
-          log('[plugin] disabled fallback chain for model-switched agent', {
-            agent: agentName,
-            model: entry.model,
-            chainPrimary: chain[0],
-          });
         }
       }
 
