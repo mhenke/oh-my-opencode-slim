@@ -30,7 +30,7 @@ describe('providers', () => {
     expect(config.disabled_agents).toBeUndefined();
     expect((config.presets as any)['opencode-go']).toBeDefined();
     expect((config.presets as any)['opencode-go'].observer.model).toBe(
-      'opencode-go/kimi-k2.6',
+      'opencode-go/mimo-v2.5',
     );
     const agents = (config.presets as any).openai;
     expect(agents).toBeDefined();
@@ -76,7 +76,8 @@ describe('providers', () => {
     expect((config.presets as any).openai).toBeDefined();
     const agents = (config.presets as any)['opencode-go'];
     expect(agents).toBeDefined();
-    expect(agents.orchestrator.model).toBe('opencode-go/glm-5.2');
+    expect(agents.orchestrator.model).toBe('opencode-go/minimax-m3');
+    expect(agents.orchestrator.variant).toBe('max');
     expect(agents.oracle.model).toBe('opencode-go/qwen3.7-max');
     expect(agents.oracle.variant).toBe('max');
     expect(agents.council).toBeUndefined();
@@ -85,7 +86,8 @@ describe('providers', () => {
     expect(agents.designer.model).toBe('opencode-go/kimi-k2.7-code');
     expect(agents.fixer.model).toBe('opencode-go/deepseek-v4-flash');
     expect(agents.fixer.variant).toBe('high');
-    expect(agents.observer.model).toBe('opencode-go/kimi-k2.6');
+    expect(agents.observer.model).toBe('opencode-go/mimo-v2.5');
+    expect(agents.observer.variant).toBe('max');
   });
 
   test('generateLiteConfig rejects unsupported preset', () => {

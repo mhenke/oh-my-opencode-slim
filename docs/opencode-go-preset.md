@@ -68,17 +68,21 @@ setting the top-level `preset` field:
   "presets": {
     "opencode-go": {
       "orchestrator": {
-        "model": "opencode-go/glm-5.2"
+        "model": "opencode-go/minimax-m3",
+        "variant": "max"
       },
       "oracle": {
         "model": "opencode-go/qwen3.7-max",
         "variant": "max"
       },
       "librarian": {
-        "model": "opencode-go/deepseek-v4-flash"
+        "model": "opencode-go/deepseek-v4-flash",
+        "variant": "high",
+        "mcps": ["websearch", "context7", "gh_grep"]
       },
       "explorer": {
-        "model": "opencode-go/deepseek-v4-flash"
+        "model": "opencode-go/deepseek-v4-flash",
+        "variant": "max"
       },
       "designer": {
         "model": "opencode-go/kimi-k2.7-code",
@@ -89,7 +93,8 @@ setting the top-level `preset` field:
         "variant": "high"
       },
       "observer": {
-        "model": "opencode-go/kimi-k2.6"
+        "model": "opencode-go/mimo-v2.5",
+        "variant": "max"
       }
     }
   }
