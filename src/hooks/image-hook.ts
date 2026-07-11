@@ -9,6 +9,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { basename, extname, join } from 'node:path';
+import { log } from '../utils/logger';
 import { isUserMessageWithParts, type MessageWithParts } from './types';
 
 // Debounce: only run cleanup every 10 minutes per directory
@@ -81,10 +82,14 @@ function cleanupAllSessions(saveDir: string): void {
       } else {
         try {
           if (now - statSync(fp).mtimeMs > maxAge) unlinkSync(fp);
-        } catch {}
+        } catch (err) {
+          log('[image-hook] file cleanup failed', String(err));
+        }
       }
     }
-  } catch {}
+  } catch (err) {
+    log('[image-hook] directory scan failed', String(err));
+  }
 
   for (const dir of dirsToScan) {
     try {
@@ -99,7 +104,8 @@ function cleanupAllSessions(saveDir: string): void {
           } else {
             allRemoved = false;
           }
-        } catch {
+        } catch (err) {
+          log('[image-hook] file cleanup failed', String(err));
           allRemoved = false;
         }
       }
@@ -107,9 +113,13 @@ function cleanupAllSessions(saveDir: string): void {
       if (!isEmpty && allRemoved) {
         try {
           rmdirSync(dir);
-        } catch {}
+        } catch (err) {
+          log('[image-hook] directory removal failed', String(err));
+        }
       }
-    } catch {}
+    } catch (err) {
+      log('[image-hook] session cleanup failed', String(err));
+    }
   }
 }
 
