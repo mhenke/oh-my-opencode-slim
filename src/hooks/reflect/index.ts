@@ -57,7 +57,7 @@ export function createReflectCommandHook(): {
 
   return {
     registerCommand: (opencodeConfig) => {
-      shouldHandleCommand = registerCommandHook(
+      shouldHandleCommand ||= registerCommandHook(
         opencodeConfig,
         COMMAND_NAME,
         'Review repeated work and suggest workflow improvements',
