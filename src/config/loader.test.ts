@@ -106,7 +106,7 @@ describe('loadPluginConfig', () => {
     expect(config.disabled_agents).toEqual([]);
   });
 
-  test('rejects auto image routing when final config disables Observer', () => {
+  test('warns but preserves config when final auto routing disables Observer', () => {
     const userConfigPath = path.join(userConfigDir, 'opencode');
     const projectDir = path.join(tempDir, 'project');
     const projectConfigDir = path.join(projectDir, '.opencode');
@@ -118,10 +118,23 @@ describe('loadPluginConfig', () => {
     );
     fs.writeFileSync(
       path.join(projectConfigDir, 'oh-my-opencode-slim.json'),
-      JSON.stringify({ disabled_agents: ['observer'] }),
+      JSON.stringify({
+        autoUpdate: false,
+        disabled_agents: ['observer'],
+      }),
     );
 
-    expect(loadPluginConfig(projectDir, { silent: true })).toEqual({});
+    const warnings: ConfigLoadWarning[] = [];
+    const config = loadPluginConfig(projectDir, {
+      silent: true,
+      onWarning: (warning) => warnings.push(warning),
+    });
+    expect(config.image_routing).toBe('auto');
+    expect(config.autoUpdate).toBe(false);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.message).toContain(
+      'image_routing "auto" requires observer to be enabled',
+    );
   });
 
   test('ignores invalid config (schema violation or malformed JSON)', () => {

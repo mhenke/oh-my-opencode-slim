@@ -143,15 +143,19 @@ describe('processImageAttachments image routing', () => {
     const message = makeUserMsg([
       { type: 'image', url: 'https://example.com/image.png' },
     ]);
+    const logs: string[] = [];
     processImageAttachments({
       messages: [message],
       workDir: path.join(TEST_DIR, 'unsaved'),
       imageRouting: 'auto',
       disabledAgents: new Set<string>(),
-      log: () => {},
+      log: (message) => logs.push(message),
     });
     expect(imagePartCount(message)).toBe(1);
     expect(message.parts).toHaveLength(1);
+    expect(logs.some((message) => message.includes('[image-routing]'))).toBe(
+      false,
+    );
   });
 
   it('strips only attachments saved successfully', () => {

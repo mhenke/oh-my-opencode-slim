@@ -358,15 +358,11 @@ export function loadPluginConfig(
     };
   }
 
-  if (
-    !validateFinalImageRouting(
-      config,
-      projectConfigPath ?? userConfigPath ?? '',
-      options,
-    )
-  ) {
-    return {};
-  }
+  validateFinalImageRouting(
+    config,
+    projectConfigPath ?? userConfigPath ?? '',
+    options,
+  );
 
   return config;
 }

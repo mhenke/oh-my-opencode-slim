@@ -97,7 +97,10 @@ export const DEFAULT_READ_CONTEXT_MAX_FILES = 8;
 
 export type ImageRouting = 'auto' | 'direct';
 
-/** Default image routing mode, preserving Observer's existing behavior. */
+/**
+ * Used when image_routing is omitted, preserving legacy conditional Observer
+ * routing. Explicit "auto" is validated separately after config layers merge.
+ */
 export const DEFAULT_IMAGE_ROUTING: ImageRouting = 'auto';
 
 export function resolveImageRouting(
