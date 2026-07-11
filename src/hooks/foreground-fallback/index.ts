@@ -679,28 +679,3 @@ export class ForegroundFallbackManager {
     return all;
   }
 }
-
-/**
- * Disable fallback chains for agents whose resolved model differs from the
- * chain's primary model. Called from the config() hook after chains are
- * resolved, so a model chosen via /model (or a runtime preset) sticks
- * instead of silently falling back on rate-limit errors.
- * Returns the names of agents whose chain was disabled.
- */
-export function disableChainsForModelSwitches(
-  mgr: ForegroundFallbackManager,
-  runtimeChains: Record<string, string[]>,
-  configAgent: Record<string, unknown>,
-): string[] {
-  const disabled: string[] = [];
-  for (const agentName of Object.keys(runtimeChains)) {
-    const chain = runtimeChains[agentName];
-    if (!chain || chain.length === 0) continue;
-    const entry = configAgent[agentName] as Record<string, unknown> | undefined;
-    if (entry && typeof entry.model === 'string' && entry.model !== chain[0]) {
-      mgr.disableChain(agentName);
-      disabled.push(agentName);
-    }
-  }
-  return disabled;
-}

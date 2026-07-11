@@ -6,7 +6,6 @@ export { createDeepworkCommandHook } from './deepwork';
 export { createDelegateTaskRetryHook } from './delegate-task-retry/hook';
 export { createFilterAvailableSkillsHook } from './filter-available-skills';
 export {
-  disableChainsForModelSwitches,
   ForegroundFallbackManager,
   isFailoverError,
   isRateLimitError,
