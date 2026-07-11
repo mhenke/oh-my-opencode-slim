@@ -37,6 +37,7 @@ import {
   createPostFileToolNudgeHook,
   createReflectCommandHook,
   createTaskSessionManagerHook,
+  disableChainsForModelSwitches,
   ForegroundFallbackManager,
   SessionLifecycle,
 } from './hooks';
@@ -743,28 +744,21 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
 
       // Disable fallback chains for agents whose model was explicitly switched
       // via /model (or runtime preset). After the switch, that agent's chain
-      // entry is deleted so ForegroundFallbackManager never silently falls
+      // is emptied so ForegroundFallbackManager never silently falls
       // back — rate-limit errors surface instead. The detection compares the
       // resolved entry.model against the chain's primary model; any mismatch
       // means the user (or preset) intentionally chose something different.
-      for (const agentName of Object.keys(runtimeChains)) {
-        const chain = runtimeChains[agentName];
-        if (!chain || chain.length === 0) continue;
-        const entry = configAgent[agentName] as
-          | Record<string, unknown>
-          | undefined;
-        if (
-          entry &&
-          typeof entry.model === 'string' &&
-          entry.model !== chain[0]
-        ) {
-          foregroundFallback.disableChain(agentName);
-          log('[plugin] disabled fallback chain for model-switched agent', {
-            agent: agentName,
-            model: entry.model,
-            chainPrimary: chain[0],
-          });
-        }
+      const disabledChains = disableChainsForModelSwitches(
+        foregroundFallback,
+        runtimeChains,
+        configAgent,
+      );
+      for (const agentName of disabledChains) {
+        log('[plugin] disabled fallback chain for model-switched agent', {
+          agent: agentName,
+          model: (configAgent[agentName] as Record<string, unknown>).model,
+          chainPrimary: runtimeChains[agentName]?.[0],
+        });
       }
 
       // Capture the resolved model state before optionally removing the

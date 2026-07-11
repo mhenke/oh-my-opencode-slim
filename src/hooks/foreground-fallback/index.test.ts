@@ -1,10 +1,19 @@
 import { beforeEach, describe, expect, mock, test } from 'bun:test';
 import { SessionLifecycle } from '../session-lifecycle';
 import {
+  disableChainsForModelSwitches,
   ForegroundFallbackManager,
   isFailoverError,
   isRateLimitError,
 } from './index';
+
+// ACCEPTANCE GAP: the live behavior this suite supports (a model switched via
+// /model empties the agent's chain so a rate-limit error surfaces instead of
+// falling back, plus the "[plugin] disabled fallback chain for model-switched
+// agent" log line) is only verified end-to-end by manually switching a model
+// in a running OpenCode session and forcing a 429. There is no CI harness
+// that triggers a real rate-limit through the config() hook, so that
+// acceptance path is NOT covered by automated tests.
 
 type ForegroundFallbackClient = ConstructorParameters<
   typeof ForegroundFallbackManager
@@ -1561,5 +1570,78 @@ describe('ForegroundFallbackManager disableChain', () => {
     // current = gpt-4o-mini is tried → next = claude-haiku
     expect(call[0].body.model.providerID).toBe('anthropic');
     expect(call[0].body.model.modelID).toBe('claude-haiku');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// disableChainsForModelSwitches
+// ---------------------------------------------------------------------------
+
+describe('disableChainsForModelSwitches', () => {
+  function makeMgr(chains: Record<string, string[]>) {
+    const { client } = createMockClient();
+    return new ForegroundFallbackManager(client, chains, true);
+  }
+
+  test('disables when model differs from chain[0]', () => {
+    const chains = { orchestrator: ['a', 'b'] };
+    const mgr = makeMgr(chains);
+    const configAgent = { orchestrator: { model: 'c' } };
+
+    const result = disableChainsForModelSwitches(mgr, chains, configAgent);
+
+    expect((mgr as any).chains.orchestrator).toEqual([]);
+    expect(result).toEqual(['orchestrator']);
+  });
+
+  test('does NOT disable when model equals chain[0]', () => {
+    const chains = { orchestrator: ['a', 'b'] };
+    const mgr = makeMgr(chains);
+    const configAgent = { orchestrator: { model: 'a' } };
+
+    const result = disableChainsForModelSwitches(mgr, chains, configAgent);
+
+    expect((mgr as any).chains.orchestrator).toEqual(['a', 'b']);
+    expect(result).toEqual([]);
+  });
+
+  test('does NOT disable when agent has no configAgent entry', () => {
+    const chains = { orchestrator: ['a', 'b'] };
+    const mgr = makeMgr(chains);
+
+    const result = disableChainsForModelSwitches(mgr, chains, {});
+
+    expect((mgr as any).chains.orchestrator).toEqual(['a', 'b']);
+    expect(result).toEqual([]);
+  });
+
+  test('skips empty chains', () => {
+    const chains = { orchestrator: [] };
+    const mgr = makeMgr(chains);
+    const configAgent = { orchestrator: { model: 'c' } };
+
+    expect(() =>
+      disableChainsForModelSwitches(mgr, chains, configAgent),
+    ).not.toThrow();
+    const result = disableChainsForModelSwitches(mgr, chains, configAgent);
+    expect(result).toEqual([]);
+  });
+
+  test('only disables the mismatched agent', () => {
+    const chains = {
+      orchestrator: ['a', 'b'],
+      explorer: ['x', 'y'],
+    };
+    const mgr = makeMgr(chains);
+    const configAgent = {
+      orchestrator: { model: 'c' }, // mismatched
+      explorer: { model: 'x' }, // matches chain[0]
+    };
+
+    const result = disableChainsForModelSwitches(mgr, chains, configAgent);
+
+    expect((mgr as any).chains.orchestrator).toEqual([]);
+    expect((mgr as any).chains.explorer).toEqual(['x', 'y']);
+    expect(result).toEqual(['orchestrator']);
   });
 });
