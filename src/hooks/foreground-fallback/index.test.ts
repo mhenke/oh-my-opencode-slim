@@ -64,10 +64,10 @@ function makeChains(
 }
 
 // ---------------------------------------------------------------------------
-// isRateLimitError
+// isFailoverError
 // ---------------------------------------------------------------------------
 
-describe('isRateLimitError', () => {
+describe('isFailoverError', () => {
   test('classifies recoverable HTTP 400 response bodies as failover errors', () => {
     expect(
       isFailoverError({

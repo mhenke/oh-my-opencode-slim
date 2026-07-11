@@ -112,7 +112,10 @@ export function isFailoverError(error: unknown): boolean {
     };
   };
   const statusCode = extractStatusCode(err);
-  if (statusCode === 429 || OUTAGE_STATUS_CODES.has(statusCode ?? 0)) {
+  if (
+    statusCode === 429 ||
+    (statusCode !== undefined && OUTAGE_STATUS_CODES.has(statusCode))
+  ) {
     return true;
   }
   if (
@@ -312,10 +315,11 @@ export class ForegroundFallbackManager {
               error?: unknown;
             }
           | undefined;
-        const sessionID = props ? eventSessionID(props) : undefined;
+        if (!props) break;
+        const sessionID = eventSessionID(props);
         if (!sessionID) break;
         const isFailoverRetry =
-          props?.status?.type === 'retry' &&
+          props.status?.type === 'retry' &&
           (isFailoverError(props.error) ||
             (props.status.message !== undefined &&
               isFailoverError({ message: props.status.message })));
@@ -326,7 +330,7 @@ export class ForegroundFallbackManager {
           break;
         }
 
-        if (this.isRecoveredStatus(props?.status?.type)) {
+        if (this.isRecoveredStatus(props.status?.type)) {
           // Recovered/terminal status: clear retry count.
           this.sessionRetries.delete(sessionID);
         }
