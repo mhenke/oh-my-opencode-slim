@@ -126,8 +126,14 @@ describe('isRateLimitError', () => {
     expect(isRateLimitError(null)).toBe(false);
   });
 
+  test('returns true for string error with rate-limit message', () => {
+    expect(isRateLimitError('Usage exceeded')).toBe(true);
+    expect(isRateLimitError('rate limit exceeded')).toBe(true);
+    expect(isRateLimitError('quota exceeded')).toBe(true);
+  });
+
   test('returns false for non-object', () => {
-    expect(isRateLimitError('string error')).toBe(false);
+    expect(isRateLimitError(42)).toBe(false);
   });
 });
 
