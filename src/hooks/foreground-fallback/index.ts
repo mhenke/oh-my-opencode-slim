@@ -52,7 +52,12 @@ const RATE_LIMIT_PATTERNS = [
 ];
 
 export function isRateLimitError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false;
+  if (!error) return false;
+  // Handle string-typed errors (OpenCode may send a plain error string)
+  if (typeof error === 'string') {
+    return RATE_LIMIT_PATTERNS.some((p) => p.test(error));
+  }
+  if (typeof error !== 'object') return false;
   const err = error as {
     message?: string;
     data?: { statusCode?: number; message?: string; responseBody?: string };
