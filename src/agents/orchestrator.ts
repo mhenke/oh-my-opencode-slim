@@ -101,15 +101,6 @@ const AGENT_DESCRIPTIONS: Record<string, string> = {
 - **IMPORTANT:** When delegating to @observer, always include the **full file path** in the prompt so it can read the file. Example: "Analyze the screenshot at /path/to/file.png - describe the UI elements and error messages."`,
 };
 
-// Validation routing lines that reference agents
-const VALIDATION_ROUTING = [
-  '- Route UI/UX validation and review to @designer',
-  '- Route code review, code simplification and maintainability review checks to @oracle',
-  '- Route implementation to @fixer or multiple @fixer instances for maximum parallel execution',
-  '- Route visual/media analysis and interpretation to @observer',
-  '- If a request spans multiple lanes, delegate only the lanes that add clear value',
-];
-
 // Parallel delegation examples
 const PARALLEL_DELEGATION_EXAMPLES = [
   '- Multiple @explorer searches across different domains?',
@@ -129,13 +120,6 @@ export function buildOrchestratorPrompt(disabledAgents?: Set<string>): string {
     .filter(([name]) => !disabledAgents?.has(name))
     .map(([, desc]) => desc)
     .join('\n\n');
-
-  // Filter validation routing lines - remove lines mentioning any disabled agent
-  const enabledValidationRouting = VALIDATION_ROUTING.filter((line) => {
-    const mentions = [...line.matchAll(/@(\w+)/g)].map((m) => m[1]);
-    if (mentions.length === 0) return true;
-    return mentions.every((name) => !disabledAgents?.has(name));
-  }).join('\n');
 
   // Filter parallel delegation examples - remove lines mentioning any disabled agent
   const enabledParallelExamples = PARALLEL_DELEGATION_EXAMPLES.filter(
@@ -225,16 +209,13 @@ Balance: respect dependencies, avoid parallelizing what must be sequential, and 
 - If the Background Job Board lists \`fix-1 / ses_abc / fixer\`, call task with \`subagent_type: "fixer"\` and \`task_id: "fix-1"\` or \`task_id: "ses_abc"\`.
 - Do not leave \`task_id\` empty when intending to reuse; omitted or empty \`task_id\` creates a new specialist session.
 
-### Validation routing
-- Validation is a workflow stage owned by the Orchestrator, not a separate specialist
-${enabledValidationRouting}
-
 ## 6. Verify
-- Run relevant checks/diagnostics for the change
-- Use validation routing when applicable instead of doing all review work yourself
-- If test files are involved, prefer @fixer for bounded test changes and @oracle only for test strategy or quality review
-- Confirm specialists completed successfully
-- Verify solution meets requirements
+- Define the observable success criteria from the user's request.
+- Run the smallest relevant checks: targeted tests, typecheck, lint, build, or a manual behavior check.
+- Inspect the changed diff and verify behavior; passing checks alone are not sufficient.
+- If a check fails, diagnose, fix, and rerun the relevant verification.
+- For risky or ambiguous changes, obtain an independent review when its value justifies the cost.
+- Report verification performed and any remaining limitations.
 
 </Workflow>
 
