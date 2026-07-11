@@ -668,6 +668,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "umi008",
+      "name": "Ulises Millán",
+      "avatar_url": "https://avatars.githubusercontent.com/u/200843810?v=4",
+      "profile": "https://github.com/umi008",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commitConvention": "angular"
