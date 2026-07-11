@@ -82,6 +82,8 @@ describe('providers', () => {
     expect(agents.oracle.variant).toBe('max');
     expect(agents.council).toBeUndefined();
     expect(agents.librarian.model).toBe('opencode-go/deepseek-v4-flash');
+    expect(agents.librarian.variant).toBe('high');
+    expect(agents.librarian.mcps).toEqual(['websearch', 'context7', 'gh_grep']);
     expect(agents.explorer.model).toBe('opencode-go/deepseek-v4-flash');
     expect(agents.designer.model).toBe('opencode-go/kimi-k2.7-code');
     expect(agents.fixer.model).toBe('opencode-go/deepseek-v4-flash');

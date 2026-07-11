@@ -103,7 +103,7 @@ setting the top-level `preset` field:
 
 ## Skill Reference
 
-This preset defines no per-agent `skills` or `mcps`. All agents use whatever skills are globally installed (the `*` wildcard).
+This preset defines per-agent `skills` and `mcps` via `generateLiteConfig`. The generated config includes `skills: ["*"]` for Orchestrator and agent-specific MCP lists (e.g., Librarian gets `websearch`, `context7`, `gh_grep`).
 
 | Skill | Description | Source |
 | --- | --- | --- |
