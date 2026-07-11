@@ -614,7 +614,7 @@ rules.
 ### Observer: The Silent Witness
 
 > [!NOTE]
-> **Why a separate agent?** If your Orchestrator model is not multimodal, enable Observer to handle images, screenshots, and other visual files. Observer is disabled by default and gives the Orchestrator a dedicated multimodal reader without forcing you to change your main reasoning model. Set `disabled_agents: []` and an `observer` model in your configuration. The bundled `opencode-go` install preset does this automatically because its GLM Orchestrator is not multimodal. If your Orchestrator *is* multimodal, leave `image_routing` unset (defaults to `"direct"`, same as before PR #723) so attachments reach it directly. If it is *not* multimodal, set `image_routing: "auto"` to save attachments and route them to `@observer`.
+> **Why a separate agent?** If your Orchestrator model is not multimodal, enable Observer to handle images, screenshots, and other visual files. Observer is disabled by default and gives the Orchestrator a dedicated multimodal reader without forcing you to change your main reasoning model. Set `disabled_agents: []` and an `observer` model in your configuration. The bundled `opencode-go` install preset does this automatically because its GLM Orchestrator is not multimodal. Optional: set `image_routing: "auto"` to route images to @observer (non-multimodal orchestrators). Defaults to `"direct"` (same as before).
 
 <table>
   <tr>
