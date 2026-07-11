@@ -201,6 +201,20 @@ export class ForegroundFallbackManager {
     return this.inProgress.has(sessionID);
   }
 
+  /**
+   * Disable the fallback chain for a specific agent.
+   * After calling this, rate-limit errors for that agent surface instead of
+   * silently falling back through the chain. This is called automatically by
+   * the config() hook when a user selects a model via /model that differs
+   * from the chain's primary model.
+   */
+  disableChain(agentName: string): void {
+    // Keep the key present (known agent, no chain) rather than deleting it,
+    // so resolveChain's "known agent without a chain" path applies and the
+    // shared runtimeChains reference retains the agent entry.
+    this.chains[agentName] = [];
+  }
+
   registerSessionAgent(sessionID: string, agentName: string): void {
     const normalizedAgentName = agentName.trim();
     if (
@@ -220,7 +234,7 @@ export class ForegroundFallbackManager {
      * e.g. { orchestrator: ['anthropic/claude-opus-4-5', 'openai/gpt-4o'] }
      * The first model that hasn't been tried yet is selected on each fallback.
      */
-    private readonly chains: Record<string, string[]>,
+    private chains: Record<string, string[]>,
     private readonly enabled: boolean,
     /** Consecutive 429s tolerated on the same model before swap/abort. */
     private readonly maxRetries: number = 3,

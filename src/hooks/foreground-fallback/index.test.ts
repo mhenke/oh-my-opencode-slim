@@ -1502,3 +1502,64 @@ describe('ForegroundFallbackManager runtimeOverride', () => {
     expect(mocks.abort).toHaveBeenCalled();
   });
 });
+
+// ---------------------------------------------------------------------------
+// disableChain API
+// ---------------------------------------------------------------------------
+
+describe('ForegroundFallbackManager disableChain', () => {
+  test('after disableChain, rate-limit error surfaces instead of falling back', async () => {
+    const { client, mocks } = createMockClient();
+    const mgr = new ForegroundFallbackManager(client, makeChains(), true);
+
+    mgr.disableChain('orchestrator');
+
+    // Seed session with orchestrator model and trigger rate-limit
+    await mgr.handleEvent({
+      type: 'message.updated',
+      properties: {
+        info: {
+          sessionID: 'sess-disabled',
+          agent: 'orchestrator',
+          providerID: 'anthropic',
+          modelID: 'claude-opus-4-5',
+          error: { message: 'rate limit exceeded' },
+        },
+      },
+    });
+
+    // Chain disabled → no fallback, error surfaces
+    expect(mocks.promptAsync).not.toHaveBeenCalled();
+    expect(mocks.abort).not.toHaveBeenCalled();
+  });
+
+  test('other agents chains are unaffected by disableChain', async () => {
+    const { client, mocks } = createMockClient();
+    const mgr = new ForegroundFallbackManager(client, makeChains(), true);
+
+    mgr.disableChain('orchestrator');
+
+    // Explorer session — should still fall back normally
+    await mgr.handleEvent({
+      type: 'message.updated',
+      properties: {
+        info: {
+          sessionID: 'sess-other',
+          agent: 'explorer',
+          providerID: 'openai',
+          modelID: 'gpt-4o-mini',
+          error: { message: 'quota exceeded' },
+        },
+      },
+    });
+
+    expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
+    const call = mocks.promptAsync.mock.calls[0] as [
+      { body: { model: { providerID: string; modelID: string } } },
+    ];
+    // explorer chain: ['openai/gpt-4o-mini', 'anthropic/claude-haiku']
+    // current = gpt-4o-mini is tried → next = claude-haiku
+    expect(call[0].body.model.providerID).toBe('anthropic');
+    expect(call[0].body.model.modelID).toBe('claude-haiku');
+  });
+});
