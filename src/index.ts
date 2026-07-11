@@ -39,7 +39,7 @@ import {
   SessionLifecycle,
 } from './hooks';
 import { processImageAttachments } from './hooks/image-hook';
-import type { MessageWithParts } from './hooks/types';
+import { isMessageWithParts, type MessageWithParts } from './hooks/types';
 import { createInterviewManager } from './interview';
 import { createBuiltinMcps } from './mcp';
 import {
@@ -1120,6 +1120,9 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       const typedOutput = output as { messages: MessageWithParts[] };
 
       for (const message of typedOutput.messages) {
+        if (!isMessageWithParts(message)) {
+          continue;
+        }
         if (message.info.role !== 'user') {
           continue;
         }
