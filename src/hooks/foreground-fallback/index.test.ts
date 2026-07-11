@@ -126,8 +126,14 @@ describe('isRateLimitError', () => {
     expect(isRateLimitError(null)).toBe(false);
   });
 
+  test('returns true for string error with rate-limit message', () => {
+    expect(isRateLimitError('Usage exceeded')).toBe(true);
+    expect(isRateLimitError('rate limit exceeded')).toBe(true);
+    expect(isRateLimitError('quota exceeded')).toBe(true);
+  });
+
   test('returns false for non-object', () => {
-    expect(isRateLimitError('string error')).toBe(false);
+    expect(isRateLimitError(42)).toBe(false);
   });
 });
 
@@ -449,11 +455,10 @@ describe('ForegroundFallbackManager session.status', () => {
     expect(mocks.promptAsync).not.toHaveBeenCalled();
   });
 
-  test('tracks retries and only intervenes after maxRetries', async () => {
+  test('triggers fallback on first session.status retry (uses shouldIntervene)', async () => {
     const { client, mocks } = createMockClient();
     const mgr = new ForegroundFallbackManager(client, makeChains(), true, 3);
 
-    // Pre-seed model
     await mgr.handleEvent({
       type: 'message.updated',
       properties: {
@@ -465,7 +470,7 @@ describe('ForegroundFallbackManager session.status', () => {
       },
     });
 
-    // First two retries should be absorbed (maxRetries - 1 = 2)
+    // First retry triggers fallback immediately — no budget absorption
     await mgr.handleEvent({
       type: 'session.status',
       properties: {
@@ -473,14 +478,47 @@ describe('ForegroundFallbackManager session.status', () => {
         status: {
           type: 'retry',
           attempt: 1,
+          message: 'Free usage exceeded, subscribe to Go',
+        },
+      },
+    });
+    expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
+  });
+
+  test('second session.status retry goes through budget after first triggered fallback', async () => {
+    const { client, mocks } = createMockClient();
+    const mgr = new ForegroundFallbackManager(client, makeChains(), true, 3);
+
+    await mgr.handleEvent({
+      type: 'message.updated',
+      properties: {
+        info: {
+          sessionID: 'sess-retry2',
+          providerID: 'anthropic',
+          modelID: 'claude-opus-4-5',
+        },
+      },
+    });
+
+    // First retry triggers immediately
+    await mgr.handleEvent({
+      type: 'session.status',
+      properties: {
+        sessionID: 'sess-retry2',
+        status: {
+          type: 'retry',
+          attempt: 1,
           message: 'rate limit, retrying...',
         },
       },
     });
+    expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
+
+    // Second retry absorbed by budget (tried > 0 → checkRetryBudget)
     await mgr.handleEvent({
       type: 'session.status',
       properties: {
-        sessionID: 'sess-retry',
+        sessionID: 'sess-retry2',
         status: {
           type: 'retry',
           attempt: 2,
@@ -488,13 +526,10 @@ describe('ForegroundFallbackManager session.status', () => {
         },
       },
     });
-    expect(mocks.promptAsync).not.toHaveBeenCalled();
-
-    // Third retry exhausts the budget → tryFallback intervenes
     await mgr.handleEvent({
       type: 'session.status',
       properties: {
-        sessionID: 'sess-retry',
+        sessionID: 'sess-retry2',
         status: {
           type: 'retry',
           attempt: 3,
@@ -502,7 +537,131 @@ describe('ForegroundFallbackManager session.status', () => {
         },
       },
     });
+    expect(mocks.promptAsync).toHaveBeenCalledTimes(2);
+  });
+
+  test('triggers fallback when rate-limit text is in props.error instead of status.message', async () => {
+    const { client, mocks } = createMockClient();
+    const mgr = new ForegroundFallbackManager(client, makeChains(), true, 3);
+
+    await mgr.handleEvent({
+      type: 'message.updated',
+      properties: {
+        info: {
+          sessionID: 'sess-error-field',
+          providerID: 'anthropic',
+          modelID: 'claude-opus-4-5',
+        },
+      },
+    });
+
+    // status.message is benign but props.error carries the rate-limit signal
+    await mgr.handleEvent({
+      type: 'session.status',
+      properties: {
+        sessionID: 'sess-error-field',
+        status: { type: 'retry', attempt: 1, message: 'retrying...' },
+        error: { message: 'Usage exceeded for this billing period' },
+      },
+    });
     expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
+  });
+
+  test('triggers fallback when props.error is a plain string', async () => {
+    const { client, mocks } = createMockClient();
+    const mgr = new ForegroundFallbackManager(client, makeChains(), true, 3);
+
+    await mgr.handleEvent({
+      type: 'message.updated',
+      properties: {
+        info: {
+          sessionID: 'sess-str-error',
+          providerID: 'anthropic',
+          modelID: 'claude-opus-4-5',
+        },
+      },
+    });
+
+    // props.error is a plain string — no object wrapper
+    await mgr.handleEvent({
+      type: 'session.status',
+      properties: {
+        sessionID: 'sess-str-error',
+        status: { type: 'retry', attempt: 1, message: 'retrying...' },
+        error: 'Usage exceeded for this billing period',
+      },
+    });
+    expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
+  });
+
+  test('non-rate-limit status does not clear retries (no infinite loop from abort side effects)', async () => {
+    const { client, mocks } = createMockClient();
+    const mgr = new ForegroundFallbackManager(client, makeChains(), true, 3);
+
+    await mgr.handleEvent({
+      type: 'message.updated',
+      properties: {
+        info: {
+          sessionID: 'sess-nonrl',
+          providerID: 'anthropic',
+          modelID: 'claude-opus-4-5',
+        },
+      },
+    });
+
+    // First rate-limit: triggers fallback, sessionRetries set to 1
+    await mgr.handleEvent({
+      type: 'session.status',
+      properties: {
+        sessionID: 'sess-nonrl',
+        status: {
+          type: 'retry',
+          attempt: 1,
+          message: 'rate limit, retrying...',
+        },
+      },
+    });
+    expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
+
+    // Non-rate-limit status (e.g. abort side effect): must NOT reset retries.
+    // If it did, the next rate-limit would see tried=0 and trigger immediate
+    // fallback again — the infinite loop.
+    await mgr.handleEvent({
+      type: 'session.status',
+      properties: {
+        sessionID: 'sess-nonrl',
+        status: { type: 'retry', attempt: 1, message: 'aborted' },
+      },
+    });
+    expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
+
+    // Second rate-limit: absorbed by budget (tried=1, not 0 from reset)
+    await mgr.handleEvent({
+      type: 'session.status',
+      properties: {
+        sessionID: 'sess-nonrl',
+        status: {
+          type: 'retry',
+          attempt: 2,
+          message: 'rate limit, retrying...',
+        },
+      },
+    });
+    expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
+
+    // Third rate-limit: budget exhausted at maxRetries-1=2, re-triggers
+    await mgr.handleEvent({
+      type: 'session.status',
+      properties: {
+        sessionID: 'sess-nonrl',
+        status: {
+          type: 'retry',
+          attempt: 3,
+          message: 'rate limit, retrying...',
+        },
+      },
+    });
+    expect(mocks.promptAsync).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -899,11 +1058,10 @@ describe('ForegroundFallbackManager resolveChain cross-agent isolation', () => {
     expect(call[0].body.model.modelID).toBe('gpt-4o');
   });
 
-  test('falls through to model matching for non-omos agents (e.g. compaction)', async () => {
-    // compaction is an OpenCode built-in agent that is NOT an omos agent,
-    // so it has no chain configured. It should fall through to model
-    // matching and inherit a chain from a configured agent that shares
-    // its model, instead of being silently excluded from fallback.
+  test('does NOT bleed into other agent chains for non-omos agents without a chain', async () => {
+    // A user-defined agent (e.g. Build) shares its model with the orchestrator
+    // chain but has no chain of its own. It must NOT inherit the orchestrator
+    // chain — that would switch the session from Build to Orchestrator.
     const { client, mocks } = createMockClient();
     const mgr = new ForegroundFallbackManager(
       client,
@@ -915,8 +1073,8 @@ describe('ForegroundFallbackManager resolveChain cross-agent isolation', () => {
       type: 'message.updated',
       properties: {
         info: {
-          sessionID: 'compaction-sess',
-          agent: 'compaction', // NOT a known omos built-in agent
+          sessionID: 'build-sess',
+          agent: 'build',
           providerID: 'openai',
           modelID: 'gpt-5.6',
           error: { message: 'rate limit exceeded' },
@@ -924,14 +1082,8 @@ describe('ForegroundFallbackManager resolveChain cross-agent isolation', () => {
       },
     });
 
-    // compaction's model (openai/gpt-5.6) matches orchestrator's chain
-    // → should fall back to the next untried model in that chain
-    expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
-    const call = mocks.promptAsync.mock.calls[0] as [
-      { body: { model: { providerID: string; modelID: string } } },
-    ];
-    expect(call[0].body.model.providerID).toBe('new-api');
-    expect(call[0].body.model.modelID).toBe('glm-5.2');
+    // build has no configured chain and must not inherit orchestrator's
+    expect(mocks.promptAsync).not.toHaveBeenCalled();
   });
 });
 
@@ -1086,14 +1238,14 @@ describe('ForegroundFallbackManager runtimeOverride', () => {
       false, // runtimeOverride
     );
 
-    // Simulate unknown agent (e.g. "compaction") using a model that IS in
-    // the orchestrator chain — resolveChain infers the chain from the model.
+    // Simulate an agent name OpenCode doesn't report (agent field absent).
+    // resolveChain falls through to model-matching, finds the chain that
+    // contains openai/gpt-4o (orchestrator's chain).
     await mgr.handleEvent({
       type: 'message.updated',
       properties: {
         info: {
           sessionID: 'sess-5',
-          agent: 'compaction',
           providerID: 'openai',
           modelID: 'gpt-4o',
           error: { message: 'rate limit exceeded' },
@@ -1142,7 +1294,7 @@ describe('ForegroundFallbackManager runtimeOverride', () => {
     expect(mocks.abort).toHaveBeenCalledTimes(1);
   });
 
-  test('session.status with runtimeOverride=false and out-of-chain model aborts after retry budget exhausted', async () => {
+  test('session.status with runtimeOverride=false and out-of-chain model triggers immediate fallback which aborts', async () => {
     const { client, mocks } = createMockClient();
     const mgr = new ForegroundFallbackManager(
       client,
@@ -1166,27 +1318,7 @@ describe('ForegroundFallbackManager runtimeOverride', () => {
       },
     });
 
-    // First retry (attempt 1) — absorbed by retry budget
-    await mgr.handleEvent({
-      type: 'session.status',
-      properties: {
-        sessionID: 'sess-status-override',
-        status: { type: 'retry', message: 'rate limit, retrying...' },
-      },
-    });
-    expect(mocks.abort).toHaveBeenCalledTimes(0);
-
-    // Second retry (attempt 2) — absorbed
-    await mgr.handleEvent({
-      type: 'session.status',
-      properties: {
-        sessionID: 'sess-status-override',
-        status: { type: 'retry', message: 'rate limit, retrying...' },
-      },
-    });
-    expect(mocks.abort).toHaveBeenCalledTimes(0);
-
-    // Third retry (attempt 3) — budget exhausted, tryFallback runs, guard aborts
+    // First retry triggers shouldIntervene → immediate fallback → abort
     await mgr.handleEvent({
       type: 'session.status',
       properties: {
@@ -1195,6 +1327,6 @@ describe('ForegroundFallbackManager runtimeOverride', () => {
       },
     });
     expect(mocks.promptAsync).toHaveBeenCalledTimes(0);
-    expect(mocks.abort).toHaveBeenCalledTimes(1);
+    expect(mocks.abort).toHaveBeenCalled();
   });
 });

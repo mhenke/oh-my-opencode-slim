@@ -15,7 +15,6 @@
  */
 
 import type { PluginInput } from '@opencode-ai/plugin';
-import { ALL_AGENT_NAMES } from '../../config/constants';
 import { log } from '../../utils/logger';
 import {
   abortSessionWithTimeout,
@@ -53,7 +52,12 @@ const RATE_LIMIT_PATTERNS = [
 ];
 
 export function isRateLimitError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false;
+  if (!error) return false;
+  // Handle string-typed errors (OpenCode may send a plain error string)
+  if (typeof error === 'string') {
+    return RATE_LIMIT_PATTERNS.some((p) => p.test(error));
+  }
+  if (typeof error !== 'object') return false;
   const err = error as {
     message?: string;
     data?: { statusCode?: number; message?: string; responseBody?: string };
@@ -206,30 +210,36 @@ export class ForegroundFallbackManager {
           | {
               sessionID?: string;
               status?: { type?: string; message?: string; attempt?: number };
+              error?: unknown;
             }
           | undefined;
-        if (!props?.sessionID || !props.status?.message) break;
-        const msg = props.status.message.toLowerCase();
-        if (
-          msg.includes('rate limit') ||
-          msg.includes('usage limit') ||
-          msg.includes('usage exceeded') ||
-          msg.includes('quota exceeded') ||
-          msg.includes('exceededbudget') ||
-          msg.includes('over budget') ||
-          msg.includes('insufficient') ||
-          msg.includes('high concurrency') ||
-          msg.includes('reduce concurrency')
-        ) {
-          // session.status retry path always counts toward the budget
-          // — even the first retry is absorbed before intervening.
-          if (this.checkRetryBudget(props.sessionID)) {
-            await this.tryFallback(props.sessionID);
+        if (!props?.sessionID) break;
+        const msg = props.status?.message?.toLowerCase() ?? '';
+        const isRateLimit =
+          (msg &&
+            (msg.includes('rate limit') ||
+              msg.includes('usage limit') ||
+              msg.includes('usage exceeded') ||
+              msg.includes('quota exceeded') ||
+              msg.includes('exceededbudget') ||
+              msg.includes('over budget') ||
+              msg.includes('insufficient') ||
+              msg.includes('high concurrency') ||
+              msg.includes('reduce concurrency'))) ||
+          isRateLimitError(props.error);
+        if (isRateLimit) {
+          if (this.shouldIntervene(props.sessionID)) {
+            await this.tryFallbackWithAbort(props.sessionID);
+            this.sessionRetries.set(props.sessionID, 1);
           }
-        } else {
-          // Non-rate-limit status: clear retry count (recovery).
-          this.sessionRetries.delete(props.sessionID);
         }
+        // Note: do NOT clear sessionRetries here on non-rate-limit statuses.
+        // Abort events triggered by our own fallback carry non-rate-limit
+        // messages and would reset the counter, creating an infinite loop:
+        // abort → fallback → set retries to 1 → abort event clears retries
+        // → next retry sees tried=0 → abort+fallback again → repeat.
+        // Retries are only cleared on successful response (message.updated
+        // without error) or session deletion.
         break;
       }
 
@@ -302,6 +312,38 @@ export class ForegroundFallbackManager {
     // Deduplicate: multiple events can fire for a single rate-limit event.
     // Bypass dedup when the model changed since the last trigger - the new
     // model's failure is a separate incident and the cascade should continue.
+    if (this.isDeduped(sessionID)) return;
+
+    this.inProgress.add(sessionID);
+    try {
+      await this.execFallback(sessionID);
+    } finally {
+      this.inProgress.delete(sessionID);
+    }
+  }
+
+  /**
+   * Fallback path for session.status retry events.  Aborts the retry loop
+   * before falling back because promptAsync alone is ignored while the
+   * session is in retry mode.  inProgress is set first so the
+   * task-session-manager sees isFallbackInProgress()=true during the
+   * abort idle window and does not cancel the pending task call.
+   */
+  private async tryFallbackWithAbort(sessionID: string): Promise<void> {
+    if (!sessionID) return;
+    if (this.inProgress.has(sessionID)) return;
+    if (this.isDeduped(sessionID)) return;
+
+    this.inProgress.add(sessionID);
+    try {
+      await abortSessionWithTimeout(this.client, sessionID);
+      await this.execFallback(sessionID);
+    } finally {
+      this.inProgress.delete(sessionID);
+    }
+  }
+
+  private isDeduped(sessionID: string): boolean {
     const now = Date.now();
     const curModel = this.sessionModel.get(sessionID);
     const modelChanged =
@@ -311,13 +353,15 @@ export class ForegroundFallbackManager {
       !modelChanged &&
       now - (this.lastTrigger.get(sessionID) ?? 0) < DEDUP_WINDOW_MS
     )
-      return;
+      return true;
     this.lastTrigger.set(sessionID, now);
     if (curModel !== undefined) {
       this.lastTriggerModel.set(sessionID, curModel);
     }
+    return false;
+  }
 
-    this.inProgress.add(sessionID);
+  private async execFallback(sessionID: string): Promise<void> {
     try {
       let currentModel = this.sessionModel.get(sessionID);
       const agentName = this.sessionAgent.get(sessionID);
@@ -481,8 +525,6 @@ export class ForegroundFallbackManager {
         sessionID,
         error: err instanceof Error ? err.message : String(err),
       });
-    } finally {
-      this.inProgress.delete(sessionID);
     }
   }
 
@@ -495,9 +537,8 @@ export class ForegroundFallbackManager {
    *
    * Priority:
    * 1. Agent name known AND has a configured chain → return it directly
-   * 2. Agent name known but NO chain configured → return [] (no fallback;
-   *    do NOT bleed into other agents' chains which would re-prompt the
-   *    session with a model belonging to a completely different agent)
+   * 2. Agent name known but NO chain → return [] (no fallback; never
+   *    bleed into other agents' chains)
    * 3. Agent name unknown, current model known → search all chains for
    *    the model to infer which chain to use
    * 4. Nothing matches → flatten all chains as a last resort (only
@@ -508,18 +549,13 @@ export class ForegroundFallbackManager {
     currentModel: string | undefined,
   ): string[] {
     if (agentName) {
-      // Agent is known: use its chain exactly if configured.
       const chain = this.chains[agentName];
       if (chain) return chain;
-      // Known omos built-in agent (oracle, librarian, …) without a
-      // configured chain: keep isolation - do NOT bleed into other
-      // agents' chains (preserves the cross-agent isolation contract
-      // from PR #199).
-      if ((ALL_AGENT_NAMES as readonly string[]).includes(agentName)) return [];
-      // Unknown agent (e.g. OpenCode built-in "compaction" or "title"
-      // that don't appear in the user preset): fall through to
-      // model-matching so they can inherit a chain from a configured
-      // agent that shares their model.
+      // Any known agent without a configured chain: no fallback.
+      // Don't bleed into other agents' chains via model-matching —
+      // that switches the session to the wrong agent (e.g. Build
+      // inherits Orchestrator's chain and becomes Orchestrator).
+      return [];
     }
 
     // Agent unknown: try to infer from the current model.
