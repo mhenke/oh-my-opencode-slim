@@ -103,7 +103,9 @@ function acquirePidFileLock(file: string): (() => void) | null {
       return () => {
         try {
           rmSync(lock, { recursive: true, force: true });
-        } catch {}
+        } catch (err) {
+          log('[companion] lock release failed', String(err));
+        }
       };
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
@@ -132,10 +134,13 @@ function pidFileLockHasLiveOwner(lock: string): boolean {
   try {
     const owner = parsePidFile(readFileSync(path.join(lock, 'owner'), 'utf8'));
     if (owner !== null) return isProcessAlive(owner);
-  } catch {
+  } catch (err) {
+    log('[companion] lock owner check failed', String(err));
     try {
       return Date.now() - statSync(lock).mtimeMs < 5000;
-    } catch {}
+    } catch (err) {
+      log('[companion] lock owner check failed', String(err));
+    }
   }
   return false;
 }
@@ -175,7 +180,9 @@ function readState(): CompanionState {
     if (parsed?.version === 1 && Array.isArray(parsed.sessions)) {
       return parsed as CompanionState;
     }
-  } catch {}
+  } catch (err) {
+    log('[companion] state load failed', String(err));
+  }
   return { version: 1, sessions: [] };
 }
 
@@ -206,7 +213,9 @@ function acquireStateLock(file: string): () => void {
       return () => {
         try {
           rmSync(lock, { recursive: true, force: true });
-        } catch {}
+        } catch (err) {
+          log('[companion] lock release failed', String(err));
+        }
       };
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;
@@ -252,7 +261,9 @@ export class CompanionManager {
             (s) => s.session_id !== this.id,
           );
         });
-      } catch {}
+      } catch (err) {
+        log('[companion] status update failed', String(err));
+      }
       return;
     }
     this.registerActiveManager();
@@ -345,7 +356,9 @@ export class CompanionManager {
     if (activeManagers.size === 0 && activeExitListener) {
       try {
         process.removeListener('exit', activeExitListener);
-      } catch {}
+      } catch (err) {
+        log('[companion] exit listener removal failed', String(err));
+      }
       activeExitListener = null;
     }
     if (this.config?.enabled !== true) return;
@@ -508,7 +521,9 @@ export class CompanionManager {
       if (spawnedChild && !this.wasSpawner) {
         try {
           spawnedChild.kill();
-        } catch {}
+        } catch (killErr) {
+          log('[companion] spawn failed', String(killErr));
+        }
       }
       log('[companion] spawn guard failed', String(err));
     } finally {

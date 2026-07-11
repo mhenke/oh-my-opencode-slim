@@ -115,7 +115,9 @@ export function loadCompanionManifestFromPackageRoot(
         checksums: parsed.checksums,
       };
     }
-  } catch {}
+  } catch (err) {
+    log('[updater] manifest read failed', String(err));
+  }
   return null;
 }
 
@@ -348,7 +350,9 @@ async function installCompanionArchive(
     if (tempDir) {
       try {
         rmSync(tempDir, { recursive: true, force: true });
-      } catch {}
+      } catch (err) {
+        log('[updater] install cleanup failed', String(err));
+      }
     }
   }
 }
@@ -363,7 +367,9 @@ function readInstallMetadata(
     if (parsed?.version && parsed.tag && parsed.target) {
       return parsed as CompanionInstallMetadata;
     }
-  } catch {}
+  } catch (err) {
+    log('[updater] metadata read failed', String(err));
+  }
   return null;
 }
 
@@ -396,7 +402,9 @@ async function withCompanionInstallLock(
       } finally {
         try {
           rmSync(lock, { recursive: true, force: true });
-        } catch {}
+        } catch (err) {
+          log('[updater] lock release failed', String(err));
+        }
       }
     } catch (err) {
       const code = (err as NodeJS.ErrnoException).code;

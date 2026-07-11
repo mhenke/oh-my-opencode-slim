@@ -620,4 +620,53 @@ describe('CompanionManager', () => {
       size: 'medium',
     });
   });
+
+  it('recovers from corrupt state file gracefully', () => {
+    const statePath = stateFilePath();
+    mkdirSync(path.dirname(statePath), { recursive: true });
+    writeFileSync(statePath, 'not-valid-json');
+
+    const m = make();
+    m.onLoad();
+
+    // Must gracefully degrade to default state
+    const state = readState();
+    expect(state.version).toBe(1);
+    expect(state.sessions).toHaveLength(1);
+  });
+
+  it('handles state write failure during disabled onLoad gracefully', () => {
+    const statePath = stateFilePath();
+    mkdirSync(path.dirname(statePath), { recursive: true });
+    writeFileSync(statePath, JSON.stringify({ version: 1, sessions: [] }));
+    const originalContent = readFileSync(statePath, 'utf8');
+    chmodSync(statePath, 0o444);
+
+    const m = new CompanionManager('test-disabled', '/path', {
+      enabled: false,
+      position: 'bottom-right',
+      size: 'medium',
+    });
+    m.onLoad();
+
+    // State file must be preserved despite write failure (catch swallowed the error)
+    chmodSync(statePath, 0o644);
+    expect(readFileSync(statePath, 'utf8')).toBe(originalContent);
+  });
+
+  it('handles empty state file gracefully', () => {
+    // readState catches JSON parse errors and returns a clean default state
+    const statePath = stateFilePath();
+    mkdirSync(path.dirname(statePath), { recursive: true });
+    writeFileSync(statePath, '');
+
+    const m = make();
+    expect(() => {
+      m.onLoad();
+    }).not.toThrow();
+
+    const state = readState();
+    expect(state.version).toBe(1);
+    expect(state.sessions).toHaveLength(1);
+  });
 });
