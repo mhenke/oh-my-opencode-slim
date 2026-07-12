@@ -197,6 +197,17 @@ export const FailoverConfigSchema = z
         'When true (default), empty provider responses are treated as failures, ' +
           'triggering fallback/retry. Set to false to treat them as successes.',
       ),
+    // DEPRECATED: accepted for backward compatibility but no longer used.
+    // Fallback is now always disabled when a user explicitly selects a model
+    // via /model, so this flag has no effect.
+    runtimeOverride: z
+      .boolean()
+      .optional()
+      .describe(
+        'DEPRECATED: no longer used. Previously controlled whether out-of-chain ' +
+          'runtime model picks triggered fallback. Fallback is now always ' +
+          'disabled when a user explicitly selects a model via /model.',
+      ),
   })
   .strict();
 
