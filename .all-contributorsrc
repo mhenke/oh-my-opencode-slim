@@ -686,6 +686,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "stephanschielke",
+      "name": "Stephan Schielke",
+      "avatar_url": "https://avatars.githubusercontent.com/u/401815?v=4",
+      "profile": "https://hardcore.engineer/about",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commitConvention": "angular"
