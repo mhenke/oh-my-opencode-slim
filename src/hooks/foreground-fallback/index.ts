@@ -4,7 +4,9 @@
  * When OpenCode fires a session.error, message.updated, or session.status
  * event containing a rate-limit signal, this manager:
  *   1. Looks up the next untried model in the agent's configured chain
- *   2. Aborts the rate-limited prompt via client.session.abort()
+ *   2. Aborts the rate-limited prompt via client.session.abort() on the
+ *      session.status retry path; session.error and message.updated paths
+ *      re-prompt directly without abort.
  *   3. Re-queues the last user message via client.session.promptAsync()
  *      with the new model - promptAsync returns immediately so we never
  *      block the event handler waiting for a full LLM response.
@@ -49,6 +51,7 @@ const RATE_LIMIT_PATTERNS = [
 ];
 
 const OUTAGE_STATUS_CODES = new Set([500, 502, 503, 504]);
+// ponytail: validated against real OpenCode error shapes
 const TRANSPORT_CODES = new Set([
   'ECONNREFUSED',
   'ECONNRESET',
@@ -279,7 +282,7 @@ export class ForegroundFallbackManager {
         }
         // Failover-worthy error on an individual message
         if (info.error && isFailoverError(info.error)) {
-          if (this.shouldIntervene(sessionID)) {
+          if (this.shouldTriggerFallback(sessionID)) {
             await this.tryFallback(sessionID);
           }
         } else {
@@ -299,7 +302,7 @@ export class ForegroundFallbackManager {
           sessionID &&
           props.error &&
           isFailoverError(props.error) &&
-          this.shouldIntervene(sessionID)
+          this.shouldTriggerFallback(sessionID)
         ) {
           await this.tryFallback(sessionID);
         }
@@ -324,7 +327,31 @@ export class ForegroundFallbackManager {
             (props.status.message !== undefined &&
               isFailoverError({ message: props.status.message })));
         if (isFailoverRetry) {
-          if (this.checkRetryBudget(sessionID)) {
+          // Guard: stale retry event from a previous model's retry loop.
+          // After a fallback, lastTriggerModel holds the OLD model (set by
+          // isDeduped before the fallback), while sessionModel holds the NEW
+          // model. A stale retry from the old model arrives with attempt > 1
+          // (continuation of old retry loop). A genuine retry from the new
+          // model arrives with attempt === 1 (first retry for new model).
+          const prevModel = this.lastTriggerModel.get(sessionID);
+          const curModel = this.sessionModel.get(sessionID);
+          const lastTriggerTime = this.lastTrigger.get(sessionID) ?? 0;
+          const attempt = props.status?.attempt ?? 1;
+          const modelChanged =
+            prevModel !== undefined &&
+            curModel !== undefined &&
+            prevModel !== curModel;
+          const withinDedupWindow =
+            Date.now() - lastTriggerTime < DEDUP_WINDOW_MS;
+          if (modelChanged && withinDedupWindow && attempt > 1) {
+            // Model changed since last trigger, within dedup window, and
+            // attempt > 1: this is a stale retry from the old model's
+            // retry loop (continuation of previous attempts). Skip it.
+            break;
+          }
+          // Otherwise (attempt === 1, or model didn't change, or outside
+          // dedup window): process as genuine retry for current model.
+          if (this.shouldTriggerFallback(sessionID)) {
             await this.tryFallbackWithAbort(sessionID);
           }
           break;
@@ -375,11 +402,10 @@ export class ForegroundFallbackManager {
   // ---------------------------------------------------------------------------
 
   /** Increment retry counter and return true when the budget is exhausted.
-   *  Used by the session.status retry path — each retry counts toward the
+   *  Used by shouldIntervene when tried > 0 — each retry counts toward the
    *  budget and only triggers fallback after maxRetries - 1 absorptions.
-   *  Non-retry paths (session.error / message.updated) use shouldIntervene(),
-   *  which bypasses the counter on first occurrence. */
-  private checkRetryBudget(sessionID: string): boolean {
+   *  First failover retry (tried === 0) bypasses the counter via shouldIntervene. */
+  private consumeRetryBudget(sessionID: string): boolean {
     const tried = this.sessionRetries.get(sessionID) ?? 0;
     if (tried < this.maxRetries - 1) {
       this.sessionRetries.set(sessionID, tried + 1);
@@ -394,12 +420,12 @@ export class ForegroundFallbackManager {
     return true;
   }
 
-  /** For non-retry paths (session.error, message.updated): intervene immediately
-   *  unless the session is already in a retry window (has prior retries). */
-  private shouldIntervene(sessionID: string): boolean {
+  /** Intervene immediately on first occurrence (tried === 0), otherwise
+   *  delegate to retry budget. Used by all three event paths. */
+  private shouldTriggerFallback(sessionID: string): boolean {
     const tried = this.sessionRetries.get(sessionID) ?? 0;
     if (tried === 0) return true;
-    return this.checkRetryBudget(sessionID);
+    return this.consumeRetryBudget(sessionID);
   }
 
   private isRecoveredStatus(statusType: string | undefined): boolean {
