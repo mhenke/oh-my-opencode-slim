@@ -28,11 +28,11 @@ Guardrails (per council review):
 
 When enabled, PRs are labeled using the `gh pr` equivalents:
 
-- **Read a PR**: `gh pr view <number> --comments` and `gh pr diff <number>` for the diff.
-- **List external PRs for triage**: `gh pr list --state open --json number,title,body,labels,author,comments` to enumerate open PRs, then for each run `gh api repos/alvinunreal/oh-my-opencode-slim/pulls/<number> --jq '.author_association'` and keep only `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`, `FIRST_TIMER`, `MANNEQUIN`, or `NONE` (drop `OWNER`/`MEMBER`/`COLLABORATOR`).
-- **Comment / label / close**: `gh pr comment`, `gh pr edit --add-label`/`--remove-label`, `gh pr close`.
+- **Read a PR**: `gh pr view --repo alvinunreal/oh-my-opencode-slim <number> --comments` and `gh pr diff --repo alvinunreal/oh-my-opencode-slim <number>` for the diff.
+- **List external PRs for triage**: `gh pr list --repo alvinunreal/oh-my-opencode-slim --state open --json number,title,body,labels,author,comments` to enumerate open PRs, then for each run `gh api repos/alvinunreal/oh-my-opencode-slim/pulls/<number> --jq '.author_association'` and keep only `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`, `FIRST_TIMER`, `MANNEQUIN`, or `NONE` (drop `OWNER`/`MEMBER`/`COLLABORATOR`).
+- **Comment / label / close**: `gh pr comment --repo alvinunreal/oh-my-opencode-slim`, `gh pr edit --repo alvinunreal/oh-my-opencode-slim --add-label`/`--remove-label`, `gh pr close --repo alvinunreal/oh-my-opencode-slim`.
 
-GitHub shares one number space across issues and PRs, so a bare `#42` may be either — resolve with `gh pr view 42` and fall back to `gh issue view 42`.
+GitHub shares one number space across issues and PRs, so a bare `#42` may be either — resolve with `gh pr view --repo alvinunreal/oh-my-opencode-slim 42` and fall back to `gh issue view 42`.
 
 ## When a skill says "publish to the issue tracker"
 
