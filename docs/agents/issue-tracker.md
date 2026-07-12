@@ -15,9 +15,18 @@ Infer the repo from `git remote -v` — `gh` does this automatically when run in
 
 ## Pull requests as a triage surface
 
-**PRs as a request surface: yes.** This is an open-source repo; external PRs are feature requests with attached code and run through the same labels and states as issues. Collaborators' in-flight PRs are left alone.
+**PRs as a request surface: yes.** This is an open-source repo; external PRs are feature requests with attached code. They enter the triage queue for **category labeling only**, not the full state machine. Collaborators' in-flight PRs are excluded by the `authorAssociation` filter below.
 
-When enabled, PRs run through the same labels and states as issues, using the `gh pr` equivalents:
+**Scope: category labels only.** External PRs get a `bug` or `enhancement` category label based on the PR description or linked issue. They do **not** enter the triage state transitions and are **never** auto-closed during triage.
+
+Guardrails (per council review):
+- Apply only `bug` or `enhancement` to PRs. Do not apply state labels (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`).
+- Never apply `good-to-code` to PRs — they are already code; the label is noise.
+- Never auto-close external PRs during triage. Closure stays in the review flow / maintainer decision.
+- Filter on `authorAssociation`, not PR content: keep CONTRIBUTOR / FIRST_TIME_CONTRIBUTOR / NONE; drop OWNER / MEMBER / COLLABORATOR.
+- Keep PR triage out of issue metrics — don't mix PR counts into issue triage reporting.
+
+When enabled, PRs are labeled using the `gh pr` equivalents:
 
 - **Read a PR**: `gh pr view <number> --comments` and `gh pr diff <number>` for the diff.
 - **List external PRs for triage**: `gh pr list --state open --json number,title,body,labels,author,authorAssociation,comments` then keep only `authorAssociation` of `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`, or `NONE` (drop `OWNER`/`MEMBER`/`COLLABORATOR`).
