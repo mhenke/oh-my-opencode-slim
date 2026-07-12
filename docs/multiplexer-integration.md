@@ -27,18 +27,46 @@ When OpenCode launches child agent sessions, oh-my-opencode-slim can open panes 
 
 *OpenCode running in tmux with live subagent panes.*
 
-> ⚠️ **Current workaround:** Start OpenCode with `--port` to enable multiplexer integration. The port must match the `OPENCODE_PORT` environment variable. This is required until [opencode#9099](https://github.com/anomalyco/opencode/issues/9099) is resolved.
+OpenCode 1.17.18's normal default (`port 0`) does not expose a TCP listener that
+another `opencode attach` process can use from a multiplexer pane. Start
+OpenCode with an explicit `--port`, but do not hard-code `4096` when running
+multiple instances. The plugin now reads `ctx.serverUrl` only when checking,
+spawning, or polling, which avoids snapshotting the temporary startup URL; it
+cannot create a listener that OpenCode did not start.
 
-If you open multiple OpenCode sessions, use a random high port for each launch instead of hard-coding `4096`.
+This zsh helper preserves an explicit `--port` and exports the matching
+`OPENCODE_PORT`. Otherwise, it asks Python to select an available loopback port
+and starts OpenCode with that port explicitly:
 
-**Bash helper:**
-
-```bash
+```zsh
 omos() {
-  local port
-  port=$(jot -r 1 49152 65535)
-  OPENCODE_PORT="$port" \
-  opencode --port "$port" "$@"
+  local port arg
+
+  for arg in "$@"; do
+    if [[ "$arg" == --port=* ]]; then
+      port="${arg#--port=}"
+      break
+    fi
+  done
+
+  if [[ -z "$port" ]]; then
+    local -a args=("$@")
+    local -i index
+    for ((index = 1; index <= ${#args}; index++)); do
+      if [[ "${args[index]}" == --port ]]; then
+        port="${args[index + 1]}"
+        break
+      fi
+    done
+  fi
+
+  if [[ -n "$port" ]]; then
+    OPENCODE_PORT="$port" command opencode "$@"
+    return
+  fi
+
+  port=$(python3 -c 'import socket; s = socket.socket(); s.bind(("127.0.0.1", 0)); print(s.getsockname()[1]); s.close()') || return
+  OPENCODE_PORT="$port" command opencode --port "$port" "$@"
 }
 ```
 
