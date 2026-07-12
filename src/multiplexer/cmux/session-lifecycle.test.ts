@@ -31,7 +31,7 @@ describe('CmuxSessionLifecycle races', () => {
     const lifecycle = new CmuxSessionLifecycle(
       'owner',
       mux,
-      'http://server',
+      () => 'http://server',
       '/repo',
       undefined,
       { isServerRunning: async () => true },
@@ -63,7 +63,7 @@ describe('CmuxSessionLifecycle races', () => {
     const lifecycle = new CmuxSessionLifecycle(
       'owner',
       mux,
-      'http://server',
+      () => 'http://server',
       '/repo',
       undefined,
       {
@@ -105,9 +105,16 @@ describe('CmuxSessionLifecycle races', () => {
     });
     const mux = multiplexer();
     mux.closePane.mockResolvedValue(false);
-    new CmuxSessionLifecycle('new', mux, 'http://server', '/repo', undefined, {
-      closeRetryMaxAttempts: 1,
-    });
+    new CmuxSessionLifecycle(
+      'new',
+      mux,
+      () => 'http://server',
+      '/repo',
+      undefined,
+      {
+        closeRetryMaxAttempts: 1,
+      },
+    );
     await Promise.resolve();
     await Promise.resolve();
     expect(mux.closePane).toHaveBeenCalledTimes(1);

@@ -1410,6 +1410,337 @@ describe('MultiplexerSessionManager', () => {
   describe('cmux lifecycle', () => {
     const cmuxConfig = { ...defaultMultiplexerConfig, type: 'cmux' as const };
 
+    test('resolves a dynamic serverUrl after manager construction', async () => {
+      mockMultiplexerType = 'cmux';
+      let serverUrl = new URL('http://localhost:4096/');
+      let getterCalls = 0;
+      const ctx = createMockContext();
+      Object.defineProperty(ctx, 'serverUrl', {
+        configurable: true,
+        get: () => {
+          getterCalls += 1;
+          return serverUrl;
+        },
+      });
+      const serverCheck = mock(async () => true);
+      const manager = new MultiplexerSessionManager(
+        ctx,
+        cmuxConfig,
+        undefined,
+        {
+          isServerRunning: serverCheck,
+        },
+      );
+      expect(getterCalls).toBe(0);
+
+      serverUrl = new URL('http://127.0.0.1:63871/');
+      await manager.onSessionCreated({
+        type: 'session.created',
+        properties: { info: { id: 'dynamic-port', parentID: 'parent' } },
+      });
+      setMockSessionStatuses({ 'dynamic-port': { type: 'busy' } });
+      await (manager as any).pollSessions();
+
+      expect(serverCheck).toHaveBeenCalledWith('http://127.0.0.1:63871/');
+      expect(mockMultiplexer.spawnPane).toHaveBeenCalledWith(
+        'dynamic-port',
+        'Subagent',
+        'http://127.0.0.1:63871/',
+        '/test/directory',
+      );
+      expect(mockFetch).toHaveBeenCalledWith(
+        new URL('http://127.0.0.1:63871/session/status'),
+        expect.any(Object),
+      );
+      expect(serverCheck).not.toHaveBeenCalledWith('http://localhost:4096/');
+      expect(mockFetch).not.toHaveBeenCalledWith(
+        new URL('http://localhost:4096/session/status'),
+        expect.any(Object),
+      );
+    });
+
+    test('pins the URL selected before an awaited health check', async () => {
+      mockMultiplexerType = 'cmux';
+      let serverUrl = new URL('http://127.0.0.1:63871/');
+      const ctx = createMockContext();
+      Object.defineProperty(ctx, 'serverUrl', { get: () => serverUrl });
+      const health = createDeferred<boolean>();
+      const serverCheck = mock(() => health.promise);
+      const manager = new MultiplexerSessionManager(
+        ctx,
+        cmuxConfig,
+        undefined,
+        {
+          isServerRunning: serverCheck,
+        },
+      );
+
+      const creating = manager.onSessionCreated({
+        type: 'session.created',
+        properties: { info: { id: 'pinned-url', parentID: 'parent' } },
+      });
+      await Promise.resolve();
+      serverUrl = new URL('http://127.0.0.1:63872/');
+      health.resolve(true);
+      await creating;
+
+      expect(mockMultiplexer.spawnPane).toHaveBeenCalledWith(
+        'pinned-url',
+        'Subagent',
+        'http://127.0.0.1:63871/',
+        '/test/directory',
+      );
+    });
+
+    test('deferred spawn retry resolves the latest URL', async () => {
+      mockMultiplexerType = 'cmux';
+      let serverUrl = new URL('http://127.0.0.1:63871/');
+      const ctx = createMockContext();
+      Object.defineProperty(ctx, 'serverUrl', { get: () => serverUrl });
+      const retry = createDeferred<void>();
+      const serverCheck = mock(async () => true);
+      mockMultiplexer.spawnPane
+        .mockResolvedValueOnce({ success: false, error: 'unavailable' })
+        .mockResolvedValueOnce({ success: true, paneId: 'retried-pane' });
+      const manager = new MultiplexerSessionManager(
+        ctx,
+        cmuxConfig,
+        undefined,
+        {
+          isServerRunning: serverCheck,
+          delay: () => retry.promise,
+        },
+      );
+
+      await manager.onSessionCreated({
+        type: 'session.created',
+        properties: { info: { id: 'deferred-url', parentID: 'parent' } },
+      });
+      serverUrl = new URL('http://127.0.0.1:63872/');
+      retry.resolve();
+      await flushPromises();
+
+      expect(serverCheck).toHaveBeenLastCalledWith('http://127.0.0.1:63872/');
+      expect(mockMultiplexer.spawnPane).toHaveBeenLastCalledWith(
+        'deferred-url',
+        'Subagent',
+        'http://127.0.0.1:63872/',
+        '/test/directory',
+      );
+    });
+
+    test('busy respawn resolves the latest URL', async () => {
+      mockMultiplexerType = 'cmux';
+      let serverUrl = new URL('http://127.0.0.1:63871/');
+      const ctx = createMockContext();
+      Object.defineProperty(ctx, 'serverUrl', { get: () => serverUrl });
+      const manager = new MultiplexerSessionManager(ctx, cmuxConfig);
+      mockMultiplexer.spawnPane
+        .mockResolvedValueOnce({ success: true, paneId: 'first-pane' })
+        .mockResolvedValueOnce({ success: true, paneId: 'second-pane' });
+      await manager.onSessionCreated({
+        type: 'session.created',
+        properties: { info: { id: 'busy-url', parentID: 'parent' } },
+      });
+      await manager.closeSessionFromCoordinator('busy-url');
+      serverUrl = new URL('http://127.0.0.1:63872/');
+      await manager.onSessionStatus({
+        type: 'session.status',
+        properties: { sessionID: 'busy-url', status: { type: 'busy' } },
+      });
+
+      expect(mockMultiplexer.spawnPane).toHaveBeenLastCalledWith(
+        'busy-url',
+        'Subagent',
+        'http://127.0.0.1:63872/',
+        '/test/directory',
+      );
+    });
+
+    test('each poll resolves the latest URL', async () => {
+      mockMultiplexerType = 'cmux';
+      let serverUrl = new URL('http://127.0.0.1:63871/');
+      const ctx = createMockContext();
+      Object.defineProperty(ctx, 'serverUrl', { get: () => serverUrl });
+      const manager = new MultiplexerSessionManager(ctx, cmuxConfig);
+      await manager.onSessionCreated({
+        type: 'session.created',
+        properties: { info: { id: 'poll-url', parentID: 'parent' } },
+      });
+      await (manager as any).pollSessions();
+      serverUrl = new URL('http://127.0.0.1:63872/');
+      await (manager as any).pollSessions();
+
+      expect(mockFetch.mock.calls.at(-2)?.[0]).toEqual(
+        new URL('http://127.0.0.1:63871/session/status'),
+      );
+      expect(mockFetch.mock.calls.at(-1)?.[0]).toEqual(
+        new URL('http://127.0.0.1:63872/session/status'),
+      );
+    });
+
+    test('temporary missing URL never advances missing grace or closes a pane', async () => {
+      mockMultiplexerType = 'cmux';
+      let now = 0;
+      let serverUrl: URL | undefined = new URL('http://127.0.0.1:63871/');
+      const ctx = createMockContext();
+      Object.defineProperty(ctx, 'serverUrl', { get: () => serverUrl });
+      const manager = new MultiplexerSessionManager(
+        ctx,
+        cmuxConfig,
+        undefined,
+        {
+          now: () => now,
+          missingGraceMs: 10,
+        },
+      );
+      await manager.onSessionCreated({
+        type: 'session.created',
+        properties: { info: { id: 'temporary-url', parentID: 'parent' } },
+      });
+
+      serverUrl = undefined;
+      for (now = 10; now <= 40; now += 10)
+        await (manager as any).pollSessions();
+      expect(mockMultiplexer.closePane).not.toHaveBeenCalled();
+
+      serverUrl = new URL('http://127.0.0.1:63872/');
+      setMockSessionStatuses({ 'temporary-url': { type: 'busy' } });
+      await (manager as any).pollSessions();
+      expect(mockFetch).toHaveBeenLastCalledWith(
+        new URL('http://127.0.0.1:63872/session/status'),
+        expect.any(Object),
+      );
+      expect(mockMultiplexer.closePane).not.toHaveBeenCalled();
+    });
+
+    test('uses the SDK client baseUrl when ctx.serverUrl is missing', async () => {
+      mockMultiplexerType = 'cmux';
+      const ctx = createMockContext();
+      ctx.serverUrl = undefined;
+      ctx.client._client = {
+        getConfig: () => ({ baseUrl: 'http://127.0.0.1:63872/' }),
+      };
+      const serverCheck = mock(async () => true);
+      const manager = new MultiplexerSessionManager(
+        ctx,
+        cmuxConfig,
+        undefined,
+        {
+          isServerRunning: serverCheck,
+        },
+      );
+
+      await manager.onSessionCreated({
+        type: 'session.created',
+        properties: { info: { id: 'client-url', parentID: 'parent' } },
+      });
+
+      expect(serverCheck).toHaveBeenCalledWith('http://127.0.0.1:63872/');
+      expect(mockMultiplexer.spawnPane).toHaveBeenCalledWith(
+        'client-url',
+        'Subagent',
+        'http://127.0.0.1:63872/',
+        '/test/directory',
+      );
+    });
+
+    test('does not health check, spawn, or fall back to 4096 without a URL', async () => {
+      mockMultiplexerType = 'cmux';
+      const ctx = createMockContext();
+      ctx.serverUrl = undefined;
+      const manager = new MultiplexerSessionManager(ctx, cmuxConfig);
+
+      await manager.onSessionCreated({
+        type: 'session.created',
+        properties: { info: { id: 'no-url', parentID: 'parent' } },
+      });
+      await (manager as any).pollSessions();
+
+      expect(mockIsServerRunning).not.toHaveBeenCalled();
+      expect(mockMultiplexer.spawnPane).not.toHaveBeenCalled();
+      expect(mockFetch).not.toHaveBeenCalled();
+    });
+
+    test('malicious client reflection cannot break initialization or spawning', async () => {
+      mockMultiplexerType = 'cmux';
+      for (const client of [
+        new Proxy(
+          {},
+          {
+            has: () => true,
+            get: () => {
+              throw new Error('get');
+            },
+          },
+        ),
+        Object.defineProperty({}, '_client', {
+          get: () => {
+            throw new Error('accessor');
+          },
+        }),
+        {
+          _client: Object.defineProperty({}, 'getConfig', {
+            get: () => {
+              throw new Error('getConfig accessor');
+            },
+          }),
+        },
+        {
+          _client: {
+            getConfig: () =>
+              Object.defineProperty({}, 'baseUrl', {
+                get: () => {
+                  throw new Error('baseUrl accessor');
+                },
+              }),
+          },
+        },
+      ]) {
+        const ctx = createMockContext();
+        ctx.serverUrl = undefined;
+        ctx.client = client;
+        const manager = new MultiplexerSessionManager(ctx, cmuxConfig);
+        await expect(
+          manager.onSessionCreated({
+            type: 'session.created',
+            properties: {
+              info: { id: `proxy-${Math.random()}`, parentID: 'p' },
+            },
+          }),
+        ).resolves.toBeUndefined();
+      }
+      expect(mockIsServerRunning).not.toHaveBeenCalled();
+      expect(mockMultiplexer.spawnPane).not.toHaveBeenCalled();
+    });
+
+    test('keeps an explicit fixed 4096 serverUrl working', async () => {
+      mockMultiplexerType = 'cmux';
+      const ctx = createMockContext({ serverUrl: 'http://localhost:4096/' });
+      const serverCheck = mock(async () => true);
+      const manager = new MultiplexerSessionManager(
+        ctx,
+        cmuxConfig,
+        undefined,
+        {
+          isServerRunning: serverCheck,
+        },
+      );
+
+      await manager.onSessionCreated({
+        type: 'session.created',
+        properties: { info: { id: 'fixed-port', parentID: 'parent' } },
+      });
+
+      expect(serverCheck).toHaveBeenCalledWith('http://localhost:4096/');
+      expect(mockMultiplexer.spawnPane).toHaveBeenCalledWith(
+        'fixed-port',
+        'Subagent',
+        'http://localhost:4096/',
+        '/test/directory',
+      );
+    });
+
     test('requires lifetime, three idle polls, and a final idle recheck', async () => {
       mockMultiplexerType = 'cmux';
       let now = 0;

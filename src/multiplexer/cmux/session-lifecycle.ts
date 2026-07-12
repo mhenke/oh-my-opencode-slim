@@ -1,4 +1,5 @@
 import { POLL_INTERVAL_BACKGROUND_MS } from '../../config';
+import { log } from '../../utils/logger';
 import type { Multiplexer } from '../types';
 import { isServerRunning } from '../types';
 import { CmuxClosePolicy, type CmuxCloseReason } from './close-policy';
@@ -50,6 +51,13 @@ const ACTIVITY_EVENTS = new Set([
 const MIN_LIFETIME_MS = 10_000;
 const IDLE_CONFIRMATIONS = 3;
 
+class ServerUrlUnavailableError extends Error {
+  constructor() {
+    super('OpenCode server URL is unavailable');
+    this.name = 'ServerUrlUnavailableError';
+  }
+}
+
 export class CmuxSessionLifecycle {
   private readonly store = new CmuxSessionStore();
   private readonly policy: CmuxClosePolicy;
@@ -74,7 +82,7 @@ export class CmuxSessionLifecycle {
   constructor(
     private readonly owner: string,
     private readonly multiplexer: Multiplexer,
-    private readonly serverUrl: string,
+    private readonly resolveServerUrl: () => string | null,
     private readonly defaultDirectory: string,
     private readonly backgroundJobs?: BackgroundJobs,
     options: CmuxSessionLifecycleOptions = {},
@@ -252,14 +260,19 @@ export class CmuxSessionLifecycle {
   }
 
   private async spawnOperation(record: CmuxSessionRecord) {
-    if (!(await this.serverCheck(this.serverUrl))) {
+    const serverUrl = this.resolveServerUrl();
+    if (!serverUrl) {
+      log('[cmux-session-lifecycle] no valid server URL; skipping spawn');
+      return { success: false, error: 'unavailable' as const };
+    }
+    if (!(await this.serverCheck(serverUrl))) {
       return { success: false, error: 'unavailable' as const };
     }
     try {
       return await this.multiplexer.spawnPane(
         record.session,
         record.title,
-        this.serverUrl,
+        serverUrl,
         record.directory,
       );
     } catch {
@@ -559,7 +572,12 @@ export class CmuxSessionLifecycle {
   }
 
   private async loadStatuses(): Promise<Record<string, { type: string }>> {
-    const response = await fetch(new URL('/session/status', this.serverUrl), {
+    const serverUrl = this.resolveServerUrl();
+    if (!serverUrl) {
+      log('[cmux-session-lifecycle] no valid server URL; skipping poll');
+      throw new ServerUrlUnavailableError();
+    }
+    const response = await fetch(new URL('/session/status', serverUrl), {
       signal: AbortSignal.timeout(2_000),
     });
     if (!response.ok)
