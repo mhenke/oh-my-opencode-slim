@@ -1,4 +1,4 @@
-import * as crypto from 'node:crypto';
+import { createHash } from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -21,8 +21,7 @@ function dataDir(): string {
 
 // ponytail: per-project scope prevents /model overrides from leaking across projects
 function projectScope(projectDir: string): string {
-  return crypto
-    .createHash('sha256')
+  return createHash('sha256')
     .update(path.resolve(projectDir))
     .digest('hex')
     .slice(0, 12);

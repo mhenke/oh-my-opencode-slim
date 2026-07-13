@@ -130,4 +130,19 @@ describe('tui-state persistence', () => {
     });
     expect(snapshot.agentVariants).toEqual({});
   });
+
+  test('cross-project isolation — different directories write independent state files', () => {
+    const dirA = fs.mkdtempSync(path.join(os.tmpdir(), 'omos-a-'));
+    const dirB = fs.mkdtempSync(path.join(os.tmpdir(), 'omos-b-'));
+    try {
+      recordTuiAgentModels({ agentModels: { explorer: 'model-a' } }, dirA);
+      recordTuiAgentModels({ agentModels: { explorer: 'model-b' } }, dirB);
+
+      expect(readTuiSnapshot(dirA).agentModels.explorer).toBe('model-a');
+      expect(readTuiSnapshot(dirB).agentModels.explorer).toBe('model-b');
+    } finally {
+      fs.rmSync(dirA, { recursive: true, force: true });
+      fs.rmSync(dirB, { recursive: true, force: true });
+    }
+  });
 });
