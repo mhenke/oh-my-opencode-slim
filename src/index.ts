@@ -139,6 +139,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
   let agents: ReturnType<typeof getAgentConfigs>;
   let mcps: ReturnType<typeof createBuiltinMcps>;
   let modelArrayMap: Record<string, Array<{ id: string; variant?: string }>>;
+  let everModelSwitched: Set<string>;
   let runtimeChains: Record<string, string[]>;
   let multiplexerConfig: MultiplexerConfig;
   let multiplexerEnabled: boolean;
@@ -216,6 +217,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       string,
       Array<{ id: string; variant?: string }>
     >;
+    everModelSwitched = new Set<string>();
     runtimeChains = {} as Record<string, string[]>;
     for (const agentDef of agentDefs) {
       if (agentDef._modelArray?.length) {
@@ -316,7 +318,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       config.fallback?.enabled !== false,
       config.fallback?.maxRetries ?? 3,
       sessionLifecycle,
-      config.fallback?.runtimeOverride ?? true,
     );
 
     deepworkCommandHook = createDeepworkCommandHook();
@@ -565,6 +566,18 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           const existing = (opencodeConfig.agent as Record<string, unknown>)[
             name
           ] as Record<string, unknown> | undefined;
+          // User explicitly picked a model via /model → disable fallback.
+          // Only marks the agent if the model differs from the chain primary.
+          // Once marked, stays disabled even if user switches back to chain[0].
+          if (existing && typeof existing.model === 'string') {
+            const primary = modelArrayMap[name]?.[0]?.id;
+            if (primary && existing.model !== primary) {
+              everModelSwitched.add(name);
+            }
+            if (everModelSwitched.has(name)) {
+              foregroundFallback.disableChain(name);
+            }
+          }
           if (existing) {
             // Shallow merge: plugin defaults first, user overrides win
             (opencodeConfig.agent as Record<string, unknown>)[name] = {

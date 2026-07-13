@@ -219,6 +219,18 @@ export class ForegroundFallbackManager {
     return this.inProgress.has(sessionID);
   }
 
+  /**
+   * Disable the fallback chain for a specific agent.
+   * After calling this, rate-limit errors for that agent surface instead of
+   * silently falling back through the chain.
+   */
+  disableChain(agentName: string): void {
+    // Keep the key present (known agent, no chain) rather than deleting it,
+    // so resolveChain's "known agent without a chain" path applies and the
+    // shared runtimeChains reference retains the agent entry.
+    this.chains[agentName] = [];
+  }
+
   registerSessionAgent(sessionID: string, agentName: string): void {
     const normalizedAgentName = agentName.trim();
     if (
@@ -238,18 +250,11 @@ export class ForegroundFallbackManager {
      * e.g. { orchestrator: ['anthropic/claude-opus-4-5', 'openai/gpt-4o'] }
      * The first model that hasn't been tried yet is selected on each fallback.
      */
-    private readonly chains: Record<string, string[]>,
+    private chains: Record<string, string[]>,
     private readonly enabled: boolean,
     /** Consecutive 429s tolerated on the same model before swap/abort. */
     private readonly maxRetries: number = 3,
     coordinator?: SessionLifecycle,
-    /**
-     * When true (default), a runtime model outside the configured chain
-     * still triggers fallback on rate-limit errors. When false, out-of-chain
-     * runtime picks are respected and the error surfaces instead. Models
-     * that are members of the chain always fall back regardless.
-     */
-    private readonly runtimeOverride: boolean = true,
   ) {
     if (coordinator) {
       coordinator.onSessionDeleted((id) => {
@@ -538,32 +543,6 @@ export class ForegroundFallbackManager {
       // "next" fallback target.
       if (!currentModel && agentName && chain.length > 0) {
         currentModel = chain[0];
-      }
-
-      // Guard: when runtimeOverride is false, skip fallback for models
-      // that are not members of the configured chain. This respects a
-      // deliberate runtime `/model` pick (e.g. an expensive model outside
-      // the chain) and lets the error surface instead of silently swapping
-      // to the chain's default. Models that ARE in the chain always fall
-      // back normally regardless of this setting.
-      if (
-        !this.runtimeOverride &&
-        currentModel &&
-        !chain.includes(currentModel)
-      ) {
-        log(
-          '[foreground-fallback] current model not in chain, skipping fallback (runtimeOverride=false)',
-          {
-            sessionID,
-            agentName,
-            currentModel,
-            chain,
-          },
-        );
-        // Abort the session so the rate-limit error surfaces to the user
-        // instead of leaving the session in a silent retry loop.
-        await abortSessionWithTimeout(this.client, sessionID);
-        return;
       }
 
       if (!this.sessionTried.has(sessionID)) {

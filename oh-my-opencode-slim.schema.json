@@ -1095,8 +1095,7 @@
           "type": "boolean"
         },
         "runtimeOverride": {
-          "default": true,
-          "description": "When true (default), a runtime model selected via /model that is outside the configured fallback chain will still trigger the chain on rate-limit errors. When false, out-of-chain runtime picks are respected and the error surfaces instead of silently falling back to the chain. Models that are members of the chain always fall back regardless of this setting.",
+          "description": "DEPRECATED: no longer used. Previously controlled whether out-of-chain runtime model picks triggered fallback. Fallback is now always disabled when a user explicitly selects a model via /model.",
           "type": "boolean"
         }
       },
