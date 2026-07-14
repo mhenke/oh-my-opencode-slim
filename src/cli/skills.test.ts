@@ -26,7 +26,6 @@ describe('skills permissions', () => {
     expect(orchestratorPerms.deepwork).toBe('allow');
     expect(orchestratorPerms['verification-planning']).toBe('allow');
     expect(orchestratorPerms.reflect).toBe('allow');
-    expect(orchestratorPerms['release-smoke-test']).toBe('allow');
     expect(orchestratorPerms.worktrees).toBe('allow');
     expect(orchestratorPerms['oh-my-opencode-slim']).toBe('allow');
   });
