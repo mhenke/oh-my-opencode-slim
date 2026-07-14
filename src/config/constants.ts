@@ -51,7 +51,7 @@ export const MAX_POLL_TIME_MS = 5 * 60 * 1000; // 5 minutes
 export const DEFAULT_MAX_SUBAGENT_DEPTH = 3;
 
 // Workflow reminders
-export const PHASE_REMINDER_TEXT = `!IMPORTANT! Scheduler workflow: plan lanes/dependencies → dispatch background specialists → track task IDs → wait for hook-driven completion → reconcile terminal results → verify. Do not poll running jobs, consume running-job output, or advance dependent work. !END!`;
+export const PHASE_REMINDER_TEXT = `!IMPORTANT! Scheduler workflow: First choose the lightest workflow that fits the work. If direct execution is justified, complete it and verify proportionately. Otherwise: plan lanes/dependencies → dispatch background specialists → track task IDs → wait for hook-driven completion → reconcile terminal results → verify. Do not poll running jobs, consume running-job output, or advance dependent work. !END!`;
 
 export function formatSystemReminder(text: string): string {
   return `<system-reminder>\n${text}\n</system-reminder>`;
