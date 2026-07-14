@@ -38,7 +38,6 @@ const packagedRequiredFiles = [
   'src/skills/verification-planning/SKILL.md',
   'src/skills/reflect/SKILL.md',
   'src/skills/oh-my-opencode-slim/SKILL.md',
-  'src/skills/release-smoke-test/SKILL.md',
   'src/skills/worktrees/SKILL.md',
 ];
 
