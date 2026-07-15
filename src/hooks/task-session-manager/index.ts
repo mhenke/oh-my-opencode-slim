@@ -103,18 +103,19 @@ export function createTaskSessionManagerHook(
     /** Register a session as orchestrator when the transform hook detects
      *  an orchestrator message but the session isn't in the agent map yet. */
     registerSessionAsOrchestrator?: (sessionID: string) => void;
-    /** Optional guard: when provided, idle events for a session that is
-     *  currently undergoing a foreground-fallback abort/re-prompt cycle
-     *  will NOT trigger idle reconciliation. prevents marking a still-
-     *  active child job as completed when the session was aborted for
-     *  model fallback rather than natural completion. */
+    /** Called with a sessionID to check if that session (or its parent)
+     *  is currently undergoing a foreground-fallback abort/re-prompt cycle.
+     *  When true: idle events for both the parent and any background
+     *  children are skipped (prevents marking a still-active job as
+     *  completed during transient fallback); phantom cleanup is enabled
+     *  in session.created nets. */
     isFallbackInProgress?: (sessionID: string) => boolean;
     coordinator?: SessionLifecycle;
     /** Test seam only; production always uses the reconciliation delay. */
     idleReconcileDelayMs?: number;
     /** Called when a background job reaches a terminal state so the
      *  orchestrator can be prodded to re-evaluate its conversation. */
-    onTerminalJob?: (parentSessionID: string) => void;
+    onJobTerminal?: (parentSessionID: string) => void;
   },
 ) {
   const backgroundJobBoard =
@@ -135,6 +136,7 @@ export function createTaskSessionManagerHook(
   const continuationSessionTokens = new Map<string, symbol>();
   const activeContinuationEvaluations = new Map<string, Set<symbol>>();
   const continuationConsumed = new Set<string>();
+  const terminalJobNotified = new Set<string>();
   const idleReconcileDelayMs =
     options.idleReconcileDelayMs ?? IDLE_RECONCILE_DELAY_MS;
 
@@ -375,6 +377,7 @@ export function createTaskSessionManagerHook(
         backgroundJobBoard.clearParent(sessionId);
       }
       terminalJobsInjectedByParent.delete(sessionId);
+      terminalJobNotified.delete(sessionId);
       taskContextTracker.clearSession(sessionId);
       taskContextTracker.prune(backgroundJobBoard);
       pendingCallTracker.clearSession(sessionId);
@@ -513,6 +516,18 @@ export function createTaskSessionManagerHook(
     });
 
     rememberProcessedInjectedCompletion(occurrenceId);
+
+    // ponytail: notify orchestrator when injected completion makes a
+    // job terminal. The session.idle handler for the child only fires
+    // when job.state === 'running', which won't be true if the injected
+    // completion already marked it completed.
+    if (updated.terminalUnreconciled && options.onJobTerminal) {
+      if (!terminalJobNotified.has(updated.taskID)) {
+        terminalJobNotified.add(updated.taskID);
+        options.onJobTerminal(updated.parentSessionID);
+      }
+    }
+
     return updated;
   }
 
@@ -807,9 +822,10 @@ export function createTaskSessionManagerHook(
           taskContextTracker.contextFilesForPrompt(status.taskID),
         );
         taskContextTracker.prune(backgroundJobBoard);
-        if (updated && updated.state !== 'running' && options.onTerminalJob) {
-          if (options.shouldManageSession(pending.parentSessionId)) {
-            options.onTerminalJob(pending.parentSessionId);
+        if (updated && updated.state !== 'running' && options.onJobTerminal) {
+          if (!terminalJobNotified.has(status.taskID)) {
+            terminalJobNotified.add(status.taskID);
+            options.onJobTerminal(pending.parentSessionId);
           }
         }
         return;
@@ -896,8 +912,10 @@ export function createTaskSessionManagerHook(
             part.metadata[BACKGROUND_JOB_BOARD_METADATA_KEY] === true,
         );
         if (existingBoardIndex !== -1) {
-          (message.parts[existingBoardIndex] as { text: string }).text =
-            reminders.join('\n\n');
+          const part = message.parts[existingBoardIndex];
+          if (typeof (part as { text?: unknown }).text === 'string') {
+            (part as { text: string }).text = reminders.join('\n\n');
+          }
           return;
         }
 
@@ -967,15 +985,21 @@ export function createTaskSessionManagerHook(
                 agent: record.agent,
               },
             );
-            // ponytail: clean up phantom during fallback. When this session.created
-            // is a fallback continuation (isFallbackInProgress true), drop any stale
-            // phantom running job(s) for the parent whose taskID !== info.id.
+            // ponytail: clean up phantom running job during fallback.
+            // Only auto-drop when exactly 1 other running job exists
+            // (the single phantom). More than 1 means there might be
+            // legit concurrent jobs — session.deleted cleans them
+            // individually.
+            // ponytail: O(n) scan over the parent's jobs — n is tiny
+            // (≤ maxSessionsPerAgent running jobs per parent, default 2)
+            // and only runs during fallback, so the linear cost is
+            // negligible. A per-parent index would be premature.
             if (options.isFallbackInProgress?.(info.parentID)) {
-              const jobs = backgroundJobBoard.list(info.parentID);
-              for (const job of jobs) {
-                if (job.taskID !== info.id && job.state === 'running') {
-                  backgroundJobBoard.drop(job.taskID);
-                }
+              const runningJobs = backgroundJobBoard
+                .list(info.parentID)
+                .filter((j) => j.state === 'running' && j.taskID !== info.id);
+              if (runningJobs.length === 1) {
+                backgroundJobBoard.drop(runningJobs[0].taskID);
               }
             }
           }
@@ -1049,9 +1073,10 @@ export function createTaskSessionManagerHook(
             taskContextTracker.contextFilesForPrompt(sessionId),
           );
           taskContextTracker.prune(backgroundJobBoard);
-          if (options.onTerminalJob) {
-            if (options.shouldManageSession(job.parentSessionID)) {
-              options.onTerminalJob(job.parentSessionID);
+          if (options.onJobTerminal) {
+            if (!terminalJobNotified.has(sessionId)) {
+              terminalJobNotified.add(sessionId);
+              options.onJobTerminal(job.parentSessionID);
             }
           }
         }
@@ -1130,6 +1155,7 @@ export function createTaskSessionManagerHook(
       log('[task-session-manager] session.deleted observed', {
         sessionID: sessionId,
       });
+      terminalJobNotified.delete(sessionId);
     },
   };
 

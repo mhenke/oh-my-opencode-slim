@@ -23,15 +23,19 @@ export function createPendingCallTracker() {
       }
     },
 
+    findByParent(parentSessionId: string): string | undefined {
+      for (const id of pendingCalls.keys()) {
+        const call = pendingCalls.get(id);
+        if (call && call.parentSessionId === parentSessionId) {
+          return id;
+        }
+      }
+      return undefined;
+    },
+
     take(callId?: string, parentSessionId?: string) {
       if (!callId && parentSessionId) {
-        for (const id of pendingCalls.keys()) {
-          const call = pendingCalls.get(id);
-          if (call && call.parentSessionId === parentSessionId) {
-            callId = id;
-            break;
-          }
-        }
+        callId = this.findByParent(parentSessionId);
       }
       if (!callId) return undefined;
       const pending = pendingCalls.get(callId);
@@ -47,15 +51,15 @@ export function createPendingCallTracker() {
       return undefined;
     },
 
+    /**
+     * Same lookup as {@link take} but does not consume the pending call.
+     * Used by session.created net (#765) so tool.execute.after can still
+     * receive the result.
+     */
+
     peek(callId?: string, parentSessionId?: string) {
       if (!callId && parentSessionId) {
-        for (const id of pendingCalls.keys()) {
-          const call = pendingCalls.get(id);
-          if (call && call.parentSessionId === parentSessionId) {
-            callId = id;
-            break;
-          }
-        }
+        callId = this.findByParent(parentSessionId);
       }
       if (!callId) return undefined;
       return pendingCalls.get(callId);
