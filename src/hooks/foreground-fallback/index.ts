@@ -183,6 +183,14 @@ export function isRateLimitError(error: unknown): boolean {
 /** Prevent re-triggering within this window for the same session. */
 const DEDUP_WINDOW_MS = 5_000;
 const REPROMPT_DELAY_MS = 500;
+/** Grace window after a successful fallback re-prompt during which the
+ *  task-session-manager treats late abort-induced session.deleted and
+ *  cancelled/error status updates as spurious (the session was re-prompted,
+ *  not truly terminated). Keeps the background job running so the genuine
+ *  fallback-response idle can reconcile it. Separate from the strict
+ *  inProgress flag, which must clear in finally so the real response idle
+ *  still reconciles (issue #765). */
+const FALLBACK_GRACE_WINDOW_MS = 5_000;
 
 // ---------------------------------------------------------------------------
 // Manager
@@ -201,8 +209,16 @@ export class ForegroundFallbackManager {
   private readonly sessionAgent = new Map<string, string>();
   /** sessionID → set of models already attempted this session */
   private readonly sessionTried = new Map<string, Set<string>>();
-  /** Sessions with an active fallback switch in flight */
+  /** Sessions with an active fallback switch in flight. Strict: cleared in
+   *  the finally block of tryFallback/tryFallbackWithAbort right after
+   *  promptAsync returns, so the genuine fallback-response idle is NOT
+   *  suppressed and can reconcile the background job. */
   private readonly inProgress = new Set<string>();
+  /** sessionID → timestamp of the last SUCCESSFUL fallback re-prompt
+   *  (promptAsync accepted). wasFallbackRecent() returns true within
+   *  FALLBACK_GRACE_WINDOW_MS of this, covering the async window in which
+   *  the abort's late session.deleted / cancelled-error status arrive. */
+  private readonly lastFallbackAt = new Map<string, number>();
   /** sessionID → timestamp of last trigger (for deduplication) */
   private readonly lastTrigger = new Map<string, number>();
   /** sessionID → model in use when lastTrigger was set; dedup is bypassed
@@ -217,6 +233,24 @@ export class ForegroundFallbackManager {
    *  while a fallback abort/re-prompt is in flight for this session. */
   isFallbackInProgress(sessionID: string): boolean {
     return this.inProgress.has(sessionID);
+  }
+
+  /** True when a fallback re-prompt was accepted for this session within
+   *  the grace window. Used by task-session-manager to (a) keep the
+   *  onSessionDeleted drop guard effective against late abort-induced
+   *  session.deleted, and (b) suppress spurious cancelled/error status
+   *  updates so the job stays running for idle reconciliation. Distinct
+   *  from isFallbackInProgress() (strict, in-flight) so the genuine
+   *  fallback-response idle still reconciles. */
+  wasFallbackRecent(sessionID: string): boolean {
+    const at = this.lastFallbackAt.get(sessionID);
+    if (at === undefined) return false;
+    return Date.now() - at < FALLBACK_GRACE_WINDOW_MS;
+  }
+
+  /** Record that a fallback re-prompt was accepted, arming the grace window. */
+  private markFallbackDone(sessionID: string): void {
+    this.lastFallbackAt.set(sessionID, Date.now());
   }
 
   /**
@@ -270,6 +304,9 @@ export class ForegroundFallbackManager {
         this.lastTrigger.delete(id);
         this.lastTriggerModel.delete(id);
         this.sessionRetries.delete(id);
+        // Clear the grace window for a truly-gone session so stale
+        // wasFallbackRecent() entries don't linger.
+        this.lastFallbackAt.delete(id);
       });
     }
   }
@@ -657,6 +694,11 @@ export class ForegroundFallbackManager {
       }
 
       this.sessionModel.set(sessionID, nextModel);
+      // Arm the grace window: promptAsync was accepted, so the abort's
+      // late session.deleted / cancelled-error status arriving in the next
+      // few seconds are spurious. inProgress itself is cleared by the
+      // caller's finally so the genuine response idle still reconciles.
+      this.markFallbackDone(sessionID);
       log('[foreground-fallback] switched to fallback model', {
         sessionID,
         agentName,
