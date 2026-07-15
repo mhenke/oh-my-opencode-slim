@@ -36,6 +36,7 @@ function createHook(options?: {
   idleReconcileDelayMs?: number;
   isFallbackInProgress?: (sessionID: string) => boolean;
   coordinator?: SessionLifecycle;
+  onJobTerminal?: (parentSessionID: string) => void;
 }) {
   const hook = createTaskSessionManagerHook(
     {
@@ -58,6 +59,7 @@ function createHook(options?: {
       isFallbackInProgress: options?.isFallbackInProgress,
       coordinator: options?.coordinator,
       idleReconcileDelayMs: options?.idleReconcileDelayMs,
+      onJobTerminal: options?.onJobTerminal,
     },
   );
 
