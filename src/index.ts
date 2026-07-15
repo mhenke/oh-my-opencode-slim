@@ -1195,7 +1195,11 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         log,
       });
 
-      // Post-file metadata must be added before phase-reminder deduplicates it.
+      // Repair session mappings before reminder gates; nudge metadata precedes phase dedup.
+      await taskSessionManagerHook['experimental.chat.messages.transform'](
+        input as never,
+        typedOutput as never,
+      );
       await postFileToolNudge['experimental.chat.messages.transform'](
         input as never,
         typedOutput as never,
@@ -1205,10 +1209,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         typedOutput as never,
       );
       await filterAvailableSkills['experimental.chat.messages.transform'](
-        input as never,
-        typedOutput as never,
-      );
-      await taskSessionManagerHook['experimental.chat.messages.transform'](
         input as never,
         typedOutput as never,
       );

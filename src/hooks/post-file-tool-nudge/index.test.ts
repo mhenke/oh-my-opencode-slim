@@ -63,7 +63,7 @@ describe('post-file-tool-nudge hook', () => {
     expect(reminderParts(freshMessage)).toHaveLength(1);
   });
 
-  test('shared session eligibility suppresses both reminders for a rejected turn', async () => {
+  test('shared session eligibility suppresses a rejected turn and retains its pending nudge', async () => {
     const coordinator = new SessionLifecycle(() => {});
     let isOrchestratorSession = false;
     const shouldInject = () => isOrchestratorSession;
@@ -84,6 +84,10 @@ describe('post-file-tool-nudge hook', () => {
 
     isOrchestratorSession = true;
     const eligibleMessage = orchestratorMessage();
+    await nudge['experimental.chat.messages.transform'](
+      {},
+      { messages: [eligibleMessage] },
+    );
     await phaseReminder['experimental.chat.messages.transform'](
       {},
       { messages: [eligibleMessage] },

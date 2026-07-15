@@ -59,15 +59,11 @@ export function createPostFileToolNudgeHook(
       const { message, sessionID } = eligible;
 
       const hasReminder = message.parts.some(hasPhaseReminder);
-      if (!coordinator.consumePending(sessionID)) {
+      if (options.shouldInject && !options.shouldInject(sessionID)) {
         return;
       }
-      if (
-        hasReminder ||
-        (options.shouldInject && !options.shouldInject(sessionID))
-      ) {
-        return;
-      }
+      if (!coordinator.consumePending(sessionID)) return;
+      if (hasReminder) return;
       // This transform must run before phase-reminder so this metadata deduplicates.
       message.parts.push({
         type: 'text',
