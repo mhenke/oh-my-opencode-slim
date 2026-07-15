@@ -621,7 +621,7 @@ function normalizeWhitespace(value: string): string {
 function formatJob(job: BackgroundJobRecord): string {
   const isResume = job.lastLaunchedAt !== job.launchedAt;
   // Exclude wall-clock age labels so prompts remain stable between job-state transitions for cache reuse.
-  const state =
+  const displayState =
     job.state === 'running' && isResume ? 'running [resumed]' : job.state;
   const status = job.terminalUnreconciled
     ? `${job.state}, unreconciled`
@@ -629,7 +629,7 @@ function formatJob(job: BackgroundJobRecord): string {
       ? `${job.state}, status uncertain`
       : job.timedOut
         ? `${job.state}, timed out`
-        : state;
+        : displayState;
   const lines = [
     `- ${promptSafe(job.alias)} / ${promptSafe(job.taskID)} / ${promptSafe(job.agent)} / ${promptSafe(status)}`,
     `  Objective: ${promptSafe(job.objective || job.description)}`,
