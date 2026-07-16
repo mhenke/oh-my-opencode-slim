@@ -152,21 +152,11 @@ export async function isOpenCodeInstalled(
 
   for (const opencodePath of paths) {
     if (opencodePath === 'opencode') continue;
-    try {
-      const proc = crossSpawn([opencodePath, '--version'], {
-        stdout: 'pipe',
-        stderr: 'pipe',
-        env: environment,
-      });
-      await proc.exited;
-      if (proc.exitCode === 0) {
-        if (useCache) {
-          cachedOpenCodePath = opencodePath;
-        }
-        return true;
+    if (canExecute(opencodePath, ['--version'], environment)) {
+      if (useCache) {
+        cachedOpenCodePath = opencodePath;
       }
-    } catch {
-      // Try next path
+      return true;
     }
   }
   return false;
