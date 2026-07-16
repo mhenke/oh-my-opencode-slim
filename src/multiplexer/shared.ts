@@ -39,6 +39,73 @@ export function buildOpencodeAttachCommand(
   ].join(' ');
 }
 
+/**
+ * Resolve the absolute path to the running OpenCode binary so child shells
+ * (e.g. a kitty-launched window) don't need `opencode` on their PATH. Falls
+ * back to the bare `opencode` name when no absolute path can be determined.
+ */
+export function resolveOpencodeExecutable(): string {
+  return resolveHostOpencodeBinary() ?? 'opencode';
+}
+
+/**
+ * Build the `[shell, ...shellArgs, command]` array for launching a command in
+ * the user's interactive shell. OpenCode respects the user's shell when running
+ * commands; multiplexer panes must do the same, otherwise a hardcoded `sh -c`
+ * breaks under non-POSIX shells (fish, nu, powershell, ...) or misses login
+ * startup files (where `opencode` may be on PATH).
+ *
+ * Mirrors OpenCode's own `Shell.args()` resolution:
+ * - nu / fish: `<shell> -c <command>` (no login mode)
+ * - zsh: login mode; zsh sources ~/.zshenv automatically, then we source
+ *   .zshrc before running the command
+ * - bash: login mode, sources bashrc, then runs command
+ * - cmd: `cmd /c <command>`
+ * - powershell: `pwsh -NoProfile -Command <command>`
+ * - default (sh/dash/elvish/xonsh/...): `<shell> -c <command>`
+ *
+ * Note: the working directory is supplied by the launcher (e.g. kitty's
+ * `--cwd`), not by a `cd` inside the shell command.
+ */
+export function buildShellLaunchArgs(command: string): string[] {
+  const shell = process.env.SHELL || '/bin/sh';
+  const name = (shell.split(/[/\\]/).at(-1) ?? 'sh').replace(
+    /\.(exe|EXE)$/,
+    '',
+  );
+
+  if (name === 'nu' || name === 'fish') {
+    return [shell, '-c', command];
+  }
+  if (name === 'zsh') {
+    // zsh sources ~/.zshenv unconditionally at startup (every session, login or
+    // not), so we must not source it again here. Only source .zshrc (login
+    // mode already implies this, but doing it explicitly keeps PATH/aliases
+    // consistent for the launched command).
+    return [
+      shell,
+      '-l',
+      '-c',
+      `[[ -f "\${ZDOTDIR:-$HOME}/.zshrc" ]] && source "\${ZDOTDIR:-$HOME}/.zshrc" >/dev/null 2>&1\n${command}`,
+    ];
+  }
+  if (name === 'bash') {
+    return [
+      shell,
+      '-l',
+      '-c',
+      `shopt -s expand_aliases\n[[ -f ~/.bashrc ]] && source ~/.bashrc >/dev/null 2>&1 || true\n${command}`,
+    ];
+  }
+  if (name === 'cmd') {
+    return [shell, '/c', command];
+  }
+  if (name === 'pwsh' || name === 'powershell') {
+    return [shell, '-NoProfile', '-Command', command];
+  }
+  return [shell, '-c', command];
+}
+
 export function resolveHostOpencodeBinary(
   options: {
     override?: string;
@@ -140,6 +207,8 @@ export interface GracefulClosePaneOptions {
   acceptExitCode1?: boolean;
   /** Return true for empty/unknown paneId instead of false (zellij/herdr behavior). */
   emptyPaneReturnsTrue?: boolean;
+  /** Env to pass to the kitten/kitty invocations (e.g. KITTY_LISTEN_ON). */
+  env?: Record<string, string | undefined>;
 }
 
 export async function gracefulClosePane(
@@ -156,6 +225,7 @@ export async function gracefulClosePane(
     const ctrlCProc = crossSpawn([binary, ...options.ctrlC], {
       stdout: 'ignore',
       stderr: 'ignore',
+      env: options.env,
     });
     await ctrlCProc.exited;
 
@@ -164,6 +234,7 @@ export async function gracefulClosePane(
     const proc = crossSpawn([binary, ...options.close], {
       stdout: 'ignore',
       stderr: 'ignore',
+      env: options.env,
     });
     const exitCode = await proc.exited;
 

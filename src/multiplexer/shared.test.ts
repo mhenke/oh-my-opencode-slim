@@ -182,3 +182,74 @@ describe('buildOpencodeAttachCommand', () => {
     }
   });
 });
+
+describe('buildShellLaunchArgs', () => {
+  const cases: Array<{
+    shell: string;
+    expected: (cmd: string) => string[];
+  }> = [
+    {
+      shell: '/opt/homebrew/bin/fish',
+      expected: (cmd) => ['/opt/homebrew/bin/fish', '-c', cmd],
+    },
+    {
+      shell: '/usr/bin/nu',
+      expected: (cmd) => ['/usr/bin/nu', '-c', cmd],
+    },
+    {
+      shell: '/bin/zsh',
+      expected: (cmd) => ['/bin/zsh', '-l', '-c', expect.stringContaining(cmd)],
+    },
+    {
+      shell: '/bin/bash',
+      expected: (cmd) => [
+        '/bin/bash',
+        '-l',
+        '-c',
+        expect.stringContaining(cmd),
+      ],
+    },
+    {
+      shell: 'C:\\Windows\\System32\\cmd.exe',
+      expected: (cmd) => ['C:\\Windows\\System32\\cmd.exe', '/c', cmd],
+    },
+    {
+      shell: '/usr/bin/pwsh',
+      expected: (cmd) => ['/usr/bin/pwsh', '-NoProfile', '-Command', cmd],
+    },
+    {
+      shell: '/bin/dash',
+      expected: (cmd) => ['/bin/dash', '-c', cmd],
+    },
+    {
+      shell: '/usr/bin/elvish',
+      expected: (cmd) => ['/usr/bin/elvish', '-c', cmd],
+    },
+  ];
+
+  for (const { shell, expected } of cases) {
+    test(`uses correct args for ${shell}`, async () => {
+      const original = process.env.SHELL;
+      process.env.SHELL = shell;
+      try {
+        const { buildShellLaunchArgs } = await importShared();
+        const cmd = 'opencode attach url --session s';
+        expect(buildShellLaunchArgs(cmd)).toEqual(expected(cmd));
+      } finally {
+        process.env.SHELL = original;
+      }
+    });
+  }
+
+  test('falls back to /bin/sh when SHELL is unset', async () => {
+    const original = process.env.SHELL;
+    delete process.env.SHELL;
+    try {
+      const { buildShellLaunchArgs } = await importShared();
+      const cmd = 'opencode attach url';
+      expect(buildShellLaunchArgs(cmd)).toEqual(['/bin/sh', '-c', cmd]);
+    } finally {
+      process.env.SHELL = original;
+    }
+  });
+});

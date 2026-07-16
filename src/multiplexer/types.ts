@@ -17,10 +17,10 @@ export interface PaneResult {
 /**
  * Core multiplexer interface
  * Implementations: TmuxMultiplexer, ZellijMultiplexer, HerdrMultiplexer,
- * CmuxMultiplexer
+ * CmuxMultiplexer, KittyMultiplexer
  */
 export interface Multiplexer {
-  readonly type: 'tmux' | 'zellij' | 'herdr' | 'cmux';
+  readonly type: 'tmux' | 'zellij' | 'herdr' | 'cmux' | 'kitty';
 
   /**
    * Check if the multiplexer binary is available on the system

@@ -941,6 +941,7 @@
             "tmux",
             "zellij",
             "herdr",
+            "kitty",
             "cmux",
             "none"
           ]

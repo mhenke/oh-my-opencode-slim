@@ -12,11 +12,15 @@ describe('multiplexer factory', () => {
   const originalCmuxSocket = process.env.CMUX_SOCKET_PATH;
   const originalCmuxWorkspace = process.env.CMUX_WORKSPACE_ID;
   const originalCmuxSurface = process.env.CMUX_SURFACE_ID;
+  const originalKittyPid = process.env.KITTY_PID;
+  const originalKittyWindowId = process.env.KITTY_WINDOW_ID;
 
   beforeEach(() => {
     delete process.env.CMUX_SOCKET_PATH;
     delete process.env.CMUX_WORKSPACE_ID;
     delete process.env.CMUX_SURFACE_ID;
+    delete process.env.KITTY_PID;
+    delete process.env.KITTY_WINDOW_ID;
   });
 
   afterEach(() => {
@@ -27,6 +31,8 @@ describe('multiplexer factory', () => {
     process.env.CMUX_SOCKET_PATH = originalCmuxSocket;
     process.env.CMUX_WORKSPACE_ID = originalCmuxWorkspace;
     process.env.CMUX_SURFACE_ID = originalCmuxSurface;
+    process.env.KITTY_PID = originalKittyPid;
+    process.env.KITTY_WINDOW_ID = originalKittyWindowId;
   });
 
   test('returns a fresh tmux instance per call', async () => {
@@ -172,5 +178,39 @@ describe('multiplexer factory', () => {
         zellij_pane_mode: 'agent-tab',
       })?.type,
     ).toBe('cmux');
+  });
+
+  test('returns a kitty instance when type is kitty', async () => {
+    delete process.env.KITTY_PID;
+    const { getMultiplexer } = await importFreshFactory('kitty-explicit');
+    const multiplexer = getMultiplexer({
+      type: 'kitty',
+      layout: 'main-vertical',
+      main_pane_size: 60,
+      zellij_pane_mode: 'agent-tab',
+    });
+    expect(multiplexer).not.toBeNull();
+    expect(multiplexer?.type).toBe('kitty');
+  });
+
+  test('auto-detects kitty when KITTY_PID is set', async () => {
+    delete process.env.TMUX;
+    delete process.env.TMUX_PANE;
+    delete process.env.ZELLIJ;
+    delete process.env.HERDR_ENV;
+    delete process.env.HERDR_PANE_ID;
+    delete process.env.CMUX_SOCKET_PATH;
+    delete process.env.CMUX_WORKSPACE_ID;
+    delete process.env.CMUX_SURFACE_ID;
+    process.env.KITTY_PID = '12345';
+    const { getMultiplexer } = await importFreshFactory('auto-kitty');
+    expect(
+      getMultiplexer({
+        type: 'auto',
+        layout: 'main-vertical',
+        main_pane_size: 60,
+        zellij_pane_mode: 'agent-tab',
+      })?.type,
+    ).toBe('kitty');
   });
 });
