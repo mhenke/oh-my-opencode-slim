@@ -9,6 +9,7 @@ export {
   startAvailabilityCheck,
 } from './factory';
 export { HerdrMultiplexer } from './herdr';
+export { KittyMultiplexer } from './kitty';
 export {
   MultiplexerSessionManager,
   TmuxSessionManager,

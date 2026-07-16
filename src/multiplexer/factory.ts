@@ -6,6 +6,7 @@ import type { MultiplexerConfig, MultiplexerType } from '../config/schema';
 import { log } from '../utils/logger';
 import { CmuxMultiplexer } from './cmux';
 import { HerdrMultiplexer } from './herdr';
+import { KittyMultiplexer } from './kitty';
 import { TmuxMultiplexer } from './tmux';
 import type { Multiplexer } from './types';
 import { ZellijMultiplexer } from './zellij';
@@ -49,6 +50,10 @@ export function getMultiplexer(config: MultiplexerConfig): Multiplexer | null {
       multiplexer = new CmuxMultiplexer();
       actualType = 'cmux';
       break;
+    case 'kitty':
+      multiplexer = new KittyMultiplexer(config.layout, config.main_pane_size);
+      actualType = 'kitty';
+      break;
     case 'auto': {
       // Auto-detect based on environment variables only
       // Note: Does NOT fall back to binary availability checks
@@ -69,6 +74,12 @@ export function getMultiplexer(config: MultiplexerConfig): Multiplexer | null {
           config.zellij_pane_mode,
         );
         actualType = 'zellij';
+      } else if (process.env.KITTY_PID || process.env.KITTY_WINDOW_ID) {
+        multiplexer = new KittyMultiplexer(
+          config.layout,
+          config.main_pane_size,
+        );
+        actualType = 'kitty';
       } else if (process.env.HERDR_ENV || process.env.HERDR_PANE_ID) {
         multiplexer = new HerdrMultiplexer(
           config.layout,

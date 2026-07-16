@@ -1,7 +1,7 @@
 # Multiplexer Integration Guide
 
-Use tmux, Zellij, Herdr, or cmux to watch subagents work in live panes while
-OpenCode keeps running in your main session.
+Use tmux, Zellij, Herdr, cmux, or kitty to watch subagents work in live panes
+while OpenCode keeps running in your main session.
 
 ## Table of Contents
 
@@ -143,7 +143,34 @@ Edit `~/.config/opencode/oh-my-opencode-slim.json` (or `.jsonc`):
 
 cmux 0.64.14 or newer is required; 0.64.17 or newer is recommended.
 
-### 2. Start OpenCode inside tmux, Zellij, Herdr, or cmux
+**Kitty only:**
+
+```jsonc
+{
+  "multiplexer": {
+    "type": "kitty"
+  }
+}
+```
+
+Kitty requires `allow_remote_control` **and** `listen_on` in `kitty.conf`.
+`listen_on` opens a UNIX socket and kitty exports `KITTY_LISTEN_ON` to its
+child processes (including OpenCode). The plugin passes that env through to
+every `kitten @` invocation automatically — no extra plugin config is needed.
+This is required because OpenCode spawns subagent commands in a process
+detached from the kitty window's controlling terminal, where the tty-based
+remote-control path does not work.
+
+```conf
+allow_remote_control yes
+listen_on unix:/tmp/kitty-rc-$(USER)
+```
+
+After editing `kitty.conf`, **restart kitty** (quit and relaunch) so the socket
+is created. Verify with `kitten @ ls` from a normal shell — it should print JSON
+instead of timing out.
+
+### 2. Start OpenCode inside tmux, Zellij, Herdr, cmux, or kitty
 
 **Tmux:**
 
@@ -168,6 +195,13 @@ opencode --port 4096
 
 **cmux:** Start OpenCode in a cmux surface. Auto-detection requires cmux to
 provide `CMUX_SOCKET_PATH`, `CMUX_WORKSPACE_ID`, and `CMUX_SURFACE_ID`.
+
+**Kitty:**
+
+```bash
+kitty
+opencode --port 4096
+```
 
 ### 3. Trigger delegated work
 
@@ -197,7 +231,7 @@ Please analyze this codebase and create a documentation structure.
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `type` | string | `"none"` | `"auto"`, `"tmux"`, `"zellij"`, `"herdr"`, `"cmux"`, or `"none"` |
+| `type` | string | `"none"` | `"auto"`, `"tmux"`, `"zellij"`, `"herdr"`, `"cmux"`, `"kitty"`, or `"none"` |
 | `layout` | string | `"main-vertical"` | Layout preset for tmux; mapped to Zellij/Herdr pane directions where possible; ignored by cmux |
 | `main_pane_size` | number | `60` | Main pane size percentage for tmux only (`20`-`80`); ignored by Zellij, Herdr, and cmux |
 | `zellij_pane_mode` | string | `"agent-tab"` | Zellij pane placement: `"agent-tab"` creates/reuses a dedicated tab; `"current-tab"` opens panes in the tab containing the parent OpenCode pane |
@@ -210,6 +244,7 @@ Please analyze this codebase and create a documentation structure.
 | **Zellij** | ✅ Supported | Creates a dedicated `opencode-agents` tab by default; can open panes in the parent OpenCode tab with `zellij_pane_mode: "current-tab"`; maps `main-*` layouts to pane directions |
 | **Herdr** | ✅ Supported | Splits panes in the current Herdr workspace; maps `main-vertical`/`even-horizontal`/`tiled` layouts to right splits and `main-horizontal`/`even-vertical` to down splits; no layout rebalancing (like Zellij) |
 | **cmux** | ✅ Supported | Requires cmux 0.64.14+ (0.64.17+ recommended); creates the agent column to the right and stacks subsequent agents downward without moving focus |
+| **Kitty** | ✅ Supported | Uses `kitten @ launch` to open new windows; requires `allow_remote_control` **and** `listen_on` in kitty.conf (OpenCode must run inside a kitty window; kitty exports `KITTY_LISTEN_ON` which the plugin passes through to reach kitty from detached subagent processes). No layout rebalancing (like Zellij/Herdr) |
 
 The cmux adapter equalizes vertical splits after each successful add and close.
 It always creates the first agent to the right and subsequent agents downward;
@@ -314,6 +349,18 @@ For Zellij:
 | `even-horizontal` | Uses Zellij's native pane placement |
 | `even-vertical` | Uses Zellij's native pane placement |
 | `tiled` | Uses Zellij's native pane placement |
+
+For kitty:
+
+| Layout | Kitty behavior |
+|--------|----------------|
+| `main-vertical` | Uses `tall` layout (full-height main pane on left, side panes stacked on right) |
+| `main-horizontal` | Uses `fat` layout (full-width main pane on top, side panes tiled below) |
+| `even-horizontal` | Uses `horizontal` layout (all panes side-by-side, equal width) |
+| `even-vertical` | Uses `vertical` layout (all panes stacked, equal height) |
+| `tiled` | Uses `grid` layout (all panes in equal-sized grid) |
+
+> **Note:** kitty has no layout rebalancing API like tmux's `select-layout`, and no per-window layout — so the multiplexer applies the mapped kitty layout (`tall`, `fat`, `grid`, `horizontal`, or `vertical`) as a **global change to the active tab**, overriding whatever layout you had there. The `main_pane_size` config is ignored. The layout is only re-applied when it differs from the currently applied one (e.g., via `applyLayout`).
 
 For Herdr:
 

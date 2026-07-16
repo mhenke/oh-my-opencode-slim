@@ -131,6 +131,7 @@ export const MultiplexerTypeSchema = z.enum([
   'tmux',
   'zellij',
   'herdr',
+  'kitty',
   'cmux',
   'none',
 ]);
