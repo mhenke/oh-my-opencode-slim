@@ -58,6 +58,8 @@ properties. Prompt-loop TTFT/latency are one observation per submitted user
 prompt, never copied to provider steps. SSE coverage must be established before
 prompts; an unavailable, malformed, or closed stream discards the session. A
 unique per-session nonce is kept only in live prompts.
+Assistant and provider errors are retained only as safe error-code classifications
+and always discard the session.
 Sessions are deleted after collection.
 `;
 
@@ -75,6 +77,24 @@ function number(value: unknown) {
   return typeof value === 'number' && Number.isFinite(value)
     ? value
     : undefined;
+}
+
+function errorCode(value: unknown) {
+  if (!isRecord(value))
+    return value === undefined || value === null ? null : 'unknown';
+  const name = string(value.name) ?? string(value.code) ?? string(value.type);
+  if (
+    name === 'APIError' ||
+    name === 'ProviderAuthError' ||
+    name === 'MessageAbortedError' ||
+    name === 'StructuredOutputError' ||
+    name === 'ContextOverflowError' ||
+    name === 'MessageOutputLengthError' ||
+    name === 'Unknown'
+  ) {
+    return name;
+  }
+  return 'unknown';
 }
 function urlPath(base: string, route: string) {
   return `${base}${route.startsWith('/') ? route : `/${route}`}`;
@@ -344,11 +364,13 @@ function normalizeMessage(value: unknown) {
     agent: string(info.agent),
     providerID: string(info.providerID),
     modelID: string(info.modelID),
+    errorCode: errorCode(info.error),
     tokens: isRecord(info.tokens) ? info.tokens : undefined,
     parts: parts.filter(isRecord).map((part) => ({
       type: string(part.type),
       tool: string(part.tool),
       status: isRecord(part.state) ? string(part.state.status) : undefined,
+      errorCode: part.type === 'retry' ? errorCode(part.error) : null,
       tokens: isRecord(part.tokens) ? part.tokens : undefined,
     })),
   };
@@ -564,6 +586,15 @@ async function run(index: number) {
     const retries = sessionEvents.filter(
       (event) => event.type === 'session.status' && event.status === 'retry',
     ).length;
+    const assistantErrorCodes = assistants
+      .map((message) => message.errorCode)
+      .filter((code): code is string => code !== null);
+    const providerErrorCodes = messages.flatMap((message) =>
+      message.parts
+        .filter((part) => part.type === 'retry')
+        .map((part) => part.errorCode)
+        .filter((code): code is string => code !== null),
+    );
     const historyRetry = messages.some((message) =>
       message.parts.some((part) => part.type === 'retry'),
     );
@@ -618,6 +649,12 @@ async function run(index: number) {
         : [
             'observed session/assistant routing does not match orchestrator/provider/model',
           ]),
+      ...assistantErrorCodes.map((code) =>
+        ['APIError', 'ProviderAuthError'].includes(code)
+          ? `provider_error:${code}`
+          : `assistant_error:${code}`,
+      ),
+      ...providerErrorCodes.map((code) => `provider_error:${code}`),
       ...(coverage.issue ? [coverage.issue] : []),
       ...(retries || historyRetry ? ['session entered retry state'] : []),
       ...(compaction ? ['session compaction observed'] : []),
@@ -637,6 +674,8 @@ async function run(index: number) {
       compaction,
       historyRetry,
       historyCompaction,
+      assistantErrorCodes,
+      providerErrorCodes,
     };
     record.discarded = reasons.length > 0;
     if (reasons.length) record.discardReasons = reasons;
