@@ -62,7 +62,8 @@ export function createPendingCallTracker() {
         callId = this.findByParent(parentSessionId);
       }
       if (!callId) return undefined;
-      return pendingCalls.get(callId);
+      const pending = pendingCalls.get(callId);
+      return pending ? { ...pending } : undefined;
     },
 
     clearSession(sessionId: string) {
