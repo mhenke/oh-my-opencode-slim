@@ -172,3 +172,22 @@ Every eligible session completed `read` and `todowrite`; observed routing was
 `orchestrator` / `opencode` / `hy3-free`. Repeat the controlled procedure
 before drawing conclusions under a different provider account, host, model
 revision, or cache policy.
+
+## Observed OpenAI manual verification
+
+This single-session manual smoke result is **not** a baseline comparison. It
+used an isolated host with existing local OpenAI authentication, the current
+plugin build, and `openai/gpt-5.6-terra-fast`.
+
+| Metric | Observed value |
+| --- | ---: |
+| Eligible sessions | 1 |
+| Cache-read tokens after warm-up | 12288, 13824, 14336 |
+| Warm-up-excluded cache coverage | 93.33% |
+| Eligible-prefix coverage | 85.64% |
+| Second-turn prompt-loop TTFT | 1983.02 ms |
+| Second-turn prompt-loop latency | 2278.46 ms |
+
+The required `read` and `todowrite` trace completed with no assistant or
+provider error. Repeat a controlled baseline/current comparison before making
+a provider-wide performance claim.
