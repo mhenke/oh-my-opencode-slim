@@ -74,18 +74,23 @@ export function getMultiplexer(config: MultiplexerConfig): Multiplexer | null {
           config.zellij_pane_mode,
         );
         actualType = 'zellij';
+      } else if (process.env.HERDR_ENV || process.env.HERDR_PANE_ID) {
+        // Check Herdr before kitty: kitty exports KITTY_PID to every child
+        // process, so a user running OpenCode inside kitty with Herdr active
+        // would otherwise silently resolve to kitty and fail every spawn
+        // (no KITTY_LISTEN_ON). Herdr's env vars are only set when Herdr is
+        // actually active, so this is safe to prefer.
+        multiplexer = new HerdrMultiplexer(
+          config.layout,
+          config.main_pane_size,
+        );
+        actualType = 'herdr';
       } else if (process.env.KITTY_PID || process.env.KITTY_WINDOW_ID) {
         multiplexer = new KittyMultiplexer(
           config.layout,
           config.main_pane_size,
         );
         actualType = 'kitty';
-      } else if (process.env.HERDR_ENV || process.env.HERDR_PANE_ID) {
-        multiplexer = new HerdrMultiplexer(
-          config.layout,
-          config.main_pane_size,
-        );
-        actualType = 'herdr';
       } else {
         // Not inside any session, disable multiplexer
         log('[multiplexer] auto: not inside any session, disabling');
