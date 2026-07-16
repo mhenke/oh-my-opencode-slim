@@ -930,6 +930,18 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         }
       }
 
+      // Instance disposal must reach the task-session manager before any
+      // awaited cleanup. This invalidates active continuation evaluations so
+      // they cannot nudge while teardown is in progress.
+      await taskSessionManagerHook.event(
+        input as {
+          event: {
+            type: string;
+            properties?: { info?: { id?: string }; sessionID?: string };
+          };
+        },
+      );
+
       // Handle multiplexer pane spawning for OpenCode's Task tool sessions
       await multiplexerSessionManager.onSessionCreated(event);
 
@@ -953,15 +965,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       await interviewManager.handleEvent(
         input as {
           event: { type: string; properties?: Record<string, unknown> };
-        },
-      );
-
-      await taskSessionManagerHook.event(
-        input as {
-          event: {
-            type: string;
-            properties?: { info?: { id?: string }; sessionID?: string };
-          };
         },
       );
 
@@ -1069,8 +1072,15 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     // Track which agent each session uses (needed for serve-mode prompt
     // injection)
     'chat.message': async (
-      input: { sessionID: string; agent?: string },
-      output?: { message?: { agent?: string } },
+      input: { sessionID: string; agent?: string; parts?: unknown[] },
+      output?: {
+        message?: {
+          agent?: string;
+          role?: string;
+          sessionID?: string;
+        };
+        parts?: unknown[];
+      },
     ) => {
       const rawAgent = input.agent ?? output?.message?.agent;
       const agent = rawAgent
@@ -1097,6 +1107,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
           status: 'busy',
         });
       }
+      taskSessionManagerHook.observeChatMessage(input, output);
     },
 
     // Inject orchestrator system prompt for serve-mode sessions. In serve
