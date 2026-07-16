@@ -1,13 +1,7 @@
 /// <reference types="bun-types" />
 
 import { describe, expect, mock, test } from 'bun:test';
-import {
-  chmodSync,
-  mkdirSync,
-  mkdtempSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -24,8 +18,7 @@ describe('system', () => {
     try {
       const opencodePath = join(dir, '.opencode', 'bin', 'opencode');
       mkdirSync(join(dir, '.opencode', 'bin'), { recursive: true });
-      writeFileSync(opencodePath, '#!/bin/sh\necho 1.2.3\n');
-      chmodSync(opencodePath, 0o755);
+      symlinkSync(process.execPath, opencodePath, 'file');
 
       expect(
         await isOpenCodeInstalled({
