@@ -704,6 +704,15 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "Chewji9875",
+      "name": "Chewji",
+      "avatar_url": "https://avatars.githubusercontent.com/u/126886556?v=4",
+      "profile": "https://github.com/Chewji9875",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commitConvention": "angular"
