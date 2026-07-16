@@ -8,7 +8,11 @@
 import { PHASE_REMINDER } from '../../config/constants';
 import { isInternalInitiatorPart } from '../../utils';
 import { isRecord } from '../../utils/guards';
-import { findLatestUserMessage, type MessagePart } from '../types';
+import {
+  findLatestUserMessage,
+  isUserMessageWithParts,
+  type MessagePart,
+} from '../types';
 
 export { PHASE_REMINDER };
 
@@ -53,32 +57,37 @@ export function createPhaseReminderHook(options: PhaseReminderOptions = {}) {
         return;
       }
 
-      const textPartIndex = lastUserMessage.parts.findIndex(
-        (p) => p.type === 'text' && p.text !== undefined,
-      );
-
-      if (textPartIndex === -1) {
-        return;
-      }
-
-      const originalPart = lastUserMessage.parts[textPartIndex];
-      if (isInternalInitiatorPart(originalPart)) {
-        return;
-      }
-      if (lastUserMessage.parts.some(hasPhaseReminder)) {
-        return;
-      }
-
       // post-file-tool-nudge must run first so its tagged part deduplicates.
       // Append reminder as a new, separate message part instead of mutating
       // the user-authored text. This prevents the reminder from leaking into
       // the UI display and chat history (issue #448).
-      lastUserMessage.parts.push({
-        type: 'text',
-        synthetic: true,
-        text: PHASE_REMINDER,
-        metadata: { [PHASE_REMINDER_METADATA_KEY]: true },
-      });
+      for (const message of messages) {
+        if (
+          !isUserMessageWithParts(message) ||
+          message.info.agent !== 'orchestrator' ||
+          message.info.sessionID !== sessionID
+        ) {
+          continue;
+        }
+
+        const textPart = message.parts.find(
+          (part) => part.type === 'text' && part.text !== undefined,
+        );
+        if (
+          !textPart ||
+          isInternalInitiatorPart(textPart) ||
+          message.parts.some(hasPhaseReminder)
+        ) {
+          continue;
+        }
+
+        message.parts.push({
+          type: 'text',
+          synthetic: true,
+          text: PHASE_REMINDER,
+          metadata: { [PHASE_REMINDER_METADATA_KEY]: true },
+        });
+      }
     },
   };
 }
