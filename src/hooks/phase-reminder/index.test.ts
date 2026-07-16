@@ -35,6 +35,95 @@ describe('createPhaseReminderHook', () => {
     });
   });
 
+  test('appends one reminder to every historical orchestrator user message in the session', async () => {
+    const hook = createPhaseReminderHook();
+    const output = {
+      messages: [
+        {
+          info: { role: 'user', agent: 'orchestrator', sessionID: 's1' },
+          parts: [{ type: 'text', text: 'first' }],
+        },
+        {
+          info: { role: 'user', agent: 'explorer', sessionID: 's1' },
+          parts: [{ type: 'text', text: 'specialist' }],
+        },
+        {
+          info: { role: 'user', agent: 'orchestrator', sessionID: 's2' },
+          parts: [{ type: 'text', text: 'other session' }],
+        },
+        {
+          info: { role: 'user', agent: 'orchestrator', sessionID: 's1' },
+          parts: [{ type: 'text', text: 'latest' }],
+        },
+      ],
+    };
+
+    await hook['experimental.chat.messages.transform']({}, output);
+
+    expect(output.messages[0].parts).toHaveLength(2);
+    expect(output.messages[3].parts).toHaveLength(2);
+    expect(output.messages[1].parts).toHaveLength(1);
+    expect(output.messages[2].parts).toHaveLength(1);
+  });
+
+  test('reconstructs byte-identical historical messages on the next turn', async () => {
+    const hook = createPhaseReminderHook();
+    const turnN = {
+      messages: [
+        {
+          info: { role: 'user', agent: 'orchestrator', sessionID: 's1' },
+          parts: [{ type: 'text', text: 'first' }],
+        },
+        {
+          info: { role: 'user', agent: 'orchestrator', sessionID: 's1' },
+          parts: [{ type: 'text', text: 'second' }],
+        },
+      ],
+    };
+
+    await hook['experimental.chat.messages.transform']({}, turnN);
+    const transformedHistory = structuredClone(turnN.messages);
+    const turnNPlusOne = {
+      messages: [
+        ...turnN.messages.map((message) => ({
+          ...message,
+          parts: message.parts.filter((part) => !part.synthetic),
+        })),
+        {
+          info: { role: 'user', agent: 'orchestrator', sessionID: 's1' },
+          parts: [{ type: 'text', text: 'third' }],
+        },
+      ],
+    };
+
+    await hook['experimental.chat.messages.transform']({}, turnNPlusOne);
+
+    expect(turnNPlusOne.messages.slice(0, -1)).toEqual(transformedHistory);
+  });
+
+  test('is idempotent when run twice on the same messages', async () => {
+    const hook = createPhaseReminderHook();
+    const output = {
+      messages: [
+        {
+          info: { role: 'user', agent: 'orchestrator', sessionID: 's1' },
+          parts: [{ type: 'text', text: 'first' }],
+        },
+        {
+          info: { role: 'user', agent: 'orchestrator', sessionID: 's1' },
+          parts: [{ type: 'text', text: 'latest' }],
+        },
+      ],
+    };
+
+    await hook['experimental.chat.messages.transform']({}, output);
+    await hook['experimental.chat.messages.transform']({}, output);
+
+    for (const message of output.messages) {
+      expect(message.parts.filter((part) => part.synthetic)).toHaveLength(1);
+    }
+  });
+
   test('skips non-orchestrator sessions', async () => {
     const hook = createPhaseReminderHook();
     const output = {
@@ -124,6 +213,27 @@ describe('createPhaseReminderHook', () => {
     expect(
       output.messages[0].parts.some((part) => part.text === PHASE_REMINDER),
     ).toBe(false);
+  });
+
+  test('replays historical reminders when the latest user message is internal', async () => {
+    const hook = createPhaseReminderHook();
+    const output = {
+      messages: [
+        {
+          info: { role: 'user', agent: 'orchestrator', sessionID: 's1' },
+          parts: [{ type: 'text', text: 'historical' }],
+        },
+        {
+          info: { role: 'user', agent: 'orchestrator', sessionID: 's1' },
+          parts: [createInternalAgentTextPart('internal notification')],
+        },
+      ],
+    };
+
+    await hook['experimental.chat.messages.transform']({}, output);
+
+    expect(output.messages[0].parts).toHaveLength(2);
+    expect(output.messages[1].parts).toHaveLength(1);
   });
 
   test('does not let user-visible internal marker suppress injection', async () => {
