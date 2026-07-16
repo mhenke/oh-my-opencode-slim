@@ -719,6 +719,11 @@ export class ForegroundFallbackManager {
           log('[foreground-fallback] session never settled, aborting', {
             sessionID,
           });
+          // Re-arm grace window before the last-resort abort: same race as
+          // tryFallbackWithAbort — abort-induced SSE events would arrive
+          // between this abort and the post-prompt markFallbackDone at the
+          // bottom of execFallback. (issue #765, Greptile review)
+          this.markFallbackDone(sessionID);
           await abortSessionWithTimeout(this.client, sessionID);
           await new Promise((r) => setTimeout(r, REPROMPT_DELAY_MS));
           await sessionClient.promptAsync({
