@@ -427,7 +427,7 @@ export function createTaskSessionManagerHook(
     if (
       (status.state === 'cancelled' || status.state === 'error') &&
       existing?.parentSessionID &&
-      options.wasFallbackRecent?.(existing.parentSessionID)
+      options.wasFallbackRecent?.(status.taskID)
     ) {
       log(
         '[task-session-manager] suppressed fallback-induced terminal status',
@@ -825,7 +825,7 @@ export function createTaskSessionManagerHook(
         if (
           (status.state === 'cancelled' || status.state === 'error') &&
           pending?.parentSessionId &&
-          options.wasFallbackRecent?.(pending.parentSessionId)
+          options.wasFallbackRecent?.(status.taskID)
         ) {
           log(
             '[task-session-manager] suppressed fallback-induced terminal status (tool.execute.after)',
