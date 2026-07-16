@@ -1,7 +1,7 @@
 {
   "metadata": {
     "version": "1.0.0",
-    "last_run": "2026-07-16T23:19:53.828Z",
+    "last_run": "2026-07-16T23:33:10.792Z",
     "root": "/home/mhenke/Projects/oh-my-opencode-slim/.slim/worktrees/update-codemaps-796",
     "include_patterns": [
       "src/**/*.ts",
