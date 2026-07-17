@@ -15,6 +15,7 @@ import { log } from '../../utils/logger';
 import { isFailoverError } from '../foreground-fallback/index';
 import type { SessionLifecycle } from '../session-lifecycle';
 import {
+  isMessageWithParts,
   isUserMessageWithParts,
   type MessagePart,
   type MessageWithParts,
@@ -571,6 +572,56 @@ export function createTaskSessionManagerHook(
     terminalJobsInjectedByParent.delete(parentSessionID);
   }
 
+  async function injectBackgroundJobBoard(
+    _input: Record<string, never>,
+    output: { messages?: unknown },
+  ): Promise<void> {
+    const messages = Array.isArray(output.messages) ? output.messages : [];
+
+    for (const message of messages) {
+      if (!isMessageWithParts(message)) continue;
+      message.parts = message.parts.filter(
+        (part) =>
+          !(
+            part.synthetic === true &&
+            isObjectRecord(part.metadata) &&
+            part.metadata[BACKGROUND_JOB_BOARD_METADATA_KEY] === true
+          ),
+      );
+    }
+
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const message = messages[i];
+      if (!isUserMessageWithParts(message)) continue;
+      if (message.info.agent && message.info.agent !== 'orchestrator') return;
+      if (
+        !message.info.sessionID ||
+        !options.shouldManageSession(message.info.sessionID)
+      ) {
+        return;
+      }
+
+      const reminder = backgroundJobBoard.formatForPrompt(
+        message.info.sessionID,
+      );
+      if (!reminder) return;
+
+      const textPart = message.parts.find(
+        (part) => part.type === 'text' && typeof part.text === 'string',
+      );
+      if (!textPart || isInternalInitiatorPart(textPart)) return;
+
+      rememberInjectedTerminalJobs(message.info.sessionID);
+      message.parts.push({
+        type: 'text',
+        synthetic: true,
+        text: reminder,
+        metadata: { [BACKGROUND_JOB_BOARD_METADATA_KEY]: true },
+      });
+      return;
+    }
+  }
+
   return {
     observeChatMessage: (input: unknown, output: unknown): void => {
       const inputMessage = isObjectRecord(input) ? input : undefined;
@@ -857,52 +908,9 @@ export function createTaskSessionManagerHook(
           updateFromInjectedCompletion(part, message, messageIndex, partIndex);
         }
       }
-
-      for (let i = messages.length - 1; i >= 0; i -= 1) {
-        const message = messages[i];
-        if (!isUserMessageWithParts(message)) continue;
-        if (message.info.agent && message.info.agent !== 'orchestrator') return;
-        if (
-          !message.info.sessionID ||
-          !options.shouldManageSession(message.info.sessionID)
-        ) {
-          return;
-        }
-
-        const reminders = [
-          backgroundJobBoard.formatForPrompt(message.info.sessionID),
-        ].filter((item): item is string => Boolean(item));
-        if (reminders.length === 0) return;
-
-        const textPart = message.parts.find(
-          (part) => part.type === 'text' && typeof part.text === 'string',
-        );
-        if (!textPart) return;
-        if (isInternalInitiatorPart(textPart)) {
-          return;
-        }
-        if (
-          message.parts.some(
-            (part) =>
-              part.synthetic === true &&
-              isObjectRecord(part.metadata) &&
-              part.metadata[BACKGROUND_JOB_BOARD_METADATA_KEY] === true,
-          )
-        ) {
-          return;
-        }
-
-        rememberInjectedTerminalJobs(message.info.sessionID);
-        const boardPart = {
-          type: 'text',
-          synthetic: true,
-          text: reminders.join('\n\n'),
-          metadata: { [BACKGROUND_JOB_BOARD_METADATA_KEY]: true },
-        };
-        message.parts.unshift(boardPart);
-        return;
-      }
     },
+
+    injectBackgroundJobBoard,
 
     event: async (input: {
       event: {

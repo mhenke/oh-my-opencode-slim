@@ -75,6 +75,14 @@ function createMessages(sessionID: string, text = 'user message') {
   };
 }
 
+async function transformMessages(
+  hook: ReturnType<typeof createTaskSessionManagerHook>,
+  messages: { messages: unknown[] },
+) {
+  await hook['experimental.chat.messages.transform']({}, messages as never);
+  await hook.injectBackgroundJobBoard({}, messages as never);
+}
+
 function setupCompletedJob(
   board: BackgroundJobBoard,
   opts?: { taskID?: string; parentSessionID?: string },
@@ -118,13 +126,13 @@ describe('task-session-manager hook', () => {
       ],
     };
 
-    await hook['experimental.chat.messages.transform']({}, messages as never);
+    await transformMessages(hook, messages as never);
 
     expect(messages.messages).toHaveLength(5);
-    expect(messages.messages[4].parts[0].text).toContain(
+    expect(messages.messages[4].parts[1].text).toContain(
       '### Background Job Board',
     );
-    expect(messages.messages[4].parts[0].text).toContain(
+    expect(messages.messages[4].parts[1].text).toContain(
       'exp-1 / child-1 / explorer / running',
     );
   });
@@ -167,10 +175,10 @@ describe('task-session-manager hook', () => {
     );
 
     const messages = createMessages('parent-1', 'do something');
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await hook.injectBackgroundJobBoard({}, messages);
 
     const userMessage = messages.messages[0];
-    const boardPart = userMessage.parts[0] as {
+    const boardPart = userMessage.parts[1] as {
       text?: string;
       synthetic?: boolean;
     };
@@ -183,7 +191,7 @@ describe('task-session-manager hook', () => {
     expect(boardPart.text).toEndWith('</system-reminder>');
     expect(boardPart.text).toContain('exp-1 / child-1 / explorer / running');
     expect(boardPart.text).toContain('Objective: map scheduler hooks');
-    expect(userMessage.parts[1].text).toBe('do something');
+    expect(userMessage.parts[0].text).toBe('do something');
   });
 
   test('does not let user-visible sentinel text suppress board injection', async () => {
@@ -210,16 +218,16 @@ describe('task-session-manager hook', () => {
       ],
     };
 
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await hook.injectBackgroundJobBoard({}, messages);
 
-    expect(messages.messages[0].parts[0]).toMatchObject({
+    expect(messages.messages[0].parts[1]).toMatchObject({
       type: 'text',
       synthetic: true,
     });
-    expect(messages.messages[0].parts[0].text).toContain(
+    expect(messages.messages[0].parts[1].text).toContain(
       'exp-1 / child-1 / explorer / running',
     );
-    expect(messages.messages[0].parts[1].text).toBe(
+    expect(messages.messages[0].parts[0].text).toBe(
       'SENTINEL: background-job-board-v2',
     );
   });
@@ -235,17 +243,148 @@ describe('task-session-manager hook', () => {
     const { hook } = createHook({ backgroundJobBoard: board });
     const messages = createMessages('parent-1', 'continue');
 
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await hook.injectBackgroundJobBoard({}, messages);
     messages.messages[0].parts = JSON.parse(
       JSON.stringify(messages.messages[0].parts),
     );
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await hook.injectBackgroundJobBoard({}, messages);
 
     expect(
       messages.messages[0].parts.filter((part) =>
         part.text?.includes('### Background Job Board'),
       ),
     ).toHaveLength(1);
+  });
+
+  test('strips stale board parts from history before injecting the latest state', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    const { hook } = createHook({ backgroundJobBoard: board });
+    const messages = createMessages('parent-1', 'first turn');
+
+    await hook.injectBackgroundJobBoard({}, messages);
+    messages.messages.push({
+      info: { role: 'user', agent: 'orchestrator', sessionID: 'parent-1' },
+      parts: [{ type: 'text', text: 'second turn' }],
+    });
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'completed',
+      resultSummary: 'finished mapping',
+    });
+
+    await hook.injectBackgroundJobBoard({}, messages);
+
+    const boardParts = messages.messages.flatMap((message) =>
+      message.parts.filter(
+        (part) => part.metadata?.[BACKGROUND_JOB_BOARD_METADATA_KEY] === true,
+      ),
+    );
+    expect(boardParts).toHaveLength(1);
+    expect(boardParts[0].text).toContain('completed, unreconciled');
+    expect(messages.messages[0].parts).toHaveLength(1);
+    expect(messages.messages[1].parts.at(-1)).toBe(boardParts[0]);
+  });
+
+  test('strips JSON-persisted board parts from earlier messages', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    const { hook } = createHook({ backgroundJobBoard: board });
+    const messages = createMessages('parent-1', 'earlier turn');
+
+    await hook.injectBackgroundJobBoard({}, messages);
+    const persistedBoard = JSON.parse(
+      JSON.stringify(messages.messages[0].parts[1]),
+    );
+    messages.messages = [
+      {
+        info: { role: 'assistant' },
+        parts: [persistedBoard],
+      },
+      {
+        info: { role: 'user', agent: 'orchestrator', sessionID: 'parent-1' },
+        parts: [{ type: 'text', text: 'current turn' }],
+      },
+    ];
+
+    await hook.injectBackgroundJobBoard({}, messages);
+
+    expect(messages.messages[0].parts).toHaveLength(0);
+    expect(messages.messages[1].parts).toHaveLength(2);
+    expect(messages.messages[1].parts[1].metadata).toEqual({
+      [BACKGROUND_JOB_BOARD_METADATA_KEY]: true,
+    });
+  });
+
+  test('strips existing board parts when no jobs produce a prompt', async () => {
+    const { hook } = createHook({
+      backgroundJobBoard: new BackgroundJobBoard(),
+    });
+    const staleBoard = {
+      type: 'text',
+      synthetic: true,
+      text: '<system-reminder>stale</system-reminder>',
+      metadata: { [BACKGROUND_JOB_BOARD_METADATA_KEY]: true },
+    };
+    const messages = {
+      messages: [
+        { info: { role: 'assistant' }, parts: [staleBoard] },
+        {
+          info: { role: 'user', agent: 'orchestrator', sessionID: 'parent-1' },
+          parts: [{ type: 'text', text: 'current turn' }, staleBoard],
+        },
+      ],
+    };
+
+    await hook.injectBackgroundJobBoard({}, messages);
+
+    expect(messages.messages[0].parts).toHaveLength(0);
+    expect(messages.messages[1].parts).toEqual([
+      { type: 'text', text: 'current turn' },
+    ]);
+  });
+
+  test('appends one board after a phase reminder on repeated transforms', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    const { hook } = createHook({ backgroundJobBoard: board });
+    const phaseReminder = createPhaseReminderHook({
+      shouldInject: () => true,
+    });
+    const messages = createMessages('parent-1', 'current turn');
+
+    await phaseReminder['experimental.chat.messages.transform']({}, messages);
+    await hook.injectBackgroundJobBoard({}, messages);
+    await phaseReminder['experimental.chat.messages.transform']({}, messages);
+    await hook.injectBackgroundJobBoard({}, messages);
+
+    const parts = messages.messages[0].parts;
+    expect(
+      parts.filter(
+        (part) => part.metadata?.[BACKGROUND_JOB_BOARD_METADATA_KEY] === true,
+      ),
+    ).toHaveLength(1);
+    expect(parts.at(-1)?.metadata).toEqual({
+      [BACKGROUND_JOB_BOARD_METADATA_KEY]: true,
+    });
+    expect(parts.at(-2)?.metadata).toEqual({
+      [PHASE_REMINDER_METADATA_KEY]: true,
+    });
   });
 
   test('does not let user-visible internal marker suppress board injection', async () => {
@@ -272,16 +411,16 @@ describe('task-session-manager hook', () => {
       ],
     };
 
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await hook.injectBackgroundJobBoard({}, messages);
 
-    expect(messages.messages[0].parts[0]).toMatchObject({
+    expect(messages.messages[0].parts[1]).toMatchObject({
       type: 'text',
       synthetic: true,
     });
-    expect(messages.messages[0].parts[0].text).toContain(
+    expect(messages.messages[0].parts[1].text).toContain(
       'exp-1 / child-1 / explorer / running',
     );
-    expect(messages.messages[0].parts[1].text).toBe(
+    expect(messages.messages[0].parts[0].text).toBe(
       SLIM_INTERNAL_INITIATOR_MARKER,
     );
   });
@@ -311,7 +450,7 @@ describe('task-session-manager hook', () => {
       ],
     };
 
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
 
     expect(messages.messages[0].parts).toHaveLength(1);
     expect(
@@ -368,12 +507,12 @@ describe('task-session-manager hook', () => {
     });
 
     const messages = createMessages('parent-1', 'continue');
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
 
-    expect(messages.messages[0].parts[0].text).toContain(
+    expect(messages.messages[0].parts.at(-1)?.text).toContain(
       'ora-1 / child-1 / oracle / completed, unreconciled',
     );
-    expect(messages.messages[0].parts[0].text).toContain(
+    expect(messages.messages[0].parts.at(-1)?.text).toContain(
       'Result: plan is sound',
     );
   });
@@ -428,9 +567,9 @@ describe('task-session-manager hook', () => {
     });
 
     const messages = createMessages('parent-1', 'continue');
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
 
-    expect(messages.messages[0].parts[0].text).toContain(
+    expect(messages.messages[0].parts.at(-1)?.text).toContain(
       'fix-1 / child-1 / fixer / running, timed out',
     );
   });
@@ -582,8 +721,8 @@ describe('task-session-manager hook', () => {
     );
 
     const beforeMessages = createMessages('parent-1', 'before busy');
-    await hook['experimental.chat.messages.transform']({}, beforeMessages);
-    expect(beforeMessages.messages[0].parts[0].text).toContain(
+    await transformMessages(hook, beforeMessages);
+    expect(beforeMessages.messages[0].parts.at(-1)?.text).toContain(
       'running, timed out',
     );
 
@@ -605,7 +744,7 @@ describe('task-session-manager hook', () => {
     });
 
     const afterMessages = createMessages('parent-1', 'after busy');
-    await hook['experimental.chat.messages.transform']({}, afterMessages);
+    await transformMessages(hook, afterMessages);
     expect(afterMessages.messages[0].parts[0].text).not.toContain(
       'running, timed out',
     );
@@ -654,14 +793,14 @@ describe('task-session-manager hook', () => {
       ],
     };
 
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
 
     expect(board.get('child-1')).toMatchObject({
       state: 'completed',
       terminalUnreconciled: true,
       resultSummary: 'found hook flow',
     });
-    expect(messages.messages[0].parts[0].text).toContain(
+    expect(messages.messages[0].parts.at(-1)?.text).toContain(
       'exp-1 / child-1 / explorer / completed, unreconciled',
     );
   });
@@ -689,7 +828,7 @@ describe('task-session-manager hook', () => {
       ].join('\n'),
     );
 
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
 
     expect(board.get('child-1')).toMatchObject({
       state: 'running',
@@ -732,7 +871,7 @@ describe('task-session-manager hook', () => {
       ],
     };
 
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
     expect(board.get('child-1')).toMatchObject({
       state: 'completed',
       terminalUnreconciled: true,
@@ -746,7 +885,7 @@ describe('task-session-manager hook', () => {
       description: 'map hooks again',
     });
 
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
 
     expect(board.get('child-1')).toMatchObject({
       state: 'running',
@@ -795,7 +934,7 @@ describe('task-session-manager hook', () => {
       ],
     };
 
-    await hook['experimental.chat.messages.transform']({}, firstMessages);
+    await transformMessages(hook, firstMessages);
     expect(board.get('child-1')).toMatchObject({
       state: 'completed',
       terminalUnreconciled: true,
@@ -844,7 +983,7 @@ describe('task-session-manager hook', () => {
       ],
     };
 
-    await hook['experimental.chat.messages.transform']({}, secondMessages);
+    await transformMessages(hook, secondMessages);
 
     // Should be terminal again because this is a new message occurrence
     expect(board.get('child-1')).toMatchObject({
@@ -889,7 +1028,7 @@ describe('task-session-manager hook', () => {
       ],
     };
 
-    await hook['experimental.chat.messages.transform']({}, firstMessages);
+    await transformMessages(hook, firstMessages);
 
     expect(board.get('child-1')).toMatchObject({
       state: 'completed',
@@ -929,7 +1068,7 @@ describe('task-session-manager hook', () => {
       ],
     };
 
-    await hook['experimental.chat.messages.transform']({}, secondMessages);
+    await transformMessages(hook, secondMessages);
 
     // Should still be running because the same anonymous completion was deduped
     // (not re-processed just because message index changed)
@@ -974,7 +1113,7 @@ describe('task-session-manager hook', () => {
       ],
     };
 
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
 
     expect(board.get('child-1')).toMatchObject({
       state: 'running',
@@ -1016,7 +1155,7 @@ describe('task-session-manager hook', () => {
       ],
     };
 
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
 
     expect(board.get('child-1')).toMatchObject({
       state: 'running',
@@ -1058,7 +1197,7 @@ describe('task-session-manager hook', () => {
       ],
     };
 
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
 
     expect(board.get('child-1')).toMatchObject({
       state: 'running',
@@ -1100,7 +1239,7 @@ describe('task-session-manager hook', () => {
       ],
     };
 
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
 
     expect(board.get('child-1')).toMatchObject({
       state: 'running',
@@ -1141,7 +1280,7 @@ describe('task-session-manager hook', () => {
       ],
     };
 
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
 
     expect(board.get('child-1')).toMatchObject({
       state: 'completed',
@@ -1183,7 +1322,7 @@ describe('task-session-manager hook', () => {
       ],
     };
 
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
 
     expect(board.get('child-1')).toMatchObject({
       state: 'error',
@@ -1227,10 +1366,12 @@ describe('task-session-manager hook', () => {
       ],
     };
 
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
 
-    expect(messages.messages[0].parts[0].text).toContain('state: cancelled');
-    expect(messages.messages[0].parts[0].text).toContain(
+    expect(messages.messages[0].parts.at(-1)?.text).toContain(
+      'state: cancelled',
+    );
+    expect(messages.messages[0].parts.at(-1)?.text).toContain(
       'cancelled: user requested',
     );
     expect(messages.messages[0].parts[0].text).not.toContain(
@@ -1305,8 +1446,8 @@ describe('task-session-manager hook', () => {
     });
 
     const messages = createMessages('parent-1', 'continue');
-    await hook['experimental.chat.messages.transform']({}, messages);
-    expect(messages.messages[0].parts[0].text).toContain(
+    await transformMessages(hook, messages);
+    expect(messages.messages[0].parts.at(-1)?.text).toContain(
       'ora-1 / child-1 / oracle / completed, unreconciled',
     );
 
@@ -1326,8 +1467,8 @@ describe('task-session-manager hook', () => {
     });
 
     const nextMessages = createMessages('parent-1', 'continue again');
-    await hook['experimental.chat.messages.transform']({}, nextMessages);
-    expect(nextMessages.messages[0].parts[0].text).toContain(
+    await transformMessages(hook, nextMessages);
+    expect(nextMessages.messages[0].parts.at(-1)?.text).toContain(
       'Reusable Sessions',
     );
   });
@@ -1366,7 +1507,7 @@ describe('task-session-manager hook', () => {
     setupCompletedJob(board);
 
     const messages = createMessages('parent-1', 'continue');
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
 
     // Fire idle event (starts 2s reconciliation timer)
     await hook.event({
@@ -1431,7 +1572,7 @@ describe('task-session-manager hook', () => {
     board.updateStatus({ taskID: 'child-1', state: 'completed' });
 
     const messages = createMessages('parent-1', 'continue');
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
 
     await hook.event({
       event: {
@@ -1468,7 +1609,7 @@ describe('task-session-manager hook', () => {
     board.updateStatus({ taskID: 'child-1', state: 'completed' });
 
     const messages = createMessages('parent-1', 'continue');
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
 
     await hook.event({
       event: {
@@ -1511,7 +1652,7 @@ describe('task-session-manager hook', () => {
     });
 
     const messages = createMessages('parent-1', 'continue');
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
     await hook.event({
       event: {
         type: 'session.status',
@@ -1523,11 +1664,11 @@ describe('task-session-manager hook', () => {
     await flushIdleReconcileDelay();
 
     const nextMessages = createMessages('parent-1', 'reuse');
-    await hook['experimental.chat.messages.transform']({}, nextMessages);
-    expect(nextMessages.messages[0].parts[0].text).toContain(
+    await transformMessages(hook, nextMessages);
+    expect(nextMessages.messages[0].parts.at(-1)?.text).toContain(
       '#### Reusable Sessions',
     );
-    expect(nextMessages.messages[0].parts[0].text).toContain(
+    expect(nextMessages.messages[0].parts.at(-1)?.text).toContain(
       'exp-1 / child-1 / explorer / completed, reconciled',
     );
     expect(nextMessages.messages[0].parts[0].text).not.toContain(
@@ -1597,8 +1738,8 @@ describe('task-session-manager hook', () => {
     expect(completed.args.task_id).toBe('done-1');
 
     const messages = createMessages('parent-1', 'continue');
-    await hook['experimental.chat.messages.transform']({}, messages);
-    expect(messages.messages[0].parts[0].text).toContain(
+    await transformMessages(hook, messages);
+    expect(messages.messages[0].parts.at(-1)?.text).toContain(
       'ora-1 / done-1 / oracle / completed, reconciled',
     );
     expect(messages.messages[0].parts[0].text).not.toContain('err-1');
@@ -1742,11 +1883,11 @@ describe('task-session-manager hook', () => {
     );
 
     const messages = createMessages('parent-1', 'continue');
-    await hook['experimental.chat.messages.transform']({}, messages);
-    expect(messages.messages[0].parts[0].text).toContain(
+    await transformMessages(hook, messages);
+    expect(messages.messages[0].parts.at(-1)?.text).toContain(
       'exp-1 / child-1 / explorer / running',
     );
-    expect(messages.messages[0].parts[0].text).toContain(
+    expect(messages.messages[0].parts.at(-1)?.text).toContain(
       '#### Reusable Sessions\n- none',
     );
   });
@@ -1763,7 +1904,7 @@ describe('task-session-manager hook', () => {
     );
 
     const messages = createMessages('parent-1', 'continue');
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
     expect(messages.messages[0].parts[0].text).toBe('continue');
   });
 
@@ -1787,8 +1928,8 @@ describe('task-session-manager hook', () => {
     );
 
     const unreconciled = createMessages('parent-1', 'continue');
-    await hook['experimental.chat.messages.transform']({}, unreconciled);
-    expect(unreconciled.messages[0].parts[0].text).toContain(
+    await transformMessages(hook, unreconciled);
+    expect(unreconciled.messages[0].parts.at(-1)?.text).toContain(
       'fix-1 / ses_child / fixer / completed, unreconciled',
     );
 
@@ -1803,8 +1944,8 @@ describe('task-session-manager hook', () => {
     await flushIdleReconcileDelay();
 
     const reusable = createMessages('parent-1', 'reuse');
-    await hook['experimental.chat.messages.transform']({}, reusable);
-    expect(reusable.messages[0].parts[0].text).toContain(
+    await transformMessages(hook, reusable);
+    expect(reusable.messages[0].parts.at(-1)?.text).toContain(
       'fix-1 / ses_child / fixer / completed, reconciled',
     );
 
@@ -1925,7 +2066,7 @@ describe('task-session-manager hook', () => {
       { output: ['task_id: child-1', 'state: completed'].join('\n') },
     );
     const messages = createMessages('parent-1', 'continue');
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
     await hook.event({
       event: {
         type: 'session.status',
@@ -1937,8 +2078,8 @@ describe('task-session-manager hook', () => {
     await flushIdleReconcileDelay();
 
     const next = createMessages('parent-1', 'reuse');
-    await hook['experimental.chat.messages.transform']({}, next);
-    const prompt = next.messages[0].parts[0].text;
+    await transformMessages(hook, next);
+    const prompt = next.messages[0].parts.at(-1)?.text;
     expect(prompt).not.toContain('small.ts');
     expect(prompt).toContain('src/large.ts (12 lines)');
     expect(prompt).not.toContain('src/large.ts (18 lines)');
@@ -2010,7 +2151,7 @@ describe('task-session-manager hook', () => {
     );
 
     const messages = createMessages('manual-1', 'do something');
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
 
     // Message should remain unchanged
     expect(messages.messages[0].parts[0].text).toBe('do something');
@@ -2048,7 +2189,7 @@ describe('task-session-manager hook', () => {
     coordinator.dispatchSessionDeleted('child-1');
 
     const messages = createMessages('parent-1', 'do something');
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
     // Message should remain unchanged since session was deleted
     expect(messages.messages[0].parts[0].text).toBe('do something');
   });
@@ -2086,7 +2227,7 @@ describe('task-session-manager hook', () => {
     );
 
     const messages = createMessages('parent-1', 'do something');
-    await hook['experimental.chat.messages.transform']({}, messages);
+    await transformMessages(hook, messages);
 
     // Message should remain unchanged since session was deleted
     expect(messages.messages[0].parts[0].text).toBe('do something');
@@ -2505,14 +2646,16 @@ describe('task-session-manager hook', () => {
       ],
     };
 
-    await hook['experimental.chat.messages.transform']({}, messages as never);
+    await transformMessages(hook, messages as never);
 
     // After recovery: agentMap corrected, board reminders injected
     expect(agentMap.get('orchestrator-1')).toBe('orchestrator');
-    expect(messages.messages[0].parts[0].text).toContain(
+    expect(messages.messages[0].parts.at(-1)?.text).toContain(
       '### Background Job Board',
     );
-    expect(messages.messages[0].parts[0].text).toContain('child-transform-1');
+    expect(messages.messages[0].parts.at(-1)?.text).toContain(
+      'child-transform-1',
+    );
   });
 
   test('repairs session mapping before composed reminder transforms', async () => {

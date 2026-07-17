@@ -1210,6 +1210,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         input as never,
         typedOutput as never,
       );
+      await taskSessionManagerHook.injectBackgroundJobBoard(input, typedOutput);
     },
 
     'tool.execute.after': async (input, output) => {
