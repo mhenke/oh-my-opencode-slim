@@ -1,7 +1,13 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { stripJsonComments } from '../../cli/config-manager';
+import ts from 'typescript';
+import {
+  getOpenCodeConfigPaths,
+  stripJsonComments,
+} from '../../cli/config-manager';
+import { getTuiConfig, getTuiConfigJsonc } from '../../cli/paths';
+import { INSTALLER_MANAGED_PLUGIN_OPTION } from '../../plugin-entry';
 import { log } from '../../utils/logger';
 import {
   INSTALLED_PACKAGE_JSON,
@@ -32,8 +38,69 @@ function isString(value: unknown): value is string {
   return typeof value === 'string';
 }
 
-function getPluginEntries(config: OpencodeConfig): string[] {
-  return Array.isArray(config.plugin) ? config.plugin.filter(isString) : [];
+function getPluginEntries(config: OpencodeConfig): unknown[] {
+  return Array.isArray(config.plugin) ? config.plugin : [];
+}
+
+function getPluginSpec(entry: unknown): string | null {
+  if (isString(entry)) return entry;
+  return Array.isArray(entry) && isString(entry[0]) ? entry[0] : null;
+}
+
+function isInstallerManagedEntry(entry: unknown): boolean {
+  return (
+    Array.isArray(entry) &&
+    entry.length >= 2 &&
+    entry[1] !== null &&
+    typeof entry[1] === 'object' &&
+    !Array.isArray(entry[1]) &&
+    (entry[1] as Record<string, unknown>)[INSTALLER_MANAGED_PLUGIN_OPTION] ===
+      true
+  );
+}
+
+function findManagedSpecifierRanges(content: string): Array<[number, number]> {
+  const ranges: Array<[number, number]> = [];
+  const source = ts.parseJsonText('opencode.jsonc', content);
+  const root = source.statements[0];
+  if (
+    !root ||
+    !ts.isExpressionStatement(root) ||
+    !ts.isObjectLiteralExpression(root.expression)
+  )
+    return ranges;
+  const plugin = root.expression.properties.find(
+    (property): property is ts.PropertyAssignment =>
+      ts.isPropertyAssignment(property) &&
+      property.name.getText(source) === '"plugin"',
+  );
+  if (!plugin || !ts.isArrayLiteralExpression(plugin.initializer))
+    return ranges;
+  for (const entry of plugin.initializer.elements) {
+    if (!ts.isArrayLiteralExpression(entry) || entry.elements.length < 2)
+      continue;
+    const [specifier, options] = entry.elements;
+    if (
+      !specifier ||
+      !options ||
+      !ts.isStringLiteral(specifier) ||
+      !specifier.text.startsWith(`${PACKAGE_NAME}@`) ||
+      !ts.isObjectLiteralExpression(options)
+    ) {
+      continue;
+    }
+    const managed = options.properties.some(
+      (property) =>
+        ts.isPropertyAssignment(property) &&
+        property.name.getText(source).replaceAll('"', '') ===
+          INSTALLER_MANAGED_PLUGIN_OPTION &&
+        property.initializer.kind === ts.SyntaxKind.TrueKeyword,
+    );
+    if (managed) {
+      ranges.push([specifier.getStart(source) + 1, specifier.end - 1]);
+    }
+  }
+  return ranges;
 }
 
 /**
@@ -153,10 +220,10 @@ export function extractChannel(version: string | null): string {
  */
 function getConfigPaths(directory: string): string[] {
   return [
-    path.join(directory, '.opencode', 'opencode.json'),
-    path.join(directory, '.opencode', 'opencode.jsonc'),
     USER_OPENCODE_CONFIG,
     USER_OPENCODE_CONFIG_JSONC,
+    path.join(directory, '.opencode', 'opencode.json'),
+    path.join(directory, '.opencode', 'opencode.jsonc'),
   ];
 }
 
@@ -172,11 +239,13 @@ function getLocalDevPath(directory: string): string | null {
       const plugins = getPluginEntries(config);
 
       for (const entry of plugins) {
-        if (entry.startsWith('file://') && entry.includes(PACKAGE_NAME)) {
+        const spec = getPluginSpec(entry);
+        if (!spec) continue;
+        if (spec.startsWith('file://') && spec.includes(PACKAGE_NAME)) {
           try {
-            return fileURLToPath(entry);
+            return fileURLToPath(spec);
           } catch {
-            return entry.replace('file://', '');
+            return spec.replace('file://', '');
           }
         }
       }
@@ -251,6 +320,7 @@ export function getCurrentRuntimePackageJsonPath(
  * Searches across all config locations to find the current installation entry for this plugin.
  */
 export function findPluginEntry(directory: string): PluginEntryInfo | null {
+  let selected: PluginEntryInfo | null = null;
   for (const configPath of getConfigPaths(directory)) {
     try {
       if (!fs.existsSync(configPath)) continue;
@@ -258,16 +328,27 @@ export function findPluginEntry(directory: string): PluginEntryInfo | null {
       const config = JSON.parse(stripJsonComments(content)) as OpencodeConfig;
       const plugins = getPluginEntries(config);
 
-      for (const entry of plugins) {
+      for (const rawEntry of plugins) {
+        const entry = getPluginSpec(rawEntry);
+        if (!entry) continue;
         if (entry === PACKAGE_NAME) {
-          return { entry, isPinned: false, pinnedVersion: null, configPath };
+          selected = {
+            entry,
+            isPinned: false,
+            isInstallerManaged: false,
+            pinnedVersion: null,
+            configPath,
+          };
+          continue;
         }
         if (entry.startsWith(`${PACKAGE_NAME}@`)) {
           const pinnedVersion = entry.slice(PACKAGE_NAME.length + 1);
-          const isPinned = pinnedVersion !== 'latest';
-          return {
+          const isInstallerManaged = isInstallerManagedEntry(rawEntry);
+          const isPinned = pinnedVersion !== 'latest' && !isInstallerManaged;
+          selected = {
             entry,
             isPinned,
+            isInstallerManaged,
             pinnedVersion: isPinned ? pinnedVersion : null,
             configPath,
           };
@@ -275,7 +356,7 @@ export function findPluginEntry(directory: string): PluginEntryInfo | null {
       }
     } catch {}
   }
-  return null;
+  return selected;
 }
 
 const _cachedLocalVersion: string | null = null;
@@ -324,43 +405,62 @@ export function getCachedVersion(): string | null {
  * Safely updates a pinned version in the configuration file.
  * It attempts to replace the exact plugin string to preserve comments and formatting.
  */
-export function updatePinnedVersion(
-  configPath: string,
-  oldEntry: string,
+export function updateInstallerManagedVersions(
+  directory: string,
   newVersion: string,
 ): boolean {
   try {
-    if (!fs.existsSync(configPath)) return false;
-
-    const content = fs.readFileSync(configPath, 'utf-8');
+    const paths = [
+      ...getConfigPaths(directory),
+      ...getOpenCodeConfigPaths(),
+      getTuiConfig(),
+      getTuiConfigJsonc(),
+    ]
+      .filter((value, index, values) => values.indexOf(value) === index)
+      .filter((configPath) => fs.existsSync(configPath));
     const newEntry = `${PACKAGE_NAME}@${newVersion}`;
-
-    // Check if the old entry actually exists as a quoted string
-    const escapedOldEntry = oldEntry.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const entryRegex = new RegExp(`(["'])${escapedOldEntry}\\1`, 'g');
-
-    if (!entryRegex.test(content)) {
-      log(
-        `[auto-update-checker] Entry "${oldEntry}" not found in ${configPath}`,
-      );
-      return false;
+    const updates = paths.flatMap((configPath) => {
+      const content = fs.readFileSync(configPath, 'utf-8');
+      const updated = findManagedSpecifierRanges(content)
+        .toReversed()
+        .reduce(
+          (result, [start, end]) =>
+            `${result.slice(0, start)}${newEntry}${result.slice(end)}`,
+          content,
+        );
+      const changed = updated !== content;
+      return changed
+        ? [
+            {
+              configPath,
+              content,
+              updated,
+            },
+          ]
+        : [];
+    });
+    if (updates.length === 0) return false;
+    const token = `${process.pid}.${Date.now()}.${Math.random().toString(36).slice(2)}`;
+    for (const update of updates)
+      fs.writeFileSync(`${update.configPath}.${token}.tmp`, update.updated);
+    const committed: typeof updates = [];
+    try {
+      for (const update of updates) {
+        fs.renameSync(`${update.configPath}.${token}.tmp`, update.configPath);
+        committed.push(update);
+      }
+    } catch (err) {
+      for (const update of committed) {
+        const restorePath = `${update.configPath}.${token}.restore`;
+        fs.writeFileSync(restorePath, update.content);
+        fs.renameSync(restorePath, update.configPath);
+      }
+      throw err;
     }
-
-    // Perform the replacement
-    const updatedContent = content.replace(entryRegex, `$1${newEntry}$1`);
-
-    if (updatedContent === content) {
-      return false;
-    }
-
-    fs.writeFileSync(configPath, updatedContent, 'utf-8');
-    log(
-      `[auto-update-checker] Updated ${configPath}: ${oldEntry} → ${newEntry}`,
-    );
     return true;
   } catch (err) {
     log(
-      `[auto-update-checker] Failed to update config file ${configPath}:`,
+      '[auto-update-checker] Failed to update installer-managed configs:',
       err,
     );
     return false;

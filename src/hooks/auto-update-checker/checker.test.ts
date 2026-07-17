@@ -12,6 +12,8 @@ mock.module('../../cli/config-manager', () => ({
     '/mock/config/opencode.json',
     '/mock/config/opencode.jsonc',
   ],
+  getTuiConfig: () => '/mock/config/tui.json',
+  getTuiConfigJsonc: () => '/mock/config/tui.jsonc',
 }));
 
 // Cache buster for dynamic imports
@@ -154,6 +156,126 @@ describe('auto-update-checker/checker', () => {
 
       existsSpy.mockRestore();
       readSpy.mockRestore();
+    });
+
+    test('treats only installer-managed exact tuples as updateable', async () => {
+      const existsSpy = spyOn(fs, 'existsSync').mockImplementation((p) =>
+        String(p).includes('opencode.json'),
+      );
+      const readSpy = spyOn(fs, 'readFileSync').mockReturnValue(
+        JSON.stringify({
+          plugin: [
+            'oh-my-opencode-slim@1.2.3',
+            [
+              'oh-my-opencode-slim@1.2.3',
+              { __ohMyOpencodeSlimManagedByInstaller: true },
+            ],
+          ],
+        }),
+      );
+      const { findPluginEntry } = await import(
+        `./checker?test=${importCounter++}`
+      );
+
+      const entry = findPluginEntry('/test');
+      expect(entry?.isPinned).toBe(false);
+      expect(entry?.isInstallerManaged).toBe(true);
+
+      const managedReadSpy = spyOn(fs, 'readFileSync').mockReturnValue(
+        JSON.stringify({
+          plugin: [
+            [
+              'oh-my-opencode-slim@1.2.3',
+              { __ohMyOpencodeSlimManagedByInstaller: true },
+            ],
+          ],
+        }),
+      );
+      const managedEntry = findPluginEntry('/test');
+      expect(managedEntry?.isPinned).toBe(false);
+      expect(managedEntry?.isInstallerManaged).toBe(true);
+
+      existsSpy.mockRestore();
+      readSpy.mockRestore();
+      managedReadSpy.mockRestore();
+    });
+  });
+
+  describe('updateInstallerManagedVersions', () => {
+    test('structurally rewrites managed tuples in OpenCode and TUI configs only', async () => {
+      const files = new Map<string, string>([
+        [
+          '/mock/config/opencode.json',
+          `{
+  // preserve this comment
+  "plugin": [
+    [ /* tuple comment */ "oh-my-opencode-slim@1.2.3", { "__ohMyOpencodeSlimManagedByInstaller": true, "keep": "yes" } ],
+    "oh-my-opencode-slim@1.2.3",
+    ["oh-my-opencode-slim@1.2.3", { "nested": { "__ohMyOpencodeSlimManagedByInstaller": true } }]
+  ]
+}`,
+        ],
+        [
+          '/mock/config/tui.json',
+          JSON.stringify({
+            plugin: [
+              [
+                'oh-my-opencode-slim@1.2.3',
+                { __ohMyOpencodeSlimManagedByInstaller: true },
+              ],
+            ],
+          }),
+        ],
+      ]);
+      const existsSpy = spyOn(fs, 'existsSync').mockImplementation((path) =>
+        files.has(String(path)),
+      );
+      const readSpy = spyOn(fs, 'readFileSync').mockImplementation(
+        (path) => files.get(String(path)) ?? '',
+      );
+      const writeSpy = spyOn(fs, 'writeFileSync').mockImplementation(
+        (path, data) => files.set(String(path), String(data)),
+      );
+      const renameSpy = spyOn(fs, 'renameSync').mockImplementation(
+        (from, to) => {
+          files.set(String(to), files.get(String(from)) ?? '');
+        },
+      );
+      const { updateInstallerManagedVersions } = await import(
+        `./checker?test=${importCounter++}`
+      );
+
+      const previousTuiConfig = process.env.OPENCODE_TUI_CONFIG;
+      process.env.OPENCODE_TUI_CONFIG = '/mock/config/tui.json';
+      expect(updateInstallerManagedVersions('/project', '1.2.4')).toBe(true);
+      expect(files.get('/mock/config/opencode.json')).toContain(
+        'oh-my-opencode-slim@1.2.4',
+      );
+      expect(files.get('/mock/config/opencode.json')).toContain(
+        '"keep": "yes"',
+      );
+      expect(files.get('/mock/config/opencode.json')).toContain(
+        'oh-my-opencode-slim@1.2.3',
+      );
+      expect(files.get('/mock/config/opencode.json')).toContain(
+        '"nested": { "__ohMyOpencodeSlimManagedByInstaller": true }',
+      );
+      expect(files.get('/mock/config/opencode.json')).toContain(
+        '// preserve this comment',
+      );
+      expect(files.get('/mock/config/tui.json')).toContain(
+        'oh-my-opencode-slim@1.2.4',
+      );
+      if (previousTuiConfig === undefined) {
+        delete process.env.OPENCODE_TUI_CONFIG;
+      } else {
+        process.env.OPENCODE_TUI_CONFIG = previousTuiConfig;
+      }
+
+      existsSpy.mockRestore();
+      readSpy.mockRestore();
+      writeSpy.mockRestore();
+      renameSpy.mockRestore();
     });
   });
 
