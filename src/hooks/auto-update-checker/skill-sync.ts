@@ -37,6 +37,7 @@ export interface SkillSyncResult {
   staged: string[];
   adopted: string[];
   customized: string[];
+  stagedThisSync: string[];
 }
 
 export interface SkillManifestEntry {
@@ -558,6 +559,7 @@ export function syncBundledSkillsFromPackage(
   const staged: string[] = [];
   const adopted: string[] = [];
   const customized: string[] = [];
+  const stagedThisSync: string[] = [];
 
   const sourceSkillsDir = path.join(packageRoot, 'src', 'skills');
 
@@ -574,6 +576,7 @@ export function syncBundledSkillsFromPackage(
         staged,
         adopted,
         customized,
+        stagedThisSync,
       };
     }
   } catch {
@@ -587,6 +590,7 @@ export function syncBundledSkillsFromPackage(
       staged,
       adopted,
       customized,
+      stagedThisSync,
     };
   }
 
@@ -630,6 +634,7 @@ export function syncBundledSkillsFromPackage(
       staged,
       adopted,
       customized,
+      stagedThisSync,
     };
   }
 
@@ -793,6 +798,7 @@ export function syncBundledSkillsFromPackage(
                 };
                 staged.push(skill.name);
                 customized.push(skill.name);
+                stagedThisSync.push(skill.name);
               } catch (err) {
                 log(
                   `[skill-sync] Failed to stage update for customized skill ${skill.name} during recovery:`,
@@ -963,6 +969,7 @@ export function syncBundledSkillsFromPackage(
 
                   staged.push(skill.name);
                   customized.push(skill.name);
+                  stagedThisSync.push(skill.name);
                   skippedExisting.push(skill.name);
                   log(
                     `[skill-sync] Skill ${skill.name} is customized. Staged update at ${stagedSkillDir}`,
@@ -1028,6 +1035,7 @@ export function syncBundledSkillsFromPackage(
 
                   staged.push(skill.name);
                   customized.push(skill.name);
+                  stagedThisSync.push(skill.name);
                   skippedExisting.push(skill.name);
                   log(
                     `[skill-sync] Staged new update for customized skill ${skill.name} at ${stagedSkillDir}`,
@@ -1088,6 +1096,7 @@ export function syncBundledSkillsFromPackage(
 
                 staged.push(skill.name);
                 customized.push(skill.name);
+                stagedThisSync.push(skill.name);
                 skippedExisting.push(skill.name);
                 log(
                   `[skill-sync] Skill ${skill.name} re-created by user (custom). Marked customized and staged.`,
@@ -1148,6 +1157,7 @@ export function syncBundledSkillsFromPackage(
 
                 staged.push(skill.name);
                 customized.push(skill.name);
+                stagedThisSync.push(skill.name);
                 skippedExisting.push(skill.name);
                 log(
                   `[skill-sync] Conflicted skill ${skill.name} recovered as customized and staged at ${stagedSkillDir}`,
@@ -1223,6 +1233,7 @@ export function syncBundledSkillsFromPackage(
               };
               staged.push(skill.name);
               customized.push(skill.name);
+              stagedThisSync.push(skill.name);
               skippedExisting.push(skill.name);
               log(
                 `[skill-sync] Skill ${skill.name} is customized (no manifest entry). Staged update at ${stagedSkillDir}`,
@@ -1276,5 +1287,6 @@ export function syncBundledSkillsFromPackage(
     staged,
     adopted,
     customized,
+    stagedThisSync,
   };
 }

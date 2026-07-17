@@ -406,6 +406,11 @@ describe('syncBundledSkillsFromPackage', () => {
     );
 
     expect(manifest.skills[skillName].status).toBe('customized');
+    expect(result.stagedThisSync).toEqual([skillName]);
+
+    const unchangedResult = await syncBundledSkillsFromPackage(fakePackageRoot);
+    expect(unchangedResult.customized).toEqual([skillName]);
+    expect(unchangedResult.stagedThisSync).toEqual([]);
   });
 
   test('fails closed (only installs missing) when manifest is corrupt', async () => {

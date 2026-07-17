@@ -73,6 +73,8 @@ async function runBackgroundUpdateCheck(
   autoUpdate: boolean,
   companion: AutoUpdateCheckerOptions['companion'],
 ): Promise<void> {
+  const stagedSkillsThisUpdate = new Set<string>();
+
   // Startup reconciliation (run once per top-level startup)
   if (!hasReconciledAtStartup) {
     try {
@@ -82,6 +84,9 @@ async function runBackgroundUpdateCheck(
         const packageRoot = path.dirname(runtimePackageJsonPath);
         log('[auto-update-checker] Running startup skill reconciliation');
         const syncResult = syncBundledSkillsFromPackage(packageRoot);
+        for (const skill of syncResult.stagedThisSync) {
+          stagedSkillsThisUpdate.add(skill);
+        }
         if (syncResult.installed.length > 0) {
           log(
             `[auto-update-checker] Startup skill sync installed: ${syncResult.installed.join(', ')}`,
@@ -213,16 +218,18 @@ async function runBackgroundUpdateCheck(
 
   if (installSuccess) {
     let installedSkills: string[] = [];
-    let stagedSkills: string[] = [];
-    let customizedSkills: string[] = [];
     let companionUpdated = false;
     let companionWillRetry = false;
     const packageRoot = path.join(installDir, 'node_modules', PACKAGE_NAME);
     try {
       const syncResult = syncBundledSkillsFromPackage(packageRoot);
       installedSkills = syncResult.installed;
-      stagedSkills = syncResult.staged;
-      customizedSkills = syncResult.customized;
+      for (const skill of [...syncResult.installed, ...syncResult.adopted]) {
+        stagedSkillsThisUpdate.delete(skill);
+      }
+      for (const skill of syncResult.stagedThisSync) {
+        stagedSkillsThisUpdate.add(skill);
+      }
       if (syncResult.failed.length > 0) {
         log(
           `[auto-update-checker] Skill sync warnings/failures: ${syncResult.failed.join(', ')}`,
@@ -271,18 +278,17 @@ async function runBackgroundUpdateCheck(
     if (installedSkills.length > 0) {
       messageLines.push(`Added bundled skills: ${installedSkills.join(', ')}`);
     }
-    if (stagedSkills.length > 0) {
-      messageLines.push(`Staged skill updates: ${stagedSkills.join(', ')}`);
-    }
-    if (customizedSkills.length > 0) {
-      messageLines.push(`Customized skills: ${customizedSkills.join(', ')}`);
+    if (stagedSkillsThisUpdate.size > 0) {
+      messageLines.push(
+        `Staged skill updates require manual review: ${[...stagedSkillsThisUpdate].join(', ')}`,
+      );
     }
     if (companionUpdated) {
       messageLines.push('Companion updated.');
     } else if (companionWillRetry) {
       messageLines.push('Companion update will retry on restart.');
     }
-    messageLines.push('Restart OpenCode to apply.');
+    messageLines.push('Restart OpenCode to apply the plugin update.');
 
     showToast(
       ctx,
