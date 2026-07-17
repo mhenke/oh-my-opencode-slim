@@ -15,6 +15,7 @@ import { log } from '../../utils/logger';
 import { isFailoverError } from '../foreground-fallback/index';
 import type { SessionLifecycle } from '../session-lifecycle';
 import {
+  isMessageWithParts,
   isUserMessageWithParts,
   type MessagePart,
   type MessageWithParts,
@@ -571,6 +572,76 @@ export function createTaskSessionManagerHook(
     terminalJobsInjectedByParent.delete(parentSessionID);
   }
 
+  function isBoardPart(part: MessagePart): boolean {
+    return (
+      part.synthetic === true &&
+      isObjectRecord(part.metadata) &&
+      part.metadata[BACKGROUND_JOB_BOARD_METADATA_KEY] === true
+    );
+  }
+
+  async function injectBackgroundJobBoard(
+    _input: Record<string, never>,
+    output: { messages?: unknown },
+  ): Promise<void> {
+    const messages = Array.isArray(output.messages) ? output.messages : [];
+
+    // Strip previously injected board content: parts attached to real
+    // messages (legacy placement) and whole synthetic board messages.
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const message = messages[i];
+      if (!isMessageWithParts(message)) continue;
+      const hadParts = message.parts.length > 0;
+      message.parts = message.parts.filter((part) => !isBoardPart(part));
+      if (hadParts && message.parts.length === 0) messages.splice(i, 1);
+    }
+
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      const message = messages[i];
+      if (!isUserMessageWithParts(message)) continue;
+      if (message.info.agent && message.info.agent !== 'orchestrator') return;
+      if (
+        !message.info.sessionID ||
+        !options.shouldManageSession(message.info.sessionID)
+      ) {
+        return;
+      }
+
+      const reminder = backgroundJobBoard.formatForPrompt(
+        message.info.sessionID,
+      );
+      if (!reminder) return;
+
+      const textPart = message.parts.find(
+        (part) => part.type === 'text' && typeof part.text === 'string',
+      );
+      if (!textPart || isInternalInitiatorPart(textPart)) return;
+
+      rememberInjectedTerminalJobs(message.info.sessionID);
+      // Append the board as its own trailing message rather than mutating
+      // an existing user message. In long tool loops the latest user
+      // message becomes deep history; rewriting it on board state changes
+      // would invalidate the provider prompt cache for everything after
+      // it. A trailing message keeps board churn at the end of the
+      // prompt, where it only costs itself.
+      messages.push({
+        info: {
+          ...message.info,
+          id: `${message.info.id}-background-job-board`,
+        },
+        parts: [
+          {
+            type: 'text',
+            synthetic: true,
+            text: reminder,
+            metadata: { [BACKGROUND_JOB_BOARD_METADATA_KEY]: true },
+          },
+        ],
+      });
+      return;
+    }
+  }
+
   return {
     observeChatMessage: (input: unknown, output: unknown): void => {
       const inputMessage = isObjectRecord(input) ? input : undefined;
@@ -857,52 +928,9 @@ export function createTaskSessionManagerHook(
           updateFromInjectedCompletion(part, message, messageIndex, partIndex);
         }
       }
-
-      for (let i = messages.length - 1; i >= 0; i -= 1) {
-        const message = messages[i];
-        if (!isUserMessageWithParts(message)) continue;
-        if (message.info.agent && message.info.agent !== 'orchestrator') return;
-        if (
-          !message.info.sessionID ||
-          !options.shouldManageSession(message.info.sessionID)
-        ) {
-          return;
-        }
-
-        const reminders = [
-          backgroundJobBoard.formatForPrompt(message.info.sessionID),
-        ].filter((item): item is string => Boolean(item));
-        if (reminders.length === 0) return;
-
-        const textPart = message.parts.find(
-          (part) => part.type === 'text' && typeof part.text === 'string',
-        );
-        if (!textPart) return;
-        if (isInternalInitiatorPart(textPart)) {
-          return;
-        }
-        if (
-          message.parts.some(
-            (part) =>
-              part.synthetic === true &&
-              isObjectRecord(part.metadata) &&
-              part.metadata[BACKGROUND_JOB_BOARD_METADATA_KEY] === true,
-          )
-        ) {
-          return;
-        }
-
-        rememberInjectedTerminalJobs(message.info.sessionID);
-        const boardPart = {
-          type: 'text',
-          synthetic: true,
-          text: reminders.join('\n\n'),
-          metadata: { [BACKGROUND_JOB_BOARD_METADATA_KEY]: true },
-        };
-        message.parts.unshift(boardPart);
-        return;
-      }
     },
+
+    injectBackgroundJobBoard,
 
     event: async (input: {
       event: {
