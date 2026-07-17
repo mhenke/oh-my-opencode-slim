@@ -146,8 +146,16 @@ function getPluginEntry(): string {
   try {
     const packageRoot = findPackageRoot(cliEntryPath);
 
-    if (!packageRoot || isPackageManagerInstall(packageRoot)) {
+    if (!packageRoot) {
       return PACKAGE_NAME;
+    }
+
+    if (isPackageManagerInstall(packageRoot)) {
+      const version = getVersionFromPackageRoot(packageRoot);
+      // ponytail: pin installed version so OpenCode can resolve from
+      // its cache without hitting npm on every startup. Falls back to
+      // bare package name if version detection fails.
+      return version ? `${PACKAGE_NAME}@${version}` : PACKAGE_NAME;
     }
 
     return packageRoot;
