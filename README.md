@@ -260,7 +260,7 @@ If any agent fails to respond, check your provider authentication and config fil
   </tr>
   <tr>
     <td colspan="2">
-      <b>Recommended Models:</b> <code>gpt-5.6-terra</code> <code>claude-fable-5</code> <code>claude-opus-4-8</code> <code>glm-5.2</code> <code>minimax-m3</code> <code>qwen3.7-plus</code> <code>mimo-v2.5</code>
+      <b>Recommended Models:</b> <code>claude-fable-5</code> <code>claude-opus-4-8</code> <code>glm-5.2</code> <code>gpt-5.6-terra</code> <code>mimo-v2.5</code> <code>minimax-m3</code> <code>qwen3.7-plus</code>
     </td>
   </tr>
   <tr>
@@ -301,7 +301,7 @@ If any agent fails to respond, check your provider authentication and config fil
   </tr>
   <tr>
     <td colspan="2">
-      <b>Recommended Models:</b> <code>gpt-5.3-codex</code> <code>zai-glm-4.7</code> <code>kimi-k2p6-turbo</code> <code>kimi-k2.6</code> <code>deepseek-v4-flash</code> <code>north-mini-code</code>
+      <b>Recommended Models:</b> <code>deepseek-v4-flash</code> <code>gpt-5.3-codex</code> <code>kimi-k2.6</code> <code>kimi-k2p6-turbo</code> <code>north-mini-code</code> <code>zai-glm-4.7</code>
       </td>
    </tr>
    <tr>
@@ -342,7 +342,7 @@ If any agent fails to respond, check your provider authentication and config fil
   </tr>
   <tr>
     <td colspan="2">
-      <b>Recommended Models:</b> <code>gpt-5.6-sol</code> <code>claude-fable-5</code> <code>claude-opus-4-8</code> <code>deepseek-v4-pro</code> <code>qwen3.7-max</code> <code>mimo-v2.5-pro</code> <code>glm-5.2</code> <code>big-pickle</code>
+      <b>Recommended Models:</b> <code>big-pickle</code> <code>claude-fable-5</code> <code>claude-opus-4-8</code> <code>deepseek-v4-pro</code> <code>glm-5.2</code> <code>gpt-5.6-sol</code> <code>mimo-v2.5-pro</code> <code>qwen3.7-max</code>
     </td>
   </tr>
   <tr>
@@ -432,7 +432,7 @@ If any agent fails to respond, check your provider authentication and config fil
   </tr>
   <tr>
     <td colspan="2">
-      <b>Recommended Models:</b> <code>gpt-5.3-codex</code> <code>zai-glm-4.7</code> <code>kimi-k2p6-turbo</code> <code>kimi-k2.6</code> <code>deepseek-v4-flash</code> <code>mimo-v2.5</code> <code>north-mini-code</code> <code>minimax-m2.7</code>
+      <b>Recommended Models:</b> <code>deepseek-v4-flash</code> <code>gpt-5.3-codex</code> <code>kimi-k2.6</code> <code>kimi-k2p6-turbo</code> <code>mimo-v2.5</code> <code>minimax-m2.7</code> <code>north-mini-code</code> <code>zai-glm-4.7</code>
       </td>
    </tr>
    <tr>
@@ -514,7 +514,7 @@ If any agent fails to respond, check your provider authentication and config fil
   </tr>
   <tr>
     <td colspan="2">
-      <b>Recommended Models:</b> <code>gpt-5.6-luna</code> <code>claude-sonnet-4-6</code> <code>kimi-k2.7-code</code> <code>deepseek-v4-flash</code> <code>north-mini-code</code>
+      <b>Recommended Models:</b> <code>claude-sonnet-4-6</code> <code>deepseek-v4-flash</code> <code>gpt-5.6-luna</code> <code>kimi-k2.7-code</code> <code>north-mini-code</code>
     </td>
   </tr>
   <tr>
