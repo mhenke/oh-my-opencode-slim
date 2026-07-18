@@ -126,15 +126,30 @@ async function checkOpenCodeInstalled(): Promise<{
 }> {
   const installed = await isOpenCodeInstalled();
   if (!installed) {
+    const isWindows = process.platform === 'win32';
     printError('OpenCode is not installed on this system.');
     printInfo('Install it with:');
-    console.log(
-      `     ${BLUE}curl -fsSL https://opencode.ai/install | bash${RESET}`,
-    );
-    console.log();
-    printInfo('Or if already installed, add it to your PATH:');
-    console.log(`     ${BLUE}export PATH="$HOME/.local/bin:$PATH"${RESET}`);
-    console.log(`     ${BLUE}export PATH="$HOME/.opencode/bin:$PATH"${RESET}`);
+    if (isWindows) {
+      console.log(
+        `     ${BLUE}powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://opencode.ai/install.ps1 | iex"${RESET}`,
+      );
+      console.log();
+      printInfo('Or with winget:');
+      console.log(`     ${BLUE}winget install opencode${RESET}`);
+      console.log();
+      printInfo('Or if already installed, add it to your PATH:');
+      console.log(
+        `     ${BLUE}setx PATH "%PATH%;%LOCALAPPDATA%\\Programs\\opencode"${RESET}`,
+      );
+    } else {
+      console.log(
+        `     ${BLUE}curl -fsSL https://opencode.ai/install | bash${RESET}`,
+      );
+      console.log();
+      printInfo('Or if already installed, add it to your PATH:');
+      console.log(`     ${BLUE}export PATH="$HOME/.local/bin:$PATH"${RESET}`);
+      console.log(`     ${BLUE}export PATH="$HOME/.opencode/bin:$PATH"${RESET}`);
+    }
     return { ok: false };
   }
   const version = await getOpenCodeVersion();
