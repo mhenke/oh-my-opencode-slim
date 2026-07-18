@@ -11,15 +11,17 @@
  *
  * All preset mutations are written to the user-level config file
  * (`oh-my-opencode-slim.json[c]`). Applying a preset persists the preset
- * name and refreshes the on-disk TUI snapshot so the sidebar shows the new
- * models. The agent registry is NOT hot-swapped mid-session — a reload is
- * required. This is deliberate: hot-swapping the agent tree during an
- * active conversation could truncate context (a new model may have a
- * smaller window), drift prior assistant turns under a changed system
- * prompt, leave running subagents referencing stale agent definitions, or
- * shift tool/skill availability underfoot. Reload-on-switch keeps the
- * active session stable. A future path to true in-session switching
- * without reset requires upgrading `@opencode-ai/plugin` (tracked in #799).
+ * name only — the sidebar is NOT refreshed mid-session, because the agent
+ * registry is unchanged and showing new models against running agents
+ * would be misleading. The new preset takes effect on the next
+ * conversation/reload, when `loadPluginConfig` re-reads the config and
+ * merges the preset into `config.agents`. This is deliberate: hot-swapping
+ * the agent tree during an active conversation could truncate context (a
+ * new model may have a smaller window), drift prior assistant turns under a
+ * changed system prompt, leave running subagents referencing stale agent
+ * definitions, or shift tool/skill availability underfoot. A future path
+ * to true in-session switching without reset requires upgrading
+ * `@opencode-ai/plugin` (tracked in #799).
  */
 import type {
   TuiDialogSelectOption,
@@ -38,7 +40,6 @@ import {
   writePreset,
 } from './tools/preset-switch';
 import type { TuiSnapshot } from './tui-state';
-import { readTuiSnapshot } from './tui-state';
 
 /** Build a `<text>` JSX element — required for DialogPrompt.description(). */
 function desc(text: string): JSX.Element {
@@ -154,6 +155,11 @@ function applyPreset(state: ManagerState, presetName: string): void {
 /**
  * Apply a preset and show a combined toast. `title` lets Save & Apply show
  * a single distinct message instead of two separate toasts.
+ *
+ * The new preset takes effect on the next conversation/reload — the
+ * sidebar is NOT refreshed mid-session, because the agent registry is
+ * unchanged and showing new models against running agents would be
+ * misleading.
  */
 function applyPresetWithMessage(
   state: ManagerState,
@@ -167,13 +173,9 @@ function applyPresetWithMessage(
     variant: result.ok ? 'success' : 'warning',
     title: result.ok ? title : 'Preset switch failed',
     message: result.ok
-      ? `Saved preset "${presetName}". Reload OpenCode to apply it to the agent registry. ${result.summary.join('; ')}`
+      ? `Saved preset "${presetName}". Start a new conversation (or reload OpenCode) to use it. ${result.summary.join('; ')}`
       : result.message,
   });
-  if (result.ok) {
-    state.snapshotRef.snapshot = readTuiSnapshot(state.directory);
-    state.api.renderer.requestRender();
-  }
 }
 
 function confirmDeletePreset(state: ManagerState, presetName: string): void {

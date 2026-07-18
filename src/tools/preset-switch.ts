@@ -8,7 +8,6 @@ import type {
 } from '../config';
 import { AGENT_ALIASES } from '../config/constants';
 import { findPluginConfigPaths } from '../config/loader';
-import { readTuiSnapshot, recordTuiAgentModels } from '../tui-state';
 
 /**
  * Result of a preset switch attempt. `message` is user-facing and intended for
@@ -32,16 +31,17 @@ export interface AgentUpdate {
 
 /**
  * Switch the active preset purely through on-disk state: persist the preset
- * name to the user config file and update the TUI snapshot that the sidebar
- * polls.
+ * name to the user config file. The sidebar snapshot is deliberately NOT
+ * touched — the new preset applies on the next reload/restart, when
+ * `loadPluginConfig` re-reads the config file and merges the preset into
+ * `config.agents`. Refreshing the sidebar mid-session while the agent
+ * registry is unchanged would show models that don't match the running
+ * agents, which is confusing.
  *
  * This is the shared core used by the TUI `/preset` slash command. It
- * deliberately does NOT touch OpenCode's in-memory agent registry: per the
- * existing user contract, the new preset applies on the next reload/restart
- * (when `loadPluginConfig` re-reads the config file and merges the preset into
- * `config.agents`). It also does not set the server-side runtime-preset
- * singleton, because the TUI runs in a separate process from the server and
- * cannot reach that state.
+ * deliberately does NOT touch OpenCode's in-memory agent registry. It also
+ * does not set the server-side runtime-preset singleton, because the TUI
+ * runs in a separate process from the server and cannot reach that state.
  */
 export function switchPresetOnDisk(
   directory: string,
@@ -76,12 +76,11 @@ export function switchPresetOnDisk(
   }
 
   persistPresetName(directory, presetName);
-  applyPresetToTuiSnapshot(directory, agentUpdates);
 
   return {
     ok: true,
     presetName,
-    message: `Saved preset "${presetName}". Reload OpenCode to apply it to agent configuration. The current session was not reloaded to avoid interrupting the active conversation and destabilizing running subagents.`,
+    message: `Saved preset "${presetName}". Reload OpenCode (or start a new conversation) for it to take effect. The current session keeps its existing agent models to avoid truncating context, drifting prior turns, or destabilizing running subagents.`,
     summary: buildPresetSummary(agentUpdates),
   };
 }
@@ -226,9 +225,7 @@ function resolveFirstModel(
 /**
  * Persist the preset name to the user-level config file so it survives
  * restarts. Best-effort: a failure must not abort the switch, because the
- * TUI snapshot refresh is the user-visible effect (the sidebar shows the
- * new models); the agent registry itself only picks up the change on
- * reload.
+ * persisted name is what makes the next reload pick up the new preset.
  *
  * Note: this rewrites the file as plain JSON (JSONC comments are not
  * preserved), matching the prior server-side behavior.
@@ -245,35 +242,9 @@ function persistPresetName(directory: string, presetName: string): void {
     persisted.preset = presetName;
     fs.writeFileSync(userConfigPath, `${JSON.stringify(persisted, null, 2)}\n`);
   } catch {
-    // Non-critical: the TUI snapshot refresh still proceeds, so the
-    // sidebar still reflects the new models.
+    // Non-critical: the preset name is also returned in the switch result
+    // so the caller can surface it to the user.
   }
-}
-
-/**
- * Merge the preset's model/variant overrides into the on-disk TUI snapshot
- * so the sidebar reflects the new models on its next poll. This is a
- * visual refresh only — the agent registry is not hot-swapped; reload
- * OpenCode for the new models to take effect on the running agents.
- */
-function applyPresetToTuiSnapshot(
-  directory: string,
-  agentUpdates: Record<string, AgentUpdate>,
-): void {
-  const snapshot = readTuiSnapshot(directory);
-  const agentModels = { ...snapshot.agentModels };
-  const agentVariants = { ...snapshot.agentVariants };
-  for (const [agentName, agentConfig] of Object.entries(agentUpdates)) {
-    if (typeof agentConfig.model === 'string') {
-      agentModels[agentName] = agentConfig.model;
-    }
-    if (typeof agentConfig.variant === 'string') {
-      agentVariants[agentName] = agentConfig.variant;
-    } else {
-      delete agentVariants[agentName];
-    }
-  }
-  recordTuiAgentModels({ agentModels, agentVariants }, directory);
 }
 
 /**

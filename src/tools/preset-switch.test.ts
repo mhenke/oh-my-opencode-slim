@@ -3,7 +3,6 @@ import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type { PluginConfig } from '../config';
-import { readTuiSnapshot, recordTuiAgentModels } from '../tui-state';
 import {
   buildPresetSummary,
   deletePreset,
@@ -108,62 +107,13 @@ describe('switchPresetOnDisk', () => {
     expect(result.presetName).toBe('cheap');
     expect(result.message).toContain('Saved preset "cheap"');
     expect(result.message).toContain('Reload OpenCode');
-    expect(result.message).toContain('current session was not reloaded');
+    expect(result.message).toContain(
+      'current session keeps its existing agent models',
+    );
     expect(result.summary).toContain(
       'orchestrator → model: anthropic/claude-3.5-haiku',
     );
     expect(result.summary).toContain('explorer → model: openai/gpt-5.6-luna');
-  });
-
-  test('updates the TUI snapshot after a successful switch', () => {
-    recordTuiAgentModels(
-      {
-        agentModels: {
-          explorer: 'openai/gpt-5.6-luna',
-          fixer: 'openai/gpt-5.6-luna',
-        },
-      },
-      tempDir,
-    );
-
-    const config: PluginConfig = {
-      presets: {
-        cheap: {
-          orchestrator: { model: 'anthropic/claude-3.5-haiku' },
-          explorer: { model: 'openai/gpt-5.6' },
-        },
-      },
-    };
-
-    switchPresetOnDisk(tempDir, 'cheap', config);
-
-    expect(readTuiSnapshot(tempDir).agentModels).toEqual({
-      explorer: 'openai/gpt-5.6',
-      fixer: 'openai/gpt-5.6-luna',
-      orchestrator: 'anthropic/claude-3.5-haiku',
-    });
-  });
-
-  test('clears stale variant when switching to a preset without one', () => {
-    recordTuiAgentModels(
-      {
-        agentModels: { oracle: 'old-model' },
-        agentVariants: { oracle: 'thinking' },
-      },
-      tempDir,
-    );
-
-    const config: PluginConfig = {
-      presets: {
-        plain: { oracle: { model: 'new-model' } },
-      },
-    };
-
-    switchPresetOnDisk(tempDir, 'plain', config);
-
-    const snapshot = readTuiSnapshot(tempDir);
-    expect(snapshot.agentModels.oracle).toBe('new-model');
-    expect(snapshot.agentVariants.oracle).toBeUndefined();
   });
 
   test('persists preset name to a JSONC user config file', () => {
@@ -212,9 +162,6 @@ describe('switchPresetOnDisk', () => {
 
     expect(result.ok).toBe(true);
     expect(result.summary.some((l) => l.startsWith('explorer →'))).toBe(true);
-    expect(readTuiSnapshot(tempDir).agentModels.explorer).toBe(
-      'openai/gpt-5.6-luna',
-    );
   });
 
   test('skips agents with empty overrides in a mixed preset', () => {
@@ -235,8 +182,8 @@ describe('switchPresetOnDisk', () => {
       true,
     );
     expect(result.summary.some((l) => l.startsWith('oracle →'))).toBe(true);
-    // explorer has no usable override and must not appear in the snapshot
-    expect(readTuiSnapshot(tempDir).agentModels.explorer).toBeUndefined();
+    // explorer has no usable override and must not appear in the summary
+    expect(result.summary.some((l) => l.startsWith('explorer →'))).toBe(false);
   });
 
   test('resolves array-form model to the first string entry', () => {

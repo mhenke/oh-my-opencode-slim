@@ -22,16 +22,19 @@ the built-in `/models`, so it triggers no LLM turn.
 1. Define named presets in `oh-my-opencode-slim.jsonc` under the `presets`
    field, or create them interactively from the manager
 2. The manager writes preset changes to the user config file
-3. **Apply** persists the preset name and refreshes the sidebar snapshot
-   (visual only — the sidebar shows the new models)
-4. **Reload OpenCode** for the new preset to take effect on the agent registry
+3. **Apply** persists the preset name to the config file only — the
+   sidebar is NOT refreshed mid-session (the agent registry is unchanged
+   until reload; showing new models against running agents would be
+   misleading)
+4. **Reload OpenCode** (or start a new conversation) for the new preset to
+   take effect on the agent registry
 5. The current session is **not** reloaded — this is deliberate.
    Hot-swapping the agent tree mid-conversation could truncate context (a
    new model may have a smaller window), drift prior assistant turns under
    a changed system prompt, leave running subagents referencing stale agent
-   definitions, or shift tool/skill availability. Reload-on-switch keeps
-   the active session stable. A future path to true in-session switching
-   without reset requires upgrading `@opencode-ai/plugin` (tracked in #799).
+   definitions, or shift tool/skill availability. A future path to true
+   in-session switching without reset requires upgrading
+   `@opencode-ai/plugin` (tracked in #799).
 
 ### Level 3 — model and variant selection
 
