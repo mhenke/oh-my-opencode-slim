@@ -68,12 +68,11 @@ oh-my-opencode-slim/
 │   ├── agents/       # Agent factories (orchestrator, explorer, oracle, etc.)
 │   ├── cli/          # CLI entry point
 │   ├── config/       # Constants, schemas, MCP defaults
-│   ├── council/      # Council manager (multi-LLM session orchestration)
 │   ├── hooks/        # OpenCode lifecycle hooks
 │   ├── mcp/          # MCP server definitions
 │   ├── multiplexer/  # Tmux/Zellij pane integration for child sessions
 │   ├── skills/       # Skill definitions (included in package publish)
-│   ├── tools/        # Tool definitions (council, webfetch, AST-grep, etc.)
+│   ├── tools/        # Tool definitions (webfetch, AST-grep, etc.)
 │   └── utils/        # Shared utilities (session, task, logger, env, etc.)
 ├── dist/             # Built JavaScript and declarations
 ├── docs/             # User-facing documentation
