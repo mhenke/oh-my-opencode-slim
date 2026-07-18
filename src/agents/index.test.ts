@@ -182,15 +182,6 @@ describe('orchestrator agent', () => {
     ).toBe('allow');
   });
 
-  test('orchestrator is denied access to council_session', () => {
-    const agents = createAgents();
-    const orchestrator = agents.find((a) => a.name === 'orchestrator');
-    expect(
-      (orchestrator as { config: { permission: Record<string, unknown> } })
-        .config.permission.council_session,
-    ).toBe('deny');
-  });
-
   test('orchestrator is allowed to invoke cancel_task', () => {
     const agents = createAgents();
     const orchestrator = agents.find((a) => a.name === 'orchestrator');
@@ -338,42 +329,10 @@ describe('skill permissions', () => {
 });
 
 describe('tool permissions', () => {
-  test('council agent is allowed to invoke council_session', () => {
-    const agents = createAgents({
-      council: councilConfig(),
-    });
-    const council = agents.find((a) => a.name === 'council');
-    expect(
-      (council as { config: { permission: Record<string, unknown> } }).config
-        .permission.council_session,
-    ).toBe('allow');
-  });
-
-  test('oracle is denied access to council_session', () => {
-    const agents = createAgents();
-    const oracle = agents.find((a) => a.name === 'oracle');
-    expect(
-      (oracle as { config: { permission: Record<string, unknown> } }).config
-        .permission.council_session,
-    ).toBe('deny');
-  });
-
-  test('explorer is denied access to council_session', () => {
-    const agents = createAgents();
-    const explorer = agents.find((a) => a.name === 'explorer');
-    expect(
-      (explorer as { config: { permission: Record<string, unknown> } }).config
-        .permission.council_session,
-    ).toBe('deny');
-  });
-
-  test('councillor is denied access to council_session', () => {
-    const agents = createAgents();
-    const councillor = agents.find((a) => a.name === 'councillor');
-    expect(
-      (councillor as { config: { permission: Record<string, unknown> } }).config
-        .permission.council_session,
-    ).toBe('deny');
+  test('dynamic councillor agents are prefixed to avoid reserved agent type names', () => {
+    const agents = createAgents({ council: councilConfig() });
+    expect(agents.some((a) => a.name === 'councillor-alpha')).toBe(true);
+    expect(agents.some((a) => a.name === 'alpha')).toBe(false);
   });
 
   test('oracle is denied access to cancel_task', () => {
@@ -403,7 +362,7 @@ describe('tool permissions', () => {
     ).toBe('deny');
   });
 
-  test('council agent is read-only except council_session', () => {
+  test('council agent is fully read-only (synthesis-only, no council_session)', () => {
     const agents = createAgents({
       council: councilConfig(),
     });
@@ -414,7 +373,6 @@ describe('tool permissions', () => {
     expect(permission.glob).toBe('allow');
     expect(permission.grep).toBe('allow');
     expect(permission.ast_grep_search).toBe('allow');
-    expect(permission.council_session).toBe('allow');
     expect(permission.bash).toBe('deny');
     expect(permission.edit).toBe('deny');
     expect(permission.write).toBe('deny');
@@ -433,7 +391,6 @@ describe('tool permissions', () => {
     expect(permission.read).toBe('allow');
     expect(permission.glob).toBe('allow');
     expect(permission.grep).toBe('allow');
-    expect(permission.council_session).toBe('deny');
     expect(permission.bash).toBe('deny');
     expect(permission.edit).toBe('deny');
     expect(permission.write).toBe('deny');
@@ -441,6 +398,22 @@ describe('tool permissions', () => {
     expect(permission.ast_grep_replace).toBe('deny');
     expect(permission.task).toBe('deny');
   });
+});
+
+test('orchestrator prompt includes Council Mode block when councillors exist', () => {
+  const agents = createAgents({ council: councilConfig() });
+  const orchestrator = agents.find((a) => a.name === 'orchestrator');
+  const prompt = orchestrator?.config.prompt as string;
+  expect(prompt).toContain('## Council Mode');
+  expect(prompt).toContain("task(subagent_type='councillor-alpha'");
+  expect(prompt).toContain('proceed without it');
+});
+
+test('orchestrator prompt excludes Council Mode when no councillors', () => {
+  const agents = createAgents();
+  const orchestrator = agents.find((a) => a.name === 'orchestrator');
+  const prompt = orchestrator?.config.prompt as string;
+  expect(prompt).not.toContain('## Council Mode');
 });
 
 describe('isSubagent type guard', () => {

@@ -95,7 +95,7 @@ This codemap covers the plugin repository itself and excludes the nested `openco
 - cmux-specific readiness, retry, orphan, and cleanup state lives under
   `src/multiplexer/cmux/`; the generic manager delegates cmux events so other
   multiplexer behavior remains on the upstream path.
-- `src/tools/council.ts` delegates into `src/council/`.
+- Council mode is implemented in `src/agents/`; the orchestrator dispatches councillors as subagents and the council agent synthesizes responses.
 - `src/tools/preset-manager.ts` hooks command execution and updates runtime agent models from configured presets.
 - `src/hooks/task-session-manager/` depends on `src/utils/background-job-board.ts` and `src/utils/task.ts` to support background task tracking, task output parsing, and safe alias reuse.
 - `src/hooks/filter-available-skills/` and agent permission logic rely on shared skill names from the CLI/config layer.

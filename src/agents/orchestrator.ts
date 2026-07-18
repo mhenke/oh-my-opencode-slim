@@ -115,10 +115,14 @@ const PARALLEL_DELEGATION_EXAMPLES = [
  * @param disabledAgents - Set of disabled agent names to exclude from the prompt
  * @returns The complete orchestrator prompt string
  */
-export function buildOrchestratorPrompt(disabledAgents?: Set<string>): string {
+export function buildOrchestratorPrompt(
+  disabledAgents?: Set<string>,
+  excludeDescriptions?: string[],
+): string {
   // Filter agent descriptions
   const enabledAgents = Object.entries(AGENT_DESCRIPTIONS)
     .filter(([name]) => !disabledAgents?.has(name))
+    .filter(([name]) => !excludeDescriptions?.includes(name))
     .map(([, desc]) => desc)
     .join('\n\n');
 
@@ -270,8 +274,12 @@ export function createOrchestratorAgent(
   customPrompt?: string,
   customAppendPrompt?: string,
   disabledAgents?: Set<string>,
+  excludeDescriptions?: string[],
 ): AgentDefinition {
-  const basePrompt = buildOrchestratorPrompt(disabledAgents);
+  const basePrompt = buildOrchestratorPrompt(
+    disabledAgents,
+    excludeDescriptions,
+  );
   const prompt = resolvePrompt(basePrompt, customPrompt, customAppendPrompt);
 
   const definition: AgentDefinition = {

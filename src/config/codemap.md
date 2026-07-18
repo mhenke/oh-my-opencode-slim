@@ -176,10 +176,7 @@ This allows consumers to import directly from `src/config` rather than individua
 
 ### CouncilConfig
 - `presets`: Named council presets (map of presetName → CouncillorConfig[])
-- `timeout`: Council execution timeout in ms
 - `default_preset`: Default preset name to use
-- `councillor_execution_mode`: "parallel" or "serial" execution
-- `councillor_retries`: Number of retry attempts for empty responses
 
 ### MultiplexerConfig
 - `type`: "auto", "tmux", "zellij", or "none"
