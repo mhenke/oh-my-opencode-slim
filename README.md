@@ -302,11 +302,11 @@ If any agent fails to respond, check your provider authentication and config fil
   <tr>
     <td colspan="2">
       <b>Recommended Models:</b> <code>deepseek-v4-flash</code> <code>gpt-5.3-codex</code>
-      </td>
-   </tr>
-   <tr>
-      <td colspan="2">
-         <b>Model Guidance:</b> Choose a fast, low-cost model. Explorer handles broad scouting work, so speed and efficiency usually matter more than using your strongest reasoning model.
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Model Guidance:</b> Choose a fast, low-cost model. Explorer handles broad scouting work, so speed and efficiency usually matter more than using your strongest reasoning model.
     </td>
   </tr>
 </table>
@@ -433,11 +433,11 @@ If any agent fails to respond, check your provider authentication and config fil
   <tr>
     <td colspan="2">
       <b>Recommended Models:</b> <code>deepseek-v4-flash</code> <code>gpt-5.3-codex</code> <code>mimo-v2.5</code> <code>minimax-m2.7</code>
-      </td>
-   </tr>
-   <tr>
-      <td colspan="2">
-         <b>Model Guidance:</b> Choose a fast, low-cost model. Librarian handles research and documentation lookups, so speed and efficiency usually matter more than using your strongest reasoning model.
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Model Guidance:</b> Choose a fast, low-cost model. Librarian handles research and documentation lookups, so speed and efficiency usually matter more than using your strongest reasoning model.
     </td>
   </tr>
 </table>
@@ -557,16 +557,16 @@ If any agent fails to respond, check your provider authentication and config fil
   <tr>
     <td colspan="2">
       <b>Default Model:</b> <code>openai/gpt-5.6-luna</code> - <i>configure a vision-capable model to enable</i>
-      </td>
-   </tr>
-   <tr>
-      <td colspan="2">
-         <b>Recommended Models:</b> <code>mimo-v2.5</code> <code>qwen3.5-plus</code>
-      </td>
-   </tr>
-   <tr>
-      <td colspan="2">
-         <b>Model Guidance:</b> Choose a vision-capable model if you want the agent to read screenshots, images, PDFs, and other visual files.
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Recommended Models:</b> <code>mimo-v2.5</code> <code>qwen3.5-plus</code>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2">
+      <b>Model Guidance:</b> Choose a vision-capable model if you want the agent to read screenshots, images, PDFs, and other visual files.
     </td>
   </tr>
 </table>
