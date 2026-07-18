@@ -68,7 +68,6 @@ export function createCouncilAgent(
 
   return {
     name: 'council',
-    displayName: 'Council',
     description:
       'Multi-model consensus agent that synthesizes viewpoints from council members to make informed decisions with higher confidence than single models',
     config: {

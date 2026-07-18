@@ -696,8 +696,9 @@ export function getAgentConfigs(
       // Council is callable both as a primary agent (user-facing)
       // and as a subagent (orchestrator can delegate to it)
       sdkConfig.mode = 'all';
-    } else if (name === 'councillor') {
-      // Internal agent - subagent mode, hidden from @ autocomplete
+    } else if (name === 'councillor' || name.startsWith('councillor-')) {
+      // Internal agent - subagent mode, hidden from @ autocomplete.
+      // Dynamic councillors are named councillor-<seat> (see council-agents.ts).
       sdkConfig.mode = 'subagent';
       sdkConfig.hidden = true;
     } else if (isSubagent(name)) {
@@ -709,7 +710,8 @@ export function getAgentConfigs(
     }
   };
 
-  const isInternalOnly = (name: string): boolean => name === 'councillor';
+  const isInternalOnly = (name: string): boolean =>
+    name === 'councillor' || name.startsWith('councillor-');
 
   const entries: Array<[string, SDKAgentConfig]> = [];
 
