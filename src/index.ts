@@ -759,7 +759,12 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       const tuiAgentModels: Record<string, string> = {};
       const tuiAgentVariants: Record<string, string> = {};
       for (const agentDef of agentDefs) {
-        if (agentDef.name === 'councillor') continue;
+        if (
+          agentDef.name === 'council' ||
+          agentDef.name === 'councillor' ||
+          agentDef.name.startsWith('councillor-')
+        )
+          continue;
 
         const entry = configAgent[agentDef.name] as
           | Record<string, unknown>
