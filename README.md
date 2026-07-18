@@ -260,7 +260,7 @@ If any agent fails to respond, check your provider authentication and config fil
   </tr>
   <tr>
     <td colspan="2">
-      <b>Recommended Models:</b> <code>openai/gpt-5.6-terra (medium)</code> <code>anthropic/claude-fable-5</code> <code>anthropic/claude-opus-4-8</code> <code>opencode-go/glm-5.2</code> <code>opencode-go/minimax-m3</code> <code>opencode-go/qwen3.7-plus</code>
+      <b>Recommended Models:</b> <code>openai/gpt-5.6-terra (medium)</code> <code>anthropic/claude-fable-5</code> <code>anthropic/claude-opus-4-8</code> <code>opencode-go/glm-5.2</code> <code>opencode-go/minimax-m3</code> <code>opencode-go/qwen3.7-plus</code> <code>opencode/mimo-v2.5</code> <code>opencode/nemotron-3-ultra</code>
     </td>
   </tr>
   <tr>
@@ -301,7 +301,7 @@ If any agent fails to respond, check your provider authentication and config fil
   </tr>
   <tr>
     <td colspan="2">
-      <b>Recommended Models:</b> <code>openai/gpt-5.3-codex</code> <code>cerebras/zai-glm-4.7</code> <code>fireworks-ai/accounts/fireworks/routers/kimi-k2p6-turbo</code> <code>opencode-go/kimi-k2.6</code> <code>opencode-go/deepseek-v4-flash</code>
+      <b>Recommended Models:</b> <code>openai/gpt-5.3-codex</code> <code>cerebras/zai-glm-4.7</code> <code>fireworks-ai/accounts/fireworks/routers/kimi-k2p6-turbo</code> <code>opencode-go/kimi-k2.6</code> <code>opencode-go/deepseek-v4-flash</code> <code>opencode/north-mini-code</code>
       </td>
    </tr>
    <tr>
@@ -342,7 +342,7 @@ If any agent fails to respond, check your provider authentication and config fil
   </tr>
   <tr>
     <td colspan="2">
-      <b>Recommended Models:</b> <code>openai/gpt-5.6-sol (xhigh)</code> <code>anthropic/claude-fable-5</code> <code>anthropic/claude-opus-4-8 (xhigh)</code> <code>opencode-go/deepseek-v4-pro</code> <code>opencode-go/qwen3.7-max</code> <code>opencode-go/mimo-v2.5-pro</code> <code>opencode-go/glm-5.2</code>
+      <b>Recommended Models:</b> <code>openai/gpt-5.6-sol (xhigh)</code> <code>anthropic/claude-fable-5</code> <code>anthropic/claude-opus-4-8 (xhigh)</code> <code>opencode-go/deepseek-v4-pro</code> <code>opencode-go/qwen3.7-max</code> <code>opencode-go/mimo-v2.5-pro</code> <code>opencode-go/glm-5.2</code> <code>opencode/big-pickle</code>
     </td>
   </tr>
   <tr>
@@ -432,7 +432,7 @@ If any agent fails to respond, check your provider authentication and config fil
   </tr>
   <tr>
     <td colspan="2">
-      <b>Recommended Models:</b> <code>openai/gpt-5.3-codex</code> <code>cerebras/zai-glm-4.7</code> <code>fireworks-ai/accounts/fireworks/routers/kimi-k2p6-turbo</code> <code>opencode-go/kimi-k2.6</code> <code>opencode-go/deepseek-v4-flash</code> <code>opencode-go/mimo-v2.5</code>
+      <b>Recommended Models:</b> <code>openai/gpt-5.3-codex</code> <code>cerebras/zai-glm-4.7</code> <code>fireworks-ai/accounts/fireworks/routers/kimi-k2p6-turbo</code> <code>opencode-go/kimi-k2.6</code> <code>opencode-go/deepseek-v4-flash</code> <code>opencode-go/mimo-v2.5</code> <code>opencode/north-mini-code</code> <code>opencode/minimax-m2.7</code>
       </td>
    </tr>
    <tr>
@@ -514,7 +514,7 @@ If any agent fails to respond, check your provider authentication and config fil
   </tr>
   <tr>
     <td colspan="2">
-      <b>Recommended Models:</b> <code>openai/gpt-5.6-luna (medium)</code> <code>anthropic/claude-sonnet-4-6</code> <code>opencode-go/kimi-k2.7-code</code> <code>opencode-go/deepseek-v4-flash</code>
+      <b>Recommended Models:</b> <code>openai/gpt-5.6-luna (medium)</code> <code>anthropic/claude-sonnet-4-6</code> <code>opencode-go/kimi-k2.7-code</code> <code>opencode-go/deepseek-v4-flash</code> <code>opencode/north-mini-code</code>
     </td>
   </tr>
   <tr>
@@ -561,7 +561,7 @@ If any agent fails to respond, check your provider authentication and config fil
    </tr>
    <tr>
       <td colspan="2">
-         <b>Recommended Models:</b> <code>opencode-go/mimo-v2.5</code> <code>opencode-go/mimo-v2.5-pro</code>
+         <b>Recommended Models:</b> <code>opencode-go/mimo-v2.5</code> <code>opencode-go/mimo-v2.5-pro</code> <code>opencode/qwen3.5-plus</code>
       </td>
    </tr>
    <tr>
