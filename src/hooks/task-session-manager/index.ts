@@ -1129,6 +1129,17 @@ export function createTaskSessionManagerHook(
             taskContextTracker.contextFilesForPrompt(sessionId),
           );
           taskContextTracker.prune(backgroundJobBoard);
+          // Wake the orchestrator so it sees the updated board immediately.
+          if (job.parentSessionID && sessionSdk?.promptAsync) {
+            sessionSdk.promptAsync({
+              path: { id: job.parentSessionID },
+              body: {
+                parts: [createInternalAgentTextPart(
+                  'A background job completed. Check the Background Job Board and reconcile the results.',
+                )],
+              },
+            }).catch(() => {});
+          }
         }
         return;
       }
