@@ -2553,6 +2553,57 @@ describe('task-session-manager hook', () => {
     });
   });
 
+  test('session.created early registration attributes each parallel child to its own pending call', async () => {
+    // Regression: when a parent launches several task tools in parallel with
+    // different subagent types (e.g. council reviewers a/b/c), the old
+    // peekByParent() returned the FIRST pending call for every child, so
+    // all children were registered with the first subagent's agentType.
+    // info.agent on the child session disambiguates which pending call
+    // started it.
+    const board = new BackgroundJobBoard();
+    const { hook } = createHook({ backgroundJobBoard: board });
+
+    // Parent fires three task tools in parallel: oracle / explorer / fixer.
+    await hook['tool.execute.before'](
+      { tool: 'task', sessionID: 'parent-1', callID: 'call-a' },
+      { args: { subagent_type: 'oracle', description: 'audit loss' } },
+    );
+    await hook['tool.execute.before'](
+      { tool: 'task', sessionID: 'parent-1', callID: 'call-b' },
+      { args: { subagent_type: 'explorer', description: 'audit data' } },
+    );
+    await hook['tool.execute.before'](
+      { tool: 'task', sessionID: 'parent-1', callID: 'call-c' },
+      { args: { subagent_type: 'fixer', description: 'audit fix' } },
+    );
+
+    // Each child session is created while the parent tool calls are still
+    // in flight (before any tool.execute.after). info.agent identifies the
+    // subagent that owns each child.
+    await hook.event({
+      event: {
+        type: 'session.created',
+        properties: { info: { id: 'child-a', parentID: 'parent-1', agent: 'oracle' } },
+      },
+    });
+    await hook.event({
+      event: {
+        type: 'session.created',
+        properties: { info: { id: 'child-b', parentID: 'parent-1', agent: 'explorer' } },
+      },
+    });
+    await hook.event({
+      event: {
+        type: 'session.created',
+        properties: { info: { id: 'child-c', parentID: 'parent-1', agent: 'fixer' } },
+      },
+    });
+
+    expect(board.get('child-a')).toMatchObject({ agent: 'oracle', description: 'audit loss' });
+    expect(board.get('child-b')).toMatchObject({ agent: 'explorer', description: 'audit data' });
+    expect(board.get('child-c')).toMatchObject({ agent: 'fixer', description: 'audit fix' });
+  });
+
   test('cancelled job is not reconciled from idle', async () => {
     const board = new BackgroundJobBoard();
     board.registerLaunch({

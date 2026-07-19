@@ -1002,7 +1002,7 @@ export function createTaskSessionManagerHook(
       event: {
         type: string;
         properties?: {
-          info?: { id?: string; parentID?: string };
+          info?: { id?: string; parentID?: string; agent?: string };
           id?: string;
           requestID?: string;
           sessionID?: string;
@@ -1034,7 +1034,15 @@ export function createTaskSessionManagerHook(
           // reports runningJobForSession:false and the orchestrator sees
           // "Task cancelled" while the child is still working (#765).
           // Peek (don't take) so tool.execute.after can still re-register.
-          const pending = pendingCallTracker.peekByParent(info.parentID);
+          //
+          // When the parent has multiple task calls in flight at once (e.g.
+          // parallel council reviewers), `info.agent` on the child session
+          // identifies which subagent started it; prefer the matching
+          // pending call so we don't attribute the child to the wrong agent.
+          const pending = pendingCallTracker.peekByParentAndAgent(
+            info.parentID,
+            info.agent,
+          );
           if (
             pending &&
             !pending.resumedTaskId &&
