@@ -1023,12 +1023,13 @@ export function createTaskSessionManagerHook(
       for (let i = messages.length - 1; i >= 0; i -= 1) {
         const message = messages[i];
         if (!isUserMessageWithParts(message)) continue;
-        if (message.info.agent && message.info.agent !== 'orchestrator') return;
+        if (message.info.agent && message.info.agent !== 'orchestrator')
+          continue;
         if (
           !message.info.sessionID ||
           !options.shouldManageSession(message.info.sessionID)
         ) {
-          return;
+          continue;
         }
 
         const reminders = [
