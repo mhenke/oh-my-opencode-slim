@@ -55,10 +55,6 @@ function getPlugins(config: OpenCodeConfig): unknown[] {
   return Array.isArray(config.plugin) ? config.plugin : [];
 }
 
-function getPluginEntries(config: OpenCodeConfig): string[] {
-  return getPlugins(config).filter(isString);
-}
-
 function getPluginSpec(entry: unknown): string | undefined {
   if (isString(entry)) return entry;
   if (!Array.isArray(entry)) return undefined;
@@ -679,11 +675,12 @@ export function detectCurrentConfig(): DetectedConfig {
   const { config } = parseConfig(getExistingConfigPath());
   if (!config) return result;
 
-  const plugins = getPluginEntries(config);
-  result.isInstalled = plugins.some((p) => isPluginEntry(p));
-  result.hasAntigravity = plugins.some((p) =>
-    p.startsWith('opencode-antigravity-auth'),
-  );
+  const plugins = getPlugins(config);
+  result.isInstalled = plugins.some((p) => isMatchingPluginEntry(p));
+  result.hasAntigravity = plugins.some((p) => {
+    const spec = getPluginSpec(p);
+    return spec?.startsWith('opencode-antigravity-auth') ?? false;
+  });
 
   // Check for providers
   const providers = config.provider as Record<string, unknown> | undefined;

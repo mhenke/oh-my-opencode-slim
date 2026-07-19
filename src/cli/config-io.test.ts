@@ -630,6 +630,26 @@ describe('config-io', () => {
     expect(detected.hasTmux).toBe(true);
   });
 
+  test('detectCurrentConfig detects installed status for installer-managed tuple', () => {
+    const configPath = join(tmpDir, 'opencode', 'opencode.json');
+    paths.ensureConfigDir();
+
+    writeFileSync(
+      configPath,
+      JSON.stringify({
+        plugin: [
+          [
+            'oh-my-opencode-slim@1.2.3',
+            { __ohMyOpencodeSlimManagedByInstaller: true },
+          ],
+        ],
+      }),
+    );
+
+    const detected = detectCurrentConfig();
+    expect(detected.isInstalled).toBe(true);
+  });
+
   test('detectCurrentConfig detects provider models in arrays', () => {
     const configPath = join(tmpDir, 'opencode', 'opencode.json');
     const litePath = join(tmpDir, 'opencode', 'oh-my-opencode-slim.json');
