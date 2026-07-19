@@ -501,6 +501,11 @@ export function createTaskSessionManagerHook(
     options.coordinator.onSessionDeleted((sessionId) => {
       clearContinuation(sessionId);
       clearInputWaits(sessionId);
+      const pendingChildIdle = childIdleReconcileTimers.get(sessionId);
+      if (pendingChildIdle) {
+        clearTimeout(pendingChildIdle);
+        childIdleReconcileTimers.delete(sessionId);
+      }
       // During a foreground fallback abort/re-prompt cycle, the session
       // is being torn down and immediately recreated with a fallback model.
       // Dropping the job from the board here would make the orchestrator

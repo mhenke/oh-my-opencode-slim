@@ -2560,6 +2560,48 @@ describe('task-session-manager hook', () => {
     expect(board.get('child-b')).toMatchObject({ state: 'running' });
   });
 
+  test('session.deleted cancels pending child idle-reconcile (FG teardown race)', async () => {
+    // FG aborts the child session mid-idle-delay; onSessionDeleted must
+    // cancel the pending timer so it cannot fire after FG finishes and
+    // re-check isFallbackInProgress=false, falsely reconciling the board
+    // entry while the re-prompted session keeps working.
+    const coordinator = new SessionLifecycle(() => {});
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-b',
+      parentSessionID: 'parent-1',
+      agent: 'councillor-reviewer-b',
+      description: 'audit distributed',
+    });
+
+    let fgInProgress = false;
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      coordinator,
+      shouldManageSession: () => false,
+      isFallbackInProgress: () => fgInProgress,
+      idleReconcileDelayMs: 30,
+    });
+
+    // idle fires before FG sets isFallbackInProgress — schedules timer T.
+    await hook.event({
+      event: { type: 'session.idle', properties: { sessionID: 'child-b' } },
+    });
+    // FG claims the session and aborts it; OpenCode emits session.deleted
+    // while the timer is still pending. onSessionDeleted must cancel T.
+    fgInProgress = true;
+    coordinator.dispatchSessionDeleted('child-b');
+    // FG finishes; isFallbackInProgress goes false before T would fire.
+    fgInProgress = false;
+
+    await new Promise((r) => setTimeout(r, 60));
+    // Board entry survives (isFallbackInProgress was true at delete time)
+    // but is NOT reconciled — the timer was cancelled on session.deleted.
+    const job = board.get('child-b');
+    expect(job).toBeDefined();
+    expect(job?.state).toBe('running');
+  });
+
   test('session.created early-registers board job so after-hook cancellation cannot orphan the child', async () => {
     // Reproduces #765: parent tool may be cancelled before tool.execute.after,
     // so the job never lands on the board. Early registration from
