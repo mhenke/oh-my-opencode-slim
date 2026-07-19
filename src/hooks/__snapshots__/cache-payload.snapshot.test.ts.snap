@@ -155,7 +155,7 @@ Balance: respect dependencies, avoid parallelizing what must be sequential, and 
 - Continue orchestration only on non-overlapping work; otherwise briefly report what was launched and stop.
 - Before local edits or another writer task, compare against running task scopes.
 - Parallel background tasks are allowed only when their write scopes do not conflict.
-- Before final response, reconcile any terminal jobs shown in the Background Job Board.
+- Reconcile terminal jobs as soon as they appear on the Background Job Board — do not wait for hook-driven notifications before reporting results. The board is the completion signal.
 - Use \`cancel_task\` only when the user asks, or when a running lane is obsolete, wrong, or conflicts with a safer replacement plan.
 - Cancellation is not rollback: if cancelling a writer, inspect and reconcile partial file changes before launching a replacement lane.
 
@@ -467,7 +467,7 @@ exports[`cache-impact snapshots (update deliberately — see file header) transf
 "<system-reminder>
 ### Background Job Board
 SENTINEL: background-job-board-v2
-Do not poll running jobs. Wait for hook-driven completion, or use cancel_task only for explicit cancellation. Reconcile terminal jobs before final response.
+Do not poll running jobs. When a job flips to completed/reconciled on the board, treat it as an implicit completion notification: reconcile immediately. Use cancel_task only for explicit cancellation.
 Completed or reconciled sessions are reusable by alias for the same specialist/context.
 Timed-out running sessions are recoverable by alias for safe resume after a live busy signal.
 Cancelled or errored sessions are not reusable.
