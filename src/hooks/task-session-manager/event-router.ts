@@ -8,6 +8,7 @@
 import type { BackgroundJobStore } from '../../utils/background-job-store';
 import { log } from '../../utils/logger';
 import { isFailoverError } from '../foreground-fallback/index';
+import type { RetainedBoardSnapshotState } from './board-injection';
 import type { PendingTaskCall } from './pending-call-tracker';
 
 export async function handleEvent(
@@ -72,12 +73,14 @@ export async function handleEvent(
       prune(board: { taskIDs(): Set<string> }): void;
     };
     terminalJobsInjectedByParent: Map<string, Set<string>>;
+    retainedBoardSnapshots: Map<string, RetainedBoardSnapshotState>;
   },
 ): Promise<void> {
   deps.inputWaits.trackInputWait(input.event);
 
   if (input.event.type === 'session.created') {
     const info = input.event.properties?.info;
+    if (info?.id) deps.retainedBoardSnapshots.delete(info.id);
     log('[task-session-manager] session.created observed', {
       sessionID: info?.id,
       parentSessionID: info?.parentID,
@@ -133,6 +136,7 @@ export async function handleEvent(
   }
 
   if (input.event.type === 'server.instance.disposed') {
+    deps.retainedBoardSnapshots.clear();
     const idleSessionIds = deps.idleReconciler.clearAllTimers();
     const continuationSessionIDs = new Set([
       ...idleSessionIds,
@@ -291,6 +295,7 @@ export async function handleEvent(
 
   deps.continuationTokens.clearContinuation(sessionId);
   deps.inputWaits.clearInputWaits(sessionId);
+  deps.retainedBoardSnapshots.delete(sessionId);
 
   log('[task-session-manager] session.deleted observed', {
     sessionID: sessionId,

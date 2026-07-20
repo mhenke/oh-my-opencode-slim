@@ -41,6 +41,7 @@ const IDLE_RECONCILE_DELAY_MS = 2_000;
 export function createTaskSessionManagerHook(
   _ctx: PluginInput,
   options: {
+    strategy?: 'latest' | 'checkpoint-compatible';
     maxSessionsPerAgent: number;
     readContextMinLines?: number;
     readContextMaxFiles?: number;
@@ -155,6 +156,7 @@ export function createTaskSessionManagerHook(
         backgroundJobBoard.clearParent(sessionId);
       }
       terminalJobsInjectedByParent.delete(sessionId);
+      injectionState.retainedBoardSnapshots.delete(sessionId);
       taskContextTracker.clearSession(sessionId);
       taskContextTracker.prune(backgroundJobBoard);
       pendingCallTracker.clearSession(sessionId);
@@ -163,6 +165,7 @@ export function createTaskSessionManagerHook(
 
   const injectionState: InjectionState = {
     backgroundJobBoard,
+    strategy: options.strategy ?? 'latest',
     processedInjectedCompletions,
     processedInjectedCompletionOrder,
     terminalJobsInjectedByParent,
@@ -170,6 +173,7 @@ export function createTaskSessionManagerHook(
     metadataKey: BACKGROUND_JOB_BOARD_METADATA_KEY,
     shouldManageSession: options.shouldManageSession,
     taskContextTracker,
+    retainedBoardSnapshots: new Map(),
   };
 
   return {
@@ -294,6 +298,7 @@ export function createTaskSessionManagerHook(
         pendingCallTracker,
         taskContextTracker,
         terminalJobsInjectedByParent,
+        retainedBoardSnapshots: injectionState.retainedBoardSnapshots,
       }),
   };
 }

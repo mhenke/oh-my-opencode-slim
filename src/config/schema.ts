@@ -197,6 +197,12 @@ export const InterviewConfigSchema = z.object({
 export type InterviewConfig = z.infer<typeof InterviewConfigSchema>;
 
 export const BackgroundJobsConfigSchema = z.object({
+  strategy: z
+    .enum(['latest', 'checkpoint-compatible'])
+    .default('latest')
+    .describe(
+      'Board injection strategy. "latest" replaces prior board messages; "checkpoint-compatible" preserves them and appends only changed board snapshots.',
+    ),
   maxSessionsPerAgent: z.number().int().min(1).max(10).default(2),
   readContextMinLines: z.number().int().min(0).max(1000).default(10),
   readContextMaxFiles: z.number().int().min(0).max(50).default(8),

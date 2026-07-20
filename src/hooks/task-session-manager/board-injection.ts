@@ -16,10 +16,12 @@ import { isInternalInitiatorPart, parseTaskStatusOutput } from '../../utils';
 import { log } from '../../utils/logger';
 import {
   appendTrailingVolatileMessage,
+  createTaggedSyntheticPart,
+  isTaggedPart,
   stripTaggedContent,
 } from '../cache-safe-injection';
 import type { MessagePart, MessageWithParts } from '../types';
-import { isUserMessageWithParts } from '../types';
+import { isMessageWithParts, isUserMessageWithParts } from '../types';
 import {
   extractTaskSummary,
   formatCancelledTaskStatusOutput,
@@ -36,11 +38,26 @@ const BACKGROUND_COMPLETION_COMPLETED = /^Background task completed: /;
 const BACKGROUND_COMPLETION_FAILED = /^Background task failed: /;
 
 export const MAX_PROCESSED_INJECTED_COMPLETIONS = 500;
+const MAX_RETAINED_BOARD_SNAPSHOTS = 20;
+
+type RetainedBoardSnapshot = {
+  anchorKey: string;
+  id: string;
+  text: string;
+};
+
+export type RetainedBoardSnapshotState = {
+  snapshots: RetainedBoardSnapshot[];
+  nextSnapshotSequence: number;
+  realMessageCount: number;
+  firstRealMessageAnchorKey?: string;
+};
 
 // ── State shape ────────────────────────────────────────────────────────
 
 export interface InjectionState {
   backgroundJobBoard: BackgroundJobStore;
+  strategy: 'latest' | 'checkpoint-compatible';
   processedInjectedCompletions: Set<string>;
   processedInjectedCompletionOrder: string[];
   terminalJobsInjectedByParent: Map<string, Set<string>>;
@@ -52,6 +69,7 @@ export interface InjectionState {
     contextFilesForPrompt(taskId: string): ContextFile[];
     prune(board: { taskIDs(): Set<string> }): void;
   };
+  retainedBoardSnapshots: Map<string, RetainedBoardSnapshotState>;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────
@@ -245,12 +263,21 @@ export async function injectBackgroundJobBoard(
 ): Promise<void> {
   const messages = Array.isArray(output.messages) ? output.messages : [];
 
-  // Strip previously injected board content: parts attached to real
-  // messages (legacy placement) and whole synthetic board messages.
-  stripTaggedContent(messages, state.metadataKey);
+  if (state.strategy === 'latest') {
+    // Strip previously injected board content: parts attached to real
+    // messages (legacy placement) and whole synthetic board messages.
+    stripTaggedContent(messages, state.metadataKey);
+  }
 
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const message = messages[i];
+    if (
+      isMessageWithParts(message) &&
+      message.parts.length > 0 &&
+      message.parts.every((part) => isTaggedPart(part, state.metadataKey))
+    ) {
+      continue;
+    }
     if (!isUserMessageWithParts(message)) continue;
     if (message.info.agent && message.info.agent !== 'orchestrator') return;
     if (
@@ -269,6 +296,11 @@ export async function injectBackgroundJobBoard(
       (part) => part.type === 'text' && typeof part.text === 'string',
     );
     if (!textPart || isInternalInitiatorPart(textPart)) return;
+
+    if (state.strategy === 'checkpoint-compatible') {
+      injectCheckpointBoard(state, messages, message, reminder);
+      return;
+    }
 
     rememberInjectedTerminalJobs(state, message.info.sessionID);
     // Append the board as its own trailing message rather than mutating
@@ -290,4 +322,242 @@ export async function injectBackgroundJobBoard(
     );
     return;
   }
+}
+
+function injectCheckpointBoard(
+  state: InjectionState,
+  messages: unknown[],
+  message: MessageWithParts,
+  reminder: string,
+): void {
+  const sessionID = message.info.sessionID;
+  if (!sessionID) return;
+  const currentMessages = realMessages(messages, state.metadataKey);
+  const snapshotState = updateBoardHistoryState(
+    state,
+    sessionID,
+    currentMessages,
+  );
+  const anchorKey = findMessageAnchorKey(currentMessages, message);
+  if (!anchorKey) return;
+
+  if (snapshotState.snapshots.at(-1)?.text !== reminder && reminder) {
+    const encodedSessionID = encodeURIComponent(sessionID);
+    const sequence = snapshotState.nextSnapshotSequence;
+    snapshotState.nextSnapshotSequence += 1;
+    snapshotState.snapshots.push({
+      anchorKey,
+      id: `oh-my-opencode-slim:background-job-board:${encodedSessionID}:${sequence}`,
+      text: reminder,
+    });
+    if (snapshotState.snapshots.length > MAX_RETAINED_BOARD_SNAPSHOTS) {
+      snapshotState.snapshots.splice(
+        0,
+        snapshotState.snapshots.length - MAX_RETAINED_BOARD_SNAPSHOTS,
+      );
+    }
+  }
+
+  rememberInjectedTerminalJobs(state, sessionID);
+  replayCheckpointBoard(
+    messages,
+    message,
+    sessionID,
+    snapshotState,
+    state.metadataKey,
+  );
+}
+
+function boardHistoryMessageSignature(message: MessageWithParts): string {
+  const text = message.parts
+    .filter(
+      (part) =>
+        part.synthetic !== true &&
+        part.type === 'text' &&
+        typeof part.text === 'string',
+    )
+    .map((part) => part.text)
+    .join('\n');
+  return `${message.info.role}:${message.info.agent ?? ''}:${text}`;
+}
+
+function messageAnchorKeys(messages: MessageWithParts[]): string[] {
+  const occurrences = new Map<string, number>();
+  return messages.map((message) => {
+    const base = message.info.id
+      ? `id:${message.info.id}`
+      : `anonymous:${boardHistoryMessageSignature(message)}`;
+    const occurrence = occurrences.get(base) ?? 0;
+    occurrences.set(base, occurrence + 1);
+    return `${base}:${occurrence}`;
+  });
+}
+
+function realMessages(
+  messages: unknown[],
+  metadataKey: string,
+): MessageWithParts[] {
+  return messages.flatMap((message) => {
+    if (!isMessageWithParts(message)) return [];
+    const parts = message.parts.filter(
+      (part) => !isTaggedPart(part, metadataKey),
+    );
+    return parts.length > 0 ? [{ ...message, parts }] : [];
+  });
+}
+
+function hasCompacted(
+  previous: RetainedBoardSnapshotState,
+  currentMessages: MessageWithParts[],
+): boolean {
+  if (currentMessages.length < previous.realMessageCount) return true;
+
+  const currentAnchorKeys = messageAnchorKeys(currentMessages);
+  return (
+    (currentAnchorKeys[0] !== undefined &&
+      previous.firstRealMessageAnchorKey !== undefined &&
+      currentAnchorKeys[0] !== previous.firstRealMessageAnchorKey) ||
+    previous.snapshots.some(
+      (snapshot) => !currentAnchorKeys.includes(snapshot.anchorKey),
+    )
+  );
+}
+
+function updateBoardHistoryState(
+  state: InjectionState,
+  sessionID: string,
+  messages: MessageWithParts[],
+): RetainedBoardSnapshotState {
+  const previous = state.retainedBoardSnapshots.get(sessionID);
+  if (previous && hasCompacted(previous, messages)) {
+    state.retainedBoardSnapshots.delete(sessionID);
+  }
+
+  const current = state.retainedBoardSnapshots.get(sessionID) ?? {
+    snapshots: [],
+    nextSnapshotSequence: 0,
+    realMessageCount: 0,
+    firstRealMessageAnchorKey: undefined,
+  };
+  const currentAnchorKeys = messageAnchorKeys(messages);
+  current.realMessageCount = messages.length;
+  current.firstRealMessageAnchorKey = currentAnchorKeys[0];
+  state.retainedBoardSnapshots.set(sessionID, current);
+  return current;
+}
+
+function findMessageAnchorKey(
+  messages: MessageWithParts[],
+  message: MessageWithParts,
+): string | undefined {
+  const anchorKeys = messageAnchorKeys(messages);
+  const messageID = message.info.id;
+  if (messageID) {
+    const index = messages.findIndex(
+      (candidate) => candidate.info.id === messageID,
+    );
+    return index >= 0 ? anchorKeys[index] : undefined;
+  }
+
+  const signature = boardHistoryMessageSignature(message);
+  const index = messages.findLastIndex(
+    (candidate) => boardHistoryMessageSignature(candidate) === signature,
+  );
+  return index >= 0 ? anchorKeys[index] : undefined;
+}
+
+function createBoardMessage(
+  baseMessage: MessageWithParts,
+  sessionID: string,
+  snapshot: RetainedBoardSnapshot,
+  metadataKey: string,
+  usedMessageIDs: Set<string>,
+): MessageWithParts {
+  const baseID = snapshot.id;
+  let id = baseID;
+  let collisionIndex = 1;
+  while (usedMessageIDs.has(id)) {
+    id = `${baseID}:collision-${collisionIndex}`;
+    collisionIndex += 1;
+  }
+  usedMessageIDs.add(id);
+  return {
+    info: { ...baseMessage.info, id },
+    parts: [
+      createTaggedSyntheticPart({
+        text: snapshot.text,
+        metadataKey,
+        extraMetadata: { sessionID, snapshotID: snapshot.id },
+      }),
+    ],
+  };
+}
+
+function replayBoardSnapshots(
+  messages: unknown[],
+  baseMessage: MessageWithParts,
+  sessionID: string,
+  snapshotState: RetainedBoardSnapshotState,
+  metadataKey: string,
+): void {
+  const realMessageList = realMessages(messages, metadataKey);
+  const currentAnchorKeys = messageAnchorKeys(realMessageList);
+  const snapshotsByAnchor = new Map<string, RetainedBoardSnapshot[]>();
+  for (const snapshot of snapshotState.snapshots) {
+    const snapshots = snapshotsByAnchor.get(snapshot.anchorKey) ?? [];
+    snapshots.push(snapshot);
+    snapshotsByAnchor.set(snapshot.anchorKey, snapshots);
+  }
+
+  const usedMessageIDs = new Set(
+    messages.flatMap((message) =>
+      isMessageWithParts(message) && message.info.id ? [message.info.id] : [],
+    ),
+  );
+
+  const rebuiltMessages: unknown[] = [];
+  let realMessageIndex = 0;
+  for (const message of messages) {
+    rebuiltMessages.push(message);
+    if (!isMessageWithParts(message) || message.parts.length === 0) continue;
+    if (message.parts.every((part) => isTaggedPart(part, metadataKey))) {
+      continue;
+    }
+
+    const anchorKey = currentAnchorKeys[realMessageIndex];
+    if (!anchorKey) continue;
+    realMessageIndex += 1;
+    for (const snapshot of snapshotsByAnchor.get(anchorKey) ?? []) {
+      rebuiltMessages.push(
+        createBoardMessage(
+          baseMessage,
+          sessionID,
+          snapshot,
+          metadataKey,
+          usedMessageIDs,
+        ),
+      );
+    }
+  }
+
+  messages.splice(0, messages.length, ...rebuiltMessages);
+}
+
+function replayCheckpointBoard(
+  messages: unknown[],
+  baseMessage: MessageWithParts,
+  sessionID: string,
+  snapshotState: RetainedBoardSnapshotState,
+  metadataKey: string,
+): void {
+  stripTaggedContent(messages, metadataKey);
+  replayBoardSnapshots(
+    messages,
+    baseMessage,
+    sessionID,
+    snapshotState,
+    metadataKey,
+  );
+  // The caller records terminal jobs before this replay so that the normal
+  // idle reconciliation path can consume them after the prompt is processed.
 }

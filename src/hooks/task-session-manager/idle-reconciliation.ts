@@ -65,7 +65,7 @@ export function createIdleReconciler(options: {
       if (options.isFallbackInProgress?.(sessionID)) return;
 
       const job = options.backgroundJobBoard.get(sessionID);
-      if (!job || job.state !== 'running') return;
+      if (job?.state !== 'running') return;
 
       // Busy after the idle means the session recovered (e.g. FG re-prompt).
       if (
