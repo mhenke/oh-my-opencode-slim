@@ -39,3 +39,22 @@ describe('PluginConfigSchema image_routing', () => {
     expect(result.success).toBe(true);
   });
 });
+
+describe('PluginConfigSchema backgroundJobs', () => {
+  it('defaults board injection to the legacy latest strategy', () => {
+    const result = PluginConfigSchema.safeParse({ backgroundJobs: {} });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.backgroundJobs?.strategy).toBe('latest');
+    }
+  });
+
+  it('accepts checkpoint-compatible board injection', () => {
+    const result = PluginConfigSchema.safeParse({
+      backgroundJobs: { strategy: 'checkpoint-compatible' },
+    });
+
+    expect(result.success).toBe(true);
+  });
+});

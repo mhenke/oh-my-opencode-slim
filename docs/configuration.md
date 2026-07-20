@@ -147,6 +147,7 @@ Presets can also be switched at runtime without restarting using the `/preset` c
 | `backgroundJobs.maxSessionsPerAgent` | integer | `2` | Maximum completed/reconciled reusable child sessions per specialist type in the current orchestrator session (1–10) |
 | `backgroundJobs.readContextMinLines` | integer | `10` | Minimum number of lines read from a file before it appears in reusable background-job context (0–1000) |
 | `backgroundJobs.readContextMaxFiles` | integer | `8` | Maximum number of recent read-context files shown per reusable child session (0–50) |
+| `backgroundJobs.strategy` | `"latest"` \| `"checkpoint-compatible"` | `"latest"` | Board injection strategy. `latest` preserves the current strip-and-replace behavior; `checkpoint-compatible` keeps the latest 20 prior board snapshots in memory and appends only when the formatted board changes. The cap bounds memory/prompt growth, but after eviction complete checkpoint-prefix continuity is not guaranteed. Cache state resets on compaction/session boundaries and is lost on plugin restart |
 | `disabled_mcps` | string[] | `[]` | MCP server IDs to disable globally |
 | `fallback.enabled` | boolean | `true` | Enable model failover on timeout/error |
 | `fallback.timeoutMs` | number | `15000` | Time before aborting and trying next model |
@@ -259,7 +260,7 @@ major is available, the plugin shows a migration command instead.
 
 Background job management is enabled by default and does not need to be present
 in the starter config. Add `backgroundJobs` only if you want to tune how many
-completed/reconciled child-agent sessions are reusable or how much read context is shown. See
+completed/reconciled child-agent sessions are reusable, how much read context is shown, or how board snapshots are injected. See
 the [Background Orchestration](background-orchestration.md) guide for the concept, defaults, and
 examples.
 

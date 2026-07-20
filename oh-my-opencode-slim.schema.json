@@ -1046,6 +1046,15 @@
     "backgroundJobs": {
       "type": "object",
       "properties": {
+        "strategy": {
+          "default": "latest",
+          "description": "Board injection strategy. \"latest\" replaces prior board messages; \"checkpoint-compatible\" preserves them and appends only changed board snapshots.",
+          "type": "string",
+          "enum": [
+            "latest",
+            "checkpoint-compatible"
+          ]
+        },
         "maxSessionsPerAgent": {
           "default": 2,
           "type": "integer",

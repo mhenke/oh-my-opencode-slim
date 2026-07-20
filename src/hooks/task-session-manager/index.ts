@@ -34,11 +34,25 @@ interface TaskArgs {
   task_id?: unknown;
 }
 
+type RetainedBoardSnapshotState = {
+  snapshots: RetainedBoardSnapshot[];
+  nextSnapshotSequence: number;
+  realMessageCount: number;
+  firstRealMessageAnchorKey?: string;
+};
+
+type RetainedBoardSnapshot = {
+  anchorKey: string;
+  id: string;
+  text: string;
+};
+
 export const BACKGROUND_JOB_BOARD_METADATA_KEY =
   'oh-my-opencode-slim.backgroundJobBoard';
 const BACKGROUND_COMPLETION_COMPLETED = /^Background task completed: /;
 const BACKGROUND_COMPLETION_FAILED = /^Background task failed: /;
 const MAX_PROCESSED_INJECTED_COMPLETIONS = 500;
+const MAX_RETAINED_BOARD_SNAPSHOTS = 20;
 const RAW_SESSION_ID_PATTERN = /^ses_[A-Za-z0-9_-]+$/;
 
 /**
@@ -96,6 +110,7 @@ function extractTaskSummary(output: string): string | undefined {
 export function createTaskSessionManagerHook(
   _ctx: PluginInput,
   options: {
+    strategy?: 'latest' | 'checkpoint-compatible';
     maxSessionsPerAgent: number;
     readContextMinLines?: number;
     readContextMaxFiles?: number;
@@ -133,6 +148,7 @@ export function createTaskSessionManagerHook(
   const continuationSessionTokens = new Map<string, symbol>();
   const activeContinuationEvaluations = new Map<string, Set<symbol>>();
   const continuationConsumed = new Set<string>();
+  const retainedBoardSnapshots = new Map<string, RetainedBoardSnapshotState>();
   const idleReconcileDelayMs =
     options.idleReconcileDelayMs ?? IDLE_RECONCILE_DELAY_MS;
 
@@ -373,6 +389,7 @@ export function createTaskSessionManagerHook(
         backgroundJobBoard.clearParent(sessionId);
       }
       terminalJobsInjectedByParent.delete(sessionId);
+      retainedBoardSnapshots.delete(sessionId);
       taskContextTracker.clearSession(sessionId);
       taskContextTracker.prune(backgroundJobBoard);
       pendingCallTracker.clearSession(sessionId);
@@ -580,14 +597,111 @@ export function createTaskSessionManagerHook(
     );
   }
 
-  async function injectBackgroundJobBoard(
-    _input: Record<string, never>,
-    output: { messages?: unknown },
-  ): Promise<void> {
-    const messages = Array.isArray(output.messages) ? output.messages : [];
+  function isBoardMessage(message: MessageWithParts): boolean {
+    return message.parts.length > 0 && message.parts.every(isBoardPart);
+  }
 
-    // Strip previously injected board content: parts attached to real
-    // messages (legacy placement) and whole synthetic board messages.
+  function boardHistoryMessageSignature(message: MessageWithParts): string {
+    const text = message.parts
+      .filter(
+        (part) =>
+          part.synthetic !== true &&
+          part.type === 'text' &&
+          typeof part.text === 'string',
+      )
+      .map((part) => part.text)
+      .join('\n');
+    return `${message.info.role}:${message.info.agent ?? ''}:${text}`;
+  }
+
+  function messageAnchorKeys(messages: MessageWithParts[]): string[] {
+    const occurrences = new Map<string, number>();
+    return messages.map((message) => {
+      const base = message.info.id
+        ? `id:${message.info.id}`
+        : `anonymous:${boardHistoryMessageSignature(message)}`;
+      const occurrence = occurrences.get(base) ?? 0;
+      occurrences.set(base, occurrence + 1);
+      return `${base}:${occurrence}`;
+    });
+  }
+
+  function realMessages(messages: unknown[]): MessageWithParts[] {
+    return messages.flatMap((message) => {
+      if (!isMessageWithParts(message)) return [];
+      const parts = message.parts.filter((part) => !isBoardPart(part));
+      return parts.length > 0 ? [{ ...message, parts }] : [];
+    });
+  }
+
+  function hasCompacted(
+    previous: RetainedBoardSnapshotState,
+    currentMessages: MessageWithParts[],
+  ): boolean {
+    if (currentMessages.length < previous.realMessageCount) return true;
+
+    const currentAnchorKeys = messageAnchorKeys(currentMessages);
+    return (
+      (currentAnchorKeys[0] !== undefined &&
+        previous.firstRealMessageAnchorKey !== undefined &&
+        currentAnchorKeys[0] !== previous.firstRealMessageAnchorKey) ||
+      previous.snapshots.some(
+        (snapshot) => !currentAnchorKeys.includes(snapshot.anchorKey),
+      )
+    );
+  }
+
+  function updateBoardHistoryState(
+    sessionID: string,
+    messages: MessageWithParts[],
+  ): RetainedBoardSnapshotState {
+    const previous = retainedBoardSnapshots.get(sessionID);
+    if (previous && hasCompacted(previous, messages)) {
+      log(
+        '[task-session-manager] resetting checkpoint board history after compaction',
+        {
+          sessionID,
+          previousMessageCount: previous.realMessageCount,
+          currentMessageCount: messages.length,
+        },
+      );
+      retainedBoardSnapshots.delete(sessionID);
+    }
+
+    const current = retainedBoardSnapshots.get(sessionID) ?? {
+      snapshots: [],
+      nextSnapshotSequence: 0,
+      realMessageCount: 0,
+      firstRealMessageAnchorKey: undefined,
+    };
+    const currentAnchorKeys = messageAnchorKeys(messages);
+    current.realMessageCount = messages.length;
+    current.firstRealMessageAnchorKey = currentAnchorKeys[0];
+    retainedBoardSnapshots.set(sessionID, current);
+    return current;
+  }
+
+  function findMessageAnchorKey(
+    messages: MessageWithParts[],
+    message: MessageWithParts,
+  ): string | undefined {
+    const anchorKeys = messageAnchorKeys(messages);
+    const messageID = message.info.id;
+    if (messageID) {
+      const index = messages.findIndex(
+        (candidate) => candidate.info.id === messageID,
+      );
+      return index >= 0 ? anchorKeys[index] : undefined;
+    }
+
+    const signature = boardHistoryMessageSignature(message);
+    const index = messages.findLastIndex(
+      (candidate) => boardHistoryMessageSignature(candidate) === signature,
+    );
+    return index >= 0 ? anchorKeys[index] : undefined;
+  }
+
+  function removeBoardMessages(messages: unknown[]): void {
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       const message = messages[i];
       if (!isMessageWithParts(message)) continue;
@@ -595,9 +709,114 @@ export function createTaskSessionManagerHook(
       message.parts = message.parts.filter((part) => !isBoardPart(part));
       if (hadParts && message.parts.length === 0) messages.splice(i, 1);
     }
+  }
+
+  function createBoardMessage(
+    baseMessage: MessageWithParts,
+    sessionID: string,
+    snapshot: RetainedBoardSnapshot,
+    usedMessageIDs: Set<string>,
+  ): MessageWithParts {
+    const baseID = snapshot.id;
+    let id = baseID;
+    let collisionIndex = 1;
+    while (usedMessageIDs.has(id)) {
+      id = `${baseID}:collision-${collisionIndex}`;
+      collisionIndex += 1;
+    }
+    usedMessageIDs.add(id);
+    return {
+      info: {
+        ...baseMessage.info,
+        id,
+      },
+      parts: [
+        {
+          type: 'text',
+          synthetic: true,
+          text: snapshot.text,
+          metadata: {
+            [BACKGROUND_JOB_BOARD_METADATA_KEY]: true,
+            sessionID,
+            snapshotID: snapshot.id,
+          },
+        },
+      ],
+    };
+  }
+
+  function replayBoardSnapshots(
+    messages: unknown[],
+    baseMessage: MessageWithParts,
+    sessionID: string,
+    state: RetainedBoardSnapshotState,
+  ): void {
+    const realMessageList = realMessages(messages);
+    const currentAnchorKeys = messageAnchorKeys(realMessageList);
+    const snapshotsByAnchor = new Map<string, RetainedBoardSnapshot[]>();
+    for (const snapshot of state.snapshots) {
+      const snapshots = snapshotsByAnchor.get(snapshot.anchorKey) ?? [];
+      snapshots.push(snapshot);
+      snapshotsByAnchor.set(snapshot.anchorKey, snapshots);
+    }
+
+    const usedMessageIDs = new Set(
+      messages.flatMap((message) =>
+        isMessageWithParts(message) && message.info.id ? [message.info.id] : [],
+      ),
+    );
+
+    const rebuiltMessages: unknown[] = [];
+    let realMessageIndex = 0;
+    for (const message of messages) {
+      rebuiltMessages.push(message);
+      if (!isMessageWithParts(message) || message.parts.length === 0) continue;
+
+      const anchorKey = currentAnchorKeys[realMessageIndex];
+      if (!anchorKey) continue;
+      realMessageIndex += 1;
+      for (const snapshot of snapshotsByAnchor.get(anchorKey) ?? []) {
+        rebuiltMessages.push(
+          createBoardMessage(baseMessage, sessionID, snapshot, usedMessageIDs),
+        );
+      }
+    }
+
+    messages.splice(0, messages.length, ...rebuiltMessages);
+  }
+
+  function replayCheckpointBoard(
+    messages: unknown[],
+    baseMessage: MessageWithParts,
+    sessionID: string,
+    state: RetainedBoardSnapshotState,
+  ): void {
+    removeBoardMessages(messages);
+    replayBoardSnapshots(messages, baseMessage, sessionID, state);
+    rememberInjectedTerminalJobs(sessionID);
+  }
+
+  async function injectBackgroundJobBoard(
+    _input: Record<string, never>,
+    output: { messages?: unknown },
+  ): Promise<void> {
+    const messages = Array.isArray(output.messages) ? output.messages : [];
+
+    if (options.strategy !== 'checkpoint-compatible') {
+      // Strip previously injected board content: parts attached to real
+      // messages (legacy placement) and whole synthetic board messages.
+      removeBoardMessages(messages);
+    }
 
     for (let i = messages.length - 1; i >= 0; i -= 1) {
       const message = messages[i];
+      if (
+        options.strategy === 'checkpoint-compatible' &&
+        isMessageWithParts(message) &&
+        isBoardMessage(message)
+      ) {
+        continue;
+      }
       if (!isUserMessageWithParts(message)) continue;
       if (message.info.agent && message.info.agent !== 'orchestrator') return;
       if (
@@ -610,12 +829,48 @@ export function createTaskSessionManagerHook(
       const reminder = backgroundJobBoard.formatForPrompt(
         message.info.sessionID,
       );
-      if (!reminder) return;
 
       const textPart = message.parts.find(
         (part) => part.type === 'text' && typeof part.text === 'string',
       );
       if (!textPart || isInternalInitiatorPart(textPart)) return;
+
+      if (options.strategy === 'checkpoint-compatible') {
+        const sessionID = message.info.sessionID;
+        const currentMessages = realMessages(messages);
+        const state = updateBoardHistoryState(sessionID, currentMessages);
+        const anchorKey = findMessageAnchorKey(currentMessages, message);
+        if (!anchorKey) return;
+
+        if (state.snapshots.at(-1)?.text === reminder) {
+          replayCheckpointBoard(messages, message, sessionID, state);
+          return;
+        }
+
+        if (!reminder) {
+          replayCheckpointBoard(messages, message, sessionID, state);
+          return;
+        }
+
+        const encodedSessionID = encodeURIComponent(sessionID);
+        const sequence = state.nextSnapshotSequence;
+        state.nextSnapshotSequence += 1;
+        state.snapshots.push({
+          anchorKey,
+          id: `oh-my-opencode-slim:background-job-board:${encodedSessionID}:${sequence}`,
+          text: reminder,
+        });
+        if (state.snapshots.length > MAX_RETAINED_BOARD_SNAPSHOTS) {
+          state.snapshots.splice(
+            0,
+            state.snapshots.length - MAX_RETAINED_BOARD_SNAPSHOTS,
+          );
+        }
+        replayCheckpointBoard(messages, message, sessionID, state);
+        return;
+      }
+
+      if (!reminder) return;
 
       rememberInjectedTerminalJobs(message.info.sessionID);
       // Append the board as its own trailing message rather than mutating
@@ -945,6 +1200,7 @@ export function createTaskSessionManagerHook(
     }): Promise<void> => {
       if (input.event.type === 'session.created') {
         const info = input.event.properties?.info;
+        if (info?.id) retainedBoardSnapshots.delete(info.id);
         log('[task-session-manager] session.created observed', {
           sessionID: info?.id,
           parentSessionID: info?.parentID,
@@ -1001,6 +1257,7 @@ export function createTaskSessionManagerHook(
         for (const sessionID of continuationSessionIDs) {
           clearContinuation(sessionID);
         }
+        retainedBoardSnapshots.clear();
         return;
       }
 
@@ -1129,6 +1386,7 @@ export function createTaskSessionManagerHook(
       if (!sessionId) return;
 
       clearContinuation(sessionId);
+      retainedBoardSnapshots.delete(sessionId);
 
       log('[task-session-manager] session.deleted observed', {
         sessionID: sessionId,

@@ -30,6 +30,7 @@ function createHook(options?: {
   registerSessionAsOrchestrator?: (sessionID: string) => void;
   readContextMinLines?: number;
   readContextMaxFiles?: number;
+  strategy?: 'latest' | 'checkpoint-compatible';
   backgroundJobBoard?: BackgroundJobBoard;
   sessionStatus?: unknown;
   sessionClient?: Record<string, unknown>;
@@ -50,6 +51,7 @@ function createHook(options?: {
     } as never,
     {
       maxSessionsPerAgent: 2,
+      strategy: options?.strategy,
       readContextMinLines: options?.readContextMinLines,
       readContextMaxFiles: options?.readContextMaxFiles,
       backgroundJobBoard: options?.backgroundJobBoard,
@@ -75,6 +77,20 @@ function createMessages(sessionID: string, text = 'user message') {
   };
 }
 
+function createAnchoredMessages(sessionID: string, texts = ['R1']) {
+  return {
+    messages: texts.map((text, index) => ({
+      info: {
+        id: `message-${index}`,
+        role: index === texts.length - 1 ? 'user' : 'assistant',
+        agent: index === texts.length - 1 ? 'orchestrator' : undefined,
+        sessionID,
+      },
+      parts: [{ type: 'text', text }],
+    })),
+  };
+}
+
 function boardText(messages: { messages: unknown[] }): string | undefined {
   const last = messages.messages.at(-1) as
     | {
@@ -88,6 +104,10 @@ function boardText(messages: { messages: unknown[] }): string | undefined {
   return part?.metadata?.[BACKGROUND_JOB_BOARD_METADATA_KEY] === true
     ? part.text
     : undefined;
+}
+
+function isBoardPartForTest(part: { metadata?: Record<string, unknown> }) {
+  return part.metadata?.[BACKGROUND_JOB_BOARD_METADATA_KEY] === true;
 }
 
 async function transformMessages(
@@ -343,6 +363,284 @@ describe('task-session-manager hook', () => {
     expect(messages.messages[1].parts[0].metadata).toEqual({
       [BACKGROUND_JOB_BOARD_METADATA_KEY]: true,
     });
+  });
+
+  test('preserves prior board snapshots in checkpoint-compatible mode', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      strategy: 'checkpoint-compatible',
+    });
+    const messages = createMessages('parent-1', 'first turn');
+
+    await hook.injectBackgroundJobBoard({}, messages);
+    messages.messages.push({
+      info: { role: 'user', agent: 'orchestrator', sessionID: 'parent-1' },
+      parts: [{ type: 'text', text: 'second turn' }],
+    });
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'completed',
+      resultSummary: 'finished mapping',
+    });
+
+    await hook.injectBackgroundJobBoard({}, messages);
+
+    const boardParts = messages.messages.flatMap((message) =>
+      message.parts.filter(
+        (part) => part.metadata?.[BACKGROUND_JOB_BOARD_METADATA_KEY] === true,
+      ),
+    );
+    expect(boardParts).toHaveLength(2);
+    expect(boardParts[0].text).toContain('running');
+    expect(boardParts[1].text).toContain('completed, unreconciled');
+    expect(messages.messages.at(-1)?.parts[0]).toBe(boardParts[1]);
+  });
+
+  test('does not append an unchanged board in checkpoint-compatible mode', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      strategy: 'checkpoint-compatible',
+    });
+    const messages = createMessages('parent-1');
+
+    await hook.injectBackgroundJobBoard({}, messages);
+    await hook.injectBackgroundJobBoard({}, messages);
+
+    const boardParts = messages.messages.flatMap((message) =>
+      message.parts.filter(
+        (part) => part.metadata?.[BACKGROUND_JOB_BOARD_METADATA_KEY] === true,
+      ),
+    );
+    expect(boardParts).toHaveLength(1);
+    expect(messages.messages.at(-1)?.parts[0]).toBe(boardParts[0]);
+  });
+
+  test('retains checkpoint snapshots across fresh storage-derived message arrays', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'completed',
+      resultSummary: 'done',
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      strategy: 'checkpoint-compatible',
+      idleReconcileDelayMs: 0,
+    });
+    const firstRequest = createMessages('parent-1', 'first turn');
+
+    await transformMessages(hook, firstRequest);
+    const storedMessages = JSON.parse(
+      JSON.stringify(
+        firstRequest.messages.filter(
+          (message) =>
+            !message.parts?.some(
+              (part) =>
+                part.metadata?.[BACKGROUND_JOB_BOARD_METADATA_KEY] === true,
+            ),
+        ),
+      ),
+    );
+
+    const secondRequest = { messages: storedMessages };
+    await transformMessages(hook, secondRequest);
+
+    const boardParts = secondRequest.messages.flatMap((message) =>
+      message.parts.filter(
+        (part) => part.metadata?.[BACKGROUND_JOB_BOARD_METADATA_KEY] === true,
+      ),
+    );
+    expect(boardParts).toHaveLength(1);
+    expect(boardParts[0].text).toContain('completed, unreconciled');
+    expect(boardParts[0].synthetic).toBe(true);
+
+    await hook.event({
+      event: {
+        type: 'session.status',
+        properties: { sessionID: 'parent-1', status: { type: 'idle' } },
+      },
+    });
+    await flushContinuation();
+
+    expect(board.get('child-1')).toMatchObject({
+      state: 'reconciled',
+      terminalUnreconciled: false,
+    });
+  });
+
+  test('replays snapshots immediately after their anchors in fresh arrays', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      strategy: 'checkpoint-compatible',
+      idleReconcileDelayMs: 0,
+    });
+    const first = createAnchoredMessages('parent-1', ['R1']);
+
+    await hook.injectBackgroundJobBoard({}, first);
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'completed',
+      resultSummary: 'done',
+    });
+
+    const second = {
+      messages: createAnchoredMessages('parent-1', ['R1', 'A1', 'U2']).messages,
+    };
+    await hook.injectBackgroundJobBoard({}, second);
+    const order = second.messages.flatMap((message) =>
+      message.parts.map((part) => part.text),
+    );
+
+    expect(order).toEqual([
+      'R1',
+      expect.stringContaining('running'),
+      'A1',
+      'U2',
+      expect.stringContaining('completed, unreconciled'),
+    ]);
+
+    const third = { messages: JSON.parse(JSON.stringify(second.messages)) };
+    await hook.injectBackgroundJobBoard({}, third);
+    expect(
+      third.messages.filter((message) =>
+        message.parts.some((part) => isBoardPartForTest(part)),
+      ),
+    ).toHaveLength(2);
+
+    await hook.event({
+      event: {
+        type: 'session.status',
+        properties: { sessionID: 'parent-1', status: { type: 'idle' } },
+      },
+    });
+    await flushContinuation();
+    expect(board.get('child-1')).toMatchObject({
+      state: 'reconciled',
+      terminalUnreconciled: false,
+    });
+  });
+
+  test('reconciles terminal jobs after the first changed checkpoint snapshot', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'completed',
+      resultSummary: 'done',
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      strategy: 'checkpoint-compatible',
+      idleReconcileDelayMs: 0,
+    });
+
+    await hook.injectBackgroundJobBoard({}, createMessages('parent-1'));
+    expect(board.get('child-1')?.terminalUnreconciled).toBe(true);
+
+    await hook.event({
+      event: {
+        type: 'session.status',
+        properties: { sessionID: 'parent-1', status: { type: 'idle' } },
+      },
+    });
+    await flushContinuation();
+
+    expect(board.get('child-1')).toMatchObject({
+      state: 'reconciled',
+      terminalUnreconciled: false,
+    });
+  });
+
+  test('resets checkpoint snapshots after compaction', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      strategy: 'checkpoint-compatible',
+    });
+    const first = createMessages('parent-1', 'before compaction');
+    await hook.injectBackgroundJobBoard({}, first);
+
+    const compacted = createMessages('parent-1', 'compacted history');
+    await hook.injectBackgroundJobBoard({}, compacted);
+
+    expect(
+      compacted.messages.filter((message) =>
+        message.parts.some((part) => isBoardPartForTest(part)),
+      ),
+    ).toHaveLength(1);
+  });
+
+  test('bounds checkpoint history to the configured snapshot limit', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      strategy: 'checkpoint-compatible',
+    });
+
+    const history: string[] = ['root'];
+    for (let turn = 0; turn < 21; turn += 1) {
+      board.updateStatus({
+        taskID: 'child-1',
+        state: turn % 2 === 0 ? 'completed' : 'error',
+        resultSummary: `result-${turn}`,
+      });
+      history.push(`turn-${turn}`);
+      const request = createAnchoredMessages('parent-1', history);
+      await hook.injectBackgroundJobBoard({}, request);
+    }
+
+    history.push('final');
+    const finalRequest = createAnchoredMessages('parent-1', history);
+    await hook.injectBackgroundJobBoard({}, finalRequest);
+    expect(
+      finalRequest.messages.filter((message) =>
+        message.parts.some((part) => isBoardPartForTest(part)),
+      ),
+    ).toHaveLength(20);
   });
 
   test('strips existing board parts when no jobs produce a prompt', async () => {

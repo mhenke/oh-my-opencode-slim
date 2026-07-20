@@ -321,6 +321,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     reflectCommandHook = createReflectCommandHook();
     loopCommandHook = createLoopCommandHook();
     taskSessionManagerHook = createTaskSessionManagerHook(ctx, {
+      strategy: config.backgroundJobs?.strategy ?? 'latest',
       maxSessionsPerAgent:
         config.backgroundJobs?.maxSessionsPerAgent ??
         DEFAULT_MAX_SESSIONS_PER_AGENT,
