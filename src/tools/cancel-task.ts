@@ -238,7 +238,9 @@ async function abortAndVerifySession(
     });
   }
 
-  // v2: delete is always available, skip polling fallback
+  // ponytail: v1 had a polling loop here that verified abort succeeded before
+  // proceeding to delete. v2 abort is server-side and synchronous — the delete
+  // verification loop below catches any remaining running state.
   await deleteAndVerifySession(options, taskID, 'cancel-task-after-abort');
 }
 
@@ -317,10 +319,6 @@ async function deleteAndVerifySession(
   throw new SessionStillRunningError(
     `Session delete returned but task did not stay stopped: ${taskID} (${lastStatus ?? 'unknown'})`,
   );
-}
-
-function canDeleteSession(_input: PluginInput): boolean {
-  return true;
 }
 
 async function getSessionStatus(

@@ -28,8 +28,6 @@ import {
 import type { SessionLifecycle } from '../session-lifecycle';
 import { isUserMessageWithParts } from '../types';
 
-type OpencodeClient = PluginInput['client'];
-
 // ---------------------------------------------------------------------------
 // Retryable error detection
 // ---------------------------------------------------------------------------
@@ -257,7 +255,6 @@ export class ForegroundFallbackManager {
   }
 
   constructor(
-    _client: OpencodeClient,
     /**
      * Ordered fallback chains per agent.
      * e.g. { orchestrator: ['anthropic/claude-opus-4-5', 'openai/gpt-4o'] }
@@ -265,10 +262,10 @@ export class ForegroundFallbackManager {
      */
     private chains: Record<string, string[]>,
     private readonly enabled: boolean,
+    private readonly input: PluginInput,
     /** Consecutive 429s tolerated on the same model before swap/abort. */
     private readonly maxRetries: number = 3,
     coordinator?: SessionLifecycle,
-    private readonly input?: PluginInput,
   ) {
     if (coordinator) {
       coordinator.onSessionDeleted((id) => {
