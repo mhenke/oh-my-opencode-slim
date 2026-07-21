@@ -12,8 +12,8 @@
  *     UIMessage construction as opencode's MessageV2.toModelMessagesEffect
  *     (text path, verbatim from
  *     .slim/clonedeps/repos/opencode/packages/opencode/src/session/message-v2.ts:692-780)
- *     and then through the REAL `ai@6.0.168` convertToModelMessages
- *     (installed out-of-tree, absolute-path import below).
+ *     and then through a local provider-message serializer that keeps only
+ *     provider-visible role and ordered text content.
  *
  * For each consecutive pair of requests it computes the longest common
  * byte prefix and reports where the divergence falls.
@@ -24,9 +24,6 @@
  * request.
  */
 import { describe, expect, mock, test } from 'bun:test';
-// biome-ignore lint: out-of-tree absolute import of the real ai SDK on purpose
-// @ts-ignore -- real `ai` package installed outside the repo for fidelity
-import { convertToModelMessages } from '/var/folders/gb/yp7fbm6j3dd3whdllb6mgl540000gp/T/opencode/ai-proxy/node_modules/ai/dist/index.mjs';
 import { DEFAULT_MAX_RETAINED_SNAPSHOTS } from '../../config/constants';
 import { BackgroundJobBoard, createInternalAgentTextPart } from '../../utils';
 import { createTaskSessionManagerHook } from './index';
@@ -132,9 +129,8 @@ function serializeMessages(messages: unknown[]): string {
 
 /**
  * Verbatim port of the text-message path of MessageV2.toModelMessagesEffect
- * (message-v2.ts:692-780, same-model branch), feeding the real ai SDK
- * convertToModelMessages. This is the actual code that turns the transform
- * hook's output into the provider request body's `messages`.
+ * (message-v2.ts:692-780, same-model branch). This is the code that turns the
+ * transform hook's output into UI messages before provider serialization.
  */
 function toUIMessages(messages: any[]): any[] {
   const result: any[] = [];
@@ -173,10 +169,12 @@ function toUIMessages(messages: any[]): any[] {
   return result;
 }
 
-async function toProviderBytes(messages: unknown[]): Promise<string> {
-  const modelMessages = await convertToModelMessages(
-    toUIMessages(messages as never),
-    { tools: {} },
+function toProviderBytes(messages: unknown[]): string {
+  const modelMessages = toUIMessages(messages as never).map(
+    ({ role, parts }: any) => ({
+      role,
+      content: parts.map(({ type, text }: any) => ({ type, text })),
+    }),
   );
   return serializeMessages(modelMessages);
 }
@@ -244,7 +242,7 @@ async function runTurn(
   return {
     injected: request.messages,
     transformBytes: serializeMessages(request.messages),
-    providerBytes: await toProviderBytes(request.messages),
+    providerBytes: toProviderBytes(request.messages),
   };
 }
 
