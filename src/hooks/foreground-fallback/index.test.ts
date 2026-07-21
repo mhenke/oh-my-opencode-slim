@@ -291,9 +291,9 @@ describe('ForegroundFallbackManager session.error', () => {
     });
 
     const call = mocks.promptAsync.mock.calls[0] as [
-      { body: { parts: unknown[] } },
+      { parts: unknown[] },
     ];
-    expect(call[0].body.parts.some(isInternalInitiatorPart)).toBe(true);
+    expect(call[0].parts.some(isInternalInitiatorPart)).toBe(true);
   });
 
   test('skips malformed messages without info when locating the last user message', async () => {
