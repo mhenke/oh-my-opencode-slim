@@ -222,6 +222,7 @@ export function processImageAttachments(args: {
 
   cleanupAllSessions(saveDir);
 
+  let strippedCount = 0;
   for (const { msg, imageParts } of messagesWithImages) {
     const sessionSubdir = msg.info.sessionID
       ? sanitizeFilename(msg.info.sessionID)
@@ -287,6 +288,7 @@ export function processImageAttachments(args: {
           text: `[Image attachment detected.${pathsText} Your model may not support image input. Delegate to @observer with the file path(s) above so it can read the file with its read tool.]`,
         },
       ]);
+    strippedCount += savedImageParts.size;
   }
-  return { dropped: false };
+  return { dropped: strippedCount > 0 };
 }

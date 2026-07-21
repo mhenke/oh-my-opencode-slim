@@ -101,13 +101,14 @@ describe('processImageAttachments image routing', () => {
 
   it('auto mode saves image parts and adds an @observer nudge', () => {
     const message = makeUserMsg([IMG]);
-    processImageAttachments({
+    const result = processImageAttachments({
       messages: [message],
       workDir: path.join(TEST_DIR, 'auto'),
       imageRouting: 'auto',
       disabledAgents: new Set<string>(),
       log: () => {},
     });
+    expect(result).toEqual({ dropped: true });
     expect(imagePartCount(message)).toBe(0);
     const textParts = message.parts.filter((part) => part.type === 'text');
     expect(textParts).toHaveLength(1);
