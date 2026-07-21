@@ -6,7 +6,7 @@ import {
 import type { BackgroundJobStore } from '../utils/background-job-store';
 import { isRecord as isObjectRecord } from '../utils/guards';
 import { log } from '../utils/logger';
-import { getV2Client } from '../utils/opencode-client';
+import { getClient } from '../utils/opencode-client';
 import { abortSessionWithTimeout, withTimeout } from '../utils/session';
 
 const z = tool.schema;
@@ -226,7 +226,7 @@ async function abortAndVerifySession(
   try {
     // ponytail: abortSessionWithTimeout now takes v2 OpencodeClient
     await abortSessionWithTimeout(
-      getV2Client(options.input),
+      getClient(options.input),
       taskID,
       options.abortTimeoutMs ?? 10_000,
     );
@@ -247,7 +247,7 @@ async function deleteAndVerifySession(
   taskID: string,
   reason: string,
 ): Promise<void> {
-  const v2 = getV2Client(options.input);
+  const v2 = getClient(options.input);
 
   log('[cancel-task] deleting session after unstable abort', {
     taskID,
@@ -332,7 +332,7 @@ async function getSessionStatus(
   keys: string[];
 }> {
   try {
-    const result = await getV2Client(input).session.status({
+    const result = await getClient(input).session.status({
       directory: input.directory,
     });
     const data = result.data;
@@ -382,7 +382,7 @@ async function getSessionParentID(
   taskID: string,
 ): Promise<string | undefined> {
   try {
-    const response = await getV2Client(input).session.get({
+    const response = await getClient(input).session.get({
       sessionID: taskID,
       directory: input.directory,
     });

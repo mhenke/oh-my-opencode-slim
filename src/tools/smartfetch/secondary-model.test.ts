@@ -7,7 +7,7 @@ type PromptStep = {
   error?: Error;
 };
 
-// Mock getV2Client so internal calls use our mock v2 client.
+// Mock getClient so internal calls use our mock v2 client.
 // The variable is reassigned per-test to control behavior.
 let mockV2Client: Record<string, unknown>;
 let mockV2Session: {
@@ -20,7 +20,7 @@ let mockV2Tool: {
 };
 
 mock.module('../../utils/opencode-client', () => ({
-  getV2Client: () => mockV2Client,
+  getClient: () => mockV2Client,
 }));
 
 function createV2ClientMock(

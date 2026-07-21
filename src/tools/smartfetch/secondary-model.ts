@@ -5,7 +5,7 @@ import type { PluginInput } from '@opencode-ai/plugin';
 import { stripJsonComments } from '../../cli/config-io';
 import { getConfigSearchDirs } from '../../cli/paths';
 import { loadPluginConfig } from '../../config/loader';
-import { getV2Client } from '../../utils/opencode-client';
+import { getClient } from '../../utils/opencode-client';
 import { MAX_MODEL_CONTENT_CHARS } from './constants';
 import type { CachedFetch, SecondaryModel } from './types';
 
@@ -180,7 +180,7 @@ async function deleteSessionSafely(
   input: PluginInput,
   sessionId: string,
 ): Promise<void> {
-  const v2 = getV2Client(input);
+  const v2 = getClient(input);
   for (let attempt = 1; attempt <= SESSION_DELETE_RETRIES; attempt++) {
     try {
       await v2.session.delete({
@@ -210,7 +210,7 @@ async function runSecondaryModel(
   prompt: string,
   content: string,
 ) {
-  const v2 = getV2Client(input);
+  const v2 = getClient(input);
   const directory = input.directory;
 
   const sessionResponse = await v2.session.create({

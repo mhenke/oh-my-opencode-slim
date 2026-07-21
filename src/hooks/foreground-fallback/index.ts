@@ -20,7 +20,7 @@
 import type { PluginInput } from '@opencode-ai/plugin';
 import { createInternalAgentTextPart } from '../../utils/internal-initiator';
 import { log } from '../../utils/logger';
-import { getV2Client } from '../../utils/opencode-client';
+import { getClient } from '../../utils/opencode-client';
 import {
   abortSessionWithTimeout,
   parseModelReference,
@@ -257,7 +257,7 @@ export class ForegroundFallbackManager {
   }
 
   constructor(
-    private readonly client: OpencodeClient,
+    _client: OpencodeClient,
     /**
      * Ordered fallback chains per agent.
      * e.g. { orchestrator: ['anthropic/claude-opus-4-5', 'openai/gpt-4o'] }
@@ -520,10 +520,7 @@ export class ForegroundFallbackManager {
 
     this.inProgress.add(sessionID);
     try {
-      await abortSessionWithTimeout(
-        this.input ? getV2Client(this.input) : (this.client as any),
-        sessionID,
-      );
+      await abortSessionWithTimeout(getClient(this.input!), sessionID);
       await this.execFallback(sessionID);
     } finally {
       this.inProgress.delete(sessionID);
@@ -598,10 +595,7 @@ export class ForegroundFallbackManager {
             agentName,
             tried: [...tried],
           });
-          await abortSessionWithTimeout(
-            this.input ? getV2Client(this.input) : (this.client as any),
-            sessionID,
-          );
+          await abortSessionWithTimeout(getClient(this.input!), sessionID);
           return;
         }
       }
@@ -619,9 +613,9 @@ export class ForegroundFallbackManager {
       }
 
       // Retrieve the last user message to re-submit with the fallback model.
-      const result = await (this.input
-        ? getV2Client(this.input).session.messages({ sessionID })
-        : (this.client as any).session.messages({ path: { id: sessionID } }));
+      const result = await getClient(this.input!).session.messages({
+        sessionID,
+      });
       // result.data may contain partial/streaming messages whose `info` is
       // undefined at runtime (OpenCode violates its own declared type), so
       // guard each entry instead of dereferencing `info` directly.
@@ -634,17 +628,18 @@ export class ForegroundFallbackManager {
 
       // promptAsync queues the prompt and returns immediately - this avoids
       // blocking the event handler while waiting for a full LLM response.
-      const sessionClient = this.input
-        ? getV2Client(this.input).session
-        : (this.client as any).session;
+      const sessionClient = getClient(this.input!).session;
       if (typeof sessionClient.promptAsync !== 'function') {
         log('[foreground-fallback] promptAsync unavailable', { sessionID });
         return;
       }
 
       const promptBody = {
+        // ponytail: lastUser.parts are MessagePart[] from API, but v2
+        // promptAsync expects TextPartInput[] — runtime-compatible, TS
+        // doesn't know the `type` field is already 'text'.
         parts: [
-          ...lastUser.parts,
+          ...(lastUser.parts as Array<{ type: 'text'; text: string }>),
           createInternalAgentTextPart('Foreground fallback replay.'),
         ],
         model: ref,
@@ -661,10 +656,7 @@ export class ForegroundFallbackManager {
         log('[foreground-fallback] promptAsync on busy session, aborting', {
           sessionID,
         });
-        await abortSessionWithTimeout(
-          this.input ? getV2Client(this.input) : (this.client as any),
-          sessionID,
-        );
+        await abortSessionWithTimeout(getClient(this.input!), sessionID);
         await new Promise((r) => setTimeout(r, REPROMPT_DELAY_MS));
         await sessionClient.promptAsync({ sessionID, ...promptBody });
       }

@@ -12,10 +12,10 @@ import {
 import type { InterviewAnswer } from './types';
 import { renderInterviewPage } from './ui';
 
-// Intercept getV2Client calls so service code uses the same session mocks
+// Intercept getClient calls so service code uses the same session mocks
 // that test assertions inspect.
 mock.module('../utils/opencode-client', () => ({
-  getV2Client: (ctx: any) => ({
+  getClient: (ctx: any) => ({
     session: ctx._sessionMock ?? ctx.client.session,
   }),
 }));

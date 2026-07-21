@@ -20,10 +20,10 @@ import {
   createTaskSessionManagerHook,
 } from './index';
 
-// Route getV2Client back to _ctx.client so existing _ctx.client.session
+// Route getClient back to _ctx.client so existing _ctx.client.session
 // mocks continue to work through the new v2 lookup path.
 mock.module('../../utils/opencode-client', () => ({
-  getV2Client: (input: { client: unknown }) => input.client as never,
+  getClient: (input: { client: unknown }) => input.client as never,
 }));
 
 /** Wait for the idle reconciliation delay (2s + margin) to flush. */

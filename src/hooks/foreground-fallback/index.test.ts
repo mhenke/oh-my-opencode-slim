@@ -13,6 +13,27 @@ type ForegroundFallbackClient = ConstructorParameters<
   typeof ForegroundFallbackManager
 >[0];
 
+// Shared session reference so our mock.module for getClient returns the
+// current test's mock session without relying on this.input (which is
+// undefined in tests — always set in production).
+let currentMockSession: Record<string, unknown> | null = null;
+
+// Override manager.test.ts's global mock.module for getClient. Called
+// at module load AND from createMockClient so it takes effect regardless of
+// test file load order.
+function installGetClientMock(): void {
+  mock.module('../../utils/opencode-client', () => ({
+    getClient: () => ({
+      session: currentMockSession ?? {
+        abort: mock(() => Promise.resolve()),
+        messages: mock(() => Promise.resolve({ data: [] })),
+        promptAsync: mock(() => Promise.resolve()),
+      },
+    }),
+  }));
+}
+installGetClientMock();
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -43,6 +64,12 @@ function createMockClient(overrides?: {
   if (overrides?.includePromptAsync !== false) {
     session.promptAsync = promptAsync;
   }
+
+  // Store for getClient mock
+  currentMockSession = session;
+  // Re-register the mock.module at test time so it survives any
+  // overwrite from other test files loaded in the same process.
+  installGetClientMock();
 
   return {
     client: {

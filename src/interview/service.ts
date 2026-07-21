@@ -8,7 +8,7 @@ import {
   isInternalInitiatorPart,
   log,
 } from '../utils';
-import { getV2Client } from '../utils/opencode-client';
+import { getClient } from '../utils/opencode-client';
 import { parseModelReference } from '../utils/session';
 import {
   appendInterviewAnswers,
@@ -272,7 +272,7 @@ export function createInterviewService(
   }
 
   async function loadMessages(sessionID: string): Promise<InterviewMessage[]> {
-    const result = await getV2Client(ctx).session.messages({
+    const result = await getClient(ctx).session.messages({
       sessionID,
     });
     return result.data as InterviewMessage[];
@@ -502,7 +502,7 @@ export function createInterviewService(
     // Auto-open browser on initial creation (not on every poll/refresh)
     maybeOpenBrowser(interview.id, url);
 
-    await getV2Client(ctx).session.prompt({
+    await getClient(ctx).session.prompt({
       sessionID,
       noReply: true,
       parts: [
@@ -618,7 +618,7 @@ export function createInterviewService(
       // Use promptAsync for non-blocking - returns immediately, LLM
       // processes in background. State push updates dashboard when done.
       const model = sessionModel.get(interview.sessionID);
-      await getV2Client(ctx).session.promptAsync({
+      await getClient(ctx).session.promptAsync({
         sessionID: interview.sessionID,
         agent: 'orchestrator',
         parts: [createInternalAgentTextPart(prompt)],
@@ -691,7 +691,7 @@ export function createInterviewService(
     if (sessionTitle.length > 50) {
       sessionTitle = `${sessionTitle.slice(0, 49)}…`;
     }
-    getV2Client(ctx)
+    getClient(ctx)
       .session.update({
         sessionID: input.sessionID,
         title: sessionTitle,
@@ -866,7 +866,7 @@ export function createInterviewService(
       ].join('\n');
 
       const model = sessionModel.get(interview.sessionID);
-      await getV2Client(ctx).session.promptAsync({
+      await getClient(ctx).session.promptAsync({
         sessionID: interview.sessionID,
         agent: 'orchestrator',
         parts: [createInternalAgentTextPart(prompt)],
@@ -927,7 +927,7 @@ export function createInterviewService(
       ].join('\n');
 
       const model = sessionModel.get(interview.sessionID);
-      await getV2Client(ctx).session.promptAsync({
+      await getClient(ctx).session.promptAsync({
         sessionID: interview.sessionID,
         agent: 'orchestrator',
         parts: [createInternalAgentTextPart(prompt)],
@@ -1000,7 +1000,7 @@ export function createInterviewService(
       }
 
       const model = sessionModel.get(interview.sessionID);
-      await getV2Client(ctx).session.promptAsync({
+      await getClient(ctx).session.promptAsync({
         sessionID: interview.sessionID,
         agent: 'orchestrator',
         parts: [createInternalAgentTextPart(prompt)],

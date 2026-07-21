@@ -1,7 +1,7 @@
 import type { PluginInput, ProviderContext } from '@opencode-ai/plugin';
 import type { Model, UserMessage } from '@opencode-ai/sdk';
 import { isInternalInitiatorPart } from '../utils';
-import { getV2Client } from '../utils/opencode-client';
+import { getClient } from '../utils/opencode-client';
 
 interface ChatHeadersInput {
   sessionID: string;
@@ -44,7 +44,7 @@ async function hasInternalMarker(
   }
 
   try {
-    const response = await getV2Client(input).session.message({
+    const response = await getClient(input).session.message({
       sessionID,
       messageID,
       directory: input.directory,

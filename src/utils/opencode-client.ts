@@ -13,7 +13,7 @@ const v2Clients = new Map<string, OpencodeClient>();
  * plugin hands us. Both clients target the same local server; session
  * state is server-side, so they observe identical sessions.
  */
-export function getV2Client(input: PluginInput): OpencodeClient {
+export function getClient(input: PluginInput): OpencodeClient {
   const cached = v2Clients.get(input.directory);
   if (cached) return cached;
   const client = createOpencodeClient({

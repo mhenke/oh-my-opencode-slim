@@ -6,7 +6,7 @@ import { createCancelTaskTool } from './cancel-task';
 let mockV2Client: Record<string, unknown>;
 
 mock.module('../utils/opencode-client', () => ({
-  getV2Client: () => mockV2Client,
+  getClient: () => mockV2Client,
 }));
 
 function createTool(overrides?: {

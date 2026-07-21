@@ -6,9 +6,9 @@ import type { PluginConfig } from '../config';
 import { readDashboardAuthFile } from './dashboard';
 import { createInterviewManager } from './manager';
 
-// Intercept getV2Client so the manager's service uses the same session mocks.
+// Intercept getClient so the manager's service uses the same session mocks.
 mock.module('../utils/opencode-client', () => ({
-  getV2Client: (ctx: any) => ({
+  getClient: (ctx: any) => ({
     session: ctx._sessionMock ?? ctx.client.session,
   }),
 }));
