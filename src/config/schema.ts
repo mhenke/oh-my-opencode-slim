@@ -218,9 +218,9 @@ export const BackgroundJobsConfigSchema = z.object({
     ),
   continueOnIdle: z
     .boolean()
-    .default(true)
+    .default(false)
     .describe(
-      'When true (default), idle orchestrator sessions with incomplete todos may receive one automatic hidden continuation prompt. Set false to keep idle reconciliation and background-job orchestration without automatic continuation prompts.',
+      'Beta opt-in. When true, idle orchestrator sessions with incomplete todos may receive one automatic hidden continuation prompt. Disabled by default; idle reconciliation and background-job orchestration continue without automatic continuation prompts.',
     ),
 });
 

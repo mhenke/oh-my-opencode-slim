@@ -51,12 +51,12 @@ describe('PluginConfigSchema backgroundJobs', () => {
     }
   });
 
-  it('defaults continueOnIdle to true', () => {
+  it('defaults continueOnIdle to false', () => {
     const result = PluginConfigSchema.safeParse({ backgroundJobs: {} });
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.backgroundJobs?.continueOnIdle).toBe(true);
+      expect(result.data.backgroundJobs?.continueOnIdle).toBe(false);
     }
   });
 

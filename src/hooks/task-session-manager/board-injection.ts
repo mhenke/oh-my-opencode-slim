@@ -12,7 +12,12 @@ import type {
   BackgroundJobStore,
   ContextFile,
 } from '../../utils';
-import { isInternalInitiatorPart, parseTaskStatusOutput } from '../../utils';
+import {
+  isInternalInitiatorPart,
+  parseTaskStatusOutput,
+  renderRunningTaskPlaceholder,
+} from '../../utils';
+import { isRecord } from '../../utils/guards';
 import { log } from '../../utils/logger';
 import {
   appendTrailingVolatileMessage,
@@ -110,6 +115,53 @@ function createOccurrenceId(
 }
 
 // ── Exported functions ─────────────────────────────────────────────────
+
+/**
+ * Normalize the `output` of every still-running `task` tool result to a
+ * static, deterministic placeholder keyed only on the task ID.
+ *
+ * OpenCode core stores a fixed running placeholder in `state.output` when a
+ * background task launches and materializes the terminal result separately as
+ * a synthetic completion message. However, the runtime is free to stream live
+ * child progress into a running task part's `state.output` (foreground
+ * promotion, future core versions). Any such mid-history mutation invalidates
+ * the provider prompt cache from that byte onward, re-writing the entire tail
+ * every request while a background lane runs (write-never-read loop).
+ *
+ * This makes running task parts byte-stable at the plugin layer: it only ever
+ * touches parts whose parsed state is `running`, so terminal
+ * (completed/error/cancelled) results — which must reach the orchestrator
+ * intact and mutate exactly once on completion — are never altered. It is a
+ * pure normalization: re-running it on an already-stabilized part is a no-op.
+ * Foreground (`wait:true`) tasks block and return a terminal state, so their
+ * parts are never running here and keep their real output.
+ */
+export function stabilizeRunningTaskParts(messages: unknown[]): void {
+  for (const message of messages) {
+    if (!isMessageWithParts(message)) continue;
+    for (const part of message.parts) {
+      if (part.type !== 'tool' || part.tool !== 'task') continue;
+      const state = part.state;
+      if (!isRecord(state)) continue;
+      if (typeof state.output !== 'string') continue;
+
+      // Only running task results are volatile. Terminal results (completed,
+      // error, cancelled) are materialized exactly once and must stay intact.
+      const status = parseTaskStatusOutput(state.output);
+      const runningByStatus = status?.state === 'running';
+      const runningByField =
+        state.status === 'running' && (status === undefined || runningByStatus);
+      if (!runningByStatus && !runningByField) continue;
+
+      const taskID = status?.taskID;
+      if (!taskID) continue;
+
+      const placeholder = renderRunningTaskPlaceholder(taskID);
+      if (state.output === placeholder) continue;
+      state.output = placeholder;
+    }
+  }
+}
 
 export function updateFromInjectedCompletion(
   state: InjectionState,
@@ -269,6 +321,11 @@ export async function injectBackgroundJobBoard(
     stripTaggedContent(messages, state.metadataKey);
   }
 
+  if (state.strategy === 'checkpoint-compatible') {
+    injectCheckpointBoard(state, messages);
+    return;
+  }
+
   for (let i = messages.length - 1; i >= 0; i -= 1) {
     const message = messages[i];
     if (
@@ -297,11 +354,6 @@ export async function injectBackgroundJobBoard(
     );
     if (!textPart || isInternalInitiatorPart(textPart)) return;
 
-    if (state.strategy === 'checkpoint-compatible') {
-      injectCheckpointBoard(state, messages, message, reminder);
-      return;
-    }
-
     rememberInjectedTerminalJobs(state, message.info.sessionID);
     // Append the board as its own trailing message rather than mutating
     // an existing user message. In long tool loops the latest user
@@ -327,43 +379,69 @@ export async function injectBackgroundJobBoard(
 function injectCheckpointBoard(
   state: InjectionState,
   messages: unknown[],
-  message: MessageWithParts,
-  reminder: string,
 ): void {
-  const sessionID = message.info.sessionID;
-  if (!sessionID) return;
   const currentMessages = realMessages(messages, state.metadataKey);
+  const tailMessage = currentMessages.at(-1);
+  const sessionID = tailMessage?.info.sessionID;
+  if (!tailMessage || !sessionID || !state.shouldManageSession(sessionID)) {
+    return;
+  }
+
+  const triggeringMessage = currentMessages.findLast(
+    (message) =>
+      isUserMessageWithParts(message) && message.info.sessionID === sessionID,
+  );
+  const reminder = state.backgroundJobBoard.formatForPrompt(sessionID);
+  const textPart = triggeringMessage?.parts.find(
+    (part) => part.type === 'text' && typeof part.text === 'string',
+  );
+  const canCreateSnapshot =
+    triggeringMessage !== undefined &&
+    (!triggeringMessage.info.agent ||
+      triggeringMessage.info.agent === 'orchestrator') &&
+    textPart !== undefined &&
+    !isInternalInitiatorPart(textPart) &&
+    reminder !== undefined;
+
+  const replayBaseMessage = triggeringMessage ?? tailMessage;
   const snapshotState = updateBoardHistoryState(
     state,
     sessionID,
     currentMessages,
   );
-  const anchorKey = findMessageAnchorKey(currentMessages, message);
-  if (!anchorKey) return;
 
-  if (snapshotState.snapshots.at(-1)?.text !== reminder && reminder) {
-    const encodedSessionID = encodeURIComponent(sessionID);
-    const sequence = snapshotState.nextSnapshotSequence;
-    snapshotState.nextSnapshotSequence += 1;
-    if (snapshotState.snapshots.length >= state.maxRetainedSnapshots) {
-      // Deliberately start a new cache epoch at the configured boundary.
-      snapshotState.snapshots.length = 0;
+  if (canCreateSnapshot && reminder) {
+    const anchorKey = findLastMessageAnchorKey(currentMessages);
+    if (anchorKey && snapshotState.snapshots.at(-1)?.text !== reminder) {
+      const encodedSessionID = encodeURIComponent(sessionID);
+      const sequence = snapshotState.nextSnapshotSequence;
+      snapshotState.nextSnapshotSequence += 1;
+      if (snapshotState.snapshots.length >= state.maxRetainedSnapshots) {
+        // Deliberately start a new cache epoch at the configured boundary.
+        snapshotState.snapshots.length = 0;
+      }
+      snapshotState.snapshots.push({
+        anchorKey,
+        id: `oh-my-opencode-slim:background-job-board:${encodedSessionID}:${sequence}`,
+        text: reminder,
+      });
     }
-    snapshotState.snapshots.push({
-      anchorKey,
-      id: `oh-my-opencode-slim:background-job-board:${encodedSessionID}:${sequence}`,
-      text: reminder,
-    });
+    rememberInjectedTerminalJobs(state, sessionID);
   }
 
-  rememberInjectedTerminalJobs(state, sessionID);
   replayCheckpointBoard(
     messages,
-    message,
+    replayBaseMessage,
     sessionID,
     snapshotState,
     state.metadataKey,
   );
+}
+
+function findLastMessageAnchorKey(
+  messages: MessageWithParts[],
+): string | undefined {
+  return messageAnchorKeys(messages).at(-1);
 }
 
 function boardHistoryMessageSignature(message: MessageWithParts): string {
@@ -442,26 +520,6 @@ function updateBoardHistoryState(
   current.firstRealMessageAnchorKey = currentAnchorKeys[0];
   state.retainedBoardSnapshots.set(sessionID, current);
   return current;
-}
-
-function findMessageAnchorKey(
-  messages: MessageWithParts[],
-  message: MessageWithParts,
-): string | undefined {
-  const anchorKeys = messageAnchorKeys(messages);
-  const messageID = message.info.id;
-  if (messageID) {
-    const index = messages.findIndex(
-      (candidate) => candidate.info.id === messageID,
-    );
-    return index >= 0 ? anchorKeys[index] : undefined;
-  }
-
-  const signature = boardHistoryMessageSignature(message);
-  const index = messages.findLastIndex(
-    (candidate) => boardHistoryMessageSignature(candidate) === signature,
-  );
-  return index >= 0 ? anchorKeys[index] : undefined;
 }
 
 function createBoardMessage(

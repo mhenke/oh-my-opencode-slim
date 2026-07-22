@@ -731,6 +731,42 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "Zhanyuanium",
+      "name": "Zhanyuanium",
+      "avatar_url": "https://avatars.githubusercontent.com/u/92024923?v=4",
+      "profile": "https://github.com/Zhanyuanium",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "kaze-gif",
+      "name": "かぜ",
+      "avatar_url": "https://avatars.githubusercontent.com/u/114116466?v=4",
+      "profile": "https://github.com/kaze-gif",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "tsankotsanev",
+      "name": "Tsanko Tsanev",
+      "avatar_url": "https://avatars.githubusercontent.com/u/76694544?v=4",
+      "profile": "https://github.com/tsankotsanev",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "shixi-li",
+      "name": "cyril",
+      "avatar_url": "https://avatars.githubusercontent.com/u/40780706?v=4",
+      "profile": "https://github.com/shixi-li",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commitConvention": "angular"
