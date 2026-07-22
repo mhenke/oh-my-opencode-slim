@@ -167,6 +167,34 @@ describe('processImageAttachments image routing', () => {
     expect(result).toBe(true);
   });
 
+  it('does not re-trigger on text-only messages after image was processed', () => {
+    // Regression test: Greptile #1 fix checked ALL messages, causing the hook
+    // to fire on every transform once an image was in the conversation history.
+    const workDir = path.join(TEST_DIR, 'no-rere-trigger');
+    const imageMsg = makeUserMsg([IMG]);
+    const textMsg = makeUserMsg([{ type: 'text', text: 'follow-up' }]);
+
+    // First call: image present → should return true
+    const result1 = processImageAttachments({
+      messages: [imageMsg, textMsg],
+      workDir,
+      imageRouting: 'auto',
+      disabledAgents: new Set(['observer']),
+      log: () => {},
+    });
+    expect(result1).toBe(true);
+
+    // Second call: same messages, no new image → should return false
+    const result2 = processImageAttachments({
+      messages: [imageMsg, textMsg],
+      workDir,
+      imageRouting: 'auto',
+      disabledAgents: new Set(['observer']),
+      log: () => {},
+    });
+    expect(result2).toBe(false);
+  });
+
   it('keeps images when auto mode cannot save them', () => {
     const message = makeUserMsg([
       { type: 'image', url: 'https://example.com/image.png' },

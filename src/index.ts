@@ -22,6 +22,7 @@ import {
   DEFAULT_READ_CONTEXT_MAX_FILES,
   DEFAULT_READ_CONTEXT_MIN_LINES,
   resolveImageRouting,
+  TOAST_DURATION_MS,
 } from './config/constants';
 import {
   getActiveRuntimePreset,
@@ -491,6 +492,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     config.disabled_mcps && config.disabled_mcps.length > 0
       ? 0
       : HEALTH_CHECK.minMcps;
+  log(`[DEBUG] config.disabled_tools type=${typeof config.disabled_tools} value=${JSON.stringify(config.disabled_tools)}`);
   const toolThreshold = minimumExpectedToolCount(config.disabled_tools);
 
   if (
@@ -1251,9 +1253,9 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
               body: {
                 title: 'Images skipped',
                 message:
-                  'Your image was skipped. The observer agent is not enabled, so it cannot be analyzed. Enable observer in your config, or set image_routing to "direct" to send images straight to your model.',
+                  'Observer agent is disabled, so images can\'t be analyzed. Set image_routing to "direct" to send images to your model, or enable observer.',
                 variant: 'warning',
-                duration: 8000,
+                duration: TOAST_DURATION_MS,
               },
             })
             .then(() => {

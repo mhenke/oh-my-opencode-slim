@@ -23,6 +23,7 @@ import {
   updateInstallerManagedVersions,
 } from './checker';
 import { CACHE_DIR, PACKAGE_NAME } from './constants';
+import { TOAST_DURATION_MS } from '../../config/constants';
 import { syncBundledSkillsFromPackage } from './skill-sync';
 import type { AutoUpdateCheckerOptions } from './types';
 
@@ -434,7 +435,7 @@ function showToast(
   title: string,
   message: string,
   variant: 'info' | 'success' | 'error' = 'info',
-  duration = 3000,
+  duration = TOAST_DURATION_MS,
 ): void {
   ctx.client.tui
     .showToast({

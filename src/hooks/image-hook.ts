@@ -16,6 +16,14 @@ import { isUserMessageWithParts, type MessageWithParts } from './types';
 const lastCleanupByDir = new Map<string, number>();
 const CLEANUP_INTERVAL = 10 * 60 * 1000; // 10 minutes
 
+// Track how many user messages we've already checked for images per directory.
+// Without this, the observer-disabled guard re-checks ALL messages on every
+// transform. Once an image is sent, it stays in the messages array forever,
+// causing the hook to fire on every subsequent text-only message. This
+// suppresses duplicate toasts while still catching images in non-last messages
+// (Greptile #1 fix).
+const lastProcessedUserMsgCountByDir = new Map<string, number>();
+
 interface ImagePart {
   type: string;
   url?: string;
@@ -182,15 +190,30 @@ export function processImageAttachments(args: {
   // this guard as defense-in-depth in case validation is bypassed.
   const observerEnabled = !disabledAgents.has('observer');
   if (!observerEnabled) {
-    // Check ALL user messages, not just the latest: earlier images also
-    // pass through unmodified to the orchestrator and get silently ignored
-    // by non-vision models. Greptile: "Earlier Image Messages Go Unreported".
-    for (const msg of messages) {
-      if (!isUserMessageWithParts(msg)) continue;
-      if (msg.parts.some(isImagePart)) {
-        log('[image-hook] dropped images: observer disabled');
-        return true;
+    // Check only NEW user messages for images. We track how many user messages
+    // we've already processed per directory. Without this, the guard re-checks
+    // ALL messages on every transform — once an image is sent, it stays in the
+    // messages array forever, causing the hook to fire on every subsequent
+    // text-only message (regression from Greptile #1 fix).
+    const userMsgCount = messages.filter(isUserMessageWithParts).length;
+    const lastProcessed = lastProcessedUserMsgCountByDir.get(workDir) ?? 0;
+    if (userMsgCount > lastProcessed) {
+      // Check only the new user messages (those we haven't seen yet)
+      let userIndex = 0;
+      for (const msg of messages) {
+        if (!isUserMessageWithParts(msg)) continue;
+        if (userIndex >= lastProcessed) {
+          // This is a new user message — check for images
+          if (msg.parts.some(isImagePart)) {
+            log('[image-hook] dropped images: observer disabled');
+            lastProcessedUserMsgCountByDir.set(workDir, userMsgCount);
+            return true;
+          }
+        }
+        userIndex++;
       }
+      // No images in new messages — update counter so we don't re-check them
+      lastProcessedUserMsgCountByDir.set(workDir, userMsgCount);
     }
     return false;
   }
