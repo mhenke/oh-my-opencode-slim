@@ -182,12 +182,15 @@ export function processImageAttachments(args: {
   // this guard as defense-in-depth in case validation is bypassed.
   const observerEnabled = !disabledAgents.has('observer');
   if (!observerEnabled) {
-    const lastUserMsg = [...messages]
-      .reverse()
-      .find((m): m is MessageWithParts => isUserMessageWithParts(m));
-    if (lastUserMsg?.parts.some(isImagePart)) {
-      log('[image-hook] dropped images: observer disabled');
-      return true;
+    // Check ALL user messages, not just the latest: earlier images also
+    // pass through unmodified to the orchestrator and get silently ignored
+    // by non-vision models. Greptile: "Earlier Image Messages Go Unreported".
+    for (const msg of messages) {
+      if (!isUserMessageWithParts(msg)) continue;
+      if (msg.parts.some(isImagePart)) {
+        log('[image-hook] dropped images: observer disabled');
+        return true;
+      }
     }
     return false;
   }

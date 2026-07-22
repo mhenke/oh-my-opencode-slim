@@ -154,6 +154,19 @@ describe('processImageAttachments image routing', () => {
     expect(result).toBe(false);
   });
 
+  it('returns true when observer disabled and an earlier (non-last) user message has images', () => {
+    const earlierMsg = makeUserMsg([IMG]);
+    const lastMsg = makeUserMsg([{ type: 'text', text: 'follow-up question' }]);
+    const result = processImageAttachments({
+      messages: [earlierMsg, lastMsg],
+      workDir: path.join(TEST_DIR, 'earlier-image'),
+      imageRouting: 'auto',
+      disabledAgents: new Set(['observer']),
+      log: () => {},
+    });
+    expect(result).toBe(true);
+  });
+
   it('keeps images when auto mode cannot save them', () => {
     const message = makeUserMsg([
       { type: 'image', url: 'https://example.com/image.png' },

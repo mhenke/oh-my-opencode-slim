@@ -98,8 +98,9 @@ async function appLog(
   }
 }
 
-// Debounce: only show image-skipped toast once per 60 seconds
-let lastImageSkippedToast = 0;
+// Debounce: only show image-skipped toast once per 60 seconds per project
+const lastImageSkippedToastByDir = new Map<string, number>();
+const IMAGE_SKIPPED_DEBOUNCE_MS = 60_000;
 
 /** Minimum expected registrations for a healthy plugin load. */
 const HEALTH_CHECK = {
@@ -1241,15 +1242,10 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         disabledAgents,
         log,
       });
-      // ponytail: toast only covers orchestrator-side image drops. Fixer/
-      // explorer delegated image tasks fail inside subagent sessions, which
-      // have their own model context and don't surface here. Upgrade path:
-      // subagent-aware toast when delegating image work to agents that lack
-      // vision. Tracked in #878.
       if (imageResult) {
         const now = Date.now();
-        if (now - lastImageSkippedToast > 60_000) {
-          lastImageSkippedToast = now;
+        const last = lastImageSkippedToastByDir.get(ctx.directory) ?? 0;
+        if (now - last > IMAGE_SKIPPED_DEBOUNCE_MS) {
           ctx.client.tui
             .showToast({
               body: {
@@ -1259,6 +1255,12 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
                 variant: 'warning',
                 duration: 8000,
               },
+            })
+            .then(() => {
+              // Only advance the debounce window on a successful toast
+              // so a failed attempt doesn't suppress the next warning.
+              // Greptile: "Failed Toast Starts Debounce Window".
+              lastImageSkippedToastByDir.set(ctx.directory, now);
             })
             .catch(() => {});
         }
