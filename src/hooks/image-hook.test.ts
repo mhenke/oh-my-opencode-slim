@@ -89,13 +89,14 @@ describe('image-hook catch logging', () => {
 describe('processImageAttachments image routing', () => {
   it('direct mode leaves image parts untouched', () => {
     const message = makeUserMsg([IMG]);
-    processImageAttachments({
+    const result = processImageAttachments({
       messages: [message],
       workDir: path.join(TEST_DIR, 'direct'),
       imageRouting: 'direct',
       disabledAgents: new Set<string>(),
       log: () => {},
     });
+    expect(result).toBe(false);
     expect(imagePartCount(message)).toBe(1);
   });
 
@@ -108,7 +109,7 @@ describe('processImageAttachments image routing', () => {
       disabledAgents: new Set<string>(),
       log: () => {},
     });
-    expect(result).toEqual({ dropped: false });
+    expect(result).toBe(false);
     expect(imagePartCount(message)).toBe(0);
     const textParts = message.parts.filter((part) => part.type === 'text');
     expect(textParts).toHaveLength(1);
@@ -128,7 +129,7 @@ describe('processImageAttachments image routing', () => {
     expect(message.parts.some((part) => part.type === 'text')).toBe(true);
   });
 
-  it('reports dropped and keeps images when auto mode has observer disabled', () => {
+  it('returns true when observer disabled and message has images', () => {
     const message = makeUserMsg([IMG]);
     const result = processImageAttachments({
       messages: [message],
@@ -137,11 +138,11 @@ describe('processImageAttachments image routing', () => {
       disabledAgents: new Set(['observer']),
       log: () => {},
     });
-    expect(result).toEqual({ dropped: true, reason: 'observer-disabled' });
+    expect(result).toBe(true);
     expect(imagePartCount(message)).toBe(1);
   });
 
-  it('reports not dropped when auto mode has observer disabled but no images', () => {
+  it('returns false when observer disabled but no images present', () => {
     const message = makeUserMsg([{ type: 'text', text: 'hello' }]);
     const result = processImageAttachments({
       messages: [message],
@@ -150,48 +151,7 @@ describe('processImageAttachments image routing', () => {
       disabledAgents: new Set(['observer']),
       log: () => {},
     });
-    expect(result).toEqual({ dropped: false });
-  });
-
-  it('reports not dropped in direct mode', () => {
-    const message = makeUserMsg([IMG]);
-    const result = processImageAttachments({
-      messages: [message],
-      workDir: path.join(TEST_DIR, 'direct-return'),
-      imageRouting: 'direct',
-      disabledAgents: new Set<string>(),
-      log: () => {},
-    });
-    expect(result).toEqual({ dropped: false });
-    expect(imagePartCount(message)).toBe(1);
-  });
-
-  it('reports dropped with model-no-vision in direct mode when orchestrator does not support images', () => {
-    const message = makeUserMsg([IMG]);
-    const result = processImageAttachments({
-      messages: [message],
-      workDir: path.join(TEST_DIR, 'direct-novision'),
-      imageRouting: 'direct',
-      disabledAgents: new Set<string>(),
-      orchestratorSupportsImages: false,
-      log: () => {},
-    });
-    expect(result).toEqual({ dropped: true, reason: 'model-no-vision' });
-    expect(imagePartCount(message)).toBe(1);
-  });
-
-  it('reports dropped with model-no-vision in auto mode when observer disabled and model has no vision', () => {
-    const message = makeUserMsg([IMG]);
-    const result = processImageAttachments({
-      messages: [message],
-      workDir: path.join(TEST_DIR, 'auto-novision'),
-      imageRouting: 'auto',
-      disabledAgents: new Set(['observer']),
-      orchestratorSupportsImages: false,
-      log: () => {},
-    });
-    expect(result).toEqual({ dropped: true, reason: 'model-no-vision' });
-    expect(imagePartCount(message)).toBe(1);
+    expect(result).toBe(false);
   });
 
   it('keeps images when auto mode cannot save them', () => {
@@ -260,5 +220,23 @@ describe('processImageAttachments image routing', () => {
     });
     expect(userText.parts).toHaveLength(1);
     expect(assistant.parts).toHaveLength(1);
+  });
+});
+
+describe('resolveImageRouting', () => {
+  it('returns auto when omitted and observer enabled', () => {
+    expect(resolveImageRouting(undefined, true)).toBe('auto');
+  });
+
+  it('returns direct when omitted and observer disabled', () => {
+    expect(resolveImageRouting(undefined, false)).toBe('direct');
+  });
+
+  it('preserves explicit auto even when observer disabled', () => {
+    expect(resolveImageRouting('auto', false)).toBe('auto');
+  });
+
+  it('preserves explicit direct even when observer enabled', () => {
+    expect(resolveImageRouting('direct', true)).toBe('direct');
   });
 });

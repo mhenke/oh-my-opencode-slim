@@ -169,46 +169,27 @@ export function processImageAttachments(args: {
   imageRouting: 'auto' | 'direct';
   disabledAgents: Set<string>;
   log: (msg: string) => void;
-  orchestratorSupportsImages?: boolean;
-}): { dropped: boolean; reason?: string } {
-  const {
-    messages,
-    workDir,
-    imageRouting,
-    disabledAgents,
-    log,
-    orchestratorSupportsImages,
-  } = args;
+}): boolean {
+  const { messages, workDir, imageRouting, disabledAgents, log } = args;
 
   // direct mode: never intercept attachments; the orchestrator handles them
   // inline. @observer remains available for manual delegation.
   if (imageRouting === 'direct') {
-    if (orchestratorSupportsImages === false) {
-      const lastUserMsg = [...messages]
-        .reverse()
-        .find((m): m is MessageWithParts => isUserMessageWithParts(m));
-      if (lastUserMsg?.parts.some(isImagePart)) {
-        return { dropped: true, reason: 'model-no-vision' };
-      }
-    }
-    return { dropped: false };
+    return false;
   }
 
   // auto mode: observer must be enabled (enforced at config load). Retain
   // this guard as defense-in-depth in case validation is bypassed.
   const observerEnabled = !disabledAgents.has('observer');
   if (!observerEnabled) {
-    // Check only the latest user message for images
     const lastUserMsg = [...messages]
       .reverse()
       .find((m): m is MessageWithParts => isUserMessageWithParts(m));
     if (lastUserMsg?.parts.some(isImagePart)) {
-      if (orchestratorSupportsImages === false) {
-        return { dropped: true, reason: 'model-no-vision' };
-      }
-      return { dropped: true, reason: 'observer-disabled' };
+      log('[image-hook] dropped images: observer disabled');
+      return true;
     }
-    return { dropped: false };
+    return false;
   }
 
   const messagesWithImages: Array<{
@@ -230,7 +211,7 @@ export function processImageAttachments(args: {
 
   if (messagesWithImages.length === 0) {
     if (existsSync(saveDir)) cleanupAllSessions(saveDir);
-    return { dropped: false };
+    return false;
   }
 
   const gitignorePath = join(workDir, '.opencode', '.gitignore');
@@ -309,5 +290,5 @@ export function processImageAttachments(args: {
         },
       ]);
   }
-  return { dropped: false };
+  return false;
 }
