@@ -191,12 +191,18 @@ export function processImageAttachments(args: {
   const observerEnabled = !disabledAgents.has('observer');
   if (!observerEnabled) {
     // Check only NEW user messages for images. We track how many user messages
-    // we've already processed per directory. Without this, the guard re-checks
+    // we've already processed per session. Without this, the guard re-checks
     // ALL messages on every transform — once an image is sent, it stays in the
     // messages array forever, causing the hook to fire on every subsequent
     // text-only message (regression from Greptile #1 fix).
+    //
+    // Keyed by workDir:sessionID so multiple sessions in the same project
+    // don't collide (Greptile P1: "Scope tracking by conversation").
+    const firstUserMsg = messages.find(isUserMessageWithParts);
+    const sessionId = firstUserMsg?.info.sessionID ?? 'default';
+    const counterKey = `${workDir}:${sessionId}`;
     const userMsgCount = messages.filter(isUserMessageWithParts).length;
-    const lastProcessed = lastProcessedUserMsgCountByDir.get(workDir) ?? 0;
+    const lastProcessed = lastProcessedUserMsgCountByDir.get(counterKey) ?? 0;
     if (userMsgCount > lastProcessed) {
       // Check only the new user messages (those we haven't seen yet)
       let userIndex = 0;
@@ -206,14 +212,14 @@ export function processImageAttachments(args: {
           // This is a new user message — check for images
           if (msg.parts.some(isImagePart)) {
             log('[image-hook] dropped images: observer disabled');
-            lastProcessedUserMsgCountByDir.set(workDir, userMsgCount);
+            lastProcessedUserMsgCountByDir.set(counterKey, userMsgCount);
             return true;
           }
         }
         userIndex++;
       }
       // No images in new messages — update counter so we don't re-check them
-      lastProcessedUserMsgCountByDir.set(workDir, userMsgCount);
+      lastProcessedUserMsgCountByDir.set(counterKey, userMsgCount);
     }
     return false;
   }
