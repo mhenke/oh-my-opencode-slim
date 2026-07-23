@@ -1080,8 +1080,9 @@ describe('BackgroundJobBoard', () => {
         { path: '/src/huge.ts', lineCount: 60_000, lastReadAt: 500 },
       ]);
       board.updateStatus({ taskID: 'ses_bloated', state: 'completed' });
-      // markReconciled triggers trimReusable; the bloated session exceeds the
-      // context budget and should be evicted
+      // updateStatus({state:'completed'}) triggers trimReusable; the bloated
+      // session exceeds the context budget and is evicted there.
+      // markReconciled is a no-op because the record was already deleted.
       board.markReconciled('ses_bloated', 600);
 
       // Bloated session should be gone; two small sessions survive
