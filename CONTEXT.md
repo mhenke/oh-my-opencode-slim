@@ -73,7 +73,7 @@ The multiplexer system manages terminal backends and agent session lifecycle. Wh
 
 Asynchronous job lifecycle management:
 
-The background job system tracks and manages delegated specialist tasks. Every subagent launch creates a job; the orchestrator references the job board when planning follow-up work. For full configuration options, see [Configuration Reference — Background Jobs](docs/configuration.md#background-jobs) and [Background Orchestration](docs/background-orchestration.md).
+The background job system tracks and manages delegated specialist tasks. Every subagent launch creates a job; the orchestrator references the job board when planning follow-up work. For full configuration options, see [Configuration Reference — Background Job Management](docs/configuration.md#background-job-management) and [Background Orchestration](docs/background-orchestration.md).
 
 **Why this exists:** Without the board, the orchestrator would lose track of parallel work and re-delegate already-running tasks. The board is the single source of truth for "what's running."
 
