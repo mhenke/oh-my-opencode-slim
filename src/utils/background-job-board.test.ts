@@ -974,4 +974,202 @@ describe('BackgroundJobBoard', () => {
       expect(board.field('unknown-1', 'alias')).toBeUndefined();
     });
   });
+
+  describe('context budget gate', () => {
+    test('session under context threshold is reusable', () => {
+      const board = new BackgroundJobBoard();
+      board.registerLaunch({
+        taskID: 'ses_1',
+        parentSessionID: 'parent-1',
+        agent: 'explorer',
+        description: 'small session',
+      });
+      board.addContext('ses_1', [
+        { path: '/src/file1.ts', lineCount: 100, lastReadAt: 100 },
+        { path: '/src/file2.ts', lineCount: 200, lastReadAt: 200 },
+      ]);
+      board.updateStatus({ taskID: 'ses_1', state: 'completed' });
+      board.markReconciled('ses_1');
+
+      expect(
+        board.resolveReusable('parent-1', 'exp-1', 'explorer'),
+      ).toBeDefined();
+    });
+
+    test('session over context threshold is not reusable', () => {
+      const board = new BackgroundJobBoard();
+      board.registerLaunch({
+        taskID: 'ses_1',
+        parentSessionID: 'parent-1',
+        agent: 'explorer',
+        description: 'bloated session',
+      });
+      board.addContext('ses_1', [
+        { path: '/src/file1.ts', lineCount: 30_000, lastReadAt: 100 },
+        { path: '/src/file2.ts', lineCount: 25_000, lastReadAt: 200 },
+      ]);
+      board.updateStatus({ taskID: 'ses_1', state: 'completed' });
+      board.markReconciled('ses_1');
+
+      expect(
+        board.resolveReusable('parent-1', 'exp-1', 'explorer'),
+      ).toBeUndefined();
+    });
+
+    test('session at 50001 lines is not reusable', () => {
+      const board = new BackgroundJobBoard();
+      board.registerLaunch({
+        taskID: 'ses_1',
+        parentSessionID: 'parent-1',
+        agent: 'explorer',
+        description: 'just over threshold',
+      });
+      board.addContext('ses_1', [
+        { path: '/src/file1.ts', lineCount: 50_001, lastReadAt: 100 },
+      ]);
+      board.updateStatus({ taskID: 'ses_1', state: 'completed' });
+      board.markReconciled('ses_1');
+
+      expect(
+        board.resolveReusable('parent-1', 'exp-1', 'explorer'),
+      ).toBeUndefined();
+    });
+
+    test('trimReusable evicts bloated sessions before count cap', () => {
+      const board = new BackgroundJobBoard({
+        maxReusablePerAgent: 2,
+      });
+
+      // Small session 1
+      board.registerLaunch({
+        taskID: 'ses_small_1',
+        parentSessionID: 'parent-1',
+        agent: 'explorer',
+        description: 'small session 1',
+        now: 100,
+      });
+      board.addContext('ses_small_1', [
+        { path: '/src/a.ts', lineCount: 100, lastReadAt: 100 },
+      ]);
+      board.updateStatus({ taskID: 'ses_small_1', state: 'completed' });
+      board.markReconciled('ses_small_1', 200);
+
+      // Small session 2
+      board.registerLaunch({
+        taskID: 'ses_small_2',
+        parentSessionID: 'parent-1',
+        agent: 'explorer',
+        description: 'small session 2',
+        now: 300,
+      });
+      board.addContext('ses_small_2', [
+        { path: '/src/b.ts', lineCount: 200, lastReadAt: 300 },
+      ]);
+      board.updateStatus({ taskID: 'ses_small_2', state: 'completed' });
+      board.markReconciled('ses_small_2', 400);
+
+      // Bloated session
+      board.registerLaunch({
+        taskID: 'ses_bloated',
+        parentSessionID: 'parent-1',
+        agent: 'explorer',
+        description: 'bloated session',
+        now: 500,
+      });
+      board.addContext('ses_bloated', [
+        { path: '/src/huge.ts', lineCount: 60_000, lastReadAt: 500 },
+      ]);
+      board.updateStatus({ taskID: 'ses_bloated', state: 'completed' });
+      // markReconciled triggers trimReusable; the bloated session exceeds the
+      // context budget and should be evicted
+      board.markReconciled('ses_bloated', 600);
+
+      // Bloated session should be gone; two small sessions survive
+      expect(board.get('ses_bloated')).toBeUndefined();
+      expect(
+        board.resolveReusable('parent-1', 'exp-1', 'explorer'),
+      ).toBeDefined();
+      expect(
+        board.resolveReusable('parent-1', 'exp-2', 'explorer'),
+      ).toBeDefined();
+    });
+
+    test('session at exactly 50000 lines is reusable', () => {
+      const board = new BackgroundJobBoard();
+      board.registerLaunch({
+        taskID: 'ses_1',
+        parentSessionID: 'parent-1',
+        agent: 'explorer',
+        description: 'exactly at threshold',
+      });
+      board.addContext('ses_1', [
+        { path: '/src/file1.ts', lineCount: 50_000, lastReadAt: 100 },
+      ]);
+      board.updateStatus({ taskID: 'ses_1', state: 'completed' });
+      board.markReconciled('ses_1');
+
+      expect(
+        board.resolveReusable('parent-1', 'exp-1', 'explorer'),
+      ).toBeDefined();
+    });
+
+    test('custom maxContextLines override works', () => {
+      const board = new BackgroundJobBoard({
+        maxContextLines: 100,
+      });
+
+      // 50 lines — under custom threshold
+      board.registerLaunch({
+        taskID: 'ses_1',
+        parentSessionID: 'parent-1',
+        agent: 'explorer',
+        description: 'under custom limit',
+      });
+      board.addContext('ses_1', [
+        { path: '/src/file1.ts', lineCount: 50, lastReadAt: 100 },
+      ]);
+      board.updateStatus({ taskID: 'ses_1', state: 'completed' });
+      board.markReconciled('ses_1');
+
+      expect(
+        board.resolveReusable('parent-1', 'exp-1', 'explorer'),
+      ).toBeDefined();
+
+      // 101 lines — over custom threshold
+      board.registerLaunch({
+        taskID: 'ses_2',
+        parentSessionID: 'parent-1',
+        agent: 'explorer',
+        description: 'over custom limit',
+      });
+      board.addContext('ses_2', [
+        { path: '/src/file2.ts', lineCount: 101, lastReadAt: 200 },
+      ]);
+      board.updateStatus({ taskID: 'ses_2', state: 'completed' });
+      board.markReconciled('ses_2');
+
+      expect(
+        board.resolveReusable('parent-1', 'exp-2', 'explorer'),
+      ).toBeUndefined();
+    });
+
+    test('running job with bloated context survives trimReusable', () => {
+      const board = new BackgroundJobBoard();
+      board.registerLaunch({
+        taskID: 'running',
+        parentSessionID: 'p',
+        agent: 'explorer',
+      });
+      board.addContext('running', [
+        { path: '/big.ts', lineCount: 200, lastReadAt: 1 },
+      ]);
+      board.registerLaunch({
+        taskID: 'completed',
+        parentSessionID: 'p',
+        agent: 'explorer',
+      });
+      board.updateStatus({ taskID: 'completed', state: 'completed' });
+      expect(board.get('running')).toBeDefined();
+    });
+  });
 });
