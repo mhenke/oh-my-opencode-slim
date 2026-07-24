@@ -202,7 +202,12 @@ export function processImageAttachments(args: {
     const sessionId = firstUserMsg?.info.sessionID ?? 'default';
     const counterKey = `${workDir}:${sessionId}`;
     const userMsgCount = messages.filter(isUserMessageWithParts).length;
-    const lastProcessed = lastProcessedUserMsgCountByDir.get(counterKey) ?? 0;
+    let lastProcessed = lastProcessedUserMsgCountByDir.get(counterKey) ?? 0;
+    // ponytail: reset after history compaction; re-checking old messages is harmless
+    if (userMsgCount < lastProcessed) {
+      lastProcessed = 0;
+      lastProcessedUserMsgCountByDir.set(counterKey, 0);
+    }
     if (userMsgCount > lastProcessed) {
       // Check only the new user messages (those we haven't seen yet)
       let userIndex = 0;
