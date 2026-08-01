@@ -74,7 +74,6 @@ import {
 import { isPluginDisabledByEnv } from './utils/env';
 import { initLogger, log } from './utils/logger';
 import { applyOrchestratorPrompt } from './utils/system-transform';
-import { collapseSystemInPlace } from './utils/system-collapse';
 
 /**
  * Best-effort log to opencode's app logger.
@@ -1167,9 +1166,9 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         ? sessionAgentMap.get(input.sessionID)
         : undefined;
 
-      const orchestratorDef = agentDefs.find(
-        (a) => a.name === 'orchestrator',
-      );
+      if (agentName !== 'orchestrator') return;
+
+      const orchestratorDef = agentDefs.find((a) => a.name === 'orchestrator');
       const orchestratorPrompt =
         typeof orchestratorDef?.config?.prompt === 'string'
           ? orchestratorDef.config.prompt

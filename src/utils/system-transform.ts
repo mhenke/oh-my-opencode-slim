@@ -8,7 +8,6 @@ import { collapseSystemInPlace } from './system-collapse';
  * injection if the orchestrator prompt is already present in any system entry.
  *
  * This is a pure function extracted from the plugin hook for testability.
- * The hook in src/index.ts calls this and then passes through any sub-hooks.
  */
 export function applyOrchestratorPrompt(
   system: string[],

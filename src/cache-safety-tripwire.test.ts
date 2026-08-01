@@ -26,7 +26,7 @@ import path from 'node:path';
 const SRC_ROOT = import.meta.dir;
 
 /** Directories that participate in prompt/payload assembly. */
-const SCAN_DIRS = ['hooks', 'agents', 'config'];
+const SCAN_DIRS = ['hooks', 'agents', 'config', 'utils'];
 
 const VOLATILE_PATTERNS: Array<{ name: string; regex: RegExp }> = [
   { name: 'Date.now()', regex: /\bDate\.now\(/ },
@@ -77,6 +77,22 @@ const ALLOWLIST = new Map<string, string>([
   [
     'hooks/auto-update-checker/checker.ts',
     'Date.now()/Math.random() compose a per-run temp token for install bookkeeping; it names local directories and never reaches the prompt prefix.',
+  ],
+  [
+    'utils/polling.ts',
+    'Date.now() measures poll interval timing; never serialized into prompt content.',
+  ],
+  [
+    'utils/logger.ts',
+    'Date.now()/new Date(...) produce log timestamps for internal diagnostics; never serialized into prompt content.',
+  ],
+  [
+    'utils/background-job-coordinator.ts',
+    'Date.now() tracks session timestamps for internal lifecycle management; never serialized into prompt content.',
+  ],
+  [
+    'utils/background-job-board.ts',
+    'Date.now() records task launch/drop timestamps for board state management; board output is confined to the volatile trailing message.',
   ],
 ]);
 
