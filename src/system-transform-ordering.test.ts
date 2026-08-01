@@ -1,60 +1,45 @@
 import { describe, expect, test } from 'bun:test';
-import { collapseSystemInPlace } from './utils/system-collapse';
+import { applyOrchestratorPrompt } from './utils/system-transform';
 
 /**
- * Regression tests for orchestrator prompt ordering in the
- * experimental.chat.system.transform hook (PR #782).
+ * Regression tests for orchestrator prompt ordering (PR #782).
  *
- * The hook places the orchestrator prompt AFTER AGENTS.md so the user's
- * behavioral rules retain their intended priority. These tests exercise
- * the core ordering logic that the hook performs.
+ * These import the real applyOrchestratorPrompt function — no duplicated
+ * logic. If the hook changes, these tests catch it.
  */
 
-const ORCHESTRATOR_PROMPT = 'You are the orchestrator agent.';
+const PROMPT = 'You are the orchestrator agent.';
 
-function applySystemTransform(
-  system: string[],
-  agentName: string | undefined,
-  orchestratorPrompt = ORCHESTRATOR_PROMPT,
-): void {
-  if (agentName === 'orchestrator') {
-    const alreadyInjected = system.some(
-      (s) =>
-        typeof s === 'string' &&
-        s.includes('<Role>') &&
-        s.includes('orchestrator'),
-    );
-    if (!alreadyInjected) {
-      system[0] = system[0]
-        ? `${system[0]}\n\n${orchestratorPrompt}`
-        : orchestratorPrompt;
-    }
-  }
-  collapseSystemInPlace(system);
-}
-
-describe('system.transform hook ordering (PR #782)', () => {
-  test('orchestrator prompt appears AFTER AGENTS.md content', () => {
+describe('applyOrchestratorPrompt', () => {
+  test('orchestrator prompt appears AFTER existing system[0] content', () => {
     const system = ['AGENTS.md: always use TypeScript'];
-    applySystemTransform(system, 'orchestrator');
+    applyOrchestratorPrompt(system, 'orchestrator', PROMPT);
 
     expect(system).toHaveLength(1);
     expect(system[0]).toBe(
-      'AGENTS.md: always use TypeScript\n\n' + ORCHESTRATOR_PROMPT,
+      'AGENTS.md: always use TypeScript\n\n' + PROMPT,
     );
   });
 
   test('empty system array gets orchestrator prompt only', () => {
     const system: string[] = [];
-    applySystemTransform(system, 'orchestrator');
+    applyOrchestratorPrompt(system, 'orchestrator', PROMPT);
 
     expect(system).toHaveLength(1);
-    expect(system[0]).toBe(ORCHESTRATOR_PROMPT);
+    expect(system[0]).toBe(PROMPT);
   });
 
-  test('non-orchestrator agent is not modified', () => {
+  test('non-orchestrator agent leaves system untouched', () => {
     const system = ['AGENTS.md: always use TypeScript'];
-    applySystemTransform(system, 'explorer');
+    applyOrchestratorPrompt(system, 'explorer', PROMPT);
+
+    expect(system).toHaveLength(1);
+    expect(system[0]).toBe('AGENTS.md: always use TypeScript');
+  });
+
+  test('undefined agent leaves system untouched', () => {
+    const system = ['AGENTS.md: always use TypeScript'];
+    applyOrchestratorPrompt(system, undefined, PROMPT);
 
     expect(system).toHaveLength(1);
     expect(system[0]).toBe('AGENTS.md: always use TypeScript');
@@ -62,10 +47,41 @@ describe('system.transform hook ordering (PR #782)', () => {
 
   test('already-injected orchestrator prompt is not duplicated', () => {
     const system = ['<Role> orchestrator </Role>'];
-    applySystemTransform(system, 'orchestrator');
+    applyOrchestratorPrompt(system, 'orchestrator', PROMPT);
 
     expect(system).toHaveLength(1);
-    // No double-injection
     expect(system[0]).toBe('<Role> orchestrator </Role>');
+  });
+
+  test('already-injected in non-first entry prevents injection', () => {
+    const system = ['AGENTS.md', '<Role> orchestrator </Role>'];
+    applyOrchestratorPrompt(system, 'orchestrator', PROMPT);
+
+    // No injection — guard found it in entry [1]. Collapse still runs.
+    expect(system).toHaveLength(1);
+    expect(system[0]).toBe(
+      'AGENTS.md\n\n<Role> orchestrator </Role>',
+    );
+  });
+
+  test('multiple system entries are collapsed into one', () => {
+    const system = ['AGENTS.md', 'extra context'];
+    applyOrchestratorPrompt(system, 'orchestrator', PROMPT);
+
+    // Orchestrator prompt injected at system[0] (appended to AGENTS.md),
+    // then all entries collapsed.
+    expect(system).toHaveLength(1);
+    expect(system[0]).toBe(
+      'AGENTS.md\n\n' + PROMPT + '\n\nextra context',
+    );
+  });
+
+  test('empty string in system[0] behaves like empty array', () => {
+    const system = [''];
+    applyOrchestratorPrompt(system, 'orchestrator', PROMPT);
+
+    // collapseSystemInPlace drops empty-string singletons
+    expect(system).toHaveLength(1);
+    expect(system[0]).toBe(PROMPT);
   });
 });

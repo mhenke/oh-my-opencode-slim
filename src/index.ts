@@ -73,6 +73,7 @@ import {
 } from './utils';
 import { isPluginDisabledByEnv } from './utils/env';
 import { initLogger, log } from './utils/logger';
+import { applyOrchestratorPrompt } from './utils/system-transform';
 import { collapseSystemInPlace } from './utils/system-collapse';
 
 /**
@@ -1165,39 +1166,16 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       const agentName = input.sessionID
         ? sessionAgentMap.get(input.sessionID)
         : undefined;
-      if (agentName === 'orchestrator') {
-        const alreadyInjected = output.system.some(
-          (s) =>
-            typeof s === 'string' &&
-            s.includes('<Role>') &&
-            s.includes('orchestrator'),
-        );
-        if (!alreadyInjected) {
-          // Place the orchestrator prompt after AGENTS.md so the user's
-          // behavioral rules (language, code conventions, etc.) retain
-          // their intended priority. AGENTS.md is injected by OpenCode
-          // core into system[0]; prepending the orchestrator prompt before
-          // it buries user-defined rules under thousands of lines of
-          // orchestration instructions.
-          const orchestratorDef = agentDefs.find(
-            (a) => a.name === 'orchestrator',
-          );
-          const orchestratorPrompt =
-            typeof orchestratorDef?.config?.prompt === 'string'
-              ? orchestratorDef.config.prompt
-              : buildOrchestratorPrompt(disabledAgents);
-          output.system[0] = output.system[0]
-            ? `${output.system[0]}\n\n${orchestratorPrompt}`
-            : orchestratorPrompt;
-        }
-      }
 
-      // Collapse to single system message for provider compatibility.
-      // Some providers (e.g. Qwen via VLLM/DashScope) reject multiple
-      // system messages. Sub-hooks above may push additional entries; join
-      // them back into one element so OpenCode emits a single system
-      // message.
-      collapseSystemInPlace(output.system);
+      const orchestratorDef = agentDefs.find(
+        (a) => a.name === 'orchestrator',
+      );
+      const orchestratorPrompt =
+        typeof orchestratorDef?.config?.prompt === 'string'
+          ? orchestratorDef.config.prompt
+          : buildOrchestratorPrompt(disabledAgents);
+
+      applyOrchestratorPrompt(output.system, agentName, orchestratorPrompt);
     },
 
     // Inject phase reminder and filter available skills before sending to
