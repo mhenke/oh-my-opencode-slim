@@ -1187,8 +1187,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
               ? orchestratorDef.config.prompt
               : buildOrchestratorPrompt(disabledAgents);
           output.system[0] =
-            (output.system[0] || '') +
-            `\n\n${orchestratorPrompt}`;
+            (output.system[0] || '') + `\n\n${orchestratorPrompt}`;
         }
       }
 
