@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+// CLI for running eval suites and comparing agent outputs against expected results.
 /**
  * CLI entry point for running eval suites.
  *
@@ -14,6 +15,9 @@
  *
  * Each value is a single string or array of strings for multi-run.
  * Results are saved to src/evals/results/ and printed to stdout.
+ *
+ * If a transcripts file exists (outputs-transcripts.json), it will be
+ * loaded automatically and included in the results.
  */
 
 import { parseArgs } from 'node:util';
@@ -22,6 +26,7 @@ import {
   formatResult,
   loadEvalSuites,
   saveResults,
+  type Transcript,
 } from '../evals/runner';
 
 const { values } = parseArgs({
@@ -65,7 +70,20 @@ if (values['outputs-file']) {
   }
 }
 
-const result = executeSuite(values.suite, outputs);
+// Try to load transcripts if they exist
+let transcripts: Record<string, Transcript[]> | undefined;
+if (values['outputs-file']) {
+  const transcriptPath = values['outputs-file'].replace(/\.json$/, '-transcripts.json');
+  try {
+    const raw = await Bun.file(transcriptPath).text();
+    transcripts = JSON.parse(raw);
+    console.log(`Loaded transcripts from ${transcriptPath}`);
+  } catch {
+    // Transcripts file doesn't exist, that's fine
+  }
+}
+
+const result = executeSuite(values.suite, outputs, transcripts);
 const formatted = formatResult(result);
 console.log(formatted);
 

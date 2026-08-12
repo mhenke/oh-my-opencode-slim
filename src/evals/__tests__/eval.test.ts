@@ -82,6 +82,8 @@ describe('result formatting', () => {
       passed: 2,
       failed: 1,
       skipped: 0,
+      passAtK: 2 / 3,
+      passK: 2 / 3,
       results: [
         {
           evalId: 'a',
@@ -228,7 +230,7 @@ describe('executeSuite', () => {
 
   test('executes orchestrator-routing suite with mock outputs', () => {
     const outputs: Record<string, string> = {
-      'trivial-edit-direct': 'handling directly, no delegation needed',
+      'trivial-edit-direct': '// This file runs the eval CLI',
       'ui-work-to-designer': 'delegating this to @designer for UI work',
       'multi-file-to-fixer': 'delegating to @fixer for implementation',
       'architecture-to-oracle': 'asking @oracle for architecture guidance',
@@ -236,25 +238,25 @@ describe('executeSuite', () => {
     };
 
     const result = executeSuite('orchestrator-routing', outputs);
-    expect(result.totalEvals).toBe(9);
-    expect(result.skipped).toBe(4);
+    expect(result.totalEvals).toBe(11);
+    expect(result.skipped).toBe(6);
     expect(result.passed).toBe(5);
     expect(result.failed).toBe(0);
   });
 
   test('skips evals with no output', () => {
     const result = executeSuite('orchestrator-routing', {});
-    expect(result.totalEvals).toBe(9);
-    expect(result.skipped).toBe(9);
+    expect(result.totalEvals).toBe(11);
+    expect(result.skipped).toBe(11);
     expect(result.passed).toBe(0);
   });
 
   test('supports multi-run outputs', () => {
     const outputs: Record<string, string[]> = {
       'trivial-edit-direct': [
-        'handling directly',
-        'no delegation needed here',
-        'direct edit, skipping delegation',
+        '// This file runs the eval CLI',
+        '// This file runs the eval CLI',
+        '// This file runs the eval CLI',
       ],
     };
 

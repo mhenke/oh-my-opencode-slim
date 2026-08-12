@@ -1,7 +1,7 @@
 {
   "name": "orchestrator-routing",
-  "description": "Evals for orchestrator delegation decisions — does it route to the right agent?",
-  "version": "1.0.0",
+  "description": "Evals for orchestrator delegation decisions — does it route to the right agent? Covers trivial edits, multi-file implementation, architecture decisions, external research, codebase search, and progressive disclosure tasks. Balanced: some tasks should delegate, some should be handled directly.",
+  "version": "2.0.0",
   "evals": [
     {
       "id": "trivial-edit-direct",
@@ -13,6 +13,11 @@
           "type": "not_contains",
           "value": "@fixer",
           "description": "Should not delegate a trivial comment addition"
+        },
+        {
+          "type": "contains",
+          "value": "// This file",
+          "description": "Output should contain the comment"
         }
       ],
       "tags": ["routing", "trivial"]
@@ -27,6 +32,11 @@
           "type": "contains",
           "value": "@fixer",
           "description": "Should delegate multi-file implementation"
+        },
+        {
+          "type": "not_contains",
+          "value": "@oracle",
+          "description": "Should not delegate to oracle for implementation"
         }
       ],
       "tags": ["routing", "implementation"]
@@ -41,6 +51,11 @@
           "type": "contains",
           "value": "@oracle",
           "description": "Should delegate architecture decisions to @oracle"
+        },
+        {
+          "type": "not_contains",
+          "value": "@fixer",
+          "description": "Should not do implementation work"
         }
       ],
       "tags": ["routing", "architecture"]
@@ -55,6 +70,11 @@
           "type": "contains",
           "value": "@librarian",
           "description": "Should delegate external research to @librarian"
+        },
+        {
+          "type": "not_contains",
+          "value": "@explorer",
+          "description": "Should not do codebase search"
         }
       ],
       "tags": ["routing", "research"]
@@ -69,9 +89,38 @@
           "type": "contains",
           "value": "@explorer",
           "description": "Should delegate codebase search to @explorer"
+        },
+        {
+          "type": "not_contains",
+          "value": "@librarian",
+          "description": "Should not do external research"
         }
       ],
       "tags": ["routing", "search"]
+    },
+    {
+      "id": "trivial-should-handle-directly",
+      "prompt": "What does the package.json scripts section do? List the available npm scripts.",
+      "agent": "orchestrator",
+      "description": "Trivia about the codebase should be handled directly, not delegated",
+      "assertions": [
+        {
+          "type": "not_contains",
+          "value": "@fixer",
+          "description": "Should not delegate trivial knowledge"
+        },
+        {
+          "type": "not_contains",
+          "value": "@explorer",
+          "description": "Should not search for trivial knowledge"
+        },
+        {
+          "type": "contains",
+          "value": "scripts",
+          "description": "Output should mention scripts"
+        }
+      ],
+      "tags": ["routing", "trivia"]
     },
     {
       "id": "reflect-progressive-disclosure",
@@ -132,6 +181,25 @@
         }
       ],
       "tags": ["progressive-disclosure", "deepwork"]
+    },
+    {
+      "id": "ui-work-to-designer",
+      "prompt": "Design a dark mode toggle for the settings page with responsive layout and smooth transitions.",
+      "agent": "orchestrator",
+      "description": "User-facing UI work should route to @designer",
+      "assertions": [
+        {
+          "type": "not_contains",
+          "value": "@fixer",
+          "description": "Should not do implementation work"
+        },
+        {
+          "type": "contains",
+          "value": "@designer",
+          "description": "Should delegate to @designer for UI work"
+        }
+      ],
+      "tags": ["routing", "ui"]
     }
   ]
 }

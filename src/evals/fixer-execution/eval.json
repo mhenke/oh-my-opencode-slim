@@ -1,11 +1,11 @@
 {
   "name": "fixer-execution",
-  "description": "Evals for fixer agent behavior — does it execute bounded tasks correctly?",
-  "version": "1.0.0",
+  "description": "Evals for fixer agent behavior — does it execute bounded tasks correctly? Covers execution, research constraints, output format, and code quality.",
+  "version": "2.0.0",
   "evals": [
     {
       "id": "no-research",
-      "prompt": "Add a validateEmail function to src/utils/validation.ts that checks for valid email format using regex",
+      "prompt": "Add a validateEmail function to src/utils/validation.ts that checks for valid email format using regex. Do not use @librarian or @explorer — implement directly.",
       "agent": "fixer",
       "description": "Fixer should implement directly without spawning subagents or doing research",
       "assertions": [
@@ -18,16 +18,12 @@
           "type": "not_contains",
           "value": "@explorer",
           "description": "Should not delegate discovery"
-        }
-      ],
-      "tags": ["execution", "constraints"]
-    },
-    {
-      "id": "output-format",
-      "prompt": "Add a helloWorld function to src/utils/helpers.ts that returns the string 'Hello, World!'",
-      "agent": "fixer",
-      "description": "Fixer output should include summary, changes, and verification sections",
-      "assertions": [
+        },
+        {
+          "type": "regex",
+          "value": "validateEmail",
+          "description": "Output should contain validateEmail function"
+        },
         {
           "type": "structure",
           "value": "<summary>",
@@ -37,9 +33,111 @@
           "type": "structure",
           "value": "<changes>",
           "description": "Output should have <changes> section"
+        },
+        {
+          "type": "regex",
+          "value": "/\\S+@\\S+\\.\\S+/",
+          "description": "Output should contain email regex pattern"
+        }
+      ],
+      "tags": ["execution", "constraints"]
+    },
+    {
+      "id": "output-format",
+      "prompt": "Add a helloWorld function to src/utils/helpers.ts that returns the string 'Hello, World!'. Include summary, changes, and verification sections in the output.",
+      "agent": "fixer",
+      "description": "Fixer output should include summary, changes, and verification sections",
+      "assertions": [
+        {
+          "type": "contains",
+          "value": "Hello, World!",
+          "description": "Output should return correct greeting"
+        },
+        {
+          "type": "structure",
+          "value": "<summary>",
+          "description": "Output should have <summary> section"
+        },
+        {
+          "type": "structure",
+          "value": "<changes>",
+          "description": "Output should have <changes> section"
+        },
+        {
+          "type": "structure",
+          "value": "<verification>",
+          "description": "Output should have <verification> section"
         }
       ],
       "tags": ["execution", "output"]
+    },
+    {
+      "id": "edge-case-handling",
+      "prompt": "Add a safeParseJson function to src/utils/serialization.ts that parses JSON strings gracefully, returning null on invalid input. Do not delegate to @librarian or @explorer.",
+      "agent": "fixer",
+      "description": "Fixer should handle edge cases without research delegation",
+      "assertions": [
+        {
+          "type": "not_contains",
+          "value": "@librarian",
+          "description": "Should not delegate research"
+        },
+        {
+          "type": "not_contains",
+          "value": "@explorer",
+          "description": "Should not delegate discovery"
+        },
+        {
+          "type": "contains",
+          "value": "safeParseJson",
+          "description": "Output should contain safeParseJson function"
+        },
+        {
+          "type": "regex",
+          "value": "return null",
+          "description": "Output should handle invalid JSON by returning null"
+        },
+        {
+          "type": "structure",
+          "value": "<summary>",
+          "description": "Output should have <summary> section"
+        }
+      ],
+      "tags": ["execution", "edge-cases"]
+    },
+    {
+      "id": "code-quality",
+      "prompt": "Add a formatCurrency function to src/utils/formatters.ts that formats a number as currency string (e.g., 1234.56 → '$1,234.56'). Do not use @librarian or @explorer.",
+      "agent": "fixer",
+      "description": "Fixer should produce high-quality code without research delegation",
+      "assertions": [
+        {
+          "type": "not_contains",
+          "value": "@librarian",
+          "description": "Should not delegate research"
+        },
+        {
+          "type": "not_contains",
+          "value": "@explorer",
+          "description": "Should not delegate discovery"
+        },
+        {
+          "type": "contains",
+          "value": "formatCurrency",
+          "description": "Output should contain formatCurrency function"
+        },
+        {
+          "type": "regex",
+          "value": "\\$[0-9,]+\\.\\d{2}",
+          "description": "Output should format as currency with $ and 2 decimal places"
+        },
+        {
+          "type": "structure",
+          "value": "<summary>",
+          "description": "Output should have <summary> section"
+        }
+      ],
+      "tags": ["execution", "code-quality"]
     }
   ]
 }
