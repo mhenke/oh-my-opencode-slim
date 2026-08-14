@@ -1,0 +1,107 @@
+{
+  "name": "subagent-lifecycle",
+  "description": "Tests for multi-agent orchestration dynamics — routing, delegation, background task lifecycle, and cross-agent result integration.",
+  "version": "1.0.0",
+  "category": "capability",
+  "evals": [
+    {
+      "id": "fixer-delegation",
+      "prompt": "Add a validateEmail function to src/utils/validation.ts. Use @fixer for implementation.",
+      "agent": "orchestrator",
+      "description": "Orchestrator should delegate to @fixer, not implement directly",
+      "assertions": [
+        {
+          "type": "agent_routed",
+          "value": "fixer",
+          "description": "Should route to @fixer agent"
+        },
+        {
+          "type": "tool_used",
+          "value": "task",
+          "description": "Should use task tool to spawn fixer"
+        }
+      ],
+      "tags": ["routing", "delegation"]
+    },
+    {
+      "id": "explorer-before-implementation",
+      "prompt": "Find all error handling patterns in src/hooks/ and suggest improvements. Then implement the top suggestion using @fixer.",
+      "agent": "orchestrator",
+      "description": "Should use @explorer for discovery, then @fixer for implementation",
+      "assertions": [
+        {
+          "type": "agent_routed",
+          "value": "explorer",
+          "description": "Should route to @explorer for discovery"
+        },
+        {
+          "type": "agent_routed",
+          "value": "fixer",
+          "description": "Should route to @fixer for implementation"
+        }
+      ],
+      "tags": ["routing", "multi-agent"]
+    },
+    {
+      "id": "architecture-question",
+      "prompt": "Should we switch the background job board from in-memory storage to SQLite? What are the tradeoffs?",
+      "agent": "orchestrator",
+      "description": "Architecture question should route to @oracle",
+      "assertions": [
+        {
+          "type": "agent_routed",
+          "value": "oracle",
+          "description": "Should route to @oracle for architecture decision"
+        }
+      ],
+      "tags": ["routing", "architecture"]
+    },
+    {
+      "id": "external-research",
+      "prompt": "Look up how the Anthropic SDK handles streaming responses and what the latest API changes are.",
+      "agent": "orchestrator",
+      "description": "External research should route to @librarian",
+      "assertions": [
+        {
+          "type": "agent_routed",
+          "value": "librarian",
+          "description": "Should route to @librarian for external research"
+        }
+      ],
+      "tags": ["routing", "research"]
+    },
+    {
+      "id": "no-delegation-trivial",
+      "prompt": "What does the package.json scripts section do?",
+      "agent": "orchestrator",
+      "description": "Trivial question should be answered directly, no delegation",
+      "assertions": [
+        {
+          "type": "subagent_count",
+          "value": "0",
+          "description": "Should not delegate trivial questions"
+        }
+      ],
+      "tags": ["routing", "trivial"]
+    },
+    {
+      "id": "multi-agent-parallel",
+      "prompt": "Research the latest MCP spec changes AND implement a simple wrapper function. These are independent tasks.",
+      "agent": "orchestrator",
+      "description": "Independent tasks should be delegated in parallel to @librarian and @fixer",
+      "assertions": [
+        {
+          "type": "agent_routed",
+          "value": "librarian",
+          "description": "Should route research to @librarian"
+        },
+        {
+          "type": "agent_routed",
+          "value": "fixer",
+          "description": "Should route implementation to @fixer"
+        }
+      ],
+      "tags": ["routing", "parallel"]
+    }
+  ]
+}

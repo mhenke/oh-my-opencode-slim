@@ -10,9 +10,9 @@
       "description": "Trivial single-file edit should be handled directly, not delegated",
       "assertions": [
         {
-          "type": "not_contains",
-          "value": "@fixer",
-          "description": "Should not delegate a trivial comment addition"
+          "type": "subagent_count",
+          "value": "{\"max\": 0}",
+          "description": "Should handle a trivial comment addition directly, without delegating"
         },
         {
           "type": "contains",
@@ -29,9 +29,9 @@
       "description": "Multi-file implementation should route to @fixer",
       "assertions": [
         {
-          "type": "contains",
-          "value": "@fixer",
-          "description": "Should delegate multi-file implementation"
+          "type": "agent_routed",
+          "value": "fixer",
+          "description": "Should delegate multi-file implementation to @fixer"
         },
         {
           "type": "not_contains",
@@ -48,8 +48,8 @@
       "description": "Architecture decision should route to @oracle",
       "assertions": [
         {
-          "type": "contains",
-          "value": "@oracle",
+          "type": "agent_routed",
+          "value": "oracle",
           "description": "Should delegate architecture decisions to @oracle"
         },
         {
@@ -67,8 +67,8 @@
       "description": "External library research should route to @librarian",
       "assertions": [
         {
-          "type": "contains",
-          "value": "@librarian",
+          "type": "agent_routed",
+          "value": "librarian",
           "description": "Should delegate external research to @librarian"
         },
         {
@@ -86,8 +86,8 @@
       "description": "Codebase search should route to @explorer",
       "assertions": [
         {
-          "type": "contains",
-          "value": "@explorer",
+          "type": "agent_routed",
+          "value": "explorer",
           "description": "Should delegate codebase search to @explorer"
         },
         {
@@ -105,14 +105,9 @@
       "description": "Trivia about the codebase should be handled directly, not delegated",
       "assertions": [
         {
-          "type": "not_contains",
-          "value": "@fixer",
-          "description": "Should not delegate trivial knowledge"
-        },
-        {
-          "type": "not_contains",
-          "value": "@explorer",
-          "description": "Should not search for trivial knowledge"
+          "type": "subagent_count",
+          "value": "{\"max\": 0}",
+          "description": "Should answer trivial knowledge directly, without delegating"
         },
         {
           "type": "contains",
@@ -194,12 +189,85 @@
           "description": "Should not do implementation work"
         },
         {
-          "type": "contains",
-          "value": "@designer",
-          "description": "Should delegate to @designer for UI work"
+          "type": "agent_routed",
+          "value": "designer",
+          "description": "Should delegate UI work to @designer"
         }
       ],
       "tags": ["routing", "ui"]
+    },
+    {
+      "id": "helpful-response-check",
+      "prompt": "What is the capital of France? Answer with just the city name.",
+      "agent": "orchestrator",
+      "description": "Orchestrator should provide helpful, substantive responses, not placeholder text",
+      "assertions": [
+        {
+          "type": "contains",
+          "value": "Paris",
+          "description": "Should provide the correct answer"
+        },
+        {
+          "type": "not_contains",
+          "value": "Standing by. What's next?",
+          "description": "Should not contain the exact placeholder phrase"
+        },
+        {
+          "type": "not_contains",
+          "value": "Standing by",
+          "description": "Should not contain placeholder text"
+        },
+        {
+          "type": "not_contains",
+          "value": "What's next?",
+          "description": "Should not contain prompting for next steps"
+        },
+        {
+          "type": "not_contains",
+          "value": "tell me nothing",
+          "description": "Should not contain dismissive language"
+        }
+      ],
+      "tags": ["response-quality", "helpfulness"]
+    },
+    {
+      "id": "no-placeholder-response",
+      "prompt": "Explain what the orchestrator agent does in this system in one or two sentences.",
+      "agent": "orchestrator",
+      "description": "Orchestrator should give substantive explanations, not placeholder text",
+      "assertions": [
+        {
+          "type": "not_contains",
+          "value": "Standing by. What's next?",
+          "description": "Should not contain the exact placeholder phrase"
+        },
+        {
+          "type": "not_contains",
+          "value": "Standing by",
+          "description": "Should not contain the partial phrase"
+        },
+        {
+          "type": "not_contains",
+          "value": "What's next",
+          "description": "Should not contain the prompting phrase"
+        },
+        {
+          "type": "not_contains",
+          "value": "tell me nothing",
+          "description": "Should not contain dismissive language"
+        },
+        {
+          "type": "contains",
+          "value": "orchestrator",
+          "description": "Should mention the orchestrator agent"
+        },
+        {
+          "type": "contains",
+          "value": "delegat",
+          "description": "Should mention delegation (delegates/delegation)"
+        }
+      ],
+      "tags": ["response-quality", "anti-placeholder"]
     }
   ]
 }

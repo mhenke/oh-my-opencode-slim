@@ -68,6 +68,8 @@
     "test": "bun test",
     "eval": "bun run src/cli/eval.ts",
     "eval-review": "bun run src/cli/eval-review.ts",
+    "eval:all": "for i in 1 2 3 4; do suite=$(echo orchestrator-routing fixer-execution subagent-lifecycle agent-failure-regression | cut -d' ' -f$i); echo \"\\n=== [$i/4] $suite ===\"; bun run auto-collect --suite $suite --out /tmp/$suite.json --concurrency 1 --delay 15000; echo \"\\n=== [$i/4] Scoring $suite ===\"; bun run eval --suite $suite --outputs-file /tmp/$suite.json --flaky-threshold 3; done",
+    "eval-review:all": "for i in 1 2 3 4; do suite=$(echo orchestrator-routing fixer-execution subagent-lifecycle agent-failure-regression | cut -d' ' -f$i); echo \"\\n=== [$i/4] $suite ===\"; bun run eval-review --suite $suite --latest; done",
     "collect": "bun run src/cli/collect.ts",
     "auto-collect": "bun run src/cli/auto-collect.ts",
     "precheck": "bun run src/cli/precheck.ts",

@@ -1,0 +1,315 @@
+{
+  "suiteName": "subagent-lifecycle",
+  "totalEvals": 6,
+  "passed": 1,
+  "failed": 5,
+  "skipped": 0,
+  "passAtK": 0.16666666666666666,
+  "passK": 0.16666666666666666,
+  "avgPartialScore": 0.16666666666666666,
+  "results": [
+    {
+      "evalId": "fixer-delegation",
+      "prompt": "Add a validateEmail function to src/utils/validation.ts. Use @fixer for implementation.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "agent_routed",
+            "value": "fixer",
+            "description": "Should route to @fixer agent",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "agent \"fixer\" not observed (agents: none)",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "tool_used",
+            "value": "task",
+            "description": "Should use task tool to spawn fixer",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "tool \"task\" not found in transcript (5 tool calls recorded)",
+          "score": 0
+        }
+      ],
+      "output": "The file doesn't exist yet. Let me check an existing utility for style conventions, then delegate to @fixer.",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "The file doesn't exist yet. Let me check an existing utility for style conventions, then delegate to @fixer.",
+            "toolCalls": [
+              {
+                "name": "glob"
+              },
+              {
+                "name": "glob"
+              },
+              {
+                "name": "glob"
+              },
+              {
+                "name": "read"
+              },
+              {
+                "name": "read"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 5,
+        "turnCount": 4,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "explorer-before-implementation",
+      "prompt": "Find all error handling patterns in src/hooks/ and suggest improvements. Then implement the top suggestion using @fixer.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "agent_routed",
+            "value": "explorer",
+            "description": "Should route to @explorer for discovery",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "agent \"explorer\" not observed (agents: none)",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "agent_routed",
+            "value": "fixer",
+            "description": "Should route to @fixer for implementation",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "agent \"fixer\" not observed (agents: none)",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "architecture-question",
+      "prompt": "Should we switch the background job board from in-memory storage to SQLite? What are the tradeoffs?",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "agent_routed",
+            "value": "oracle",
+            "description": "Should route to @oracle for architecture decision",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "agent \"oracle\" not observed (agents: none)",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "external-research",
+      "prompt": "Look up how the Anthropic SDK handles streaming responses and what the latest API changes are.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "agent_routed",
+            "value": "librarian",
+            "description": "Should route to @librarian for external research",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "agent \"librarian\" not observed (agents: none)",
+          "score": 0
+        }
+      ],
+      "output": "Checking Anthropic SDK streaming docs and latest API changes via @librarian...",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "Checking Anthropic SDK streaming docs and latest API changes via @librarian...",
+            "toolCalls": [
+              {
+                "name": "task"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "no-delegation-trivial",
+      "prompt": "What does the package.json scripts section do?",
+      "passed": true,
+      "runs": 1,
+      "passRate": 1,
+      "passAtK": 1,
+      "passKk": 1,
+      "partialScore": 1,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "subagent_count",
+            "value": "0",
+            "description": "Should not delegate trivial questions",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "multi-agent-parallel",
+      "prompt": "Research the latest MCP spec changes AND implement a simple wrapper function. These are independent tasks.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "agent_routed",
+            "value": "librarian",
+            "description": "Should route research to @librarian",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "agent \"librarian\" not observed (agents: none)",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "agent_routed",
+            "value": "fixer",
+            "description": "Should route implementation to @fixer",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "agent \"fixer\" not observed (agents: none)",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    }
+  ],
+  "durationMs": 1,
+  "timestamp": "2026-08-14T15:12:25.897Z"
+}

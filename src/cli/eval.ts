@@ -18,6 +18,9 @@
  *
  * If a transcripts file exists (outputs-transcripts.json), it will be
  * loaded automatically and included in the results.
+ *
+ * --flaky-threshold: exit with code 2 if any eval has pass@k=1 but pass^k=0
+ * with at least N runs (default: 3). Catches inconsistent eval results.
  */
 
 import { parseArgs } from 'node:util';
@@ -34,6 +37,7 @@ const { values } = parseArgs({
   options: {
     suite: { type: 'string' },
     'outputs-file': { type: 'string' },
+    'flaky-threshold': { type: 'string' },
   },
   strict: true,
   allowPositionals: false,
@@ -92,5 +96,20 @@ if (result.totalEvals > 0) {
   console.log(`\nResults saved to: ${savedPath}`);
 }
 
-const exitCode = result.failed > 0 ? 1 : 0;
+// Flaky detection: exit code 2 if any eval is flaky
+let exitCode = result.failed > 0 ? 1 : 0;
+const flakyThreshold = values['flaky-threshold'] ? parseInt(values['flaky-threshold'], 10) : 3;
+
+const flaky = result.results.filter(
+  (r) => r.passAtK === 1 && r.passKk === 0 && r.runs >= flakyThreshold,
+);
+
+if (flaky.length > 0) {
+  console.log(`\n⚠ ${flaky.length} flaky eval(s) detected (pass@k=1 but pass^k=0):`);
+  for (const f of flaky) {
+    console.log(`  - ${f.evalId}: ${f.runs} runs, ${f.passRate.toFixed(0)}% pass rate`);
+  }
+  exitCode = 2;
+}
+
 process.exit(exitCode);

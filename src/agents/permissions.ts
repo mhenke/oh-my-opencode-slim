@@ -31,6 +31,36 @@ export function createReadOnlyAgentPermission(): AgentPermission {
 }
 
 /**
+ * Full coding-tool permissions for the main orchestrator agent.
+ *
+ * The orchestrator delegates most work but must be able to handle one
+ * isolated, clear, low-risk action directly (per its own prompt), so the
+ * standard coding and communication tools are allowed. No wildcard deny:
+ * unlisted tools keep OpenCode defaults (e.g. `todowrite` stays usable).
+ */
+export function createOrchestratorPermission(): AgentPermission {
+  return {
+    read: 'allow',
+    glob: 'allow',
+    grep: 'allow',
+    list: 'allow',
+    lsp: 'allow',
+    codesearch: 'allow',
+    ast_grep_search: 'allow',
+    edit: 'allow',
+    write: 'allow',
+    apply_patch: 'allow',
+    ast_grep_replace: 'allow',
+    bash: 'allow',
+    webfetch: 'allow',
+    task: 'allow',
+    question: 'allow',
+    cancel_task: 'allow',
+    wait_for_user: 'allow',
+  } as AgentPermission;
+}
+
+/**
  * Strict deny-all permissions for the council synthesis agent.
  *
  * The council agent is text-in/text-out only — it must NOT use any

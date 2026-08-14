@@ -1,5 +1,6 @@
 import type { AgentConfig } from '@opencode-ai/sdk/v2';
 import { WRITABLE_FILE_OPERATIONS_RULES } from '../config';
+import { createOrchestratorPermission } from './permissions';
 
 export interface AgentDefinition {
   name: string;
@@ -284,6 +285,7 @@ export function createOrchestratorAgent(
     config: {
       temperature: 0.1,
       prompt,
+      permission: createOrchestratorPermission(),
     },
   };
 

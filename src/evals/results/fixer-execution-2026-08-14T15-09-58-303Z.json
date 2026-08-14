@@ -1,0 +1,380 @@
+{
+  "suiteName": "fixer-execution",
+  "totalEvals": 4,
+  "passed": 0,
+  "failed": 4,
+  "skipped": 0,
+  "passAtK": 0.75,
+  "passK": 0,
+  "avgPartialScore": 0.2833333333333333,
+  "results": [
+    {
+      "evalId": "no-research",
+      "prompt": "Add a validateEmail function to src/utils/validation.ts that checks for valid email format using regex. Do not use @librarian or @explorer — implement directly.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0.3333333333333333,
+      "passAtK": 1,
+      "passKk": 0,
+      "partialScore": 0.3333333333333333,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "@librarian",
+            "description": "Should not delegate research",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "@explorer",
+            "description": "Should not delegate discovery",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "regex",
+            "value": "validateEmail",
+            "description": "Output should contain validateEmail function",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not match /validateEmail/",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "structure",
+            "value": "<summary>",
+            "description": "Output should have <summary> section",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "structural pattern \"<summary>\" not found",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "structure",
+            "value": "<changes>",
+            "description": "Output should have <changes> section",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "structural pattern \"<changes>\" not found",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "regex",
+            "value": "/\\S+@\\S+\\.\\S+/",
+            "description": "Output should contain email regex pattern",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not match //\\S+@\\S+\\.\\S+//",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "name": "read"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "output-format",
+      "prompt": "Add a helloWorld function to src/utils/helpers.ts that returns the string 'Hello, World!'. Include summary, changes, and verification sections in the output.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "contains",
+            "value": "Hello, World!",
+            "description": "Output should return correct greeting",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not contain \"Hello, World!\"",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "structure",
+            "value": "<summary>",
+            "description": "Output should have <summary> section",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "structural pattern \"<summary>\" not found",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "structure",
+            "value": "<changes>",
+            "description": "Output should have <changes> section",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "structural pattern \"<changes>\" not found",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "structure",
+            "value": "<verification>",
+            "description": "Output should have <verification> section",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "structural pattern \"<verification>\" not found",
+          "score": 0
+        }
+      ],
+      "output": "\n\n",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "\n\n",
+            "toolCalls": [
+              {
+                "name": "read"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "edge-case-handling",
+      "prompt": "Add a safeParseJson function to src/utils/serialization.ts that parses JSON strings gracefully, returning null on invalid input. Do not delegate to @librarian or @explorer.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0.4,
+      "passAtK": 1,
+      "passKk": 0,
+      "partialScore": 0.4,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "@librarian",
+            "description": "Should not delegate research",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "@explorer",
+            "description": "Should not delegate discovery",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "contains",
+            "value": "safeParseJson",
+            "description": "Output should contain safeParseJson function",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not contain \"safeParseJson\"",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "regex",
+            "value": "return null",
+            "description": "Output should handle invalid JSON by returning null",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not match /return null/",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "structure",
+            "value": "<summary>",
+            "description": "Output should have <summary> section",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "structural pattern \"<summary>\" not found",
+          "score": 0
+        }
+      ],
+      "output": "\n\n",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "\n\n",
+            "toolCalls": [
+              {
+                "name": "read"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "code-quality",
+      "prompt": "Add a formatCurrency function to src/utils/formatters.ts that formats a number as currency string (e.g., 1234.56 → '$1,234.56'). Do not use @librarian or @explorer.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0.4,
+      "passAtK": 1,
+      "passKk": 0,
+      "partialScore": 0.4,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "@librarian",
+            "description": "Should not delegate research",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "@explorer",
+            "description": "Should not delegate discovery",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "contains",
+            "value": "formatCurrency",
+            "description": "Output should contain formatCurrency function",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not contain \"formatCurrency\"",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "regex",
+            "value": "\\$[0-9,]+\\.\\d{2}",
+            "description": "Output should format as currency with $ and 2 decimal places",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not match /\\$[0-9,]+\\.\\d{2}/",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "structure",
+            "value": "<summary>",
+            "description": "Output should have <summary> section",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "structural pattern \"<summary>\" not found",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "name": "read"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    }
+  ],
+  "durationMs": 1,
+  "timestamp": "2026-08-14T15:09:58.303Z"
+}

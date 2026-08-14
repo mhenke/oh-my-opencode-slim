@@ -105,7 +105,7 @@ console.log('');
 // ── Connect to OpenCode ──────────────────────────────────────────────
 
 const directory = values.directory ?? process.cwd();
-const timeoutMs = values.timeout ? parseInt(values.timeout, 10) : 600_000; // 10 min
+const timeoutMs = values.timeout ? parseInt(values.timeout, 10) : 7_200_000; // 2 hours
 const baseUrl = values.url ?? 'http://localhost:4096';
 
 const client = createOpencodeClient({ baseUrl, directory });
@@ -191,7 +191,13 @@ ${sections.join('\n---\n\n')}`;
 
 async function reviewWithCouncil(
   prompt: string,
-): Promise<{ success: boolean; response: string; error?: string }> {
+): Promise<{
+  success: boolean;
+  response: string;
+  error?: string;
+  sessionId?: string;
+  timedOut?: boolean;
+}> {
   try {
     // Create session
     const createResult = await client.session.create({
@@ -224,7 +230,24 @@ async function reviewWithCouncil(
       setTimeout(() => reject(new Error('timeout')), timeoutMs),
     );
 
-    const result = await Promise.race([promptPromise, timeoutPromise]);
+    let result;
+    try {
+      result = await Promise.race([promptPromise, timeoutPromise]);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (message === 'timeout') {
+        // Leave the session running so the user can retrieve the result.
+        return {
+          success: false,
+          response: '',
+          error: 'timeout',
+          sessionId,
+          timedOut: true,
+        };
+      }
+      await client.session.delete({ path: { id: sessionId } }).catch(() => {});
+      return { success: false, response: '', error: message };
+    }
 
     if (result.error) {
       const err = result.error as { data?: { message?: string }; message?: string };
@@ -256,12 +279,24 @@ async function reviewWithCouncil(
 
 // ── Run review ───────────────────────────────────────────────────────
 
-console.log('Sending failed evals to council for review...\n');
+console.log('Sending failed evals to council for review...');
+console.log('This may take several minutes for complex reviews. Please wait...\n');
 
 const reviewPrompt = buildReviewPrompt(failed, results.suiteName);
 const review = await reviewWithCouncil(reviewPrompt);
 
 if (!review.success) {
+  if (review.timedOut) {
+    const mins = Math.round(timeoutMs / 60000);
+    console.error(`⏱ Review timed out after ${mins} minutes.`);
+    console.error(
+      `The council agent is likely still generating a response in OpenCode session: ${review.sessionId}`,
+    );
+    console.error(
+      `Re-run with a larger --timeout (e.g. --timeout 7200000) to let it finish, or open that session to read the result.`,
+    );
+    process.exit(2);
+  }
   console.error('Review failed:', review.error);
   process.exit(1);
 }

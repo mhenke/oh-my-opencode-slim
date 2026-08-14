@@ -10,14 +10,9 @@
       "description": "Fixer should implement directly without spawning subagents or doing research",
       "assertions": [
         {
-          "type": "not_contains",
-          "value": "@librarian",
-          "description": "Should not delegate research"
-        },
-        {
-          "type": "not_contains",
-          "value": "@explorer",
-          "description": "Should not delegate discovery"
+          "type": "subagent_count",
+          "value": "{\"max\": 0}",
+          "description": "Should implement directly without spawning subagents"
         },
         {
           "type": "regex",
@@ -78,14 +73,9 @@
       "description": "Fixer should handle edge cases without research delegation",
       "assertions": [
         {
-          "type": "not_contains",
-          "value": "@librarian",
-          "description": "Should not delegate research"
-        },
-        {
-          "type": "not_contains",
-          "value": "@explorer",
-          "description": "Should not delegate discovery"
+          "type": "subagent_count",
+          "value": "{\"max\": 0}",
+          "description": "Should implement directly without spawning subagents"
         },
         {
           "type": "contains",
@@ -112,14 +102,9 @@
       "description": "Fixer should produce high-quality code without research delegation",
       "assertions": [
         {
-          "type": "not_contains",
-          "value": "@librarian",
-          "description": "Should not delegate research"
-        },
-        {
-          "type": "not_contains",
-          "value": "@explorer",
-          "description": "Should not delegate discovery"
+          "type": "subagent_count",
+          "value": "{\"max\": 0}",
+          "description": "Should implement directly without spawning subagents"
         },
         {
           "type": "contains",

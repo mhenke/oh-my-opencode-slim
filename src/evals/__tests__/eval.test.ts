@@ -168,17 +168,38 @@ describe('result formatting', () => {
       const output = '{"name": "test", "value": 123}';
       expect(checkAssertion(assertion, output).passed).toBe(true);
     });
-    test('references_read passes when output indicates reference read', () => {
+    test('references_read requires referenceContent', () => {
       const assertion = { type: 'references_read', value: 'dummy', description: 'test' };
       const output = 'I read the references/full-guide.md file for detailed patterns';
-      expect(checkAssertion(assertion, output).passed).toBe(true);
-      expect(checkAssertion(assertion, output).evidence).toBeUndefined();
-    });
-    test('references_read fails when output does not indicate reference read', () => {
-      const assertion = { type: 'references_read', value: 'dummy', description: 'test' };
-      const output = 'I will handle this directly without reading references';
       expect(checkAssertion(assertion, output).passed).toBe(false);
-      expect(checkAssertion(assertion, output).evidence).toBe('output does not indicate reading a references/ file');
+      expect(checkAssertion(assertion, output).evidence).toBe('references_read requires referenceContent to be set');
+    });
+    test('references_read passes when referenceContent matches', () => {
+      const assertion = { type: 'references_read', value: 'dummy', description: 'test', referenceContent: 'Session Archaeology' };
+      const output = 'I used Session Archaeology to find past patterns';
+      expect(checkAssertion(assertion, output).passed).toBe(true);
+    });
+    test('references_read fails when referenceContent absent', () => {
+      const assertion = { type: 'references_read', value: 'dummy', description: 'test', referenceContent: 'UniquePhrase' };
+      const output = 'I will handle this directly';
+      expect(checkAssertion(assertion, output).passed).toBe(false);
+    });
+    test('agent_routed passes when agent in transcript', () => {
+      const assertion = { type: 'agent_routed', value: 'fixer', description: 'test' };
+      const transcript = { messages: [{ role: 'assistant', content: '', toolCalls: [{ name: 'agent', args: { agent: 'fixer' } }] }], agentInvocations: [{ agent: 'fixer' }] };
+      expect(checkAssertion(assertion, '', transcript).passed).toBe(true);
+    });
+    test('agent_routed fails when agent not in transcript', () => {
+      const assertion = { type: 'agent_routed', value: 'fixer', description: 'test' };
+      const transcript = { messages: [], agentInvocations: [{ agent: 'librarian' }] };
+      expect(checkAssertion(assertion, '', transcript).passed).toBe(false);
+      expect(checkAssertion(assertion, '', transcript).evidence).toContain('librarian');
+    });
+    test('tool_used checks transcript not text', () => {
+      const assertion = { type: 'tool_used', value: 'read', description: 'test' };
+      const transcript = { messages: [{ role: 'assistant', content: '', toolCalls: [{ name: 'read', args: {} }] }] };
+      expect(checkAssertion(assertion, 'I did not use any tools', transcript).passed).toBe(true);
+      expect(checkAssertion(assertion, 'I used read tool', undefined).passed).toBe(false);
     });
   });
 });

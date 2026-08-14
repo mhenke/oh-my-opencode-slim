@@ -1,114 +1,93 @@
-# Evaluations
+# Eval Development
 
-Test orchestrator routing and quality without running the full model.
+This document is for developers working on the eval code itself: adding
+suites, modifying the runner, writing assertions. For user-facing commands
+and options, see [docs/evals.md](../../docs/evals.md).
 
-## How It Works
+## Architecture
 
-Two-step process: collect outputs, then score them.
+The eval system has three parts:
 
-## Step 1: Collect Outputs
+- **`schema.ts`**: Zod schemas for suites, eval cases, assertions, and
+  transcripts. Every `eval.json` is validated against these at load time.
+- **`runner.ts`**: Loads suites, runs assertions against agent output and
+  transcripts, computes pass@k / pass^k and partial credit, writes results
+  to `results/`.
+- **CLI scripts in `src/cli/`**: `auto-collect.ts` (run prompts through a
+  live OpenCode server), `collect.ts` (manual collection), `eval.ts`
+  (scoring), `eval-review.ts` (council grading of failures), `precheck.ts`
+  (suite validation).
 
-### Automated (recommended)
+Data flow: `auto-collect` produces an outputs JSON, `eval` scores it against
+the suite's assertions, results land in `src/evals/results/` with
+timestamps.
 
-```bash
-bun run auto-collect --suite orchestrator-routing --out /tmp/outputs.json
+## File Structure
+
+```
+src/evals/
+├── runner.ts              # Suite loading, assertion checks, scoring
+├── schema.ts              # Zod schemas for suites, cases, assertions
+├── README.md              # This file
+├── results/               # Timestamped results and transcripts
+├── __tests__/             # Runner tests (eval.test.ts)
+└── <suite-name>/          # One directory per suite
+    └── eval.json          # The suite definition
+src/cli/
+├── auto-collect.ts        # Automated prompt collection
+├── collect.ts             # Manual prompt collection
+├── eval.ts                # Scoring
+├── eval-review.ts         # Council review of failures
+└── precheck.ts            # Suite validation
 ```
 
-Connects to a running OpenCode instance, runs each prompt through the agent, and captures outputs automatically.
+## Adding a New Eval Suite
 
-Options:
-- `--suite <name>` — eval suite to run (required)
-- `--out <path>` — output file (default: `/tmp/<suite>-outputs.json`)
-- `--runs <N>` — collect N responses per eval for pass@k (default: 1)
-- `--directory <path>` — OpenCode project directory (default: cwd)
-- `--timeout <ms>` — per-prompt timeout in ms (default: 300000 = 5 min)
-- `--concurrency <N>` — parallel prompts (default: 3)
+1. Create a directory `src/evals/<suite-name>/`.
+2. Add an `eval.json` following `EvalSuiteSchema`:
 
-### Manual (interactive)
-
-```bash
-bun run collect --suite orchestrator-routing --out /tmp/outputs.json
+```json
+{
+  "name": "my-suite",
+  "description": "What this suite tests",
+  "category": "capability",
+  "evals": [
+    {
+      "id": "my-eval-1",
+      "prompt": "The prompt to run through the agent",
+      "agent": "orchestrator",
+      "assertions": [
+        {
+          "type": "contains",
+          "value": "expected text",
+          "description": "What this assertion checks"
+        }
+      ]
+    }
+  ]
+}
 ```
 
-Shows each eval prompt. For each one:
-1. Copy the prompt into a fresh OpenCode session
-2. Get the response
-3. Paste it back
-4. End with `.` on its own line
+3. Run `bun run precheck` to validate the schema.
+4. Collect and score using the commands in [docs/evals.md](../../docs/evals.md).
 
-## Step 2: Score Them
+No registration needed. The runner scans directories under `src/evals/` for
+`eval.json` and loads whatever it finds.
 
-```bun run eval --suite orchestrator-routing --outputs-file /tmp/outputs.json
-```
+## Adding an Assertion Type
 
-## Step 3: Review Failures (optional)
-
-Send failed evals to the council for model-based grading:
-
-```bash
-bun run eval-review --suite orchestrator-routing
-```
-
-The council reviews each failed eval, diagnoses why it failed, grades the agent's output (1-5), and recommends whether to fix the agent, fix the eval, or accept the failure.
-
-Options:
-- `--suite <name>` — suite to review
-- `--latest` — use the most recent result
-- `--results-path <path>` — specific results JSON file
-- `--directory <path>` — OpenCode project directory
-
-## Available Suites
-
-- `orchestrator-routing` — Does the orchestrator route to the right agent?
-- `fixer-execution` — Does the fixer produce correct output?
-
-## Precheck
-
-Validate eval suites before running:
-
-```bash
-bun run precheck
-```
+1. Add the type to the enum in `AssertionSchema` in `schema.ts`.
+2. Add a `case` for it in `checkAssertion` in `runner.ts`. The case gets the
+   assertion, the agent output text, and the transcript. Transcript-based
+   checks (like `tool_used` and `agent_routed`) read from the transcript.
+3. Add a test in `src/evals/__tests__/eval.test.ts`.
+4. Update the assertion table in [docs/evals.md](../../docs/evals.md).
 
 ## Notes
 
-- You can't run eval without first running collect (or manually creating the JSON file)
-- Results are saved to `src/evals/results/`
-
-## Advanced Metrics
-
-### pass@k and pass^k
-
-This eval suite now tracks two additional metrics per the [Anthropic evals roadmap](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents):
-
-- **pass@k**: The likelihood that at least one run succeeds across k attempts. A score of 50% pass@1 means the model succeeds on half the tasks on its first try.
-- **pass^k**: The probability that all k trials succeed. This is essential for agents where consistency matters (e.g., customer-facing agents where users expect reliable behavior every time).
-
-At k=1, pass@1 and pass^k are identical. By k=10, they diverge: pass@k approaches 100% while pass^k falls to very low values.
-
-### Transcript Review
-
-Regularly reading eval transcripts is critical for evaluating whether your graders are working well. When a task fails, the transcript tells you whether the agent made a genuine mistake or whether your graders rejected a valid solution. It also surfaces key details about agent and eval behavior.
-
-Failures should seem fair: it should be clear what the agent got wrong and why. When scores don't climb, read transcripts to verify the eval is measuring what actually matters.
-
-### Saturation Monitoring
-
-An eval at 100% tracks regressions but provides no signal for improvement. **Eval saturation** occurs when an agent passes all of the solvable tasks, leaving no room for progress. As teams hill-climb on capability evals, it's important to also run regression evals to make sure changes don't cause issues elsewhere.
-
-When an eval suite approaches saturation (near 100% pass rate), consider:
-- Graduating capability evals to become a continuous regression suite
-- Adding more difficult tasks to the suite
-- Tracking per-task pass rates to identify which behaviors still need improvement
-
-### Example: Interpreting pass@k vs pass^k
-
-| k | pass@k | pass^k (if per-trial success = 75%) |
-|---|--------|-------------------------------------|
-| 1 | 75% | 75% |
-| 3 | 93% | 42% |
-| 10 | ~100% | 5.6% |
-
-This table illustrates why both metrics matter: pass@k shows "one success is enough," while pass^k shows "consistent success across all attempts."
-
-## Available Commands
+- Suites are validated against the schema at load time. Malformed suites are
+  skipped silently, so run `precheck` after editing an `eval.json`.
+- Assertions support `weight` for partial credit scoring. The `partialScore`
+  is a weighted average of assertion scores.
+- The suite `category` distinguishes capability evals (start at low pass
+  rate) from regression evals (target ~100%).

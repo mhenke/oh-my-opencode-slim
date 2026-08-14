@@ -1,0 +1,1733 @@
+{
+  "suiteName": "agent-failure-regression",
+  "totalEvals": 38,
+  "passed": 16,
+  "failed": 22,
+  "skipped": 0,
+  "passAtK": 0.42105263157894735,
+  "passK": 0.42105263157894735,
+  "avgPartialScore": 0.42105263157894735,
+  "results": [
+    {
+      "evalId": "agent-returns-content",
+      "prompt": "Find all test files in src/hooks/ that test the foreground-fallback hook. List them.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "contains",
+            "value": ".test.ts",
+            "description": "Output should contain test file names (non-empty response)",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not contain \".test.ts\"",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "orchestrator-delegates-to-fixer",
+      "prompt": "Add a helper function to src/utils/logger.ts that formats log messages with timestamps. Use @fixer for implementation.",
+      "passed": true,
+      "runs": 1,
+      "passRate": 1,
+      "passAtK": 1,
+      "passKk": 1,
+      "partialScore": 1,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "import {",
+            "description": "Orchestrator should not write code directly — should delegate",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "Let me check the current state of the file first.",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "Let me check the current state of the file first.",
+            "toolCalls": [
+              {
+                "name": "read"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "orchestrator-delegates-to-librarian",
+      "prompt": "What version of the Anthropic SDK does this project use, and are there any breaking changes in the latest release? Use @librarian to research.",
+      "passed": true,
+      "runs": 1,
+      "passRate": 1,
+      "passAtK": 1,
+      "passKk": 1,
+      "partialScore": 1,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "I don't know",
+            "description": "Orchestrator should not admit ignorance when @librarian is available",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "name": "grep"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "orchestrator-delegates-to-explorer",
+      "prompt": "Find all uses of the emitEvent function across the codebase and show me the file paths. Use @explorer for this.",
+      "passed": true,
+      "runs": 1,
+      "passRate": 1,
+      "passAtK": 1,
+      "passKk": 1,
+      "partialScore": 1,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "grep -r",
+            "description": "Orchestrator should not run grep directly — should use @explorer",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "name": "task"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "delegation-actually-starts",
+      "prompt": "Read src/utils/logger.ts and tell me what functions it exports. Then use @explorer to find all callers of those functions.",
+      "passed": true,
+      "runs": 1,
+      "passRate": 1,
+      "passAtK": 1,
+      "passKk": 1,
+      "partialScore": 1,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "contains",
+            "value": "logger",
+            "description": "Should mention the logger module",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "I'll read the logger file first, then delegate caller-finding to @explorer.",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "I'll read the logger file first, then delegate caller-finding to @explorer.",
+            "toolCalls": [
+              {
+                "name": "read"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "subagent-uses-correct-model",
+      "prompt": "Use the simplify skill, then delegate an explorer to list all TypeScript files in src/hooks/. The explorer should use its own configured model.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "structure",
+            "value": "simplify",
+            "description": "Should reference the simplify skill",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "structural pattern \"simplify\" not found",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "no-infinite-wait-for-user",
+      "prompt": "Start a background task that counts from 1 to 10 with 1 second delays, then call wait_for_user to pause until it completes.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "structure",
+            "value": "task(",
+            "description": "Should spawn background task",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "structural pattern \"task(\" not found",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "fallback-on-model-error",
+      "prompt": "I'm getting a 503 auth_unavailable error from CliProxyAPI when trying to use a model. What should I do?",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "regex",
+            "value": "fallback|try another|different model|retry",
+            "description": "Should suggest fallback or retry strategy",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not match /fallback|try another|different model|retry/",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "name": "grep"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "no-stderr-leak",
+      "prompt": "Fetch the content of https://example.com using the webfetch tool.",
+      "passed": true,
+      "runs": 1,
+      "passRate": 1,
+      "passAtK": 1,
+      "passKk": 1,
+      "partialScore": 1,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "csstree-match",
+            "description": "Should not contain css-tree warning leak",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "multimodal-orchestrator-keeps-images",
+      "prompt": "I'm sending you a screenshot. Can you describe what you see in it?",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "@observer",
+            "description": "Should not force delegation to observer if orchestrator is multimodal",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output contained \"@observer\"",
+          "score": 0
+        }
+      ],
+      "output": "I don't see a screenshot attached to your message. Could you either:\n\n1. Upload the screenshot file directly, or\n2. Provide the file path to the screenshot?\n\nOnce I have it, I'll delegate the visual analysis to @observer to describe what's in it.",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "I don't see a screenshot attached to your message. Could you either:\n\n1. Upload the screenshot file directly, or\n2. Provide the file path to the screenshot?\n\nOnce I have it, I'll delegate the visual analysis to @observer to describe what's in it.",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "no-reconciliation-loop",
+      "prompt": "I have a background task that completed. What should I do next?",
+      "passed": true,
+      "runs": 1,
+      "passRate": 1,
+      "passAtK": 1,
+      "passKk": 1,
+      "partialScore": 1,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "unreconciled",
+            "description": "Should not repeatedly mention unreconciled status",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "name": "bash"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "completed-tasks-trigger-resume",
+      "prompt": "Start a background task that runs 'echo done', then wait for it to complete.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "structure",
+            "value": "task(",
+            "description": "Should spawn background task",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "structural pattern \"task(\" not found",
+          "score": 0
+        }
+      ],
+      "output": "done",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "done",
+            "toolCalls": [
+              {
+                "name": "bash"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 3,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "completion-signal-reaches-orchestrator",
+      "prompt": "Start a background task that writes to a file, then check if it completed.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "contains",
+            "value": "task",
+            "description": "Should reference the task",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not contain \"task\"",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "name": "bash"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "cancelled-is-actually-cancelled",
+      "prompt": "Start a background task that fails immediately, then check its status.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "structure",
+            "value": "task(",
+            "description": "Should spawn background task",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "structural pattern \"task(\" not found",
+          "score": 0
+        }
+      ],
+      "output": "Task `ses_ffe6b737cffec6pSCKcNP9UXdb` is running. Let me check its status — it should have failed immediately.",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "Task `ses_ffe6b737cffec6pSCKcNP9UXdb` is running. Let me check its status — it should have failed immediately.",
+            "toolCalls": [
+              {
+                "name": "task"
+              },
+              {
+                "name": "bash"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 2,
+        "turnCount": 3,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "no-ghost-running-entries",
+      "prompt": "List all running background tasks from the job board.",
+      "passed": true,
+      "runs": 1,
+      "passRate": 1,
+      "passAtK": 1,
+      "passKk": 1,
+      "partialScore": 1,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "ghost",
+            "description": "Should not mention ghost entries",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "board-does-not-dominate-reasoning",
+      "prompt": "Explain what the Background Job Board is and how it works.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "regex",
+            "value": "board|job|task|background",
+            "description": "Should mention background job concepts",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not match /board|job|task|background/",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "late-completion-not-dropped",
+      "prompt": "Start a background task that takes 5 seconds, then check if it completed.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "structure",
+            "value": "task(",
+            "description": "Should spawn background task",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "structural pattern \"task(\" not found",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "name": "task"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 3,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "oracle-completes-within-timeout",
+      "prompt": "Should we add a caching layer to the background job board to reduce database queries? What are the tradeoffs?",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "contains",
+            "value": "tradeoff",
+            "description": "Should provide tradeoff analysis",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not contain \"tradeoff\"",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "name": "bash"
+              },
+              {
+                "name": "grep"
+              },
+              {
+                "name": "glob"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 3,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "orchestrator-uses-oracle-for-plans",
+      "prompt": "I want to refactor the task-session-manager into smaller modules. Review my plan before I start.",
+      "passed": true,
+      "runs": 1,
+      "passRate": 1,
+      "passAtK": 1,
+      "passKk": 1,
+      "partialScore": 1,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "sounds good",
+            "description": "Should not approve plan without oracle review",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "The task-session-manager already appears to be split into multiple modules. Let me examine the current structure and the main index file.",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "The task-session-manager already appears to be split into multiple modules. Let me examine the current structure and the main index file.",
+            "toolCalls": [
+              {
+                "name": "glob"
+              },
+              {
+                "name": "glob"
+              },
+              {
+                "name": "grep"
+              },
+              {
+                "name": "grep"
+              },
+              {
+                "name": "glob"
+              },
+              {
+                "name": "read"
+              },
+              {
+                "name": "read"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 7,
+        "turnCount": 4,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "oracle-provides-structured-recommendations",
+      "prompt": "Analyze the background job board architecture. What should we change and what should we keep?",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "regex",
+            "value": "recommend|suggest|should|keep|change",
+            "description": "Should provide actionable recommendations",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not match /recommend|suggest|should|keep|change/",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "name": "grep"
+              },
+              {
+                "name": "glob"
+              },
+              {
+                "name": "glob"
+              },
+              {
+                "name": "read"
+              },
+              {
+                "name": "read"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 5,
+        "turnCount": 4,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "librarian-focuses-on-research",
+      "prompt": "How should we implement a caching layer for the background job board? Use @librarian to research existing patterns.",
+      "passed": true,
+      "runs": 1,
+      "passRate": 1,
+      "passAtK": 1,
+      "passKk": 1,
+      "partialScore": 1,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "I recommend",
+            "description": "Librarian should not give design recommendations — should research existing patterns",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "librarian-context-not-infinite",
+      "prompt": "Research three unrelated topics: 1) How does the OpenCode SDK handle sessions? 2) What CSS framework is best for dashboards? 3) How do you configure Nginx reverse proxy?",
+      "passed": true,
+      "runs": 1,
+      "passRate": 1,
+      "passAtK": 1,
+      "passKk": 1,
+      "partialScore": 1,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "contains",
+            "value": "session",
+            "description": "Should address at least the first research topic",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "One more query on streaming support (core to how OpenCode sessions work):",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "One more query on streaming support (core to how OpenCode sessions work):",
+            "toolCalls": [
+              {
+                "name": "context7_resolve-library-id"
+              },
+              {
+                "name": "context7_resolve-library-id"
+              },
+              {
+                "name": "websearch"
+              },
+              {
+                "name": "context7_query-docs"
+              },
+              {
+                "name": "context7_query-docs"
+              },
+              {
+                "name": "context7_query-docs"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 6,
+        "turnCount": 5,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "librarian-cites-sources",
+      "prompt": "What is the latest version of the Anthropic TypeScript SDK and what are the breaking changes since v1.0? Use @librarian to find out.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "regex",
+            "value": "version|v[0-9]|changelog|breaking",
+            "description": "Should reference specific version or changelog information",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not match /version|v[0-9]|changelog|breaking/",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "name": "task"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "explorer-focuses-on-codebase-search",
+      "prompt": "How should we restructure the hooks directory? Use @explorer to find all hooks first.",
+      "passed": true,
+      "runs": 1,
+      "passRate": 1,
+      "passAtK": 1,
+      "passKk": 1,
+      "partialScore": 1,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "I recommend",
+            "description": "Explorer should not give recommendations — should search codebase",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "Checking hooks directory structure via @explorer...",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "Checking hooks directory structure via @explorer...",
+            "toolCalls": [
+              {
+                "name": "task"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "explorer-handles-rate-limits",
+      "prompt": "Find all TypeScript files in src/hooks/ that contain the word 'fallback'. Use @explorer.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "contains",
+            "value": ".ts",
+            "description": "Should return file paths (non-empty result)",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not contain \".ts\"",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "name": "task"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "explorer-does-not-process-images",
+      "prompt": "Analyze this screenshot and tell me what's in it. Use @explorer.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "regex",
+            "value": "image|screenshot|vision|observer",
+            "description": "Should acknowledge image handling limitations or suggest observer",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not match /image|screenshot|vision|observer/",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "explorer-returns-focused-results",
+      "prompt": "Find all error handling patterns in src/hooks/. List only the file paths and the pattern used.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "contains",
+            "value": ".ts",
+            "description": "Should return TypeScript file paths",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not contain \".ts\"",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "name": "grep"
+              },
+              {
+                "name": "glob"
+              },
+              {
+                "name": "grep"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 3,
+        "turnCount": 3,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "ui-tasks-route-to-designer",
+      "prompt": "Redesign the settings page with a dark mode toggle, responsive layout, and smooth transitions.",
+      "passed": true,
+      "runs": 1,
+      "passRate": 1,
+      "passAtK": 1,
+      "passKk": 1,
+      "partialScore": 1,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "import {",
+            "description": "Orchestrator should not write UI code directly",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "I'll start by exploring the codebase to find the settings page and understand the current structure, then delegate the UI work to @designer.",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "I'll start by exploring the codebase to find the settings page and understand the current structure, then delegate the UI work to @designer.",
+            "toolCalls": [
+              {
+                "name": "task"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "orchestrator-delegates-ui-to-designer",
+      "prompt": "Add a loading spinner to the settings page while data is being fetched.",
+      "passed": true,
+      "runs": 1,
+      "passRate": 1,
+      "passAtK": 1,
+      "passKk": 1,
+      "partialScore": 1,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "css",
+            "description": "Orchestrator should not write CSS directly — should delegate",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "I'll explore the codebase to find the settings page and understand the data fetching patterns.",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "I'll explore the codebase to find the settings page and understand the data fetching patterns.",
+            "toolCalls": [
+              {
+                "name": "glob"
+              },
+              {
+                "name": "glob"
+              },
+              {
+                "name": "glob"
+              },
+              {
+                "name": "glob"
+              },
+              {
+                "name": "read"
+              },
+              {
+                "name": "glob"
+              },
+              {
+                "name": "glob"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 7,
+        "turnCount": 3,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "fixer-results-validated",
+      "prompt": "Add a formatCurrency function to src/utils/formatters.ts. Use @fixer, then verify the code compiles.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "contains",
+            "value": "fixer",
+            "description": "Should mention fixer agent",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not contain \"fixer\"",
+          "score": 0
+        }
+      ],
+      "output": "Let me check the existing file first.",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "Let me check the existing file first.",
+            "toolCalls": [
+              {
+                "name": "read"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "fixer-handles-fallback",
+      "prompt": "Add a deepClone utility function to src/utils/helpers.ts. Use @fixer.",
+      "passed": true,
+      "runs": 1,
+      "passRate": 1,
+      "passAtK": 1,
+      "passKk": 1,
+      "partialScore": 1,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "retry",
+            "description": "Orchestrator should not mention retrying fixer indefinitely",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": [
+              {
+                "name": "read"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "fixer-reports-errors-clearly",
+      "prompt": "Add a parseEnv function to src/utils/env.ts that reads environment variables with defaults. Use @fixer.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "structure",
+            "value": "task",
+            "description": "Should use task tool to delegate to fixer",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "structural pattern \"task\" not found",
+          "score": 0
+        }
+      ],
+      "output": "Checking the existing file structure first.",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "Checking the existing file structure first.",
+            "toolCalls": [
+              {
+                "name": "glob"
+              },
+              {
+                "name": "glob"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 2,
+        "turnCount": 3,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "observer-gets-images",
+      "prompt": "I'm sending you a screenshot of a bug. Can you analyze it?",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "regex",
+            "value": "image|screenshot|observer|visual",
+            "description": "Should acknowledge image or delegate to observer",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not match /image|screenshot|observer|visual/",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "multimodal-orchestrator-not-stripped",
+      "prompt": "Look at this screenshot and tell me what's wrong with the UI.",
+      "passed": true,
+      "runs": 1,
+      "passRate": 1,
+      "passAtK": 1,
+      "passKk": 1,
+      "partialScore": 1,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "saved to disk",
+            "description": "Should not save image to disk if orchestrator is multimodal",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "No screenshot was attached to your message. Could you provide the screenshot file path or upload the image?",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "No screenshot was attached to your message. Could you provide the screenshot file path or upload the image?",
+            "toolCalls": [
+              {
+                "name": "glob"
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 3,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "council-provides-summary",
+      "prompt": "What are the pros and cons of using SQLite vs in-memory storage for the background job board? Use @council for consensus.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "regex",
+            "value": "council|consensus|summary|agree|disagree",
+            "description": "Should mention council or consensus",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not match /council|consensus|summary|agree|disagree/",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "council-keeps-agent-identity",
+      "prompt": "Switch to the council agent and ask it to evaluate the current codebase architecture.",
+      "passed": true,
+      "runs": 1,
+      "passRate": 1,
+      "passAtK": 1,
+      "passKk": 1,
+      "partialScore": 1,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "orchestrator",
+            "description": "Council response should not be attributed to orchestrator",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "council-respects-preset",
+      "prompt": "Run the council with the default preset to review my refactoring plan.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "contains",
+            "value": "council",
+            "description": "Should reference council agent",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not contain \"council\"",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "council-handles-timeout",
+      "prompt": "Use @council to evaluate whether we should add a caching layer to the task-session-manager.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "structure",
+            "value": "task",
+            "description": "Should use task tool to invoke council",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "structural pattern \"task\" not found",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    }
+  ],
+  "durationMs": 1,
+  "timestamp": "2026-08-14T18:52:29.876Z"
+}

@@ -7,16 +7,17 @@ import { z } from 'zod';
  * - `contains`: output must contain a string (case-insensitive)
  * - `not_contains`: output must NOT contain a string
  * - `regex`: output must match a regex pattern
- * - `tool_used`: agent must have called a specific tool
+ * - `tool_used`: agent must have called a specific tool (checks transcript.toolCalls)
  * - `tool_not_used`: agent must NOT have called a specific tool
  * - `files_modified`: agent must have modified specific files
  * - `structure`: output must match a structural pattern (e.g., has <summary> tag)
  * - `references_read`: output indicates the agent read a references/ file.
- *   Provide `referenceContent` (content unique to the reference file, not the
- *   SKILL.md pointer) to require actual reference-file content in the output.
+ *   Requires `referenceContent` (content unique to the reference file).
+ * - `agent_routed`: a specific agent must have been invoked (checks transcript.agentInvocations)
+ * - `subagent_count`: number of unique agents invoked must be within a range
+ * - `background_task_completed`: a background task must have completed and reconciled
  * - `state_check`: verify environment state after the eval (outcome verification)
  * - `transcript_analysis`: check transcript metrics (turns, tokens, tool calls)
- * - `static_analysis`: run lint/type/security checks on generated code
  */
 export const AssertionSchema = z.object({
   type: z.enum([
@@ -28,12 +29,15 @@ export const AssertionSchema = z.object({
     'files_modified',
     'structure',
     'references_read',
+    'agent_routed',
+    'subagent_count',
+    'background_task_completed',
     'state_check',
     'transcript_analysis',
-    'static_analysis',
   ]),
   value: z.string(),
   description: z.string(),
+  /** Required for references_read: unique content from the reference file */
   referenceContent: z.union([z.string(), z.array(z.string())]).optional(),
   /** Weight for partial credit scoring (default: 1) */
   weight: z.number().default(1).optional(),
@@ -105,6 +109,18 @@ export interface Transcript {
   toolCallCount?: number;
   /** Number of turns (user-assistant exchanges) */
   turnCount?: number;
+  /** Agents that handled this session, observed via subagent.session.created */
+  agentInvocations?: Array<{
+    agent: string;
+    sessionId?: string;
+    timestamp?: number;
+  }>;
+  /** Models used, observed via fallback events */
+  modelSwitches?: Array<{
+    from: string;
+    to: string;
+    reason?: string;
+  }>;
 }
 
 /**

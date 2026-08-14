@@ -57,23 +57,16 @@ export function loadEvalSuite(name: string): EvalSuite | null {
 // ── Assertions ───────────────────────────────────────────────────────
 
 /**
- * Check a single assertion against agent output text.
- * tool_used / tool_not_used / files_modified are checked against the
- * raw output text for now — a future harness can provide structured
- * tool-call metadata instead.
+ * Check a single assertion against agent output and/or transcript.
  *
- * For transcript_analysis, the output parameter should be a JSON string
- * containing transcript metrics: { turnCount, toolCallCount, tokens: { input, output } }
- *
- * For state_check, the output parameter should be a JSON string
- * containing the environment state after the eval.
- *
- * For static_analysis, the output parameter should be the tool output
- * from running the analysis commands.
+ * @param assertion - the assertion to check
+ * @param output - agent output text (for contains/not_contains/regex/structure)
+ * @param transcript - optional transcript for tool_used/agent_routed checks
  */
 export function checkAssertion(
   assertion: Assertion,
   output: string,
+  transcript?: Transcript,
 ): { passed: boolean; evidence?: string } {
   switch (assertion.type) {
     case 'contains':
@@ -108,24 +101,37 @@ export function checkAssertion(
         };
       }
 
-    // ponytail: tool / filesystem checks scan output text for now;
-    // structured metadata hooks exist in observability.ts and can
-    // feed richer evidence later without changing this interface.
-    case 'tool_used':
+    // tool_used: check transcript.toolCalls for the tool name
+    case 'tool_used': {
+      const toolCalls = transcript?.messages
+        ?.flatMap((m) => m.toolCalls ?? [])
+        ?? [];
+      const used = toolCalls.some(
+        (t) => t.name?.toLowerCase() === assertion.value.toLowerCase(),
+      );
       return {
-        passed: output.toLowerCase().includes(assertion.value.toLowerCase()),
-        evidence: output.toLowerCase().includes(assertion.value.toLowerCase())
+        passed: used,
+        evidence: used
           ? undefined
-          : `tool "${assertion.value}" not found in output`,
+          : `tool "${assertion.value}" not found in transcript (${toolCalls.length} tool calls recorded)`,
       };
+    }
 
-    case 'tool_not_used':
+    // tool_not_used: assert tool was NOT called
+    case 'tool_not_used': {
+      const toolCalls = transcript?.messages
+        ?.flatMap((m) => m.toolCalls ?? [])
+        ?? [];
+      const used = toolCalls.some(
+        (t) => t.name?.toLowerCase() === assertion.value.toLowerCase(),
+      );
       return {
-        passed: !output.toLowerCase().includes(assertion.value.toLowerCase()),
-        evidence: !output.toLowerCase().includes(assertion.value.toLowerCase())
+        passed: !used,
+        evidence: !used
           ? undefined
-          : `tool "${assertion.value}" was used`,
+          : `tool "${assertion.value}" was used (${toolCalls.length} tool calls recorded)`,
       };
+    }
 
     case 'files_modified':
       return {
@@ -137,8 +143,6 @@ export function checkAssertion(
 
     // structure: output must match a structural pattern (e.g., has <summary> tag)
     case 'structure': {
-      // structural pattern: output contains value as a substring
-      // (typically an XML tag or markdown heading)
       const passed = output.includes(assertion.value);
       return {
         passed,
@@ -148,48 +152,91 @@ export function checkAssertion(
       };
     }
 
-    // references_read: output indicates the agent read a references/ file
+    // references_read: requires referenceContent for meaningful verification
     case 'references_read': {
-      const lowerOutput = output.toLowerCase();
       const uniqueContent = assertion.referenceContent
         ? [assertion.referenceContent].flat().map((s) => s.toLowerCase())
         : [];
 
-      // If unique reference content is provided, require at least one match
-      if (uniqueContent.length > 0) {
-        const hasReferenceRead = uniqueContent.some((content) =>
-          lowerOutput.includes(content),
-        );
+      if (uniqueContent.length === 0) {
         return {
-          passed: hasReferenceRead,
-          evidence: hasReferenceRead
-            ? undefined
-            : `output does not contain reference-specific content`,
+          passed: false,
+          evidence: 'references_read requires referenceContent to be set',
         };
       }
 
-      // Fallback: weak check (phrases that may appear in pointer text)
-      console.warn(
-        '[oh-my-opencode-slim] references_read assertion without referenceContent is weak; add referenceContent unique to the reference file',
+      const lowerOutput = output.toLowerCase();
+      const hasReferenceRead = uniqueContent.some((content) =>
+        lowerOutput.includes(content),
       );
-      const hasReferenceRead = lowerOutput.includes('references/') ||
-        lowerOutput.includes('read the full guide') ||
-        lowerOutput.includes('see references/') ||
-        lowerOutput.includes('full guide') ||
-        lowerOutput.includes('detailed patterns') ||
-        lowerOutput.includes('worked examples') ||
-        lowerOutput.includes('anti-patterns');
       return {
         passed: hasReferenceRead,
         evidence: hasReferenceRead
           ? undefined
-          : `output does not indicate reading a references/ file`,
+          : `output does not contain reference-specific content`,
+      };
+    }
+
+    // agent_routed: check transcript.agentInvocations for the agent name
+    case 'agent_routed': {
+      const invocations = transcript?.agentInvocations ?? [];
+      const found = invocations.some(
+        (i) => i.agent?.toLowerCase() === assertion.value.toLowerCase(),
+      );
+      return {
+        passed: found,
+        evidence: found
+          ? undefined
+          : `agent "${assertion.value}" not observed (agents: ${invocations.map((i) => i.agent).join(', ') || 'none'})`,
+      };
+    }
+
+    // subagent_count: check number of unique agents invoked
+    // value: JSON { "min": 1, "max": 3 } or just a number for exact count
+    case 'subagent_count': {
+      const invocations = transcript?.agentInvocations ?? [];
+      const uniqueAgents = new Set(invocations.map((i) => i.agent));
+      const count = uniqueAgents.size;
+      try {
+        const expected = JSON.parse(assertion.value) as { min?: number; max?: number } | number;
+        if (typeof expected === 'number') {
+          return {
+            passed: count === expected,
+            evidence: count === expected
+              ? undefined
+              : `expected ${expected} unique agents, got ${count} (${[...uniqueAgents].join(', ') || 'none'})`,
+          };
+        }
+        const min = expected.min ?? 0;
+        const max = expected.max ?? Infinity;
+        const passed = count >= min && count <= max;
+        return {
+          passed,
+          evidence: passed
+            ? undefined
+            : `expected ${min}-${max} unique agents, got ${count} (${[...uniqueAgents].join(', ') || 'none'})`,
+        };
+      } catch {
+        return { passed: false, evidence: `subagent_count: invalid value format` };
+      }
+    }
+
+    // background_task_completed: check if background tasks completed and reconciled
+    // value: JSON { "min": 1 } or "true" for any completion
+    case 'background_task_completed': {
+      const invocations = transcript?.agentInvocations ?? [];
+      // Check if any agent was invoked via background task (sessionId present suggests background)
+      const backgroundTasks = invocations.filter((i) => i.sessionId);
+      const completed = backgroundTasks.length > 0;
+      return {
+        passed: completed,
+        evidence: completed
+          ? undefined
+          : `no background tasks observed (${invocations.length} invocations, 0 with sessionId)`,
       };
     }
 
     // state_check: verify environment state after the eval
-    // value is a JSON object describing expected state: { "key": "expected_value" }
-    // output should be a JSON string of actual state
     case 'state_check': {
       try {
         const expected = JSON.parse(assertion.value) as Record<string, unknown>;
@@ -216,8 +263,6 @@ export function checkAssertion(
     }
 
     // transcript_analysis: check transcript metrics
-    // value is a JSON object describing expected metrics: { "maxTurns": 10, "maxToolCalls": 5 }
-    // output should be a JSON string of actual metrics
     case 'transcript_analysis': {
       try {
         const expected = JSON.parse(assertion.value) as Record<string, unknown>;
@@ -255,22 +300,6 @@ export function checkAssertion(
           evidence: `transcript_analysis failed to parse: ${e instanceof Error ? e.message : String(e)}`,
         };
       }
-    }
-
-    // static_analysis: run lint/type/security checks
-    // value is the tool output from running the analysis commands
-    // Pass if no errors/warnings in output
-    case 'static_analysis': {
-      const hasErrors = output.includes('error') || output.includes('Error');
-      const hasWarnings = output.includes('warning') || output.includes('Warning');
-      return {
-        passed: !hasErrors,
-        evidence: hasErrors
-          ? `static analysis found errors: ${output.slice(0, 200)}`
-          : hasWarnings
-            ? `static analysis warnings (non-blocking): ${output.slice(0, 200)}`
-            : undefined,
-      };
     }
 
     default:
@@ -312,7 +341,7 @@ export function executeEvalCase(
   }
 
   const assertionResults = evalCase.assertions.map((assertion) => {
-    const runResults = outputs.map((out) => checkAssertion(assertion, out));
+    const runResults = outputs.map((out) => checkAssertion(assertion, out, transcripts?.[0]));
     const passCount = runResults.filter((r) => r.passed).length;
     const passRate = passCount / outputs.length;
     return {

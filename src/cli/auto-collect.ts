@@ -14,7 +14,11 @@
 
 import { parseArgs } from 'node:util';
 import { createOpencodeClient } from '@opencode-ai/sdk';
-import { loadEvalSuite, loadEvalSuites, type Transcript } from '../evals/runner';
+import {
+  loadEvalSuite,
+  loadEvalSuites,
+  type Transcript,
+} from '../evals/runner';
 
 const { values } = parseArgs({
   args: Bun.argv.slice(2),
@@ -26,6 +30,7 @@ const { values } = parseArgs({
     timeout: { type: 'string' },
     concurrency: { type: 'string' },
     url: { type: 'string' },
+    delay: { type: 'string' },
   },
   strict: true,
   allowPositionals: false,
@@ -61,13 +66,17 @@ const concurrency = values.concurrency ? parseInt(values.concurrency, 10) : 3;
 const outPath = values.out ?? `/tmp/${values.suite}-outputs.json`;
 const directory = values.directory ?? process.cwd();
 const baseUrl = values.url ?? 'http://localhost:4096';
+const delayMs = values.delay ? parseInt(values.delay, 10) : 30_000;
 
 // ── Connect to OpenCode ──────────────────────────────────────────────
 
-console.log(`\nSuite: ${suite.name} (${suite.evals.length} cases × ${runs} runs)`);
+console.log(
+  `\nSuite: ${suite.name} (${suite.evals.length} cases × ${runs} runs)`,
+);
 console.log(`Output: ${outPath}`);
 console.log(`Timeout: ${timeoutMs / 1000}s per prompt`);
 console.log(`Concurrency: ${concurrency}`);
+console.log(`Delay between batches: ${delayMs}ms`);
 console.log(`Directory: ${directory}`);
 console.log(`OpenCode URL: ${baseUrl}`);
 console.log('');
@@ -93,14 +102,109 @@ try {
 
 // ── Run evals ────────────────────────────────────────────────────────
 
-type OutputEntry = { prompts: string[]; responses: string[] };
+/**
+ * Read the completed session transcript and extract the response text,
+ * tool calls, and agent invocations. Called after the blocking prompt
+ * resolves, so the full transcript (including the final text answer)
+ * is already present.
+ */
+async function collectTranscript(
+  sessionId: string,
+): Promise<{ response: string; transcript: Transcript }> {
+  // Now read messages
+  const finalResult = await client.session
+    .messages({
+      path: { id: sessionId },
+      query: { directory },
+    })
+    .catch(() => null);
+
+  const rawMessages = (finalResult?.data ?? []) as Array<{
+    info: { role: string };
+    parts: unknown[];
+  }>;
+
+  // Find last assistant message with text content
+  let responseText = '';
+  for (const msg of [...rawMessages].reverse()) {
+    if (msg.info?.role !== 'assistant') continue;
+    const parts = msg.parts ?? [];
+    const textParts = parts.filter((p: unknown) => {
+      const part = p as { type?: string; text?: string };
+      return part?.type === 'text' && part?.text;
+    }) as Array<{ type: 'text'; text: string }>;
+    if (textParts.length > 0) {
+      responseText = textParts.map((p) => p.text).join('\n');
+      break;
+    }
+  }
+
+  // Extract tool calls and agent invocations from ALL messages
+  const allToolCalls: Array<{ name: string; args: unknown; result?: unknown }> =
+    [];
+  const agentInvocations: Array<{ agent: string; sessionId?: string }> = [];
+
+  for (const msg of rawMessages) {
+    for (const p of msg.parts ?? []) {
+      const part = p as {
+        type?: string;
+        name?: string;
+        tool?: string;
+        args?: unknown;
+        result?: unknown;
+        state?: { input?: Record<string, unknown> };
+        metadata?: Record<string, unknown>;
+      };
+      if (part.type === 'tool') {
+        const toolName = part.name ?? part.tool ?? 'unknown';
+        const callArgs =
+          (part.args as Record<string, unknown> | undefined) ??
+          part.state?.input;
+        allToolCalls.push({
+          name: toolName,
+          args: callArgs,
+          result: part.result,
+        });
+
+        // Detect agent task invocations (delegation)
+        if (toolName === 'task') {
+          const agentName = (
+            callArgs as { subagent_type?: string } | undefined
+          )?.subagent_type;
+          const sessionId = (part.metadata?.sessionId ??
+            part.metadata?.sessionID) as string | undefined;
+          if (agentName) {
+            agentInvocations.push({ agent: agentName, sessionId });
+          }
+        }
+      }
+    }
+  }
+
+  const transcript: Transcript = {
+    messages: [
+      { role: 'user', content: '' }, // original prompt not in messages API
+      { role: 'assistant', content: responseText, toolCalls: allToolCalls },
+    ],
+    toolCallCount: allToolCalls.length,
+    turnCount: rawMessages.length,
+    agentInvocations,
+  };
+
+  return { response: responseText, transcript };
+}
 
 async function runOneEval(
   evalId: string,
   prompt: string,
   agent: string,
   runIndex: number,
-): Promise<{ success: boolean; response: string; transcript?: Transcript; error?: string }> {
+): Promise<{
+  success: boolean;
+  response: string;
+  transcript?: Transcript;
+  error?: string;
+}> {
   const label = `  [${evalId}] run ${runIndex + 1}/${runs}`;
 
   try {
@@ -111,8 +215,12 @@ async function runOneEval(
     });
 
     if (createResult.error) {
-      const err = createResult.error as { data?: { message?: string }; message?: string };
-      const msg = err.data?.message ?? err.message ?? JSON.stringify(createResult.error);
+      const err = createResult.error as {
+        data?: { message?: string };
+        message?: string;
+      };
+      const msg =
+        err.data?.message ?? err.message ?? JSON.stringify(createResult.error);
       console.log(`${label} — session create failed: ${msg}`);
       return { success: false, response: '', error: msg };
     }
@@ -120,59 +228,52 @@ async function runOneEval(
     const sessionId = createResult.data.id;
     console.log(`${label} — session ${sessionId}, prompting...`);
 
-    // Send the prompt with a timeout
-    const promptPromise = client.session.prompt({
-      path: { id: sessionId },
-      body: {
-        parts: [{ type: 'text', text: prompt }],
-        agent,
-      },
-      query: { directory },
-    });
-
+    // Blocking prompt wrapped in a timeout race. Avoids the fragile
+    // poll-for-completion heuristic that returned empty output for any
+    // eval where the agent used tools before answering.
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('timeout')), timeoutMs),
     );
 
-    const result = await Promise.race([promptPromise, timeoutPromise]);
-
-    if (result.error) {
-      const err = result.error as { data?: { message?: string }; message?: string };
-      const msg = err.data?.message ?? err.message ?? JSON.stringify(result.error);
+    let promptResult: any;
+    try {
+      promptResult = await Promise.race([
+        client.session.prompt({
+          path: { id: sessionId },
+          body: {
+            parts: [{ type: 'text', text: prompt }],
+            agent,
+          },
+          query: { directory },
+        }),
+        timeoutPromise,
+      ]);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
       console.log(`${label} — prompt failed: ${msg}`);
-      // Try to clean up session
       await client.session.delete({ path: { id: sessionId } }).catch(() => {});
       return { success: false, response: '', error: msg };
     }
 
-    // Extract text from response parts
-    const parts = result.data.parts ?? [];
-    const textParts = parts.filter(
-      (p: { type: string }) => p.type === 'text',
-    ) as Array<{ type: 'text'; text: string }>;
-    const responseText = textParts.map((p) => p.text).join('\n');
+    if (promptResult?.error) {
+      const err = promptResult.error as { message?: string };
+      const msg = err.message ?? JSON.stringify(promptResult.error);
+      console.log(`${label} — prompt failed: ${msg}`);
+      await client.session.delete({ path: { id: sessionId } }).catch(() => {});
+      return { success: false, response: '', error: msg };
+    }
 
-    // Extract tool calls from parts
-    const toolParts = parts.filter(
-      (p: { type: string }) => p.type === 'tool',
-    ) as Array<{ type: 'tool'; name?: string; args?: unknown; result?: unknown }>;
+    // Session is complete; read the full transcript (now includes final text).
+    const { response, transcript } = await collectTranscript(sessionId);
 
-    // Build transcript
-    const transcript: Transcript = {
-      messages: [
-        { role: 'user', content: prompt },
-        { role: 'assistant', content: responseText, toolCalls: toolParts.map((t) => ({ name: t.name ?? 'unknown', args: t.args, result: t.result })) },
-      ],
-      toolCallCount: toolParts.length,
-      turnCount: 1,
-    };
-
-    console.log(`${label} — ${responseText.length} chars, ${toolParts.length} tool calls`);
+    console.log(
+      `${label} — ${response.length} chars, ${transcript.toolCallCount ?? 0} tool calls, ${transcript.agentInvocations?.length ?? 0} agents`,
+    );
 
     // Clean up session
     await client.session.delete({ path: { id: sessionId } }).catch(() => {});
 
-    return { success: true, response: responseText, transcript };
+    return { success: true, response, transcript };
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     console.log(`${label} — error: ${msg}`);
@@ -206,8 +307,15 @@ for (const evalCase of suite.evals) {
 }
 
 // Process in batches
+console.log(
+  `Starting ${tasks.length} tasks (${suite.evals.length} evals × ${runs} runs), batches of ${concurrency}`,
+);
+let completedCount = 0;
 for (let i = 0; i < tasks.length; i += concurrency) {
   const batch = tasks.slice(i, i + concurrency);
+  console.log(
+    `Batch ${Math.floor(i / concurrency) + 1}/${Math.ceil(tasks.length / concurrency)} (tasks ${i + 1}-${Math.min(i + concurrency, tasks.length)} of ${tasks.length})`,
+  );
   const results = await Promise.all(
     batch.map((t) => runOneEval(t.evalId, t.prompt, t.agent, t.runIndex)),
   );
@@ -233,15 +341,30 @@ for (let i = 0; i < tasks.length; i += concurrency) {
     }
 
     if (!result.success && result.error) {
-      errors.push({ evalId: task.evalId, run: task.runIndex, error: result.error });
+      errors.push({
+        evalId: task.evalId,
+        run: task.runIndex,
+        error: result.error,
+      });
     }
+
+    completedCount++;
+    console.log(`[${task.evalId}] done (${completedCount}/${tasks.length})`);
+  }
+
+  // Delay between batches to avoid rate limits
+  if (delayMs > 0 && i + concurrency < tasks.length) {
+    console.log(`  Waiting ${delayMs}ms before next batch...`);
+    await new Promise((r) => setTimeout(r, delayMs));
   }
 }
 
 // ── Write outputs and transcripts ────────────────────────────────────
 
 await Bun.write(outPath, JSON.stringify(outputs, null, 2));
-console.log(`\nWrote ${Object.keys(outputs).length} eval outputs to ${outPath}`);
+console.log(
+  `\nWrote ${Object.keys(outputs).length} eval outputs to ${outPath}`,
+);
 
 // Write transcripts to a separate file
 const transcriptPath = outPath.replace(/\.json$/, '-transcripts.json');
@@ -255,4 +378,6 @@ if (errors.length > 0) {
   }
 }
 
-console.log(`\nNext: bun run eval --suite ${values.suite} --outputs-file ${outPath}`);
+console.log(
+  `\nNext: bun run eval --suite ${values.suite} --outputs-file ${outPath}`,
+);

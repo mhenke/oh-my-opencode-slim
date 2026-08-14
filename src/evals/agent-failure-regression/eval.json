@@ -1,0 +1,540 @@
+{
+  "name": "agent-failure-regression",
+  "description": "Regression evals based on real GitHub issues (#18, #152, #408, #500, #658, #661, #695, #765, #863, #874, #914, #915, #924, #931, #942, #957). Tests that known failure modes don't recur.",
+  "version": "2.0.0",
+  "category": "regression",
+  "evals": [
+    {
+      "id": "agent-returns-content",
+      "prompt": "Find all test files in src/hooks/ that test the foreground-fallback hook. List them.",
+      "agent": "orchestrator",
+      "description": "Regression for #942: agents must return non-empty content, not silently fail",
+      "assertions": [
+        {
+          "type": "contains",
+          "value": ".test.ts",
+          "description": "Output should contain test file names (non-empty response)"
+        }
+      ],
+      "tags": ["regression", "empty-results"]
+    },
+    {
+      "id": "orchestrator-delegates-to-fixer",
+      "prompt": "Add a helper function to src/utils/logger.ts that formats log messages with timestamps. Use @fixer for implementation.",
+      "agent": "orchestrator",
+      "description": "Regression for #18, #152: orchestrator must delegate when explicitly asked, not code directly",
+      "assertions": [
+        {
+          "type": "not_contains",
+          "value": "import {",
+          "description": "Orchestrator should not write code directly — should delegate"
+        }
+      ],
+      "tags": ["regression", "delegation"]
+    },
+    {
+      "id": "orchestrator-delegates-to-librarian",
+      "prompt": "What version of the Anthropic SDK does this project use, and are there any breaking changes in the latest release? Use @librarian to research.",
+      "agent": "orchestrator",
+      "description": "Regression for #18: orchestrator must delegate research, not guess",
+      "assertions": [
+        {
+          "type": "not_contains",
+          "value": "I don't know",
+          "description": "Orchestrator should not admit ignorance when @librarian is available"
+        }
+      ],
+      "tags": ["regression", "delegation"]
+    },
+    {
+      "id": "orchestrator-delegates-to-explorer",
+      "prompt": "Find all uses of the emitEvent function across the codebase and show me the file paths. Use @explorer for this.",
+      "agent": "orchestrator",
+      "description": "Regression for #18: orchestrator must delegate codebase search, not grep manually",
+      "assertions": [
+        {
+          "type": "not_contains",
+          "value": "grep -r",
+          "description": "Orchestrator should not run grep directly — should use @explorer"
+        }
+      ],
+      "tags": ["regression", "delegation"]
+    },
+    {
+      "id": "delegation-actually-starts",
+      "prompt": "Read src/utils/logger.ts and tell me what functions it exports. Then use @explorer to find all callers of those functions.",
+      "agent": "orchestrator",
+      "description": "Regression for #152: orchestrator mentions sub-agents but must actually start them",
+      "assertions": [
+        {
+          "type": "contains",
+          "value": "logger",
+          "description": "Should mention the logger module"
+        }
+      ],
+      "tags": ["regression", "delegation"]
+    },
+    {
+      "id": "subagent-uses-correct-model",
+      "prompt": "Use the simplify skill, then delegate an explorer to list all TypeScript files in src/hooks/. The explorer should use its own configured model.",
+      "agent": "orchestrator",
+      "description": "Regression for #408: sub-agents must use their own model, not inherit orchestrator's",
+      "assertions": [
+        {
+          "type": "structure",
+          "value": "simplify",
+          "description": "Should reference the simplify skill"
+        }
+      ],
+      "tags": ["regression", "model-inheritance"]
+    },
+    {
+      "id": "no-infinite-wait-for-user",
+      "prompt": "Start a background task that counts from 1 to 10 with 1 second delays, then call wait_for_user to pause until it completes.",
+      "agent": "orchestrator",
+      "description": "Regression for #924, #917: wait_for_user must not loop infinitely when background tasks are pending",
+      "assertions": [
+        {
+          "type": "structure",
+          "value": "task(",
+          "description": "Should spawn background task"
+        }
+      ],
+      "tags": ["regression", "wait-for-user"]
+    },
+    {
+      "id": "fallback-on-model-error",
+      "prompt": "I'm getting a 503 auth_unavailable error from CliProxyAPI when trying to use a model. What should I do?",
+      "agent": "orchestrator",
+      "description": "Regression for #957: agent should suggest fallback strategy, not retry indefinitely",
+      "assertions": [
+        {
+          "type": "regex",
+          "value": "fallback|try another|different model|retry",
+          "description": "Should suggest fallback or retry strategy"
+        }
+      ],
+      "tags": ["regression", "fallback"]
+    },
+    {
+      "id": "no-stderr-leak",
+      "prompt": "Fetch the content of https://example.com using the webfetch tool.",
+      "agent": "orchestrator",
+      "description": "Regression for #931: webfetch should not leak css-tree warnings to stderr",
+      "assertions": [
+        {
+          "type": "not_contains",
+          "value": "csstree-match",
+          "description": "Should not contain css-tree warning leak"
+        }
+      ],
+      "tags": ["regression", "stderr"]
+    },
+    {
+      "id": "multimodal-orchestrator-keeps-images",
+      "prompt": "I'm sending you a screenshot. Can you describe what you see in it?",
+      "agent": "orchestrator",
+      "description": "Regression for #500: multimodal orchestrator should not strip images before reading them",
+      "assertions": [
+        {
+          "type": "not_contains",
+          "value": "@observer",
+          "description": "Should not force delegation to observer if orchestrator is multimodal"
+        }
+      ],
+      "tags": ["regression", "image-routing"]
+    },
+    {
+      "id": "no-reconciliation-loop",
+      "prompt": "I have a background task that completed. What should I do next?",
+      "agent": "orchestrator",
+      "description": "Regression for #863: calling task() without task_id must not create new tasks or loop",
+      "assertions": [
+        {
+          "type": "not_contains",
+          "value": "unreconciled",
+          "description": "Should not repeatedly mention unreconciled status"
+        }
+      ],
+      "tags": ["regression", "orchestration"]
+    },
+    {
+      "id": "completed-tasks-trigger-resume",
+      "prompt": "Start a background task that runs 'echo done', then wait for it to complete.",
+      "agent": "orchestrator",
+      "description": "Regression for #915: completed background tasks must trigger orchestrator resume",
+      "assertions": [
+        {
+          "type": "structure",
+          "value": "task(",
+          "description": "Should spawn background task"
+        }
+      ],
+      "tags": ["regression", "orchestration"]
+    },
+    {
+      "id": "completion-signal-reaches-orchestrator",
+      "prompt": "Start a background task that writes to a file, then check if it completed.",
+      "agent": "orchestrator",
+      "description": "Regression for #695: completion notifications must reach orchestrator, not be silently dropped",
+      "assertions": [
+        {
+          "type": "contains",
+          "value": "task",
+          "description": "Should reference the task"
+        }
+      ],
+      "tags": ["regression", "orchestration"]
+    },
+    {
+      "id": "cancelled-is-actually-cancelled",
+      "prompt": "Start a background task that fails immediately, then check its status.",
+      "agent": "orchestrator",
+      "description": "Regression for #765: tasks reported as cancelled must actually be cancelled, not completed",
+      "assertions": [
+        {
+          "type": "structure",
+          "value": "task(",
+          "description": "Should spawn background task"
+        }
+      ],
+      "tags": ["regression", "orchestration"]
+    },
+    {
+      "id": "no-ghost-running-entries",
+      "prompt": "List all running background tasks from the job board.",
+      "agent": "orchestrator",
+      "description": "Regression for #658: job board must not show ghost running entries for completed tasks",
+      "assertions": [
+        {
+          "type": "not_contains",
+          "value": "ghost",
+          "description": "Should not mention ghost entries"
+        }
+      ],
+      "tags": ["regression", "orchestration"]
+    },
+    {
+      "id": "board-does-not-dominate-reasoning",
+      "prompt": "Explain what the Background Job Board is and how it works.",
+      "agent": "orchestrator",
+      "description": "Regression for #914: board status should not dominate orchestrator reasoning",
+      "assertions": [
+        {
+          "type": "regex",
+          "value": "board|job|task|background",
+          "description": "Should mention background job concepts"
+        }
+      ],
+      "tags": ["regression", "orchestration"]
+    },
+    {
+      "id": "late-completion-not-dropped",
+      "prompt": "Start a background task that takes 5 seconds, then check if it completed.",
+      "agent": "orchestrator",
+      "description": "Regression for #661: late completion signals must not be dropped by idle reconciliation",
+      "assertions": [
+        {
+          "type": "structure",
+          "value": "task(",
+          "description": "Should spawn background task"
+        }
+      ],
+      "tags": ["regression", "orchestration"]
+    },
+    {
+      "id": "oracle-completes-within-timeout",
+      "prompt": "Should we add a caching layer to the background job board to reduce database queries? What are the tradeoffs?",
+      "agent": "oracle",
+      "description": "Regression for #523: oracle must complete within timeout, not stall",
+      "assertions": [
+        {
+          "type": "contains",
+          "value": "tradeoff",
+          "description": "Should provide tradeoff analysis"
+        }
+      ],
+      "tags": ["regression", "oracle"]
+    },
+    {
+      "id": "orchestrator-uses-oracle-for-plans",
+      "prompt": "I want to refactor the task-session-manager into smaller modules. Review my plan before I start.",
+      "agent": "orchestrator",
+      "description": "Regression for #337: orchestrator should use oracle to review non-trivial plans",
+      "assertions": [
+        {
+          "type": "not_contains",
+          "value": "sounds good",
+          "description": "Should not approve plan without oracle review"
+        }
+      ],
+      "tags": ["regression", "oracle"]
+    },
+    {
+      "id": "oracle-provides-structured-recommendations",
+      "prompt": "Analyze the background job board architecture. What should we change and what should we keep?",
+      "agent": "oracle",
+      "description": "Regression for #224: oracle should provide structured, actionable recommendations",
+      "assertions": [
+        {
+          "type": "regex",
+          "value": "recommend|suggest|should|keep|change",
+          "description": "Should provide actionable recommendations"
+        }
+      ],
+      "tags": ["regression", "oracle"]
+    },
+    {
+      "id": "librarian-focuses-on-research",
+      "prompt": "How should we implement a caching layer for the background job board? Use @librarian to research existing patterns.",
+      "agent": "orchestrator",
+      "description": "Regression for #493: librarian should focus on research, not abstract judgment. Orchestrator should delegate research, not ask librarian to design.",
+      "assertions": [
+        {
+          "type": "not_contains",
+          "value": "I recommend",
+          "description": "Librarian should not give design recommendations — should research existing patterns"
+        }
+      ],
+      "tags": ["regression", "librarian"]
+    },
+    {
+      "id": "librarian-context-not-infinite",
+      "prompt": "Research three unrelated topics: 1) How does the OpenCode SDK handle sessions? 2) What CSS framework is best for dashboards? 3) How do you configure Nginx reverse proxy?",
+      "agent": "librarian",
+      "description": "Regression for #868: librarian sessions should not grow unbounded across unrelated tasks",
+      "assertions": [
+        {
+          "type": "contains",
+          "value": "session",
+          "description": "Should address at least the first research topic"
+        }
+      ],
+      "tags": ["regression", "librarian"]
+    },
+    {
+      "id": "librarian-cites-sources",
+      "prompt": "What is the latest version of the Anthropic TypeScript SDK and what are the breaking changes since v1.0? Use @librarian to find out.",
+      "agent": "orchestrator",
+      "description": "Regression: librarian should cite authoritative sources, not guess",
+      "assertions": [
+        {
+          "type": "regex",
+          "value": "version|v[0-9]|changelog|breaking",
+          "description": "Should reference specific version or changelog information"
+        }
+      ],
+      "tags": ["regression", "librarian"]
+    },
+    {
+      "id": "explorer-focuses-on-codebase-search",
+      "prompt": "How should we restructure the hooks directory? Use @explorer to find all hooks first.",
+      "agent": "orchestrator",
+      "description": "Regression for #493: explorer should do codebase search, not abstract judgment. Orchestrator should ask explorer to find files, not design solutions.",
+      "assertions": [
+        {
+          "type": "not_contains",
+          "value": "I recommend",
+          "description": "Explorer should not give recommendations — should search codebase"
+        }
+      ],
+      "tags": ["regression", "explorer"]
+    },
+    {
+      "id": "explorer-handles-rate-limits",
+      "prompt": "Find all TypeScript files in src/hooks/ that contain the word 'fallback'. Use @explorer.",
+      "agent": "orchestrator",
+      "description": "Regression for #671: explorer must handle rate limits gracefully, not freeze",
+      "assertions": [
+        {
+          "type": "contains",
+          "value": ".ts",
+          "description": "Should return file paths (non-empty result)"
+        }
+      ],
+      "tags": ["regression", "explorer"]
+    },
+    {
+      "id": "explorer-does-not-process-images",
+      "prompt": "Analyze this screenshot and tell me what's in it. Use @explorer.",
+      "agent": "orchestrator",
+      "description": "Regression for #879: explorer should not be delegated image tasks if model lacks vision",
+      "assertions": [
+        {
+          "type": "regex",
+          "value": "image|screenshot|vision|observer",
+          "description": "Should acknowledge image handling limitations or suggest observer"
+        }
+      ],
+      "tags": ["regression", "explorer"]
+    },
+    {
+      "id": "explorer-returns-focused-results",
+      "prompt": "Find all error handling patterns in src/hooks/. List only the file paths and the pattern used.",
+      "agent": "explorer",
+      "description": "Regression: explorer should return focused, structured results, not dump everything",
+      "assertions": [
+        {
+          "type": "contains",
+          "value": ".ts",
+          "description": "Should return TypeScript file paths"
+        }
+      ],
+      "tags": ["regression", "explorer"]
+    },
+    {
+      "id": "ui-tasks-route-to-designer",
+      "prompt": "Redesign the settings page with a dark mode toggle, responsive layout, and smooth transitions.",
+      "agent": "orchestrator",
+      "description": "Regression for #444: UI/frontend tasks must route to @designer, not fixer or orchestrator directly",
+      "assertions": [
+        {
+          "type": "not_contains",
+          "value": "import {",
+          "description": "Orchestrator should not write UI code directly"
+        }
+      ],
+      "tags": ["regression", "designer"]
+    },
+    {
+      "id": "orchestrator-delegates-ui-to-designer",
+      "prompt": "Add a loading spinner to the settings page while data is being fetched.",
+      "agent": "orchestrator",
+      "description": "Regression for #444: orchestrator must delegate UI work to @designer, not handle it directly",
+      "assertions": [
+        {
+          "type": "not_contains",
+          "value": "css",
+          "description": "Orchestrator should not write CSS directly — should delegate"
+        }
+      ],
+      "tags": ["regression", "designer"]
+    },
+    {
+      "id": "fixer-results-validated",
+      "prompt": "Add a formatCurrency function to src/utils/formatters.ts. Use @fixer, then verify the code compiles.",
+      "agent": "orchestrator",
+      "description": "Regression for #453: orchestrator should validate fixer results, not accept blindly",
+      "assertions": [
+        {
+          "type": "contains",
+          "value": "fixer",
+          "description": "Should mention fixer agent"
+        }
+      ],
+      "tags": ["regression", "fixer"]
+    },
+    {
+      "id": "fixer-handles-fallback",
+      "prompt": "Add a deepClone utility function to src/utils/helpers.ts. Use @fixer.",
+      "agent": "orchestrator",
+      "description": "Regression for #956: fixer must handle fallback gracefully, not retry indefinitely",
+      "assertions": [
+        {
+          "type": "not_contains",
+          "value": "retry",
+          "description": "Orchestrator should not mention retrying fixer indefinitely"
+        }
+      ],
+      "tags": ["regression", "fixer"]
+    },
+    {
+      "id": "fixer-reports-errors-clearly",
+      "prompt": "Add a parseEnv function to src/utils/env.ts that reads environment variables with defaults. Use @fixer.",
+      "agent": "orchestrator",
+      "description": "Regression for #836: fixer must report errors clearly, not fail silently",
+      "assertions": [
+        {
+          "type": "structure",
+          "value": "task",
+          "description": "Should use task tool to delegate to fixer"
+        }
+      ],
+      "tags": ["regression", "fixer"]
+    },
+    {
+      "id": "observer-gets-images",
+      "prompt": "I'm sending you a screenshot of a bug. Can you analyze it?",
+      "agent": "orchestrator",
+      "description": "Regression for #345: observer must be able to obtain images from user messages",
+      "assertions": [
+        {
+          "type": "regex",
+          "value": "image|screenshot|observer|visual",
+          "description": "Should acknowledge image or delegate to observer"
+        }
+      ],
+      "tags": ["regression", "observer"]
+    },
+    {
+      "id": "multimodal-orchestrator-not-stripped",
+      "prompt": "Look at this screenshot and tell me what's wrong with the UI.",
+      "agent": "orchestrator",
+      "description": "Regression for #500: multimodal orchestrator must not strip images for observer",
+      "assertions": [
+        {
+          "type": "not_contains",
+          "value": "saved to disk",
+          "description": "Should not save image to disk if orchestrator is multimodal"
+        }
+      ],
+      "tags": ["regression", "observer"]
+    },
+    {
+      "id": "council-provides-summary",
+      "prompt": "What are the pros and cons of using SQLite vs in-memory storage for the background job board? Use @council for consensus.",
+      "agent": "orchestrator",
+      "description": "Regression for #404, #421: council must provide summary with per-councillor details",
+      "assertions": [
+        {
+          "type": "regex",
+          "value": "council|consensus|summary|agree|disagree",
+          "description": "Should mention council or consensus"
+        }
+      ],
+      "tags": ["regression", "council"]
+    },
+    {
+      "id": "council-keeps-agent-identity",
+      "prompt": "Switch to the council agent and ask it to evaluate the current codebase architecture.",
+      "agent": "orchestrator",
+      "description": "Regression for #529: council must not switch to default_agent after responding",
+      "assertions": [
+        {
+          "type": "not_contains",
+          "value": "orchestrator",
+          "description": "Council response should not be attributed to orchestrator"
+        }
+      ],
+      "tags": ["regression", "council"]
+    },
+    {
+      "id": "council-respects-preset",
+      "prompt": "Run the council with the default preset to review my refactoring plan.",
+      "agent": "orchestrator",
+      "description": "Regression for #479: council must respect configured default_preset, not force 'default'",
+      "assertions": [
+        {
+          "type": "contains",
+          "value": "council",
+          "description": "Should reference council agent"
+        }
+      ],
+      "tags": ["regression", "council"]
+    },
+    {
+      "id": "council-handles-timeout",
+      "prompt": "Use @council to evaluate whether we should add a caching layer to the task-session-manager.",
+      "agent": "orchestrator",
+      "description": "Regression for #413: council must handle timeouts gracefully, not hang workflow",
+      "assertions": [
+        {
+          "type": "structure",
+          "value": "task",
+          "description": "Should use task tool to invoke council"
+        }
+      ],
+      "tags": ["regression", "council"]
+    }
+  ]
+}
