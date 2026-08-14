@@ -3,10 +3,6 @@ import { log } from '../../utils/logger';
 
 export function createIdleReconciler(options: {
   backgroundJobBoard: BackgroundJobStore;
-  evaluateContinuation: (
-    parentSessionID: string,
-    sessionToken: symbol,
-  ) => Promise<void>;
   reconcileInjectedTerminalJobs: (parentSessionID: string) => void;
   /** Called when a deferred inline error is terminalized at idle. */
   onErrorTerminalize?: (sessionID: string) => void;
@@ -14,11 +10,10 @@ export function createIdleReconciler(options: {
   directory: string;
   isFallbackInProgress?: (sessionID: string) => boolean;
   hasInputWait: (sessionID: string) => boolean;
-  getContinuationSessionToken: (sessionID: string) => symbol;
-  isCurrentContinuation: (
+  getIdleSessionToken: (sessionID: string) => symbol;
+  isCurrentIdleSessionToken: (
     sessionID: string,
     sessionToken: symbol,
-    evaluationToken?: symbol,
   ) => boolean;
   taskContextTracker: {
     pendingManagedTaskIds: Set<string>;
@@ -44,14 +39,13 @@ export function createIdleReconciler(options: {
     ) {
       return;
     }
-    const sessionToken = options.getContinuationSessionToken(parentSessionID);
+    const sessionToken = options.getIdleSessionToken(parentSessionID);
     const timer = setTimeout(() => {
       idleReconcileTimers.delete(parentSessionID);
-      if (!options.isCurrentContinuation(parentSessionID, sessionToken)) {
+      if (!options.isCurrentIdleSessionToken(parentSessionID, sessionToken)) {
         return;
       }
       options.reconcileInjectedTerminalJobs(parentSessionID);
-      void options.evaluateContinuation(parentSessionID, sessionToken);
     }, options.idleReconcileDelayMs).unref?.();
     idleReconcileTimers.set(parentSessionID, timer);
   }
@@ -59,6 +53,7 @@ export function createIdleReconciler(options: {
   function scheduleChildIdleReconciliation(
     sessionID: string,
     idleObservedAt: number,
+    observedGeneration: number,
   ): void {
     if (childIdleReconcileTimers.has(sessionID)) return;
     if (options.isFallbackInProgress?.(sessionID)) return;
@@ -68,7 +63,9 @@ export function createIdleReconciler(options: {
       if (options.isFallbackInProgress?.(sessionID)) return;
 
       const job = options.backgroundJobBoard.get(sessionID);
-      if (job?.state !== 'running') return;
+      if (job?.state !== 'running' || job.generation !== observedGeneration) {
+        return;
+      }
 
       // Busy after the idle means the session recovered (e.g. FG re-prompt).
       if (
@@ -78,17 +75,19 @@ export function createIdleReconciler(options: {
         return;
       }
 
-      log('[task-session-manager] reconciled running job from idle', {
+      log('[task-session-manager] observed runtime-stopped job from idle', {
         sessionID,
         alias: job.alias,
         parentSessionID: job.parentSessionID,
       });
-      options.backgroundJobBoard.updateStatus({
-        taskID: sessionID,
-        state: 'completed',
-        resultSummary: 'Background task completed (reconciled from idle event)',
-      });
-      options.backgroundJobBoard.markReconciled(sessionID);
+      options.backgroundJobBoard.markStopped(
+        sessionID,
+        'Background session stopped before a terminal task result was received.',
+        // The idle event itself happened after the last busy event. Preserve
+        // that ordering when timestamps share millisecond precision.
+        idleObservedAt + 1,
+        observedGeneration,
+      );
       options.taskContextTracker.pendingManagedTaskIds.delete(sessionID);
       options.backgroundJobBoard.addContext(
         sessionID,
@@ -212,8 +211,8 @@ export function createIdleReconciler(options: {
     scheduleErrorTerminalize,
     clearIdleTimers,
     clearAllTimers,
-    /** Callback for continuation-token-manager's onInvalidateContinuation. */
-    onInvalidateContinuation: (sessionID: string) => {
+    /** Callback for idle-session-tokens invalidate. */
+    onInvalidateIdle: (sessionID: string) => {
       const timer = idleReconcileTimers.get(sessionID);
       if (timer) {
         clearTimeout(timer);

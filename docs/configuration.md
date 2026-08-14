@@ -151,22 +151,24 @@ Presets can also be switched at runtime without restarting using the `/preset` c
 | `backgroundJobs.readContextMaxFiles` | integer | `8` | Maximum number of recent read-context files shown per reusable child session (0–50) See [Background Job Management](#background-job-management). |
 | `backgroundJobs.maxRetainedSnapshots` | integer | `20` | Maximum board snapshots retained per checkpoint cache epoch (1–100). Adding a snapshot beyond the limit starts a new epoch with only the current snapshot, intentionally creating one cache miss See [Background Job Management](#background-job-management). |
 | `backgroundJobs.strategy` | `"latest"` \| `"checkpoint-compatible"` | `"latest"` | Board injection strategy. `latest` preserves the current strip-and-replace behavior; `checkpoint-compatible` appends only when the formatted board changes and uses `backgroundJobs.maxRetainedSnapshots` per cache epoch. Cache state resets on compaction/session boundaries and is lost on plugin restart See [Background Job Management](#background-job-management). |
-| `backgroundJobs.continueOnIdle` | boolean | `false` | **Beta opt-in.** Set `true` to let idle orchestrator sessions with incomplete todos receive one automatic hidden continuation prompt. When omitted or `false`, idle reconciliation and background-job orchestration remain active without automatic continuation prompts. See [Background Orchestration](background-orchestration.md#incomplete-todo-continuation-nudge) See [Background Job Management](#background-job-management). |
+| `backgroundJobs.orchestratorWake.enabled` | boolean | `true` | When true, idle orchestrator sessions with incomplete todos may receive periodic internal wake prompts (default every 5 minutes of continuous parent idle). Requires host session APIs; inactive on the v2 shim. See [Background Orchestration](background-orchestration.md#orchestrator-wake-scheduler) See [Background Job Management](#background-job-management). |
+| `backgroundJobs.orchestratorWake.intervalMs` | integer | `300000` | Continuous parent-idle interval between wake evaluations (`60000`–`2147483647` ms). `0` is invalid. See [Background Orchestration](background-orchestration.md#orchestrator-wake-scheduler) See [Background Job Management](#background-job-management). |
 | `backgroundJobs.wallClockTimeoutMs` | integer | `0` | **Opt-in wall-clock supervisor.** `0` disables it. Otherwise, only native `task(..., background: true)` child sessions are supervised; accepted values are `60000`–`2147483647` milliseconds See [Background Job Management](#background-job-management). |
 | `backgroundJobs.abortGraceMs` | integer | `10000` | Grace period after a wall-clock deadline for a terminal confirmation. Accepted values are `1000`–`60000` milliseconds; a hanging or failed abort does not extend this grace See [Background Job Management](#background-job-management). |
 | `disabled_mcps` | string[] | `[]` | MCP server IDs to disable globally |
-| `fallback.enabled` | boolean | `true` | Enable model failover on timeout/error |
-| `fallback.timeoutMs` | number | `15000` | Time before aborting and trying next model |
-| `fallback.retryDelayMs` | number | `500` | Delay between retry attempts |
-| `fallback.maxRetries` | number | `3` | Maximum failover attempts before giving up |
-| `fallback.runtimeOverride` | boolean | `true` | **Deprecated.** No longer used. Fallback is always disabled when a user explicitly selects a model via `/model`. |
-| `fallback.retry_on_empty` | boolean | `true` | Treat silent empty provider responses (0 tokens) as failures and retry. Set `false` to accept empty responses |
+| `fallback.enabled` | boolean | `true` | Enable Slim's foreground model-chain failover. It does not configure OpenCode provider/AI-SDK retries. |
+| `fallback.maxRetries` | number | `3` | Consecutive retryable 429 responses allowed for the same foreground model before Slim aborts or selects the next configured fallback model. It does not cap OpenCode provider retries or background subagent retries. |
 | `council.presets` | object | - | **Required if using council.** Named councillor presets See [Council configuration note](#council-configuration-note). |
 | `council.presets.<name>.<councillor>.model` | string | - | Councillor model See [Council configuration note](#council-configuration-note). |
 | `council.presets.<name>.<councillor>.variant` | string | - | Councillor variant See [Council configuration note](#council-configuration-note). |
 | `council.presets.<name>.<councillor>.prompt` | string | - | Optional role guidance for the councillor See [Council configuration note](#council-configuration-note). |
 | `council.default_preset` | string | `"default"` | Default preset when none is specified See [Council configuration note](#council-configuration-note). |
 | — | — | — | *Timeouts, execution mode, and retries are now handled by the orchestrator's council-mode prompt instructions; see `src/agents/council.ts`.* |
+| `interview.maxQuestions` | integer | `2` | Max questions per interview round (1–10) See [Interview configuration](interview.md). |
+| `interview.outputFolder` | string | `"interview"` | Directory where interview markdown files are written relative to the project root; absolute paths and `..` traversal are rejected See [Interview configuration](interview.md). |
+| `interview.autoOpenBrowser` | boolean | `true` | Automatically open the interview UI in your default browser during interactive runs; suppressed in tests and CI See [Interview configuration](interview.md). |
+| `interview.port` | integer | `0` | Interview server port (0–65535). `0` = OS-assigned random port (per-session mode). Any value > 0 enables [dashboard mode](interview.md#dashboard-mode) See [Interview configuration](interview.md). |
+| `interview.dashboard` | boolean | `false` | Enable [dashboard mode](interview.md#dashboard-mode) on the default port (43211). Setting `port` > 0 also enables dashboard mode. If both are set, `port` takes precedence See [Interview configuration](interview.md). |
 | `companion.enabled` | boolean | `false` | Enable/disable the floating window Rust companion See [Desktop Companion App](#desktop-companion-app). |
 | `companion.binaryPath` | string | - | Optional path to a custom companion binary to launch instead of the default install path See [Desktop Companion App](#desktop-companion-app). |
 | `companion.position` | string | `"bottom-right"` | The initial corner position of the companion window: `bottom-right`, `bottom-left`, `top-right`, or `top-left` See [Desktop Companion App](#desktop-companion-app). |
@@ -285,11 +287,10 @@ major is available, the plugin shows a migration command instead.
 Background job management is enabled by default and does not need to be present
 in the starter config. Add `backgroundJobs` only if you want to tune how many
 completed/reconciled child-agent sessions are reusable, how much read context is
-shown, how board snapshots are injected, or to opt into beta automatic
-incomplete-todo continuation prompts on idle. For glossary definitions of
-background-job terms (board snapshot, checkpoint cache epoch, injection
-strategy, etc.), see [CONTEXT.md — Background
-Jobs](../CONTEXT.md#background-jobs).
+shown, how board snapshots are injected, or to change the default-on
+orchestrator wake interval. For glossary definitions of background-job terms
+(board snapshot, checkpoint cache epoch, injection strategy, etc.), see
+[CONTEXT.md — Background Jobs](../CONTEXT.md#background-jobs).
 The wall-clock supervisor is separately opt-in and remains disabled unless
 `wallClockTimeoutMs` is set:
 
@@ -299,15 +300,19 @@ The wall-clock supervisor is separately opt-in and remains disabled unless
     "maxSessionsPerAgent": 3,
     "strategy": "checkpoint-compatible",
     "maxRetainedSnapshots": 10,
-    "continueOnIdle": true,
+    "orchestratorWake": {
+      "enabled": true,
+      "intervalMs": 300000
+    },
     "wallClockTimeoutMs": 900000,
     "abortGraceMs": 10000
   }
 }
 ```
 
-Without `continueOnIdle`, idle reconciliation and background-job orchestration
-remain enabled but no hidden continuation prompts are sent. See the
+`orchestratorWake` defaults to enabled with a 5-minute continuous-idle interval.
+Set `enabled: false` to keep idle reconciliation and background-job orchestration
+without periodic wake prompts. See the
 [Background Orchestration](background-orchestration.md) guide for the concept,
 defaults, and examples.
 `wallClockTimeoutMs` is a hard deadline that only supervises explicitly
@@ -315,6 +320,11 @@ background native task calls; foreground calls or calls with `background`
 omitted are not supervised. It is independent from OpenCode's external
 task-wait timeout, and a wall-clock timeout cannot be recovered by reusing the
 running session.
+
+`fallback.maxRetries` is unrelated to the wall-clock supervisor and to
+OpenCode's provider retry policy. A value of `0` disables Slim's foreground
+429 failover budget; it does not prevent OpenCode from retrying a provider
+request in a child session.
 
 ### Agent Display Names
 

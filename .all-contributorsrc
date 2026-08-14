@@ -848,6 +848,24 @@
       "contributions": [
         "code"
       ]
+    },
+    {
+      "login": "GoldJohnKing",
+      "name": "Gold John King",
+      "avatar_url": "https://avatars.githubusercontent.com/u/26923626?v=4",
+      "profile": "https://space.bilibili.com/67279156",
+      "contributions": [
+        "code"
+      ]
+    },
+    {
+      "login": "pxmpsdev",
+      "name": "pxmps",
+      "avatar_url": "https://avatars.githubusercontent.com/u/180872771?v=4",
+      "profile": "https://github.com/pxmpsdev",
+      "contributions": [
+        "code"
+      ]
     }
   ],
   "commitConvention": "angular"

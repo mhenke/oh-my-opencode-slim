@@ -22,6 +22,7 @@ import {
   createFilterAvailableSkillsHook,
   createJsonErrorRecoveryHook,
   createLoopCommandHook,
+  createOrchestratorWakeScheduler,
   createPhaseReminderHook,
   createPostFileToolNudgeHook,
   createReflectCommandHook,
@@ -32,6 +33,7 @@ import {
 import { processImageAttachments } from './hooks/image-hook';
 import { isMessageWithParts, type MessageWithParts } from './hooks/types';
 import { handleTaskSessionEvent } from './index-event';
+import { createInterviewManager } from './interview';
 import { createBuiltinMcps } from './mcp';
 import {
   getMultiplexer,
@@ -43,6 +45,7 @@ import {
   ast_grep_search,
   createAcpRunTool,
   createCancelTaskTool,
+  createTaskResultTool,
   createWaitForUserTool,
   createWebfetchTool,
 } from './tools';
@@ -59,6 +62,7 @@ import { isPluginDisabledByEnv } from './utils/env';
 import { initLogger, log } from './utils/logger';
 import { SessionMetadataStore } from './utils/session-metadata';
 import { collapseSystemInPlace } from './utils/system-collapse';
+import { createV2Setup } from './v2';
 
 /**
  * Best-effort log to opencode's app logger.
@@ -107,7 +111,7 @@ async function probeJSDOM(): Promise<string | null> {
 // re-runs, it checks this variable and applies the runtime preset instead
 // of the config file's preset. State lives in RuntimeConfig.
 
-const OhMyOpenCodeLite: Plugin = async (ctx) => {
+export const OhMyOpenCodeLite: Plugin = async (ctx) => {
   const sessionId = new Date().toISOString().replace(/[-:]/g, '').slice(0, 15);
   initLogger(sessionId);
 
@@ -148,6 +152,9 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
   let reflectCommandHook: ReturnType<typeof createReflectCommandHook>;
   let loopCommandHook: ReturnType<typeof createLoopCommandHook>;
   let taskSessionManagerHook: ReturnType<typeof createTaskSessionManagerHook>;
+  let orchestratorWakeScheduler: ReturnType<
+    typeof createOrchestratorWakeScheduler
+  >;
   let phaseReminder: ReturnType<typeof createPhaseReminderHook>;
   let filterAvailableSkills: ReturnType<typeof createFilterAvailableSkillsHook>;
   let postFileToolNudge: ReturnType<typeof createPostFileToolNudgeHook>;
@@ -158,8 +165,10 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
   let taskSessionManagerAfter: (i: unknown, o: unknown) => Promise<void>;
   let backgroundJobBoard: BackgroundJobBoard;
   let backgroundJobSupervisor: BackgroundJobSupervisor;
+  let interviewManager: ReturnType<typeof createInterviewManager>;
   let companionManager: CompanionManager;
   let cancelTaskTools: ReturnType<typeof createCancelTaskTool>;
+  let taskResultTools: ReturnType<typeof createTaskResultTool>;
   let waitForUserTools: ReturnType<typeof createWaitForUserTool>;
   let acpRunTools: Record<string, ReturnType<typeof createAcpRunTool>>;
   let webfetch: ReturnType<typeof createWebfetchTool>;
@@ -325,7 +334,6 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       maxRetainedSnapshots: runtime.backgroundJobs.maxRetainedSnapshots,
       readContextMinLines: runtime.backgroundJobs.readContextMinLines,
       readContextMaxFiles: runtime.backgroundJobs.readContextMaxFiles,
-      continueOnIdle: runtime.backgroundJobs.continueOnIdle === true,
       backgroundJobBoard: backgroundJobCoordinator,
       backgroundJobSupervisor,
       shouldManageSession: (sessionID) =>
@@ -338,6 +346,23 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       willAttemptFallback: (sessionID) =>
         foregroundFallback.willAttemptFallback(sessionID),
       coordinator: sessionLifecycle,
+    });
+
+    orchestratorWakeScheduler = createOrchestratorWakeScheduler(ctx, {
+      config: runtime.backgroundJobs.orchestratorWake,
+      shouldManageSession: (sessionID) =>
+        sessionMetadata.getAgent(sessionID) === 'orchestrator',
+      hasInputWait: (sessionID) =>
+        taskSessionManagerHook.hasInputWait(sessionID),
+      isFallbackInProgress: (sessionID) =>
+        foregroundFallback.isFallbackInProgress(sessionID),
+      coordinator: sessionLifecycle,
+    });
+    backgroundJobCoordinator.addTerminalOutcomeListener((record) => {
+      if (record.state !== 'stopped' || !record.terminalUnreconciled) return;
+      orchestratorWakeScheduler.triggerStoppedJobRecovery(
+        record.parentSessionID,
+      );
     });
 
     // Initialize hooks and wrapPostToolHook helper for error isolation
@@ -399,6 +424,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     taskSessionManagerAfter = wrapPostToolHook('task-session-manager', (i, o) =>
       taskSessionManagerHook['tool.execute.after'](i as never, o as never),
     );
+    interviewManager = createInterviewManager(ctx, config);
     companionManager = new CompanionManager(
       `proc_${process.pid}`,
       ctx.directory,
@@ -410,6 +436,10 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       shouldManageSession: (sessionID) =>
         sessionMetadata.getAgent(sessionID) === 'orchestrator',
     });
+    taskResultTools = createTaskResultTool({
+      input: ctx,
+      backgroundJobBoard: backgroundJobCoordinator,
+    });
     waitForUserTools = createWaitForUserTool({
       shouldManageSession: (sessionID) =>
         sessionMetadata.getAgent(sessionID) === 'orchestrator',
@@ -417,13 +447,16 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       registerSessionAsOrchestrator: (sessionID) => {
         sessionMetadata.setAgent(sessionID, 'orchestrator');
       },
-      beginUserWait: (sessionID) =>
-        taskSessionManagerHook.beginUserWait(sessionID),
+      beginUserWait: (sessionID) => {
+        taskSessionManagerHook.beginUserWait(sessionID);
+        orchestratorWakeScheduler.suppress(sessionID);
+      },
     });
 
     const shouldRegisterWebfetch = runtime.webfetch.enabled !== false;
     tools = {
       ...cancelTaskTools,
+      ...taskResultTools,
       ...waitForUserTools,
       ...acpRunTools,
       ...(shouldRegisterWebfetch ? { webfetch } : {}),
@@ -824,6 +857,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         agentConfigEntry.permission = agentPermission;
       }
 
+      interviewManager.registerCommand(opencodeConfig);
       deepworkCommandHook.registerCommand(opencodeConfig);
       reflectCommandHook.registerCommand(opencodeConfig);
       loopCommandHook.registerCommand(opencodeConfig);
@@ -936,11 +970,30 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         },
       );
 
+      await orchestratorWakeScheduler.event(
+        input as {
+          event: {
+            type: string;
+            properties?: {
+              info?: { id?: string };
+              sessionID?: string;
+              status?: { type?: string };
+            };
+          };
+        },
+      );
+
       // Runtime model fallback for foreground agents (rate-limit detection)
       await foregroundFallback.handleEvent(input.event);
 
       // Handle auto-update checking
       await autoUpdateChecker.event(input);
+
+      await interviewManager.handleEvent(
+        input as {
+          event: { type: string; properties?: Record<string, unknown> };
+        },
+      );
 
       if (
         event.type === 'permission.asked' ||
@@ -989,6 +1042,10 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
       await taskSessionManagerHook.event({
         event: { type: 'server.instance.disposed' },
       });
+      await orchestratorWakeScheduler.event({
+        event: { type: 'server.instance.disposed' },
+      });
+      await interviewManager.dispose();
       await multiplexerSessionManager.cleanupOnInstanceDisposed();
     },
 
@@ -1001,6 +1058,15 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
     },
 
     'command.execute.before': async (input, output) => {
+      await interviewManager.handleCommandExecuteBefore(
+        input as {
+          command: string;
+          sessionID: string;
+          arguments: string;
+        },
+        output as { parts: Array<{ type: string; text?: string }> },
+      );
+
       await deepworkCommandHook.handleCommandExecuteBefore(
         input as {
           command: string;
@@ -1087,6 +1153,7 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
         });
       }
       taskSessionManagerHook.observeChatMessage(input, output);
+      orchestratorWakeScheduler.observeChatMessage(input, output);
     },
 
     // Inject orchestrator system prompt for serve-mode sessions. In serve
@@ -1222,7 +1289,11 @@ const OhMyOpenCodeLite: Plugin = async (ctx) => {
   };
 };
 
-export default OhMyOpenCodeLite;
+export default {
+  id: 'oh-my-opencode-slim',
+  server: OhMyOpenCodeLite,
+  setup: createV2Setup(),
+};
 
 export type {
   AgentName,
