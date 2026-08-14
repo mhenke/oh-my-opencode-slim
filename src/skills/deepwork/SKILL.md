@@ -21,44 +21,18 @@ not as the default implementation worker.
 
 ## Setup and Deepwork State
 
-<<<<<<< HEAD
-- Create and maintain a local markdown progress file under `.slim/deepwork/`
-- Draft a plan before implementation
-- Create a phased implementation/delegation plan
-- Before dispatch, show user a compact overview (phase titles, specialists, Oracle reviews)
-- After each phase, validate and update the deepwork file, then ask `@oracle` to review
-- Triage and batch Oracle findings into bounded remediation passes
-- Finish with final validation and concise summary
-
-## Key Rules
-
-- **Exclude `.slim/deepwork/` from git** — add `.slim/deepwork/` to `.gitignore` and `!.slim/deepwork/**` to `.ignore`
-- **Oracle reviews are automatic gates** between implementation phases
-- **Preserve designer intent** — when `@designer` delivers UI/UX, treat it as accepted for later phases
-- **Use `@fixer` only for mechanical follow-up** that preserves design exactly
-- **Do not advance phases while jobs are running** or terminal results are unreconciled
-
-## Deepwork File
-=======
 - create and maintain a local markdown progress file under `.slim/deepwork/`;
 - save code/doc deliverables to project paths (e.g. `src/`, `docs/`); reserve
   `.slim/deepwork/` strictly for progress files;
 
 ### Deepwork File
->>>>>>> origin/master
 
-Create `.slim/deepwork/<short-task-slug>.md` with:
-- Current goal and understanding
-- Researched context from `@librarian`
-- Plan drafts, Oracle review gates, review notes
-- Implementation phases and status
-- Validation results, blockers, follow-ups
+Create a task-specific file such as:
 
-Update after major decisions, specialist research, reviews, phase completions, and scope changes.
+```text
+.slim/deepwork/<short-task-slug>.md
+```
 
-<<<<<<< HEAD
-For detailed phase reviews, designer handoff guardrails, and scheduler discipline, read [full guide](references/full-guide.md).
-=======
 Before creating this file—and before planning or delegation—inspect the existing
 `.gitignore` and `.ignore`. Add only missing entries and do not add duplicates:
 
@@ -182,4 +156,3 @@ After designer work:
 ## Completion
 
 - finish with final validation and a concise summary.
->>>>>>> origin/master

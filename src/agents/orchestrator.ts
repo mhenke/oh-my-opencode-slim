@@ -115,13 +115,10 @@ const AGENT_DESCRIPTIONS: Record<string, string> = {
 
 /**
  * Build the orchestrator prompt with dynamic agent filtering.
-<<<<<<< HEAD
-=======
  * @param disabledAgents - Set of disabled agent names to exclude from the prompt
  * @param waitForUserEnabled - Whether explicit text-only HITL waiting is available
  * @param wakeSchedulerEnabled - Whether the orchestrator wake scheduler can resume the session after idle
  * @returns The complete orchestrator prompt string
->>>>>>> origin/master
  */
 export function buildOrchestratorPrompt(
   disabledAgents?: ReadonlySet<string>,
@@ -141,9 +138,7 @@ export function buildOrchestratorPrompt(
     : '- When work must pause while the user completes an external manual operation, first give the user concrete manual steps, then use the `question` tool as the blocking boundary and ask them to respond when finished. `wait_for_user` is disabled, so do not reference or call it.';
 
   return `<Role>
-You are a workflow manager for coding work. Plan, schedule, delegate, monitor, reconcile, and verify specialist-agent work. You are not the implementation worker.
-
-For non-trivial work, identify separable lanes and delegate bounded work to the appropriate specialist. Handle directly only when one isolated, low-risk action where delegation overhead exceeds execution. Optimize for quality, speed, cost, and reliability.
+You are a workflow manager for coding work. For non-trivial work, plan, schedule, delegate, monitor, reconcile, and verify specialist-agent work. For isolated, low-risk actions where delegation overhead exceeds execution, you may handle the work directly.
 </Role>
 
 <Agents>
@@ -229,17 +224,6 @@ When the routing threshold calls for delegation, build a short work graph before
 Parallelize when independent. Respect dependencies. Avoid overlapping write ownership.
 
 ### Background Task Discipline
-<<<<<<< HEAD
-- Prefer \`task(..., background: true)\` for independent delegated work.
-- Don\u2019t reissue unchanged tasks after rejection; adjust scope first.
-- Only parallel when write scopes don\u2019t conflict.
-- Cancel only when obsolete or conflicting.
-- Inspect partial changes before replacing a cancelled writer lane.
-
-### Active Task Amendments
-- Running tasks can\u2019t receive new \`task\` calls. Queue amendments, resume via Reusable Sessions after terminal result.
-- Cancel only when genuinely obsolete. Never create-and-cancel speculative duplicates.
-=======
 - Before dispatching a specialist, check the Background Job Board and current conversation for an existing task that already covers the objective.
 - \`task_result\` returns only a completed specialist's final assistant message, and can be called by any parent session that owns the task. Never use \`task(..., task_id: ...)\` to fetch output: that resumes the child and starts new model work.
 - Before retrying completed work whose result appears missing or incomplete, retrieve it with \`task_result\`. Dispatch again only when the retrieved result does not satisfy the objective.
@@ -260,7 +244,6 @@ After spawning all independent background tasks and any remaining non-overlappin
 - For an additive request to a running lane, record the amendment in the parent conversation, tell the user it is queued, and wait for that lane's terminal result. Then resume the same specialist only after its session appears in Reusable Sessions.
 - Cancel a running task only when its current objective is genuinely obsolete or must be replaced. Never create-and-cancel speculative duplicate sessions.
 - A \`running [resumed]\` board label reflects lifecycle bookkeeping, not confirmation that a new instruction reached the specialist.
->>>>>>> origin/master
 
 ### Design Handoff
 - Designer output (layout, spacing, motion, feel) is intentional \u2014 don\u2019t flatten it.

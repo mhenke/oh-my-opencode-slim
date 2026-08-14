@@ -1,0 +1,728 @@
+{
+  "suiteName": "orchestrator-routing",
+  "totalEvals": 13,
+  "passed": 0,
+  "failed": 13,
+  "skipped": 0,
+  "passAtK": 0.6923076923076923,
+  "passK": 0,
+  "avgPartialScore": 0.3820512820512821,
+  "results": [
+    {
+      "evalId": "trivial-edit-direct",
+      "prompt": "Add a one-line comment to the top of src/cli/eval.ts explaining what this file does",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0.5,
+      "passAtK": 1,
+      "passKk": 0,
+      "partialScore": 0.5,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "subagent_count",
+            "value": "{\"max\": 0}",
+            "description": "Should handle a trivial comment addition directly, without delegating",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "contains",
+            "value": "// This file",
+            "description": "Output should contain the comment",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not contain \"// This file\"",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "multi-file-to-fixer",
+      "prompt": "Refactor the error handling in src/hooks/ to use a consistent pattern across all hooks. Right now each hook handles errors differently.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0.5,
+      "passAtK": 1,
+      "passKk": 0,
+      "partialScore": 0.5,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "agent_routed",
+            "value": "fixer",
+            "description": "Should delegate multi-file implementation to @fixer",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "agent \"fixer\" not observed (agents: none)",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "@oracle",
+            "description": "Should not delegate to oracle for implementation",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "architecture-to-oracle",
+      "prompt": "Should we switch the background job board from in-memory storage to SQLite? What are the tradeoffs for this plugin?",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0.5,
+      "passAtK": 1,
+      "passKk": 0,
+      "partialScore": 0.5,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "agent_routed",
+            "value": "oracle",
+            "description": "Should delegate architecture decisions to @oracle",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "agent \"oracle\" not observed (agents: none)",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "@fixer",
+            "description": "Should not do implementation work",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "external-docs-to-librarian",
+      "prompt": "Look up how the Anthropic SDK handles streaming responses and what the latest API changes are",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0.5,
+      "passAtK": 1,
+      "passKk": 0,
+      "partialScore": 0.5,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "agent_routed",
+            "value": "librarian",
+            "description": "Should delegate external research to @librarian",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "agent \"librarian\" not observed (agents: none)",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "@explorer",
+            "description": "Should not do codebase search",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "codebase-search-to-explorer",
+      "prompt": "Find all the places where we call emitEvent in the codebase",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0.5,
+      "passAtK": 1,
+      "passKk": 0,
+      "partialScore": 0.5,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "agent_routed",
+            "value": "explorer",
+            "description": "Should delegate codebase search to @explorer",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "agent \"explorer\" not observed (agents: none)",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "@librarian",
+            "description": "Should not do external research",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "trivial-should-handle-directly",
+      "prompt": "What does the package.json scripts section do? List the available npm scripts.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0.5,
+      "passAtK": 1,
+      "passKk": 0,
+      "partialScore": 0.5,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "subagent_count",
+            "value": "{\"max\": 0}",
+            "description": "Should answer trivial knowledge directly, without delegating",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "contains",
+            "value": "scripts",
+            "description": "Output should mention scripts",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not contain \"scripts\"",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "reflect-progressive-disclosure",
+      "prompt": "I keep running the same manual checks before every release. Look at my recent sessions and tell me what I should turn into reusable commands or skills.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "references_read",
+            "value": "references/full-guide.md",
+            "description": "Should read the reflect skill reference file",
+            "referenceContent": "Session Archaeology (--sessions mode)",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output does not contain reference-specific content",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "clonedeps-progressive-disclosure",
+      "prompt": "I'm debugging why the SDK handles tool calls differently than expected. Clone the opencode SDK source so I can inspect how it actually works internally.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "references_read",
+            "value": "references/full-guide.md",
+            "description": "Should read the clonedeps skill reference file",
+            "referenceContent": "Librarian Clone Plan Prompt",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output does not contain reference-specific content",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "verification-planning-progressive-disclosure",
+      "prompt": "I'm about to refactor the prompt cache to a different invalidation strategy. Plan how I should verify the change actually works before I ship it.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "references_read",
+            "value": "references/full-guide.md",
+            "description": "Should read the verification-planning skill reference file",
+            "referenceContent": "Frame the claim",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output does not contain reference-specific content",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "deepwork-progressive-disclosure",
+      "prompt": "We're migrating the plugin from CommonJS to ESM — it touches every module and can't be shipped half-done. Manage this as a phased effort with reviews between phases.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "references_read",
+            "value": "references/full-guide.md",
+            "description": "Should read the deepwork skill reference file",
+            "referenceContent": "Detailed Core Contract",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output does not contain reference-specific content",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "ui-work-to-designer",
+      "prompt": "Design a dark mode toggle for the settings page with responsive layout and smooth transitions.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0.5,
+      "passAtK": 1,
+      "passKk": 0,
+      "partialScore": 0.5,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "@fixer",
+            "description": "Should not do implementation work",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "agent_routed",
+            "value": "designer",
+            "description": "Should delegate UI work to @designer",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "agent \"designer\" not observed (agents: none)",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "helpful-response-check",
+      "prompt": "What is the capital of France? Answer with just the city name.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0.8,
+      "passAtK": 1,
+      "passKk": 0,
+      "partialScore": 0.8,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "contains",
+            "value": "Paris",
+            "description": "Should provide the correct answer",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not contain \"Paris\"",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "Standing by. What's next?",
+            "description": "Should not contain the exact placeholder phrase",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "Standing by",
+            "description": "Should not contain placeholder text",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "What's next?",
+            "description": "Should not contain prompting for next steps",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "tell me nothing",
+            "description": "Should not contain dismissive language",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "no-placeholder-response",
+      "prompt": "Explain what the orchestrator agent does in this system in one or two sentences.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0.6666666666666666,
+      "passAtK": 1,
+      "passKk": 0,
+      "partialScore": 0.6666666666666666,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "Standing by. What's next?",
+            "description": "Should not contain the exact placeholder phrase",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "Standing by",
+            "description": "Should not contain the partial phrase",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "What's next",
+            "description": "Should not contain the prompting phrase",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "tell me nothing",
+            "description": "Should not contain dismissive language",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "contains",
+            "value": "orchestrator",
+            "description": "Should mention the orchestrator agent",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not contain \"orchestrator\"",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "contains",
+            "value": "delegat",
+            "description": "Should mention delegation (delegates/delegation)",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not contain \"delegat\"",
+          "score": 0
+        }
+      ],
+      "output": "",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 2,
+        "agentInvocations": []
+      }
+    }
+  ],
+  "durationMs": 1,
+  "timestamp": "2026-08-14T22:01:49.395Z"
+}

@@ -228,17 +228,16 @@ async function runOneEval(
     const sessionId = createResult.data.id;
     console.log(`${label} — session ${sessionId}, prompting...`);
 
-    // Blocking prompt wrapped in a timeout race. Avoids the fragile
-    // poll-for-completion heuristic that returned empty output for any
-    // eval where the agent used tools before answering.
+    // Use promptAsync so the foreground fallback system can intercept
+    // empty responses and retry with a working model, just like a real
+    // user prompt would.
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error('timeout')), timeoutMs),
     );
 
-    let promptResult: any;
     try {
-      promptResult = await Promise.race([
-        client.session.prompt({
+      await Promise.race([
+        client.session.promptAsync({
           path: { id: sessionId },
           body: {
             parts: [{ type: 'text', text: prompt }],
@@ -255,16 +254,35 @@ async function runOneEval(
       return { success: false, response: '', error: msg };
     }
 
-    if (promptResult?.error) {
-      const err = promptResult.error as { message?: string };
-      const msg = err.message ?? JSON.stringify(promptResult.error);
-      console.log(`${label} — prompt failed: ${msg}`);
-      await client.session.delete({ path: { id: sessionId } }).catch(() => {});
-      return { success: false, response: '', error: msg };
-    }
+    // Poll until the session is idle or we have a non-empty response,
+    // giving the fallback chain time to retry with a working model.
+    const pollStart = Date.now();
+    const pollInterval = 1000;
+    let response: string = '';
+    let transcript: Transcript = {
+      messages: [
+        { role: 'user', content: '' },
+        { role: 'assistant', content: '', toolCalls: [] },
+      ],
+      toolCallCount: 0,
+      turnCount: 0,
+      agentInvocations: [],
+    };
 
-    // Session is complete; read the full transcript (now includes final text).
-    const { response, transcript } = await collectTranscript(sessionId);
+    while (Date.now() - pollStart < timeoutMs) {
+      const status = await client.session.status().catch(() => null) as any;
+
+      const isBusy = status?.data?.status === 'busy';
+      const result = await collectTranscript(sessionId);
+      response = result.response;
+      transcript = result.transcript;
+
+      if (!isBusy && (response.length > 0 || (transcript.toolCallCount ?? 0) > 0)) {
+        break;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+    }
 
     console.log(
       `${label} — ${response.length} chars, ${transcript.toolCallCount ?? 0} tool calls, ${transcript.agentInvocations?.length ?? 0} agents`,
