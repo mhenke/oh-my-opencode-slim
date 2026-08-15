@@ -254,8 +254,9 @@ async function runOneEval(
       return { success: false, response: '', error: msg };
     }
 
-    // Poll until the session is idle or we have a non-empty response,
-    // giving the fallback chain time to retry with a working model.
+    // Poll until the session is terminal/idle and we have a non-empty
+    // response, giving the fallback chain time to retry with a working
+    // model.
     const pollStart = Date.now();
     const pollInterval = 1000;
     let response: string = '';
@@ -270,14 +271,26 @@ async function runOneEval(
     };
 
     while (Date.now() - pollStart < timeoutMs) {
-      const status = await client.session.status().catch(() => null) as any;
+      const status = (await client.session.status().catch(() => null)) as {
+        data?: Record<string, { type?: 'busy' | 'idle' | 'retry' }>;
+      } | null;
 
-      const isBusy = status?.data?.status === 'busy';
+      // SDK returns a map keyed by session ID; the per-session value uses
+      // a `type` discriminator ('busy' | 'idle' | 'retry'). A session is
+      // only done once it reports a terminal 'idle' status; busy/retry
+      // sessions are still working, so a partial transcript (e.g. a stray
+      // newline or a mid-flight tool update) must not end the poll early.
+      const sessionStatus = status?.data?.[sessionId];
+      const isBusy =
+        sessionStatus?.type === 'busy' || sessionStatus?.type === 'retry';
       const result = await collectTranscript(sessionId);
       response = result.response;
       transcript = result.transcript;
 
-      if (!isBusy && (response.length > 0 || (transcript.toolCallCount ?? 0) > 0)) {
+      if (
+        !isBusy &&
+        (response.length > 0 || (transcript.toolCallCount ?? 0) > 0)
+      ) {
         break;
       }
 
