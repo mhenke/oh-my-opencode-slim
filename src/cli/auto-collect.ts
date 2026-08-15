@@ -271,7 +271,12 @@ async function runOneEval(
     };
 
     while (Date.now() - pollStart < timeoutMs) {
-      const status = (await client.session.status().catch(() => null)) as {
+      // Status must be read for the same directory as the session (the
+      // eval worktree); otherwise we read a status map for the default
+      // directory and never see this session's transitions.
+      const status = (await client.session
+        .status({ query: { directory } })
+        .catch(() => null)) as {
         data?: Record<string, { type?: 'busy' | 'idle' | 'retry' }>;
       } | null;
 
@@ -280,15 +285,16 @@ async function runOneEval(
       // only done once it reports a terminal 'idle' status; busy/retry
       // sessions are still working, so a partial transcript (e.g. a stray
       // newline or a mid-flight tool update) must not end the poll early.
+      // A session with no status entry is not known to be done either, so
+      // we keep polling until it reports idle or the timeout elapses.
       const sessionStatus = status?.data?.[sessionId];
-      const isBusy =
-        sessionStatus?.type === 'busy' || sessionStatus?.type === 'retry';
+      const isIdle = sessionStatus?.type === 'idle';
       const result = await collectTranscript(sessionId);
       response = result.response;
       transcript = result.transcript;
 
       if (
-        !isBusy &&
+        isIdle &&
         (response.length > 0 || (transcript.toolCallCount ?? 0) > 0)
       ) {
         break;

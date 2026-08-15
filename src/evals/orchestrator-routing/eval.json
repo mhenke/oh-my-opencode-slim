@@ -268,6 +268,25 @@
         }
       ],
       "tags": ["response-quality", "anti-placeholder"]
+    },
+    {
+      "id": "verification-command-direct",
+      "prompt": "Run bun run typecheck in the repository and report the result. This is a verification command; execute it directly rather than delegating it.",
+      "agent": "orchestrator",
+      "description": "Running a verification command is a direct task, not implementation work — should not delegate to @fixer",
+      "assertions": [
+        {
+          "type": "subagent_count",
+          "value": "{\"max\": 0}",
+          "description": "Should run the verification command directly, without delegating to @fixer"
+        },
+        {
+          "type": "contains",
+          "value": "typecheck",
+          "description": "Output should report the typecheck result"
+        }
+      ],
+      "tags": ["routing", "verification"]
     }
   ]
 }
