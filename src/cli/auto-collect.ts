@@ -61,7 +61,7 @@ if (!suite) {
 }
 
 const runs = values.runs ? parseInt(values.runs, 10) : 1;
-const timeoutMs = values.timeout ? parseInt(values.timeout, 10) : 60_000; // 60s default; --timeout overrides
+const timeoutMs = values.timeout ? parseInt(values.timeout, 10) : 30_000; // 30s default; --timeout overrides
 const concurrency = values.concurrency ? parseInt(values.concurrency, 10) : 3;
 const outPath = values.out ?? `/tmp/${values.suite}-outputs.json`;
 const directory = values.directory ?? process.cwd();
