@@ -18,6 +18,12 @@
           "type": "contains",
           "value": "// This file",
           "description": "Output should contain the comment"
+        },
+        {
+          "type": "file_contains",
+          "value": "// This file",
+          "filePath": "src/cli/eval.ts",
+          "description": "The comment should actually be written into src/cli/eval.ts"
         }
       ],
       "tags": ["routing", "trivial"]

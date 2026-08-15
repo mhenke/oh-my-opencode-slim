@@ -103,10 +103,14 @@ try {
 // ── Run evals ────────────────────────────────────────────────────────
 
 /**
- * Read the completed session transcript and extract the response text,
- * tool calls, and agent invocations. Called after the blocking prompt
- * resolves, so the full transcript (including the final text answer)
- * is already present.
+ * Read the session transcript and extract the response text, tool calls,
+ * and agent invocations. Called repeatedly while polling; once the session
+ * reports a terminal idle status the final transcript (including the final
+ * text answer) is captured here.
+ *
+ * Uses the real SDK part shapes:
+ * - ToolPart: `{ type: 'tool', tool, state: { status, input, output, error } }`
+ * - delegation: `{ type: 'subtask', agent, prompt, description }`
  */
 async function collectTranscript(
   sessionId: string,
@@ -124,7 +128,9 @@ async function collectTranscript(
     parts: unknown[];
   }>;
 
-  // Find last assistant message with text content
+  // Find last assistant message with text content. Reversed scan picks the
+  // final assistant text (not the first partial part) once the session is
+  // idle; text parts are joined in order.
   let responseText = '';
   for (const msg of [...rawMessages].reverse()) {
     if (msg.info?.role !== 'assistant') continue;
@@ -139,7 +145,7 @@ async function collectTranscript(
     }
   }
 
-  // Extract tool calls and agent invocations from ALL messages
+  // Extract tool calls and agent invocations from ALL messages.
   const allToolCalls: Array<{ name: string; args: unknown; result?: unknown }> =
     [];
   const agentInvocations: Array<{ agent: string; sessionId?: string }> = [];
@@ -148,35 +154,34 @@ async function collectTranscript(
     for (const p of msg.parts ?? []) {
       const part = p as {
         type?: string;
-        name?: string;
         tool?: string;
-        args?: unknown;
-        result?: unknown;
-        state?: { input?: Record<string, unknown> };
-        metadata?: Record<string, unknown>;
+        agent?: string;
+        state?: {
+          status?: string;
+          input?: Record<string, unknown>;
+          output?: string;
+          error?: string;
+        };
+        sessionID?: string;
       };
-      if (part.type === 'tool') {
-        const toolName = part.name ?? part.tool ?? 'unknown';
-        const callArgs =
-          (part.args as Record<string, unknown> | undefined) ??
-          part.state?.input;
-        allToolCalls.push({
-          name: toolName,
-          args: callArgs,
-          result: part.result,
-        });
 
-        // Detect agent task invocations (delegation)
-        if (toolName === 'task') {
-          const agentName = (
-            callArgs as { subagent_type?: string } | undefined
-          )?.subagent_type;
-          const sessionId = (part.metadata?.sessionId ??
-            part.metadata?.sessionID) as string | undefined;
-          if (agentName) {
-            agentInvocations.push({ agent: agentName, sessionId });
-          }
-        }
+      // ToolPart: name is `tool`, args/results live in `state`.
+      if (part.type === 'tool') {
+        const toolName = part.tool ?? 'unknown';
+        const callArgs = part.state?.input;
+        const result =
+          part.state?.status === 'error'
+            ? part.state.error
+            : part.state?.output;
+        allToolCalls.push({ name: toolName, args: callArgs, result });
+      }
+
+      // Delegation is a `subtask` part carrying `agent` directly.
+      if (part.type === 'subtask' && part.agent) {
+        agentInvocations.push({
+          agent: part.agent,
+          sessionId: part.sessionID,
+        });
       }
     }
   }

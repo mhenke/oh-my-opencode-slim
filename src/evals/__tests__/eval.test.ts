@@ -6,6 +6,7 @@ import {
   formatResult,
   loadEvalSuite,
   loadEvalSuites,
+  type Transcript,
 } from '../runner';
 import { EvalSuiteSchema } from '../schema';
 
@@ -201,6 +202,25 @@ describe('result formatting', () => {
       expect(checkAssertion(assertion, 'I did not use any tools', transcript).passed).toBe(true);
       expect(checkAssertion(assertion, 'I used read tool', undefined).passed).toBe(false);
     });
+    test('file_contains requires filePath', () => {
+      const assertion = { type: 'file_contains', value: 'x', description: 'test' };
+      expect(checkAssertion(assertion, '').passed).toBe(false);
+      expect(checkAssertion(assertion, '').evidence).toBe('file_contains requires filePath to be set');
+    });
+    test('file_contains passes when file under eval root contains value', () => {
+      const assertion = { type: 'file_contains', value: '// This file', filePath: 'src/cli/eval.ts', description: 'test' };
+      expect(checkAssertion(assertion, '').passed).toBe(true);
+    });
+    test('file_contains fails when file lacks value', () => {
+      const assertion = { type: 'file_contains', value: '__no_such_marker__', filePath: 'src/cli/eval.ts', description: 'test' };
+      expect(checkAssertion(assertion, '').passed).toBe(false);
+      expect(checkAssertion(assertion, '').evidence).toContain('did not contain');
+    });
+    test('file_contains fails for missing file', () => {
+      const assertion = { type: 'file_contains', value: 'x', filePath: 'src/evals/__tests__/does-not-exist.txt', description: 'test' };
+      expect(checkAssertion(assertion, '').passed).toBe(false);
+      expect(checkAssertion(assertion, '').evidence).toContain('cannot read');
+    });
   });
 });
 
@@ -257,18 +277,25 @@ describe('executeSuite', () => {
       'architecture-to-oracle': 'asking @oracle for architecture guidance',
       'external-docs-to-librarian': '@librarian should research this',
     };
+    // agent_routed assertions need transcripts with agentInvocations
+    const transcripts: Record<string, Transcript[]> = {
+      'multi-file-to-fixer': [{ messages: [], agentInvocations: [{ agent: 'fixer' }] }],
+      'architecture-to-oracle': [{ messages: [], agentInvocations: [{ agent: 'oracle' }] }],
+      'external-docs-to-librarian': [{ messages: [], agentInvocations: [{ agent: 'librarian' }] }],
+      'ui-work-to-designer': [{ messages: [], agentInvocations: [{ agent: 'designer' }] }],
+    };
 
-    const result = executeSuite('orchestrator-routing', outputs);
-    expect(result.totalEvals).toBe(11);
-    expect(result.skipped).toBe(6);
+    const result = executeSuite('orchestrator-routing', outputs, transcripts);
+    expect(result.totalEvals).toBe(14);
+    expect(result.skipped).toBe(9);
     expect(result.passed).toBe(5);
     expect(result.failed).toBe(0);
   });
 
   test('skips evals with no output', () => {
     const result = executeSuite('orchestrator-routing', {});
-    expect(result.totalEvals).toBe(11);
-    expect(result.skipped).toBe(11);
+    expect(result.totalEvals).toBe(14);
+    expect(result.skipped).toBe(14);
     expect(result.passed).toBe(0);
   });
 

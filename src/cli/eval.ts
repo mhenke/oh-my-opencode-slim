@@ -1,4 +1,5 @@
 #!/usr/bin/env bun
+// This file runs and scores evaluation suites.
 // CLI for running eval suites and comparing agent outputs against expected results.
 /**
  * CLI entry point for running eval suites.

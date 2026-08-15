@@ -18,6 +18,8 @@ import { z } from 'zod';
  * - `background_task_completed`: a background task must have completed and reconciled
  * - `state_check`: verify environment state after the eval (outcome verification)
  * - `transcript_analysis`: check transcript metrics (turns, tokens, tool calls)
+ * - `file_contains`: a file under the eval directory must contain a string.
+ *   Requires `filePath` (path relative to the eval repo root).
  */
 export const AssertionSchema = z.object({
   type: z.enum([
@@ -34,11 +36,14 @@ export const AssertionSchema = z.object({
     'background_task_completed',
     'state_check',
     'transcript_analysis',
+    'file_contains',
   ]),
   value: z.string(),
   description: z.string(),
   /** Required for references_read: unique content from the reference file */
   referenceContent: z.union([z.string(), z.array(z.string())]).optional(),
+  /** Required for file_contains: file path relative to the eval repo root */
+  filePath: z.string().optional(),
   /** Weight for partial credit scoring (default: 1) */
   weight: z.number().default(1).optional(),
 });

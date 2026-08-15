@@ -1,5 +1,5 @@
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import {
   type Assertion,
   type EvalCase,
@@ -14,6 +14,8 @@ export type { EvalResult, EvalSuite, EvalSuiteResult, Transcript };
 
 const EVALS_DIR = import.meta.dir;
 const RESULTS_DIR = join(EVALS_DIR, 'results');
+/** Eval repo root (two levels above src/evals) — base for file assertions */
+const REPO_ROOT = resolve(EVALS_DIR, '..', '..');
 
 // ── Loaders ──────────────────────────────────────────────────────────
 
@@ -133,6 +135,7 @@ export function checkAssertion(
       };
     }
 
+    // files_modified: check output mentions the file
     case 'files_modified':
       return {
         passed: output.toLowerCase().includes(assertion.value.toLowerCase()),
@@ -140,6 +143,34 @@ export function checkAssertion(
           ? undefined
           : `file "${assertion.value}" not mentioned in output`,
       };
+
+    // file_contains: check a file under the eval repo root contains the value.
+    // The path is resolved against REPO_ROOT (never the orchestrator cwd), so
+    // the assertion stays deterministic regardless of where evals are run from.
+    case 'file_contains': {
+      if (!assertion.filePath) {
+        return {
+          passed: false,
+          evidence: 'file_contains requires filePath to be set',
+        };
+      }
+      const filePath = resolve(REPO_ROOT, assertion.filePath);
+      try {
+        const content = readFileSync(filePath, 'utf-8');
+        const passed = content.includes(assertion.value);
+        return {
+          passed,
+          evidence: passed
+            ? undefined
+            : `file "${assertion.filePath}" did not contain "${assertion.value}"`,
+        };
+      } catch (e) {
+        return {
+          passed: false,
+          evidence: `file_contains: cannot read "${assertion.filePath}": ${e instanceof Error ? e.message : String(e)}`,
+        };
+      }
+    }
 
     // structure: output must match a structural pattern (e.g., has <summary> tag)
     case 'structure': {
