@@ -1,0 +1,1054 @@
+{
+  "suiteName": "orchestrator-routing",
+  "totalEvals": 14,
+  "passed": 3,
+  "failed": 10,
+  "skipped": 1,
+  "passAtK": 0.6428571428571429,
+  "passK": 0.21428571428571427,
+  "avgPartialScore": 0.47435897435897434,
+  "results": [
+    {
+      "evalId": "trivial-edit-direct",
+      "prompt": "Add a one-line comment to the top of src/cli/eval.ts explaining what this file does",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0.6666666666666666,
+      "passAtK": 1,
+      "passKk": 0,
+      "partialScore": 0.6666666666666666,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "subagent_count",
+            "value": "{\"max\": 0}",
+            "description": "Should handle a trivial comment addition directly, without delegating",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "contains",
+            "value": "// This file",
+            "description": "Output should contain the comment",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not contain \"// This file\"",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "file_contains",
+            "value": "// This file",
+            "description": "The comment should actually be written into src/cli/eval.ts",
+            "filePath": "src/cli/eval.ts",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "\n",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "\n",
+            "toolCalls": [
+              {
+                "name": "read",
+                "args": {
+                  "filePath": "/home/mhenke/Projects/oh-my-opencode-slim/.slim/worktrees/new-rules/src/cli/eval.ts"
+                }
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 4,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "multi-file-to-fixer",
+      "prompt": "Refactor the error handling in src/hooks/ to use a consistent pattern across all hooks. Right now each hook handles errors differently.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0.5,
+      "passAtK": 1,
+      "passKk": 0,
+      "partialScore": 0.5,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "agent_routed",
+            "value": "fixer",
+            "description": "Should delegate multi-file implementation to @fixer",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "agent \"fixer\" not observed (agents: none)",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "@oracle",
+            "description": "Should not delegate to oracle for implementation",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "\n\n",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "\n\n",
+            "toolCalls": [
+              {
+                "name": "skill",
+                "args": {
+                  "name": "brainstorming"
+                }
+              },
+              {
+                "name": "glob",
+                "args": {
+                  "pattern": "src/hooks/**/*.{ts,tsx}"
+                }
+              },
+              {
+                "name": "read",
+                "args": {
+                  "filePath": "/home/mhenke/Projects/oh-my-opencode-slim/.slim/worktrees/new-rules/src/hooks"
+                }
+              },
+              {
+                "name": "read",
+                "args": {
+                  "filePath": "/home/mhenke/Projects/oh-my-opencode-slim/.slim/worktrees/new-rules/src/hooks/foreground-fallback/index.ts"
+                }
+              },
+              {
+                "name": "read",
+                "args": {
+                  "filePath": "/home/mhenke/Projects/oh-my-opencode-slim/.slim/worktrees/new-rules/src/hooks/json-error-recovery/hook.ts"
+                }
+              },
+              {
+                "name": "read",
+                "args": {
+                  "filePath": "/home/mhenke/Projects/oh-my-opencode-slim/.slim/worktrees/new-rules/src/hooks/orchestrator-wake/index.ts"
+                }
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 6,
+        "turnCount": 6,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "architecture-to-oracle",
+      "prompt": "Should we switch the background job board from in-memory storage to SQLite? What are the tradeoffs for this plugin?",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0.5,
+      "passAtK": 1,
+      "passKk": 0,
+      "partialScore": 0.5,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "agent_routed",
+            "value": "oracle",
+            "description": "Should delegate architecture decisions to @oracle",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "agent \"oracle\" not observed (agents: explorer)",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "@fixer",
+            "description": "Should not do implementation work",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "\n\n",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "\n\n",
+            "toolCalls": [
+              {
+                "name": "skill",
+                "args": {
+                  "name": "brainstorming"
+                }
+              },
+              {
+                "name": "task",
+                "args": {
+                  "description": "Explore background job board",
+                  "prompt": "I need to understand the current background job board implementation in this oh-my-opencode-slim plugin. \n\nSearch the codebase for:\n1. How the background job board is currently implemented (in-memory storage)\n2. Where job state is tracked and managed\n3. Any existing persistence or serialization\n4. The lifecycle of background tasks (creation, tracking, completion, cancellation)\n5. Any references to \"Background Job Board\", \"task_result\", \"task_id\", \"running\", \"unreconciled\" etc.\n\nReturn:\n- File paths and line numbers for key implementation\n- Current storage mechanism details\n- How jobs are created, tracked, and resolved\n- Any pain points or limitations you notice in the current approach\n- The scope of changes that would be needed to switch to SQLite",
+                  "subagent_type": "explorer",
+                  "background": false
+                }
+              },
+              {
+                "name": "grep",
+                "args": {
+                  "pattern": "Background Job Board|background.*job|task_id|unreconciled|Active /",
+                  "path": "/home/mhenke/Projects/oh-my-opencode-slim/.slim/worktrees/new-rules"
+                }
+              },
+              {
+                "name": "glob",
+                "args": {
+                  "pattern": "**/*.{ts,js,md}",
+                  "path": "/home/mhenke/Projects/oh-my-opencode-slim/.slim/worktrees/new-rules/src"
+                }
+              },
+              {
+                "name": "read",
+                "args": {
+                  "filePath": "/home/mhenke/Projects/oh-my-opencode-slim/.slim/worktrees/new-rules/src/utils/background-job-board.ts"
+                }
+              },
+              {
+                "name": "read",
+                "args": {
+                  "filePath": "/home/mhenke/Projects/oh-my-opencode-slim/.slim/worktrees/new-rules/src/utils/background-job-store.ts"
+                }
+              },
+              {
+                "name": "read",
+                "args": {
+                  "filePath": "/home/mhenke/Projects/oh-my-opencode-slim/.slim/worktrees/new-rules/src/utils/background-job-coordinator.ts"
+                }
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 7,
+        "turnCount": 7,
+        "agentInvocations": [
+          {
+            "agent": "explorer"
+          }
+        ]
+      }
+    },
+    {
+      "evalId": "external-docs-to-librarian",
+      "prompt": "Look up how the Anthropic SDK handles streaming responses and what the latest API changes are",
+      "passed": true,
+      "runs": 1,
+      "passRate": 1,
+      "passAtK": 1,
+      "passKk": 1,
+      "partialScore": 1,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "agent_routed",
+            "value": "librarian",
+            "description": "Should delegate external research to @librarian",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "@explorer",
+            "description": "Should not do codebase search",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "\nDispatched to @librarian. Will report back when the research completes.",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "\nDispatched to @librarian. Will report back when the research completes.",
+            "toolCalls": [
+              {
+                "name": "task",
+                "args": {
+                  "subagent_type": "librarian",
+                  "prompt": "Research how the Anthropic SDK handles streaming responses and what the latest API changes are. Focus on:\n1. Current streaming API patterns (streaming responses, message streams, etc.)\n2. Recent breaking changes or deprecations in the Anthropic API\n3. Latest SDK version features and migration notes\n4. Any changes to streaming behavior, headers, or response formats\n\nReturn a concise summary of the current state of streaming in the Anthropic SDK and any important recent changes developers should know about.",
+                  "description": "Research Anthropic SDK streaming",
+                  "background": true
+                }
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 5,
+        "agentInvocations": [
+          {
+            "agent": "librarian"
+          }
+        ]
+      }
+    },
+    {
+      "evalId": "codebase-search-to-explorer",
+      "prompt": "Find all the places where we call emitEvent in the codebase",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0.5,
+      "passAtK": 1,
+      "passKk": 0,
+      "partialScore": 0.5,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "agent_routed",
+            "value": "explorer",
+            "description": "Should delegate codebase search to @explorer",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "agent \"explorer\" not observed (agents: none)",
+          "score": 0
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "@librarian",
+            "description": "Should not do external research",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "\n**Source code call sites (excluding eval fixtures and build output):**\n\n| File | Line | Context |\n|------|------|---------|\n| `src/hooks/observability.ts` | 107 | Definition |\n| `src/hooks/__tests__/observability.test.ts` | 66 | Test |\n| `src/hooks/task-session-manager/tool-execute-hooks.ts` | 140 | Call |\n| `src/hooks/task-session-manager/tool-execute-hooks.ts` | 276 | Call |\n| `src/hooks/task-session-manager/tool-execute-hooks.ts` | 286 | Call |\n\n3 production call sites, all in `tool-execute-hooks.ts`.",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "\n**Source code call sites (excluding eval fixtures and build output):**\n\n| File | Line | Context |\n|------|------|---------|\n| `src/hooks/observability.ts` | 107 | Definition |\n| `src/hooks/__tests__/observability.test.ts` | 66 | Test |\n| `src/hooks/task-session-manager/tool-execute-hooks.ts` | 140 | Call |\n| `src/hooks/task-session-manager/tool-execute-hooks.ts` | 276 | Call |\n| `src/hooks/task-session-manager/tool-execute-hooks.ts` | 286 | Call |\n\n3 production call sites, all in `tool-execute-hooks.ts`.",
+            "toolCalls": [
+              {
+                "name": "grep",
+                "args": {
+                  "path": "/home/mhenke/Projects/oh-my-opencode-slim/.slim/worktrees/new-rules",
+                  "pattern": "emitEvent"
+                }
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 5,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "trivial-should-handle-directly",
+      "prompt": "What does the package.json scripts section do? List the available npm scripts.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0.5,
+      "passAtK": 1,
+      "passKk": 0,
+      "partialScore": 0.5,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "subagent_count",
+            "value": "{\"max\": 0}",
+            "description": "Should answer trivial knowledge directly, without delegating",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "contains",
+            "value": "scripts",
+            "description": "Output should mention scripts",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output did not contain \"scripts\"",
+          "score": 0
+        }
+      ],
+      "output": "\n",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "\n",
+            "toolCalls": [
+              {
+                "name": "read",
+                "args": {
+                  "filePath": "/home/mhenke/Projects/oh-my-opencode-slim/.slim/worktrees/new-rules/package.json"
+                }
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 1,
+        "turnCount": 4,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "reflect-progressive-disclosure",
+      "prompt": "I keep running the same manual checks before every release. Look at my recent sessions and tell me what I should turn into reusable commands or skills.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "references_read",
+            "value": "references/full-guide.md",
+            "description": "Should read the reflect skill reference file",
+            "referenceContent": "Session Archaeology (--sessions mode)",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output does not contain reference-specific content",
+          "score": 0
+        }
+      ],
+      "output": "\nUsing `reflect` to examine recent sessions for repeated release-check patterns.",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "\nUsing `reflect` to examine recent sessions for repeated release-check patterns.",
+            "toolCalls": [
+              {
+                "name": "skill",
+                "args": {
+                  "name": "reflect"
+                }
+              },
+              {
+                "name": "bash",
+                "args": {
+                  "command": "python3 -c \"\nimport sqlite3, json, os\ndb_path = os.path.expanduser('~/.local/share/opencode/opencode.db')\ndb = sqlite3.connect(db_path)\nrows = db.execute('''\n    SELECT m.session_id, p.data, m.time_created, s.project_id\n    FROM message m\n    JOIN part p ON p.message_id = m.id\n    LEFT JOIN session s ON m.session_id = s.id\n    WHERE json_extract(m.data, '$.role') = 'user'\n      AND json_extract(p.data, '$.type') = 'text'\n    ORDER BY m.time_created DESC\n    LIMIT 200\n''').fetchall()\nfor session_id, part_data, time_created, project_id in rows:\n    text = part_data.get('text', '') if isinstance(part_data, dict) else ''\n    if text:\n        print(f'{time_created} | {project_id} | {text[:300]}')\n\"",
+                  "timeout": 30000
+                }
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 2,
+        "turnCount": 5,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "clonedeps-progressive-disclosure",
+      "prompt": "I'm debugging why the SDK handles tool calls differently than expected. Clone the opencode SDK source so I can inspect how it actually works internally.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "references_read",
+            "value": "references/full-guide.md",
+            "description": "Should read the clonedeps skill reference file",
+            "referenceContent": "Librarian Clone Plan Prompt",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output does not contain reference-specific content",
+          "score": 0
+        }
+      ],
+      "output": "\nUsing `clonedeps` to clone the OpenCode SDK source for inspection.\n\n**Step 1: Check existing state**",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "\nUsing `clonedeps` to clone the OpenCode SDK source for inspection.\n\n**Step 1: Check existing state**",
+            "toolCalls": [
+              {
+                "name": "skill",
+                "args": {
+                  "name": "clonedeps"
+                }
+              },
+              {
+                "name": "read",
+                "args": {
+                  "filePath": "/home/mhenke/Projects/oh-my-opencode-slim/.slim/worktrees/new-rules/.slim/clonedeps.json"
+                }
+              },
+              {
+                "name": "glob",
+                "args": {
+                  "pattern": ".slim/clonedeps/repos/*"
+                }
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 3,
+        "turnCount": 5,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "verification-planning-progressive-disclosure",
+      "prompt": "I'm about to refactor the prompt cache to a different invalidation strategy. Plan how I should verify the change actually works before I ship it.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "references_read",
+            "value": "references/full-guide.md",
+            "description": "Should read the verification-planning skill reference file",
+            "referenceContent": "Frame the claim",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output does not contain reference-specific content",
+          "score": 0
+        }
+      ],
+      "output": "\nWaiting for explorer to map the cache implementation before drafting the verification plan.",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "\nWaiting for explorer to map the cache implementation before drafting the verification plan.",
+            "toolCalls": [
+              {
+                "name": "skill",
+                "args": {
+                  "name": "verification-planning"
+                }
+              },
+              {
+                "name": "task",
+                "args": {
+                  "background": true,
+                  "prompt": "Find all files related to prompt cache implementation in this codebase. I need:\n1. The main cache implementation files (look for \"cache\" in filenames and content)\n2. Existing test files for the cache\n3. Any files that reference \"invalidation\" or \"invalidate\" in the cache context\n4. The hook file mentioned in AGENTS.md: src/hooks/cache-safe-injection.ts and related test files\n\nReturn a concise map of: file paths, what each file does, and where the invalidation logic currently lives.",
+                  "subagent_type": "explorer",
+                  "description": "Explore prompt cache implementation"
+                }
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 2,
+        "turnCount": 6,
+        "agentInvocations": [
+          {
+            "agent": "explorer"
+          }
+        ]
+      }
+    },
+    {
+      "evalId": "deepwork-progressive-disclosure",
+      "prompt": "We're migrating the plugin from CommonJS to ESM — it touches every module and can't be shipped half-done. Manage this as a phased effort with reviews between phases.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "partialScore": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "references_read",
+            "value": "references/full-guide.md",
+            "description": "Should read the deepwork skill reference file",
+            "referenceContent": "Detailed Core Contract",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "output does not contain reference-specific content",
+          "score": 0
+        }
+      ],
+      "output": "\n\n",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "\n\n",
+            "toolCalls": [
+              {
+                "name": "task",
+                "args": {
+                  "description": "Find foreground fallback replay code",
+                  "prompt": "Search the codebase thoroughly for anything related to \"foreground fallback replay\" or \"fallback replay\" or \"foreground replay\". Look for:\n1. Any files, functions, or code containing these terms\n2. Related configuration, types, or interfaces\n3. Comments or documentation mentioning this concept\n4. Any test files related to this functionality\n\nReturn:\n- All file paths and relevant line numbers where these terms appear\n- The surrounding code context (10-15 lines around each match)\n- A summary of what this feature/mechanism does based on the code\n- Any related types, interfaces, or configuration\n\nBe very thorough - check src/, tests/, docs/, config files, etc.",
+                  "subagent_type": "explorer"
+                }
+              },
+              {
+                "name": "grep",
+                "args": {
+                  "include": "*.{ts,js,json,md}",
+                  "pattern": "foreground.*fallback|fallback.*replay|foreground.*replay",
+                  "path": "/home/mhenke/Projects/oh-my-opencode-slim/.slim/worktrees/new-rules"
+                }
+              },
+              {
+                "name": "grep",
+                "args": {
+                  "pattern": "replay",
+                  "path": "/home/mhenke/Projects/oh-my-opencode-slim/.slim/worktrees/new-rules/src",
+                  "include": "*.ts"
+                }
+              },
+              {
+                "name": "grep",
+                "args": {
+                  "path": "/home/mhenke/Projects/oh-my-opencode-slim/.slim/worktrees/new-rules/src",
+                  "include": "*.ts",
+                  "pattern": "fallback"
+                }
+              },
+              {
+                "name": "read",
+                "args": {
+                  "limit": 80,
+                  "filePath": "/home/mhenke/Projects/oh-my-opencode-slim/.slim/worktrees/new-rules/src/hooks/foreground-fallback/index.ts",
+                  "offset": 740
+                }
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 5,
+        "turnCount": 6,
+        "agentInvocations": [
+          {
+            "agent": "explorer"
+          }
+        ]
+      }
+    },
+    {
+      "evalId": "ui-work-to-designer",
+      "prompt": "Design a dark mode toggle for the settings page with responsive layout and smooth transitions.",
+      "passed": false,
+      "runs": 1,
+      "passRate": 0.5,
+      "passAtK": 1,
+      "passKk": 0,
+      "partialScore": 0.5,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "@fixer",
+            "description": "Should not do implementation work",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "agent_routed",
+            "value": "designer",
+            "description": "Should delegate UI work to @designer",
+            "weight": 1
+          },
+          "passed": false,
+          "passRate": 0,
+          "evidence": "agent \"designer\" not observed (agents: explorer)",
+          "score": 0
+        }
+      ],
+      "output": "\n\nThis is a TUI project. Reading the terminal UI source to understand the current theme and settings structure.",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "\n\nThis is a TUI project. Reading the terminal UI source to understand the current theme and settings structure.",
+            "toolCalls": [
+              {
+                "name": "skill",
+                "args": {
+                  "name": "impeccable"
+                }
+              },
+              {
+                "name": "bash",
+                "args": {
+                  "command": "node /home/mhenke/.agents/skills/impeccable/scripts/context.mjs --target src/",
+                  "workdir": "/home/mhenke/Projects/oh-my-opencode-slim/.slim/worktrees/new-rules"
+                }
+              },
+              {
+                "name": "task",
+                "args": {
+                  "subagent_type": "explorer",
+                  "description": "Explore settings and theme system",
+                  "prompt": "Explore the codebase to find:\n1. The settings page component(s) — file paths, structure, current layout\n2. Any existing theme/dark mode system — CSS variables, theme provider, color tokens, dark mode classes or data attributes\n3. The design system / component library in use (if any) — look for tokens, theme files, CSS modules, styled-components, or similar\n4. Any existing toggle/switch components that could be reused\n5. The responsive breakpoints and layout patterns used in the app\n\nReturn:\n- Exact file paths for settings page and related components\n- The current theme implementation approach (CSS vars, class-based, context, etc.)\n- Any existing dark mode support or references\n- Component library or styling approach (Tailwind, CSS modules, etc.)\n- Relevant code snippets showing current patterns (keep concise)"
+                }
+              },
+              {
+                "name": "glob",
+                "args": {
+                  "pattern": "**/*settings*"
+                }
+              },
+              {
+                "name": "glob",
+                "args": {
+                  "pattern": "**/*theme*"
+                }
+              },
+              {
+                "name": "glob",
+                "args": {
+                  "pattern": "**/*dark*"
+                }
+              },
+              {
+                "name": "grep",
+                "args": {
+                  "pattern": "darkMode|dark-mode|dark_mode|theme|toggle",
+                  "include": "*.{ts,tsx,js,jsx,css,scss,json}"
+                }
+              },
+              {
+                "name": "read",
+                "args": {
+                  "filePath": "/home/mhenke/Projects/oh-my-opencode-slim/.slim/worktrees/new-rules/src/tui.ts"
+                }
+              },
+              {
+                "name": "glob",
+                "args": {
+                  "pattern": "src/**/*.{ts,tsx}"
+                }
+              }
+            ]
+          }
+        ],
+        "toolCallCount": 9,
+        "turnCount": 8,
+        "agentInvocations": [
+          {
+            "agent": "explorer"
+          }
+        ]
+      }
+    },
+    {
+      "evalId": "helpful-response-check",
+      "prompt": "What is the capital of France? Answer with just the city name.",
+      "passed": true,
+      "runs": 1,
+      "passRate": 1,
+      "passAtK": 1,
+      "passKk": 1,
+      "partialScore": 1,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "contains",
+            "value": "Paris",
+            "description": "Should provide the correct answer",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "Standing by. What's next?",
+            "description": "Should not contain the exact placeholder phrase",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "Standing by",
+            "description": "Should not contain placeholder text",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "What's next?",
+            "description": "Should not contain prompting for next steps",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "tell me nothing",
+            "description": "Should not contain dismissive language",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "\nParis",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "\nParis",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 4,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "no-placeholder-response",
+      "prompt": "Explain what the orchestrator agent does in this system in one or two sentences.",
+      "passed": true,
+      "runs": 1,
+      "passRate": 1,
+      "passAtK": 1,
+      "passKk": 1,
+      "partialScore": 1,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "Standing by. What's next?",
+            "description": "Should not contain the exact placeholder phrase",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "Standing by",
+            "description": "Should not contain the partial phrase",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "What's next",
+            "description": "Should not contain the prompting phrase",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "not_contains",
+            "value": "tell me nothing",
+            "description": "Should not contain dismissive language",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "contains",
+            "value": "orchestrator",
+            "description": "Should mention the orchestrator agent",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        },
+        {
+          "assertion": {
+            "type": "contains",
+            "value": "delegat",
+            "description": "Should mention delegation (delegates/delegation)",
+            "weight": 1
+          },
+          "passed": true,
+          "passRate": 1,
+          "score": 1
+        }
+      ],
+      "output": "\nThe orchestrator is the coordinator that plans work, delegates to specialist agents, tracks background tasks, reconciles results, and verifies outcomes — it does not perform raw implementation itself.",
+      "transcript": {
+        "messages": [
+          {
+            "role": "user",
+            "content": ""
+          },
+          {
+            "role": "assistant",
+            "content": "\nThe orchestrator is the coordinator that plans work, delegates to specialist agents, tracks background tasks, reconciles results, and verifies outcomes — it does not perform raw implementation itself.",
+            "toolCalls": []
+          }
+        ],
+        "toolCallCount": 0,
+        "turnCount": 4,
+        "agentInvocations": []
+      }
+    },
+    {
+      "evalId": "verification-command-direct",
+      "prompt": "Run bun run typecheck in the repository and report the result. This is a verification command; execute it directly rather than delegating it.",
+      "passed": false,
+      "runs": 0,
+      "passRate": 0,
+      "passAtK": 0,
+      "passKk": 0,
+      "assertions": [
+        {
+          "assertion": {
+            "type": "subagent_count",
+            "value": "{\"max\": 0}",
+            "description": "Should run the verification command directly, without delegating to @fixer",
+            "weight": 1
+          },
+          "passed": false,
+          "evidence": "no output for eval \"verification-command-direct\""
+        },
+        {
+          "assertion": {
+            "type": "contains",
+            "value": "typecheck",
+            "description": "Output should report the typecheck result",
+            "weight": 1
+          },
+          "passed": false,
+          "evidence": "no output for eval \"verification-command-direct\""
+        }
+      ],
+      "error": "no output for eval \"verification-command-direct\""
+    }
+  ],
+  "durationMs": 1,
+  "timestamp": "2026-08-15T01:12:18.788Z"
+}

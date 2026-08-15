@@ -61,7 +61,7 @@ if (!suite) {
 }
 
 const runs = values.runs ? parseInt(values.runs, 10) : 1;
-const timeoutMs = values.timeout ? parseInt(values.timeout, 10) : 300_000; // 5 min
+const timeoutMs = values.timeout ? parseInt(values.timeout, 10) : 60_000; // 60s default; --timeout overrides
 const concurrency = values.concurrency ? parseInt(values.concurrency, 10) : 3;
 const outPath = values.out ?? `/tmp/${values.suite}-outputs.json`;
 const directory = values.directory ?? process.cwd();
@@ -112,6 +112,17 @@ try {
  * - ToolPart: `{ type: 'tool', tool, state: { status, input, output, error } }`
  * - delegation: `{ type: 'subtask', agent, prompt, description }`
  */
+// Race a promise against a timeout so a hung SDK call cannot stall the
+// poll loop forever (the outer timeoutMs only wraps promptAsync).
+function withCallTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('sdk call timeout')), ms),
+    ),
+  ]);
+}
+
 async function collectTranscript(
   sessionId: string,
 ): Promise<{ response: string; transcript: Transcript }> {
@@ -167,6 +178,15 @@ async function collectTranscript(
 
       // ToolPart: name is `tool`, args/results live in `state`.
       if (part.type === 'tool') {
+        // Count only terminal tool calls; pending/running parts are not
+        // evidence of completion and must not satisfy the poll's
+        // completion signal.
+        if (
+          part.state?.status !== 'completed' &&
+          part.state?.status !== 'error'
+        ) {
+          continue;
+        }
         const toolName = part.tool ?? 'unknown';
         const callArgs = part.state?.input;
         const result =
@@ -265,6 +285,8 @@ async function runOneEval(
     const pollStart = Date.now();
     const pollInterval = 1000;
     let response: string = '';
+    let emptyIdleFailure = false;
+    let consecutiveIdle = 0;
     let transcript: Transcript = {
       messages: [
         { role: 'user', content: '' },
@@ -279,9 +301,10 @@ async function runOneEval(
       // Status must be read for the same directory as the session (the
       // eval worktree); otherwise we read a status map for the default
       // directory and never see this session's transitions.
-      const status = (await client.session
-        .status({ query: { directory } })
-        .catch(() => null)) as {
+      const status = (await withCallTimeout(
+        client.session.status({ query: { directory } }).catch(() => null),
+        30_000,
+      )) as {
         data?: Record<string, { type?: 'busy' | 'idle' | 'retry' }>;
       } | null;
 
@@ -294,15 +317,30 @@ async function runOneEval(
       // we keep polling until it reports idle or the timeout elapses.
       const sessionStatus = status?.data?.[sessionId];
       const isIdle = sessionStatus?.type === 'idle';
-      const result = await collectTranscript(sessionId);
+      const result = await withCallTimeout(
+        collectTranscript(sessionId),
+        30_000,
+      );
       response = result.response;
       transcript = result.transcript;
 
-      if (
-        isIdle &&
-        (response.length > 0 || (transcript.toolCallCount ?? 0) > 0)
-      ) {
-        break;
+      if (isIdle) {
+        // Only a non-empty final text response counts as completion. A
+        // mid-flight idle (e.g. between a tool call and its result) must
+        // not end the poll early, or we capture a partial transcript.
+        if (response.length > 0) {
+          break;
+        }
+        consecutiveIdle += 1;
+        // ~3s of idle with no output bounds the empty-completion spin
+        // (covers the ~2.8s foreground-fallback replay window) and lets
+        // us record a clean failure instead of hanging to timeout.
+        if (consecutiveIdle >= 3) {
+          emptyIdleFailure = true;
+          break;
+        }
+      } else {
+        consecutiveIdle = 0;
       }
 
       await new Promise((resolve) => setTimeout(resolve, pollInterval));
@@ -314,6 +352,15 @@ async function runOneEval(
 
     // Clean up session
     await client.session.delete({ path: { id: sessionId } }).catch(() => {});
+
+    if (emptyIdleFailure) {
+      return {
+        success: false,
+        response,
+        transcript,
+        error: 'session idle with empty output',
+      };
+    }
 
     return { success: true, response, transcript };
   } catch (err) {
