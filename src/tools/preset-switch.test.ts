@@ -6,7 +6,6 @@ import type { PluginConfig } from '../config';
 import {
   buildPresetSummary,
   deletePreset,
-  formatPresetOneLine,
   removeAgentFromPreset,
   setAgentOverride,
   switchPresetOnDisk,
@@ -151,6 +150,39 @@ describe('switchPresetOnDisk', () => {
     });
   });
 
+  test('persists preset name when the user config has a UTF-8 BOM', () => {
+    const configDir = path.join(tempDir, 'opencode-config');
+    fs.mkdirSync(configDir, { recursive: true });
+    process.env.OPENCODE_CONFIG_DIR = configDir;
+
+    const configPath = path.join(configDir, 'oh-my-opencode-slim.json');
+    fs.writeFileSync(
+      configPath,
+      `\uFEFF${JSON.stringify({
+        preset: 'old',
+        agents: { oracle: { model: 'old-model' } },
+      })}`,
+    );
+
+    const config: PluginConfig = {
+      presets: {
+        cheap: { orchestrator: { model: 'anthropic/claude-3.5-haiku' } },
+      },
+    };
+
+    const result = switchPresetOnDisk(tempDir, 'cheap', config);
+    expect(result.ok).toBe(true);
+
+    // The BOM is stripped on read, so the preset name is persisted; the
+    // rewritten file is plain JSON that parses cleanly.
+    const persisted = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+      preset?: string;
+      agents?: Record<string, unknown>;
+    };
+    expect(persisted.preset).toBe('cheap');
+    expect(persisted.agents).toEqual({ oracle: { model: 'old-model' } });
+  });
+
   test('resolves legacy alias keys (explore → explorer)', () => {
     const config: PluginConfig = {
       presets: {
@@ -286,6 +318,36 @@ describe('writePreset', () => {
     });
     // existing fields preserved
     expect(persisted.preset).toBe('old');
+  });
+
+  test('reads a user config with a UTF-8 BOM before writing', () => {
+    const configDir = path.join(tempDir, 'opencode-config');
+    fs.mkdirSync(configDir, { recursive: true });
+    process.env.OPENCODE_CONFIG_DIR = configDir;
+    const configPath = path.join(configDir, 'oh-my-opencode-slim.json');
+    fs.writeFileSync(
+      configPath,
+      `\uFEFF${JSON.stringify({
+        preset: 'old',
+        presets: { existing: { oracle: { model: 'a' } } },
+      })}`,
+    );
+
+    const ok = writePreset(tempDir, 'scout', {
+      explorer: { model: 'openai/gpt-5.6-luna' },
+    });
+
+    expect(ok).toBe(true);
+    const persisted = JSON.parse(fs.readFileSync(configPath, 'utf-8')) as {
+      preset?: string;
+      presets?: Record<string, unknown>;
+    };
+    // Existing fields survived, proving the BOM-prefixed file was parsed
+    expect(persisted.preset).toBe('old');
+    expect(persisted.presets?.existing).toEqual({ oracle: { model: 'a' } });
+    expect(persisted.presets?.scout).toEqual({
+      explorer: { model: 'openai/gpt-5.6-luna' },
+    });
   });
 
   test('overwrites an existing preset of the same name', () => {
@@ -439,33 +501,6 @@ describe('setAgentOverride / removeAgentFromPreset', () => {
   test('removeAgentFromPreset is a no-op for absent agents', () => {
     const preset = { orchestrator: { model: 'a' } };
     expect(removeAgentFromPreset(preset, 'oracle')).toBe(preset);
-  });
-});
-
-describe('formatPresetOneLine', () => {
-  test('joins agent → model pairs', () => {
-    const config: PluginConfig = {
-      presets: {
-        team: {
-          orchestrator: { model: 'ustc/glm-5.2' },
-          oracle: { model: 'ustc/glm-5.2' },
-        },
-      },
-    };
-
-    expect(formatPresetOneLine(config.presets?.team ?? {})).toBe(
-      'orchestrator → ustc/glm-5.2, oracle → ustc/glm-5.2',
-    );
-  });
-
-  test('falls back to agent name when model is absent', () => {
-    const config: PluginConfig = {
-      presets: {
-        bare: { oracle: { temperature: 0.3 } },
-      },
-    };
-
-    expect(formatPresetOneLine(config.presets?.bare ?? {})).toBe('oracle');
   });
 });
 

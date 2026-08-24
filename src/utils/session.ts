@@ -2,10 +2,12 @@
  * Shared session utilities for council and background managers.
  */
 
-import type { OpencodeClient } from '@opencode-ai/sdk/v2';
+import type { OpencodeClient } from '@opencode-ai/sdk';
 import { log } from './logger';
 
 export const SESSION_ABORT_TIMEOUT_MS = 1_000;
+
+export const SESSION_ID_PATTERN = /^ses_[A-Za-z0-9_-]+$/;
 
 export class OperationTimeoutError extends Error {
   constructor(message: string) {
@@ -42,30 +44,11 @@ export async function abortSessionWithTimeout(
   timeoutMs = SESSION_ABORT_TIMEOUT_MS,
 ): Promise<void> {
   await withTimeout(
-    client.session.abort({ sessionID: sessionId }),
+    client.session.abort({ path: { id: sessionId } }),
     timeoutMs,
     `Session abort timed out after ${timeoutMs}ms`,
   );
 }
-
-/**
- * Extract the short model label from a "provider/model" string.
- * E.g. "openai/gpt-5.6-luna" → "gpt-5.6-luna"
- */
-export function shortModelLabel(model: string): string {
-  return model.split('/').pop() ?? model;
-}
-
-export type PromptBody = {
-  messageID?: string;
-  model?: { providerID: string; modelID: string };
-  agent?: string;
-  noReply?: boolean;
-  system?: string;
-  tools?: { [key: string]: boolean };
-  parts: Array<{ type: 'text'; text: string }>;
-  variant?: string;
-};
 
 /**
  * Parse a model reference string into provider and model IDs.
@@ -101,7 +84,7 @@ export async function promptWithTimeout(
 ): Promise<void> {
   if (signal?.aborted) throw new Error('Prompt cancelled');
 
-  const sessionId = args.sessionID;
+  const sessionId = args.path.id;
   const hasTimeout = timeoutMs > 0;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let onAbort: (() => void) | undefined;
@@ -180,6 +163,51 @@ function isPromptCancellationError(error: unknown): boolean {
 export interface SessionExtractionResult {
   text: string;
   empty: boolean;
+  /** True only when the last message is a completed assistant turn with no
+   *  message-level error. This is terminal evidence that the session is not
+   *  idle mid-work; callers must not present partial output as a final result
+   *  without it. */
+  terminal?: boolean;
+}
+
+/** Extract only the final assistant response to keep task retrieval bounded. */
+export async function extractFinalSessionResult(
+  client: OpencodeClient,
+  sessionId: string,
+  options?: { directory?: string; includeReasoning?: boolean },
+): Promise<SessionExtractionResult> {
+  const includeReasoning = options?.includeReasoning ?? true;
+  const messagesResult = await client.session.messages({
+    path: { id: sessionId },
+    ...(options?.directory ? { query: { directory: options.directory } } : {}),
+  });
+  const messages = (messagesResult.data ?? []) as Array<{
+    info?: {
+      role: string;
+      time?: { completed?: number };
+      error?: unknown;
+    };
+    parts?: Array<{ type: string; text?: string }>;
+  }>;
+  const message = messages.findLast((item) => item.info?.role === 'assistant');
+  const text = (message?.parts ?? [])
+    .filter(
+      (part) =>
+        (includeReasoning
+          ? part.type === 'text' || part.type === 'reasoning'
+          : part.type === 'text') && Boolean(part.text),
+    )
+    .flatMap((part) => (typeof part.text === 'string' ? [part.text] : []))
+    .join('\n\n');
+
+  const last = messages[messages.length - 1];
+  const terminal =
+    last !== undefined &&
+    last === message &&
+    typeof last.info?.time?.completed === 'number' &&
+    last.info?.error === undefined;
+
+  return { text, empty: text.length === 0, terminal };
 }
 
 /**
@@ -199,8 +227,8 @@ export async function extractSessionResult(
   const includeReasoning = options?.includeReasoning ?? true;
 
   const messagesResult = await client.session.messages({
-    sessionID: sessionId,
-    ...(options?.directory ? { directory: options.directory } : {}),
+    path: { id: sessionId },
+    ...(options?.directory ? { query: { directory: options.directory } } : {}),
   });
   const messages = (messagesResult.data ?? []) as Array<{
     info?: { role: string };

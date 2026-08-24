@@ -2,58 +2,12 @@ import { z } from 'zod';
 import { DEFAULT_MAX_RETAINED_SNAPSHOTS } from './constants';
 import { CouncilConfigSchema } from './council-schema';
 
-const MANUAL_AGENT_NAMES = [
-  'orchestrator',
-  'oracle',
-  'designer',
-  'explorer',
-  'librarian',
-  'fixer',
-] as const;
-
 export const ProviderModelIdSchema = z
   .string()
   .regex(
     /^[^/\s]+\/[^\s]+$/,
     'Expected provider/model format (provider/.../model)',
   );
-
-export const ManualAgentPlanSchema = z
-  .object({
-    primary: ProviderModelIdSchema,
-    fallback1: ProviderModelIdSchema,
-    fallback2: ProviderModelIdSchema,
-    fallback3: ProviderModelIdSchema,
-  })
-  .superRefine((value, ctx) => {
-    const unique = new Set([
-      value.primary,
-      value.fallback1,
-      value.fallback2,
-      value.fallback3,
-    ]);
-    if (unique.size !== 4) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: 'primary and fallbacks must be unique per agent',
-      });
-    }
-  });
-
-export const ManualPlanSchema = z
-  .object({
-    orchestrator: ManualAgentPlanSchema,
-    oracle: ManualAgentPlanSchema,
-    designer: ManualAgentPlanSchema,
-    explorer: ManualAgentPlanSchema,
-    librarian: ManualAgentPlanSchema,
-    fixer: ManualAgentPlanSchema,
-  })
-  .strict();
-
-export type ManualAgentName = (typeof MANUAL_AGENT_NAMES)[number];
-export type ManualAgentPlan = z.infer<typeof ManualAgentPlanSchema>;
-export type ManualPlan = z.infer<typeof ManualPlanSchema>;
 
 // Permission schemas — mirror the SDK's PermissionConfig type with shallow
 // validation. Action values are validated; unknown tool keys pass through.
@@ -177,9 +131,18 @@ export type Preset = z.infer<typeof PresetSchema>;
 export const McpNameSchema = z.enum(['context7', 'gh_grep']);
 export type McpName = z.infer<typeof McpNameSchema>;
 
+const InterviewOutputFolderSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .regex(
+    /^(?![\\/])(?![A-Za-z]:[\\/])(?!.*(?:^|[\\/])\.\.(?:[\\/]|$)).+$/,
+    'outputFolder must be a relative path without parent-directory traversal',
+  );
+
 export const InterviewConfigSchema = z.object({
   maxQuestions: z.number().int().min(1).max(10).default(2),
-  outputFolder: z.string().min(1).default('interview'),
+  outputFolder: InterviewOutputFolderSchema.default('interview'),
   autoOpenBrowser: z
     .boolean()
     .default(true)
@@ -212,11 +175,27 @@ export const BackgroundJobsConfigSchema = z.object({
     .describe(
       'Maximum board snapshots retained per checkpoint cache epoch (1–100). Exceeding the limit starts a new epoch with the current snapshot and intentionally creates one cache miss.',
     ),
-  continueOnIdle: z
-    .boolean()
-    .default(false)
+  orchestratorWake: z
+    .object({
+      enabled: z
+        .boolean()
+        .default(true)
+        .describe(
+          'When true, idle orchestrator sessions with incomplete todos may receive periodic internal wake prompts. Default enabled.',
+        ),
+      intervalMs: z
+        .number()
+        .int()
+        .min(60_000)
+        .max(2_147_483_647)
+        .default(300_000)
+        .describe(
+          'Continuous parent-idle interval between orchestrator wake evaluations (60,000–2,147,483,647ms). Default 300,000 (5 minutes). 0 is invalid.',
+        ),
+    })
+    .default({ enabled: true, intervalMs: 300_000 })
     .describe(
-      'Beta opt-in. When true, idle orchestrator sessions with incomplete todos may receive one automatic hidden continuation prompt. Disabled by default; idle reconciliation and background-job orchestration continue without automatic continuation prompts.',
+      'Periodic orchestrator wake scheduler for idle sessions with incomplete todos. Default enabled at a 5-minute interval. Requires host session APIs (session.get, todo, children, status, promptAsync); inactive on the v2 shim.',
     ),
   wallClockTimeoutMs: z
     .union([z.literal(0), z.number().int().min(60_000).max(2_147_483_647)])
@@ -233,45 +212,66 @@ export const BackgroundJobsConfigSchema = z.object({
     .describe(
       'Grace period after a wall-clock deadline while OpenCode confirms the child terminal state (1,000–60,000ms).',
     ),
+  waitForUserGuard: z
+    .boolean()
+    .default(true)
+    .describe(
+      'When true, intercept wait_for_user calls made while background tasks are still running and the orchestrator wake scheduler is enabled, returning guidance to end the turn instead of blocking on manual input. Default enabled.',
+    ),
 });
 
 export type BackgroundJobsConfig = z.infer<typeof BackgroundJobsConfigSchema>;
 
-export const FailoverConfigSchema = z
-  .object({
-    enabled: z.boolean().default(true),
-    timeoutMs: z.number().min(0).default(15000),
-    retryDelayMs: z.number().min(0).default(500),
-    maxRetries: z
-      .number()
-      .int()
-      .min(0)
-      .default(3)
-      .describe(
-        'Number of consecutive 429/rate-limit responses tolerated on the ' +
-          'same model before aborting (or swapping to the next fallback ' +
-          'model when a chain is configured).',
-      ),
-    retry_on_empty: z
-      .boolean()
-      .default(true)
-      .describe(
-        'When true (default), empty provider responses are treated as failures, ' +
-          'triggering fallback/retry. Set to false to treat them as successes.',
-      ),
-    // DEPRECATED: accepted for backward compatibility but no longer used.
-    // Fallback is now always disabled when a user explicitly selects a model
-    // via /model, so this flag has no effect.
-    runtimeOverride: z
-      .boolean()
-      .optional()
-      .describe(
-        'DEPRECATED: no longer used. Previously controlled whether out-of-chain ' +
-          'runtime model picks triggered fallback. Fallback is now always ' +
-          'disabled when a user explicitly selects a model via /model.',
-      ),
-  })
-  .strict();
+/**
+ * Fallback config fields accepted by versions before 2.3.x but no longer
+ * meaningful. Kept only so that existing user/project configs containing
+ * them still parse: the loader emits a deprecation warning and these keys
+ * are stripped before strict validation. Without this, a stale field would
+ * make the whole config file fail and drop all the user's settings.
+ */
+export const LEGACY_FALLBACK_KEYS = [
+  'timeoutMs',
+  'retryDelayMs',
+  'retry_on_empty',
+  'runtimeOverride',
+] as const;
+
+function stripLegacyFallbackKeys(value: unknown): unknown {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    return value;
+  }
+  const record = value as Record<string, unknown>;
+  const hasLegacy = LEGACY_FALLBACK_KEYS.some((key) => key in record);
+  if (!hasLegacy) {
+    return value;
+  }
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, val] of Object.entries(record)) {
+    if (!(LEGACY_FALLBACK_KEYS as readonly string[]).includes(key)) {
+      cleaned[key] = val;
+    }
+  }
+  return cleaned;
+}
+
+export const FailoverConfigSchema = z.preprocess(
+  stripLegacyFallbackKeys,
+  z
+    .object({
+      enabled: z.boolean().default(true),
+      maxRetries: z
+        .number()
+        .int()
+        .min(0)
+        .default(3)
+        .describe(
+          'Number of consecutive 429/rate-limit responses tolerated on the ' +
+            'same model before aborting (or swapping to the next fallback ' +
+            'model when a chain is configured).',
+        ),
+    })
+    .strict(),
+);
 
 export type FailoverConfig = z.infer<typeof FailoverConfigSchema>;
 

@@ -26,7 +26,7 @@ import {
   parseModelReference,
 } from '../../utils/session';
 import type { SessionLifecycle } from '../session-lifecycle';
-import { isUserMessageWithParts } from '../types';
+import { isReplayableUserMessage, partsFromReplayMessage } from '../types';
 
 // ---------------------------------------------------------------------------
 // Retryable error detection
@@ -37,6 +37,7 @@ const RETRYABLE_ERROR_PATTERNS = [
   /rate.?limit/i,
   /too many requests/i,
   /quota.?exceeded/i,
+  /quota.?threshold/i,
   /usage.?exceeded/i,
   /ExceededBudget/i,
   /over.?budget/i,
@@ -54,6 +55,18 @@ const RETRYABLE_ERROR_PATTERNS = [
   /\b403\b/,
   /forbidden/i,
   /blocked by gateway/i,
+  // Auth/credential availability (e.g. CliProxyAPI disables an exhausted
+  // upstream and returns 503 "auth_unavailable: no auth available ...").
+  // The provider is temporarily unavailable, so the next model should be
+  // tried instead of retrying the same dead model.
+  /no auth available/i,
+  /auth_unavailable/i,
+  // 401 upstream auth/provider errors — the provider rejected the request,
+  // so the next model should be tried instead of retrying the dead one.
+  // Match the status code only, not the generic "upstream request failed" /
+  // "provider returned error" wording, which wraps any provider 4xx (e.g. a
+  // genuine 400 the next model would reproduce) and must stay a hard error.
+  /\b401\b/,
 ];
 
 const OUTAGE_STATUS_CODES = new Set([500, 502, 503, 504, 524]);
@@ -72,6 +85,10 @@ const TRANSPORT_MESSAGE_PATTERNS = [
   /^request timeout$/i,
   /^connect ECONNREFUSED\b/i,
   /^getaddrinfo ENOTFOUND\b/i,
+  // Provider SDKs also report connection failures with natural-language
+  // messages (e.g. "stream error: Cannot connect to API") that carry no
+  // transport code. Match the narrow phrase only.
+  /cannot connect to api/i,
 ];
 const PROVIDER_OUTAGE_PATTERNS = [
   /\binternal server error\b/i,
@@ -88,6 +105,20 @@ const PROVIDER_OUTAGE_PATTERNS = [
   /\bunknown model\b/i,
   /\brequest queue is full\b/i,
   /\bworker local total request limit reached\b/i,
+  // OpenCode's ProviderModelNotFoundError uses "Model not found" wording; the
+  // model may exist on a later entry in the configured chain, so treat it as a
+  // provider outage and advance the fallback chain.
+  /\bmodel not found\b/i,
+  // Model retired/end-of-life (HTTP 410 Gone) — the model no longer exists,
+  // so the next model must be tried instead of retrying the dead one.
+  /\bend of life\b/i,
+  /\bno longer available\b/i,
+  /\breached its end of life\b/i,
+  // The AI SDK surfaces HTTP 410 as the bare title "Gone" in the message,
+  // with the detail in responseBody. Match the bare title and explicit 410.
+  /(?:^|\s)Gone(?:$|\s)/i,
+  /\bHTTP 410\b/i,
+  /\bstatus.?410\b/i,
 ];
 
 // Generic streaming-error phrases are only failover when paired with a
@@ -138,7 +169,9 @@ export function isFailoverError(error: unknown): boolean {
   const statusCode = extractStatusCode(err);
   if (
     statusCode === 429 ||
+    statusCode === 401 ||
     statusCode === 403 ||
+    statusCode === 410 ||
     (statusCode !== undefined && OUTAGE_STATUS_CODES.has(statusCode))
   ) {
     return true;
@@ -191,9 +224,49 @@ export function isRetryableError(error: unknown): boolean {
   return isFailoverError(error);
 }
 
-/** @deprecated Use isRetryableError instead. */
-export function isRateLimitError(error: unknown): boolean {
-  return isRetryableError(error);
+const INLINE_STATUS_CODES = new Set([401, 410]);
+
+/**
+ * True when the error is the kind the runtime surfaces inline (401 auth,
+ * 410 model gone) — persistent, user-visible, already in the conversation.
+ * These should NOT get a toast; the runtime's inline rendering is enough.
+ * Other failover errors (429 rate-limit, outage, etc.) get a toast instead.
+ */
+export function isInlineFailoverError(error: unknown): boolean {
+  if (!error) return false;
+  // The AI SDK surfaces 401/410 as bare strings ("Gone",
+  // "AI_APICallError: Gone"); match those directly so they stay inline too.
+  if (typeof error === 'string') {
+    return (
+      /(?:^|\s)Gone(?:$|\s)/i.test(error) ||
+      /\b401\b/i.test(error) ||
+      /\b410\b/i.test(error) ||
+      /\bend of life\b/i.test(error) ||
+      /\bno longer available\b/i.test(error)
+    );
+  }
+  if (typeof error !== 'object') return false;
+  const err = error as {
+    statusCode?: unknown;
+    data?: { statusCode?: unknown; responseBody?: string; message?: string };
+    message?: string;
+  };
+  const statusCode = extractStatusCode(err);
+  if (statusCode !== undefined && INLINE_STATUS_CODES.has(statusCode)) {
+    return true;
+  }
+  const text = [
+    err.message ?? '',
+    err.data?.message ?? '',
+    err.data?.responseBody ?? '',
+  ].join(' ');
+  return (
+    /(?:^|\s)Gone(?:$|\s)/i.test(text) ||
+    /\b401\b/i.test(text) ||
+    /\b410\b/i.test(text) ||
+    /\bend of life\b/i.test(text) ||
+    /\bno longer available\b/i.test(text)
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -247,11 +320,32 @@ export class ForegroundFallbackManager {
    *  Separate from sessionRetries to avoid budget-reset bugs when
    *  consumeRetryBudget deletes the entry on exhaustion (Greptile P1). */
   private readonly sessionNoChainRetries = new Map<string, number>();
+  /** sessionID → chain-exhaustion stage:
+   *   0 = not exhausted; 1 = chain exhausted once, reset to sticky fallback
+   *   (one retry chance); 2 = exhausted again, aborted — stop intervening.
+   *   Reset to 0 on successful responses or session deletion. */
+  private readonly chainExhaustion = new Map<string, number>();
 
   /** Exposed for task-session-manager: prevents idle reconciliation
    *  while a fallback abort/re-prompt is in flight for this session. */
   isFallbackInProgress(sessionID: string): boolean {
     return this.inProgress.has(sessionID);
+  }
+
+  /**
+   * True when this manager could still recover the session via fallback:
+   * fallback is enabled, the session has a chain, and the chain is not
+   * exhausted (stage < 2). Consumers (task-session-manager event router)
+   * defer terminal bookkeeping for persistent 401/410 errors until
+   * recovery is actually impossible.
+   */
+  willAttemptFallback(sessionID: string): boolean {
+    if (!this.enabled) return false;
+    if (this.inProgress.has(sessionID)) return true;
+    return (
+      this.hasFallbackChain(sessionID) &&
+      (this.chainExhaustion.get(sessionID) ?? 0) < 2
+    );
   }
 
   /**
@@ -306,6 +400,7 @@ export class ForegroundFallbackManager {
         this.lastTriggerModel.delete(id);
         this.sessionRetries.delete(id);
         this.sessionNoChainRetries.delete(id);
+        this.chainExhaustion.delete(id);
       });
     }
   }
@@ -341,19 +436,28 @@ export class ForegroundFallbackManager {
             `${info.providerID}/${info.modelID}`,
           );
         }
+        const messageTime = info.time;
+        const isCompletedSuccessfulAssistant =
+          info.role === 'assistant' &&
+          !info.error &&
+          typeof messageTime === 'object' &&
+          messageTime !== null &&
+          'completed' in messageTime &&
+          typeof messageTime.completed === 'number';
         // Failover-worthy error on an individual message
         if (info.error && isFailoverError(info.error)) {
           if (this.hasFallbackChain(sessionID)) {
             if (this.shouldTriggerFallback(sessionID)) {
-              await this.tryFallback(sessionID);
+              await this.tryFallback(sessionID, info.error);
             }
           } else {
-            await this.tryFallback(sessionID);
+            await this.tryFallback(sessionID, info.error);
           }
-        } else {
-          // Successful response: clear retry count so recovery is not forgotten.
+        } else if (isCompletedSuccessfulAssistant) {
+          // Only a completed, successful assistant response proves recovery.
           this.sessionRetries.delete(sessionID);
           this.sessionNoChainRetries.delete(sessionID);
+          this.chainExhaustion.delete(sessionID);
         }
         break;
       }
@@ -367,10 +471,10 @@ export class ForegroundFallbackManager {
         if (sessionID && props.error && isFailoverError(props.error)) {
           if (this.hasFallbackChain(sessionID)) {
             if (this.shouldTriggerFallback(sessionID)) {
-              await this.tryFallback(sessionID);
+              await this.tryFallback(sessionID, props.error);
             }
           } else {
-            await this.tryFallback(sessionID);
+            await this.tryFallback(sessionID, props.error);
           }
         }
         break;
@@ -420,26 +524,27 @@ export class ForegroundFallbackManager {
           // dedup window): process as genuine retry for current model.
           if (this.hasFallbackChain(sessionID)) {
             if (this.shouldTriggerFallback(sessionID)) {
-              await this.tryFallbackWithAbort(sessionID);
+              await this.tryFallbackWithAbort(
+                sessionID,
+                props.error ?? { message: props.status?.message ?? '' },
+              );
             }
           } else {
-            await this.tryFallbackWithAbort(sessionID);
+            await this.tryFallbackWithAbort(
+              sessionID,
+              props.error ?? { message: props.status?.message ?? '' },
+            );
           }
           break;
         }
 
-        if (this.isRecoveredStatus(props.status?.type)) {
-          // Recovered/terminal status: clear retry count.
-          this.sessionRetries.delete(sessionID);
-          this.sessionNoChainRetries.delete(sessionID);
-        }
         // Note: do NOT clear sessionRetries here on non-rate-limit statuses.
         // Abort events triggered by our own fallback carry non-rate-limit
         // messages and would reset the counter, creating an infinite loop:
         // abort → fallback → set retries to 1 → abort event clears retries
         // → next retry sees tried=0 → abort+fallback again → repeat.
-        // Retries are only cleared on successful response (message.updated
-        // without error) or session deletion.
+        // Retries are only cleared on a completed successful assistant
+        // response or session deletion.
         break;
       }
 
@@ -500,16 +605,6 @@ export class ForegroundFallbackManager {
     return this.consumeRetryBudget(sessionID);
   }
 
-  private isRecoveredStatus(statusType: string | undefined): boolean {
-    return (
-      statusType === 'idle' ||
-      statusType === 'complete' ||
-      statusType === 'completed' ||
-      statusType === 'success' ||
-      statusType === 'terminal'
-    );
-  }
-
   // ---------------------------------------------------------------------------
   // Re-prompt helper (shared by fallback and same-model retry paths)
   // ---------------------------------------------------------------------------
@@ -525,10 +620,10 @@ export class ForegroundFallbackManager {
     // be in-flight when the stream error fires; a short wait usually lands it.
     for (let attempt = 0; attempt < 3; attempt++) {
       const result = await getClient(this.input!).session.messages({
-        sessionID,
+        path: { id: sessionID },
       });
       const messages = (result.data ?? []) as unknown[];
-      lastUser = [...messages].reverse().find(isUserMessageWithParts);
+      lastUser = [...messages].reverse().find(isReplayableUserMessage);
       if (lastUser) break;
       if (attempt < 2) {
         await new Promise((r) => setTimeout(r, REPROMPT_DELAY_MS));
@@ -545,24 +640,32 @@ export class ForegroundFallbackManager {
       return;
     }
 
+    const replayParts = partsFromReplayMessage(lastUser) as Array<{
+      type: 'text';
+      text: string;
+    }>;
+
     const promptBody = {
-      parts: [
-        ...(lastUser.parts as any[]),
-        createInternalAgentTextPart(label ?? 'Foreground fallback replay.'),
-      ],
-      model,
-      ...(agentName ? { agent: agentName } : {}),
+      path: { id: sessionID },
+      body: {
+        parts: [
+          ...replayParts,
+          createInternalAgentTextPart(label ?? 'Foreground fallback replay.'),
+        ],
+        model,
+        ...(agentName ? { agent: agentName } : {}),
+      },
     };
 
     try {
-      await sessionClient.promptAsync({ sessionID, ...promptBody });
+      await sessionClient.promptAsync(promptBody);
     } catch (_promptErr) {
       log('[foreground-fallback] promptAsync on busy session, aborting', {
         sessionID,
       });
       await abortSessionWithTimeout(getClient(this.input!), sessionID);
       await new Promise((r) => setTimeout(r, REPROMPT_DELAY_MS));
-      await sessionClient.promptAsync({ sessionID, ...promptBody });
+      await sessionClient.promptAsync(promptBody);
     }
   }
 
@@ -570,7 +673,7 @@ export class ForegroundFallbackManager {
   // Core fallback logic
   // ---------------------------------------------------------------------------
 
-  private async tryFallback(sessionID: string): Promise<void> {
+  private async tryFallback(sessionID: string, error?: unknown): Promise<void> {
     if (!sessionID) return;
     if (this.inProgress.has(sessionID)) return;
 
@@ -580,7 +683,7 @@ export class ForegroundFallbackManager {
 
       this.inProgress.add(sessionID);
       try {
-        await this.execFallback(sessionID);
+        await this.execFallback(sessionID, error);
       } finally {
         this.inProgress.delete(sessionID);
       }
@@ -648,7 +751,10 @@ export class ForegroundFallbackManager {
    * — transient upstream errors like 502/503/504 often resolve with a retry
    * to a different worker.
    */
-  private async tryFallbackWithAbort(sessionID: string): Promise<void> {
+  private async tryFallbackWithAbort(
+    sessionID: string,
+    error?: unknown,
+  ): Promise<void> {
     if (!sessionID) return;
     if (this.inProgress.has(sessionID)) return;
 
@@ -657,8 +763,8 @@ export class ForegroundFallbackManager {
 
       this.inProgress.add(sessionID);
       try {
-        await abortSessionWithTimeout(getClient(this.input!), sessionID);
-        await this.execFallback(sessionID);
+        await abortSessionWithTimeout(getClient(this.input), sessionID);
+        await this.execFallback(sessionID, error);
       } finally {
         this.inProgress.delete(sessionID);
       }
@@ -732,8 +838,16 @@ export class ForegroundFallbackManager {
     return false;
   }
 
-  private async execFallback(sessionID: string): Promise<void> {
+  private async execFallback(
+    sessionID: string,
+    error?: unknown,
+  ): Promise<void> {
+    const session = getClient(this.input).session;
     try {
+      // After the chain has been exhausted twice (reset retry failed and we
+      // aborted), do not intervene again for this session: re-entering would
+      // keep aborting in a loop. Surface errors to the user instead.
+      if (this.chainExhaustion.get(sessionID) === 2) return;
       let currentModel = this.sessionModel.get(sessionID);
       const agentName = this.sessionAgent.get(sessionID);
       const chain = this.resolveChain(agentName, currentModel);
@@ -759,11 +873,29 @@ export class ForegroundFallbackManager {
       let nextModel = chain.find((m) => !tried.has(m));
       if (!nextModel) {
         if (chain.length > 1) {
-          // Chain exhausted but we have fallbacks: reset tried set and
-          // stick to the deepest fallback model so we stop re-trying the
-          // dead primary model on every subsequent message.
+          // Chain exhausted but we have fallbacks: on the first exhaustion
+          // reset the tried set and stick to the deepest fallback model so
+          // we stop re-trying the dead primary model on every subsequent
+          // message. If the sticky fallback itself fails afterwards (second
+          // exhaustion), abort once and stop intervening — otherwise the
+          // reset re-prompt would loop forever on a fully dead chain.
           const primary = chain[0];
           const stickyFallback = chain[chain.length - 1];
+          if ((this.chainExhaustion.get(sessionID) ?? 0) >= 1) {
+            this.chainExhaustion.set(sessionID, 2);
+            log(
+              '[foreground-fallback] chain exhausted after re-fallback, aborting',
+              {
+                sessionID,
+                agentName,
+                currentModel,
+                tried: [...tried],
+              },
+            );
+            await abortSessionWithTimeout(getClient(this.input), sessionID);
+            return;
+          }
+          this.chainExhaustion.set(sessionID, 1);
           log('[foreground-fallback] resetting tried set for re-fallback', {
             sessionID,
             agentName,
@@ -777,6 +909,7 @@ export class ForegroundFallbackManager {
           this.sessionTried.set(sessionID, tried);
           nextModel = stickyFallback;
         } else {
+          this.chainExhaustion.set(sessionID, 2);
           log('[foreground-fallback] fallback chain exhausted, aborting', {
             sessionID,
             agentName,
@@ -799,8 +932,62 @@ export class ForegroundFallbackManager {
         return;
       }
 
-      // Re-prompt with the fallback model.
-      await this.rePromptWithModel(sessionID, ref, agentName);
+      // Retrieve the last user message to re-submit with the fallback model.
+      const result = await session.messages({
+        path: { id: sessionID },
+      });
+      // result.data may contain partial/streaming messages whose `info` is
+      // undefined at runtime (OpenCode violates its own declared type), and
+      // v2 messages carry `type`/`text` instead of `info`/`parts`, so guard
+      // each entry instead of dereferencing a fixed shape.
+      const messages = (result.data ?? []) as unknown[];
+      const lastUser = [...messages].reverse().find(isReplayableUserMessage);
+      if (!lastUser) {
+        log('[foreground-fallback] no user message found', {
+          sessionID,
+          messageCount: messages.length,
+          requestError: result.error ?? undefined,
+        });
+        return;
+      }
+
+      // promptAsync queues the prompt and returns immediately - this avoids
+      // blocking the event handler while waiting for a full LLM response.
+      const sessionClient = session;
+      if (typeof sessionClient.promptAsync !== 'function') {
+        log('[foreground-fallback] promptAsync unavailable', { sessionID });
+        return;
+      }
+
+      const replayParts = partsFromReplayMessage(lastUser) as Array<{
+        type: 'text';
+        text: string;
+      }>;
+
+      const promptBody = {
+        path: { id: sessionID },
+        body: {
+          parts: [
+            ...replayParts,
+            createInternalAgentTextPart(
+              "<system-reminder>\nThe previous model request failed and is being retried with a fallback model. Continue processing the user's original request above. Do not respond to this reminder.\n</system-reminder>",
+            ),
+          ],
+          model: ref,
+          ...(agentName ? { agent: agentName } : {}),
+        },
+      };
+
+      try {
+        await sessionClient.promptAsync(promptBody);
+      } catch (_promptErr) {
+        log('[foreground-fallback] promptAsync on busy session, aborting', {
+          sessionID,
+        });
+        await abortSessionWithTimeout(getClient(this.input), sessionID);
+        await new Promise((r) => setTimeout(r, REPROMPT_DELAY_MS));
+        await sessionClient.promptAsync(promptBody);
+      }
 
       this.sessionModel.set(sessionID, nextModel);
       log('[foreground-fallback] switched to fallback model', {
@@ -809,12 +996,39 @@ export class ForegroundFallbackManager {
         from: currentModel,
         to: nextModel,
       });
+      this.showFallbackToast(agentName, nextModel, error);
     } catch (err) {
       log('[foreground-fallback] fallback attempt failed', {
         sessionID,
         error: err instanceof Error ? err.message : String(err),
       });
     }
+  }
+
+  /**
+   * Surface a TUI toast when the fallback switches models, so the user isn't
+   * surprised by a different model responding (e.g. after a rate-limit on the
+   * primary). 401/410 errors (auth, model gone) are already rendered inline by
+   * the runtime, so those get no toast — the inline rendering is the notice.
+   * Fire-and-forget; a failed toast is never fatal.
+   */
+  private showFallbackToast(
+    agentName: string | undefined,
+    nextModel: string,
+    error?: unknown,
+  ): void {
+    // 401/410 surface inline in the conversation; don't toast on top of them.
+    if (isInlineFailoverError(error)) return;
+    this.input.client?.tui
+      ?.showToast({
+        body: {
+          title: 'Model fallback',
+          message: `${agentName ? `@${agentName} ` : ''}switched to ${nextModel}`,
+          variant: 'warning',
+          duration: 6_000,
+        },
+      })
+      .catch(() => {});
   }
 
   // ---------------------------------------------------------------------------

@@ -1,11 +1,6 @@
 import * as fs from 'node:fs';
 import { stripJsonComments } from '../cli/config-io';
-import type {
-  AgentOverrideConfig,
-  ModelEntry,
-  PluginConfig,
-  Preset,
-} from '../config';
+import type { AgentOverrideConfig, PluginConfig, Preset } from '../config';
 import { AGENT_ALIASES } from '../config/constants';
 import { findPluginConfigPaths } from '../config/loader';
 
@@ -159,70 +154,6 @@ export function buildPresetSummary(
 }
 
 /**
- * A single-line description of a preset for the TUI picker, e.g.
- * "orchestrator → glm-5.2, oracle → glm-5.2".
- */
-export function formatPresetOneLine(preset: Preset): string {
-  const lines: string[] = [];
-  for (const [agentName, override] of Object.entries(preset)) {
-    const modelStr =
-      typeof override.model === 'string'
-        ? override.model
-        : Array.isArray(override.model) && override.model.length > 0
-          ? resolveFirstModel(override.model)
-          : undefined;
-    lines.push(modelStr ? `${agentName} → ${modelStr}` : agentName);
-  }
-  return lines.join(', ');
-}
-
-/**
- * Format the full preset list with the active one highlighted. Used by
- * non-TUI surfaces (e.g. a future headless listing); the TUI uses the picker.
- */
-export function formatPresetList(
-  presets: Record<string, Preset>,
-  activePreset: string | null,
-): string {
-  const names = Object.keys(presets);
-  if (names.length === 0) {
-    return 'No presets configured. Define presets in oh-my-opencode-slim.jsonc under the "presets" field.';
-  }
-
-  const lines = ['Available presets:'];
-  for (const name of names) {
-    const marker = name === activePreset ? ' ← active' : '';
-    const preset = presets[name];
-    const agentNames = Object.keys(preset);
-    const models = agentNames
-      .map((a) => {
-        const cfg = preset[a];
-        const modelStr =
-          typeof cfg.model === 'string'
-            ? cfg.model
-            : Array.isArray(cfg.model) && cfg.model.length > 0
-              ? resolveFirstModel(cfg.model)
-              : undefined;
-        return modelStr ? `    ${a} → ${modelStr}` : `    ${a}`;
-      })
-      .join('\n');
-    lines.push(`  ${name}${marker}`);
-    lines.push(models);
-  }
-  lines.push('\nUsage: /preset <name> to switch.');
-
-  return lines.join('\n');
-}
-
-function resolveFirstModel(
-  models: Array<string | ModelEntry>,
-): string | undefined {
-  if (models.length === 0) return undefined;
-  const first = models[0];
-  return typeof first === 'string' ? first : first.id;
-}
-
-/**
  * Persist the preset name to the user-level config file so it survives
  * restarts. Best-effort: a failure must not abort the switch, because the
  * persisted name is what makes the next reload pick up the new preset.
@@ -234,7 +165,9 @@ function persistPresetName(directory: string, presetName: string): void {
   try {
     const { userConfigPath } = findPluginConfigPaths(directory);
     if (!userConfigPath) return;
-    const raw = fs.readFileSync(userConfigPath, 'utf-8');
+    // Strip a UTF-8 BOM (RFC 8259 permits one); JSON.parse would otherwise
+    // fail with "Unrecognized token" and the preset would not be persisted.
+    const raw = fs.readFileSync(userConfigPath, 'utf-8').replace(/^\uFEFF/, '');
     const persisted = JSON.parse(stripJsonComments(raw)) as Record<
       string,
       unknown
@@ -255,7 +188,9 @@ function readUserConfig(directory: string): Record<string, unknown> | null {
   try {
     const { userConfigPath } = findPluginConfigPaths(directory);
     if (!userConfigPath) return null;
-    const raw = fs.readFileSync(userConfigPath, 'utf-8');
+    // Strip a UTF-8 BOM (RFC 8259 permits one); JSON.parse would otherwise
+    // fail with "Unrecognized token" and the preset name would be lost.
+    const raw = fs.readFileSync(userConfigPath, 'utf-8').replace(/^\uFEFF/, '');
     return JSON.parse(stripJsonComments(raw)) as Record<string, unknown>;
   } catch {
     return null;

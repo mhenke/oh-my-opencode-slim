@@ -404,7 +404,8 @@ export function parseConfigFile(path: string): {
     if (!existsSync(path)) return { config: null };
     const stat = statSync(path);
     if (stat.size === 0) return { config: null };
-    const content = readFileSync(path, 'utf-8');
+    // Strip a UTF-8 BOM (RFC 8259 permits one) so JSON.parse does not choke.
+    const content = readFileSync(path, 'utf-8').replace(/^\uFEFF/, '');
     if (content.trim().length === 0) return { config: null };
     return { config: JSON.parse(stripJsonComments(content)) as OpenCodeConfig };
   } catch (err) {
@@ -641,18 +642,6 @@ export function enableLspByDefault(): ConfigMergeResult {
       configPath,
       error: `Failed to enable LSP: ${err}`,
     };
-  }
-}
-
-export function canModifyOpenCodeConfig(): boolean {
-  try {
-    const configPath = getExistingConfigPath();
-    if (!existsSync(configPath)) return true; // Will be created
-    const stat = statSync(configPath);
-    // Check if writable - simple check for now
-    return !!(stat.mode & 0o200);
-  } catch {
-    return false;
   }
 }
 

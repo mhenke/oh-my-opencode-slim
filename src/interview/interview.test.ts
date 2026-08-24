@@ -58,21 +58,21 @@ function createMockContext(overrides?: {
   } as any;
 }
 
-// Helper to extract text from prompt calls (v2 flat params: parts is top-level)
+// Helper to extract text from current v1 prompt calls (parts is in body)
 function getPromptTexts(promptMock: {
   mock: {
-    calls: Array<[{ parts?: Array<{ text?: string }> }]>;
+    calls: Array<[{ body?: { parts?: Array<{ text?: string }> } }]>;
   };
 }): string[] {
   return promptMock.mock.calls
-    .map((call) => call[0].parts?.[0]?.text ?? '')
+    .map((call) => call[0].body?.parts?.[0]?.text ?? '')
     .filter(Boolean);
 }
 
 // Helper to extract interview ID from the last prompt call
 function extractInterviewIdFromLastPrompt(promptMock: {
   mock: {
-    calls: Array<[{ parts?: Array<{ text?: string }> }]>;
+    calls: Array<[{ body?: { parts?: Array<{ text?: string }> } }]>;
   };
 }): string | null {
   const calls = promptMock.mock.calls;
@@ -80,7 +80,7 @@ function extractInterviewIdFromLastPrompt(promptMock: {
 
   // Get the last call
   const lastCall = calls[calls.length - 1];
-  const text = lastCall[0].parts?.[0]?.text ?? '';
+  const text = lastCall[0].body?.parts?.[0]?.text ?? '';
   const match = text.match(/interview\/([^\s]+)/);
   return match ? match[1] : null;
 }
@@ -207,8 +207,8 @@ describe('interview service', () => {
 
       expect(ctx.client.session.update).toHaveBeenCalledTimes(1);
       expect(ctx.client.session.update.mock.calls[0][0]).toEqual({
-        sessionID: 'session-rename',
-        title: 'Interview: build a task manager',
+        path: { id: 'session-rename' },
+        body: { title: 'Interview: build a task manager' },
       });
 
       await fs.rm(tempDir, { recursive: true, force: true });
@@ -231,14 +231,14 @@ describe('interview service', () => {
         output,
       );
 
-      const title = ctx.client.session.update.mock.calls[0][0].title;
+      const title = ctx.client.session.update.mock.calls[0][0].body.title;
       expect(title.length).toBe(50);
       expect(title.endsWith('…')).toBe(true);
 
       await fs.rm(tempDir, { recursive: true, force: true });
     });
 
-    test('creates markdown file with slug-only filename (no timestamp prefix)', async () => {
+    test('creates markdown file with readable unique filename', async () => {
       const tempDir = await fs.mkdtemp('/tmp/interview-test-');
       const ctx = createMockContext({ directory: tempDir });
 
@@ -259,9 +259,11 @@ describe('interview service', () => {
       const interviewDir = path.join(tempDir, 'interview');
       const files = await fs.readdir(interviewDir);
       expect(files.length).toBe(1);
-      // Filename should be slug-only, no timestamp prefix
-      expect(files[0]).toBe('test-idea.md');
-      expect(files[0]).not.toMatch(/^\d+-/);
+      // The readable slug is followed by a UUID so concurrent interviews
+      // with the same idea cannot share a document.
+      expect(files[0]).toMatch(
+        /^test-idea-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.md$/,
+      );
 
       // Check file content structure
       const content = await fs.readFile(
@@ -938,7 +940,7 @@ describe('interview service', () => {
       await service.handleNudgeAction(interviewId, 'more-questions');
 
       const call = ctx.client.session.promptAsync.mock.calls[0]?.[0];
-      expect(call.model).toEqual({
+      expect(call.body.model).toEqual({
         providerID: 'openai',
         modelID: 'gpt-5.6-luna',
       });
@@ -974,7 +976,7 @@ describe('interview service', () => {
       const customDir = path.join(tempDir, 'custom-interviews');
       const files = await fs.readdir(customDir);
       expect(files.length).toBe(1);
-      expect(files[0]).toBe('custom-folder-idea.md');
+      expect(files[0]).toMatch(/^custom-folder-idea-[0-9a-f-]+\.md$/);
 
       // Verify the markdownPath in state points to custom folder
       const interviewId = extractInterviewIdFromLastPrompt(
@@ -1014,7 +1016,7 @@ describe('interview service', () => {
       const nestedDir = path.join(tempDir, 'docs', 'interviews');
       const files = await fs.readdir(nestedDir);
       expect(files.length).toBe(1);
-      expect(files[0]).toBe('nested-path-idea.md');
+      expect(files[0]).toMatch(/^nested-path-idea-[0-9a-f-]+\.md$/);
 
       // Cleanup
       await fs.rm(tempDir, { recursive: true, force: true });
@@ -1421,7 +1423,7 @@ describe('interview service', () => {
       ]);
 
       const call = ctx.client.session.promptAsync.mock.calls[0]?.[0];
-      expect(call.model).toEqual({
+      expect(call.body.model).toEqual({
         providerID: 'anthropic',
         modelID: 'claude-sonnet-4-6',
       });
@@ -1431,7 +1433,7 @@ describe('interview service', () => {
   });
 
   describe('agent-provided title', () => {
-    test('renames file when assistant provides title in interview_state', async () => {
+    test('keeps path stable and stores assistant title in markdown', async () => {
       const tempDir = await fs.mkdtemp('/tmp/interview-test-');
 
       // Start with empty messages
@@ -1463,7 +1465,9 @@ describe('interview service', () => {
       const interviewDir = path.join(tempDir, 'interview');
       let files = await fs.readdir(interviewDir);
       expect(files.length).toBe(1);
-      expect(files[0]).toBe('my-great-app-idea-with-long-description.md');
+      expect(files[0]).toMatch(
+        /^my-great-app-idea-with-long-description-[0-9a-f-]+\.md$/,
+      );
 
       const interviewId = extractInterviewIdFromLastPrompt(
         ctx.client.session.prompt,
@@ -1481,14 +1485,19 @@ describe('interview service', () => {
         ],
       });
 
-      // Sync interview (this triggers the rename)
+      // Sync interview (the assistant title updates Markdown, not its path)
       const state = await service.getInterviewState(requiredInterviewId);
 
-      // File should be renamed to use assistant-provided title
+      // The durable path remains tied to the record's original idea.
       files = await fs.readdir(interviewDir);
       expect(files.length).toBe(1);
-      expect(files[0]).toBe('task-manager.md');
-      expect(state.markdownPath).toContain('task-manager.md');
+      expect(files[0]).toMatch(
+        /^my-great-app-idea-with-long-description-[0-9a-f-]+\.md$/,
+      );
+      expect(state.markdownPath).toMatch(
+        /my-great-app-idea-with-long-description-[0-9a-f-]+\.md$/,
+      );
+      expect(state.document).toContain('# task-manager');
 
       // Cleanup
       await fs.rm(tempDir, { recursive: true, force: true });
@@ -1522,7 +1531,7 @@ describe('interview service', () => {
 
       const interviewDir = path.join(tempDir, 'interview');
       let files = await fs.readdir(interviewDir);
-      expect(files[0]).toBe('simple-idea.md');
+      expect(files[0]).toMatch(/^simple-idea-[0-9a-f-]+\.md$/);
 
       const interviewId = extractInterviewIdFromLastPrompt(
         ctx.client.session.prompt,
@@ -1544,14 +1553,14 @@ describe('interview service', () => {
 
       // Filename should remain unchanged
       files = await fs.readdir(interviewDir);
-      expect(files[0]).toBe('simple-idea.md');
-      expect(state.markdownPath).toContain('simple-idea.md');
+      expect(files[0]).toMatch(/^simple-idea-[0-9a-f-]+\.md$/);
+      expect(state.markdownPath).toMatch(/simple-idea-[0-9a-f-]+\.md$/);
 
       // Cleanup
       await fs.rm(tempDir, { recursive: true, force: true });
     });
 
-    test('does not rename if target filename already exists', async () => {
+    test('keeps shared path when title matches another file', async () => {
       const tempDir = await fs.mkdtemp('/tmp/interview-test-');
 
       const messagesData: Array<{
@@ -1587,7 +1596,10 @@ describe('interview service', () => {
       );
 
       let files = await fs.readdir(interviewDir);
-      expect(files).toContain('original-idea.md');
+      const originalPath = files.find((file) =>
+        file.startsWith('original-idea-'),
+      );
+      expect(originalPath).toBeDefined();
       expect(files).toContain('target-name.md');
 
       const interviewId = extractInterviewIdFromLastPrompt(
@@ -1608,11 +1620,16 @@ describe('interview service', () => {
 
       const state = await service.getInterviewState(requiredInterviewId);
 
-      // Should not rename (would overwrite existing file)
+      // The active document keeps its path and the unrelated file remains
+      // untouched.
       files = await fs.readdir(interviewDir);
-      expect(files).toContain('original-idea.md');
+      expect(files).toContain(originalPath as string);
       expect(files).toContain('target-name.md');
-      expect(state.markdownPath).toContain('original-idea.md');
+      expect(state.markdownPath).toMatch(/original-idea-[0-9a-f-]+\.md$/);
+      expect(state.document).toContain('# target-name');
+      expect(
+        await fs.readFile(path.join(interviewDir, 'target-name.md'), 'utf8'),
+      ).toContain('Existing.');
 
       // Cleanup
       await fs.rm(tempDir, { recursive: true, force: true });

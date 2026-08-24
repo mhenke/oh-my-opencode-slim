@@ -1,7 +1,7 @@
 # Diagnosis: "build agent empty input" after orchestrator output
 
-**Status:** Diagnosis only — no code change yet.
-**Date:** 2026-07-19
+**Status:** Resolved for interview injections.
+**Date:** 2026-08-10
 **Related PR:** #818 (`fix/preset-tui-slash-command`) — same root class as the original `/preset` fix.
 **Suspected sibling bug reported by user:** During `superpowers` / `brainstorm` skill conversations, when the orchestrator asks for confirmation or work is interrupted (subagent completes, background task finishes), a `build` agent turn sometimes appears with an empty user input.
 
@@ -9,15 +9,16 @@
 
 The `build` agent turn with empty input is **the same class of bug** as the original `/preset` issue fixed in #818: a plugin hook calls `sessionSdk.promptAsync({ body: { parts: [createInternalAgentTextPart(...)] } })` **without specifying an `agent` field**. opencode then resolves the agent via `agents.defaultInfo()`, which falls back to the built-in `build` agent whenever `default_agent` is unset, user-overridden, or not effectively applied. The `synthetic: true` flag hides the injected text from the TUI, so the user perceives the `build` turn as having "empty input."
 
-**Update (Issue #854):** the incomplete-todo continuation path now passes `agent: 'orchestrator'`, is an opt-in beta via `backgroundJobs.continueOnIdle: true`, and uses a process-local one-attempt gate. Remaining agent-less `promptAsync` call sites are interview/smartfetch (below).
+**Update:** the incomplete-todo continuation path passes `agent: 'orchestrator'`,
+and interview injections now use the interview-only runtime boundary, which
+always targets the orchestrator. Smartfetch remains a separate call site.
 
 ## Root cause (causal chain, cross-validated)
 
 1. **Orchestrator enters input-wait.** After emitting a confirmation question (skill flow), the assistant turn finishes. opencode's per-session Runner transitions to `Idle` (`packages/opencode/src/effect/runner.ts:115-138`, `packages/opencode/src/session/run-state.ts:60-63`). The session is no longer "busy" from the Runner's perspective.
 
-2. **Plugin hook fires `promptAsync` with a synthetic part and historically no `agent` field.** Remaining agent-less sites:
-   - `src/interview/service.ts:622, 871, 933, 1007` — interview/skill flow injections (matches "brainstorm skill flow").
-   - Continuation nudge (`continuation-evaluator.ts`) previously matched "subagent completes" / "background task finishes"; it now sets `agent: 'orchestrator'` and only runs when `continueOnIdle` is enabled.
+2. **Plugin hook fires `promptAsync` with a synthetic part and historically no `agent` field.** The interview service now delegates these calls through `InterviewSessionRuntime`, whose v1 implementation supplies `agent: 'orchestrator'`; the v2 bridge uses the v2 orchestrator session API directly.
+   - Continuation nudge (`continuation-evaluator.ts`) sets `agent: 'orchestrator'` and only runs when `continueOnIdle` is enabled.
 
 3. **opencode does not guard `promptAsync` against busy/input-wait state.** The HTTP handler at `packages/opencode/src/server/routes/instance/httpapi/handlers/session.ts:311-329` does not call `assertNotBusy` and does not consult the Question service. It proceeds straight to `promptSvc.prompt`. The Runner, being `Idle`, immediately `startRun`s the new turn (`runner.ts:131-134`). No queue, no reject, no cancellation of the pending question.
 
@@ -41,11 +42,8 @@ The `build` agent turn with empty input is **the same class of bug** as the orig
 | File:line | Trigger | Body omits `agent`? | Gate |
 |---|---|---|---|
 | `src/hooks/task-session-manager/continuation-evaluator.ts` (`promptAsync`) | `session.idle` / `session.status(idle)` on orchestrator session with incomplete todos when the opt-in beta `backgroundJobs.continueOnIdle` is `true` | **No** (`agent: 'orchestrator'`) | `continueOnIdle`, process-local one-attempt gate (reserve→commit), `hasInputWait`, `isCurrentContinuation`, `isFallbackInProgress`, `backgroundJobBoard.hasTerminalUnreconciled`, malformed/active SDK short-circuits |
-| `src/interview/service.ts:622` | User submits interview dashboard input | **Yes** | `sessionBusy` lock, interview active state |
-| `src/interview/service.ts:871` | User submits interview chat | **Yes** | same |
-| `src/interview/service.ts:933` | User submits interview answer | **Yes** | same |
-| `src/interview/service.ts:1007` | User submits interview comment | **Yes** | same |
-| `src/interview/service.ts:504` | Interview URL notification | **Yes** (but `noReply: true`, non-synthetic text) | none |
+| `src/interview/service.ts` | User submits interview input | **No** — uses `InterviewSessionRuntime.continue()` | `sessionBusy` lock, interview active state |
+| `src/interview/service.ts` | Interview URL notification | **No routing ambiguity** — uses `InterviewSessionRuntime.notify()` | none |
 | `src/tools/smartfetch/secondary-model.ts:252` | Smartfetch secondary model query | **Yes** | none |
 
 ## Correct pattern (for comparison)
@@ -80,28 +78,27 @@ The gate exists and works in the common case (see `continuation-evaluator.ts` an
 3. **Input-wait is not the only trigger.** The interview/skill path
    (`src/interview/service.ts`) does **not** consult `hasInputWait` at all — it
    injects on user dashboard actions, which can happen while the orchestrator is
-   mid-question.
+   mid-question. Its continuation routing is nevertheless explicit now.
 
 4. **Continuation path sets `agent: 'orchestrator'`.** The historical missing-
    `agent` misroute on the continuation nudge is fixed in
-   `continuation-evaluator.ts`. Remaining agent-less `promptAsync` call sites
-   are outside that path (interview/smartfetch below).
+   `continuation-evaluator.ts`; interview uses its runtime boundary as well.
+   Smartfetch remains outside this interview fix.
 
 ## Why this is the same class as the #818 `/preset` fix
 
 #818's original bug: `/preset` used `createInternalAgentTextPart()` to trigger an LLM turn that was invisible in the TUI (`synthetic: true`). The fix moved `/preset` to pure TUI dialogs (`src/tui-preset.ts` uses only `api.ui.dialog` / `DialogSelect` / `DialogPrompt` / `DialogConfirm` — no `promptAsync`).
 
-This bug: other hooks still use the same `createInternalAgentTextPart` + `promptAsync` pattern, and additionally omit the `agent` field, so the invisible turn routes to `build` instead of the orchestrator. Same shape: a synthetic part starting an invisible turn. Different symptom: `build` agent instead of orchestrator.
+The historical bug used the same `createInternalAgentTextPart` + `promptAsync`
+pattern and omitted `agent`, so the invisible turn could route to `build` instead
+of the orchestrator. The interview path no longer makes those raw calls.
 
-## Fix directions (not implemented — awaiting decision)
+## Fix implemented
 
-### Minimal fix
-Continuation already passes `agent: 'orchestrator'`. Add the same to remaining
-agent-less `promptAsync` bodies:
-- `src/interview/service.ts` (dashboard/chat/answer/comment injectors)
-
-This ensures interview injections always route to the orchestrator regardless of
-opencode's `default_agent` resolution, eliminating the path to `build`.
+The interview service no longer owns raw session prompt calls. Its narrow
+`InterviewSessionRuntime` boundary routes all continuation prompts to the
+orchestrator. v1 uses the nested SDK client; v2 uses a marker/context bridge and
+the v2 session methods without expanding the global client shim.
 
 ### Hardening (optional, larger scope)
 1. **Input-wait guard on the interview/skill path.** Consult `hasInputWait` (or an equivalent signal) before injecting in `src/interview/service.ts`. Do not inject while the orchestrator is waiting for user input.
@@ -140,12 +137,12 @@ opencode's `default_agent` resolution, eliminating the path to `build`.
 - **`SessionPromptAsyncData.body.agent?` is optional:** `node_modules/@opencode-ai/sdk/dist/v2/gen/types.gen.d.ts:3241-3269`
 - **`build` is a built-in agent:** `node_modules/@opencode-ai/sdk/dist/v2/gen/types.gen.d.ts:1273-1279`
 
-## Open questions for the fix
+## Follow-up
 
-1. Should the fix be a new PR, or amended into #818? (#818 is currently `MERGEABLE` / `CLEAN` / CI green; amending widens its scope and may delay merge.)
-2. Is the interview/skill path expected to always route to the orchestrator, or could it intentionally target a different agent in some flows?
-3. Should we also harden the `default_agent` application (fix direction #3) as part of this work, or track it separately under #799?
+1. Smartfetch still has its own secondary-model prompt path and is outside the interview runtime boundary.
+2. Continue keeping cache-sensitive v2 interview rewriting restricted to the trailing marker message.
 
 ---
 
-This report is diagnostic only. No code was changed. The fix awaits the user's decision on scope and PR strategy.
+Regression coverage lives in `src/interview/runtime.test.ts`,
+`src/interview/finalization.test.ts`, and `src/v2/interview-bridge.test.ts`.

@@ -16,6 +16,7 @@ export function createInterviewManager(
   handleEvent: (input: {
     event: { type: string; properties?: Record<string, unknown> };
   }) => Promise<void>;
+  dispose: () => Promise<void> | void;
 } {
   const interviewConfig = config.interview;
   const effectivePort = interviewConfig?.port ?? 0;

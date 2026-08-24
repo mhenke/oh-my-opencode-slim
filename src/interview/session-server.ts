@@ -17,6 +17,7 @@ export function createPerSessionInterviewServer(
   handleEvent: (input: {
     event: { type: string; properties?: Record<string, unknown> };
   }) => Promise<void>;
+  dispose: () => void;
 } {
   const service = createInterviewService(ctx, interviewConfig);
   const resolvedOutputPath = path.join(ctx.directory, outputFolder);
@@ -36,10 +37,17 @@ export function createPerSessionInterviewServer(
     port: 0,
   });
   service.setBaseUrlResolver(() => server.ensureStarted());
+  let disposed = false;
+
   return {
     registerCommand: (c) => service.registerCommand(c),
     handleCommandExecuteBefore: async (input, output) =>
       service.handleCommandExecuteBefore(input, output),
     handleEvent: async (input) => service.handleEvent(input),
+    dispose: () => {
+      if (disposed) return;
+      disposed = true;
+      server.close();
+    },
   };
 }

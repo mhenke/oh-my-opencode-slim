@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { mkdtemp, rm } from 'node:fs/promises';
-import plugin from './index';
+import { OhMyOpenCodeLite as plugin } from './index';
 
 function createPluginClient(
   noop: () => Promise<unknown>,
@@ -133,6 +133,11 @@ describe('plugin tool registration', () => {
       serverUrl: new URL('http://127.0.0.1:4096'),
     } as never);
 
+    expect(hooks.tool?.task_status).toBeDefined();
+    expect(hooks.tool?.task_result).toBeDefined();
+    expect(hooks.tool?.task_message).toBeDefined();
+    expect(hooks.tool?.task_cancel).toBeDefined();
+    expect(hooks.tool?.task_revive).toBeDefined();
     expect(hooks.tool?.wait_for_user).toBeDefined();
     await expect(
       hooks.tool?.wait_for_user?.execute(

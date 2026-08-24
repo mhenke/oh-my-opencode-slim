@@ -130,11 +130,11 @@ export interface InterviewStateEntry {
   lastUpdatedAt: number;
   filePath: string;
   nudgeAction: 'more-questions' | 'confirm-complete' | null;
-  pendingBlockComment: {
+  pendingBlockComment?: {
     section: string;
     comment: string;
   } | null;
-  pendingChatMessage: string | null;
+  pendingChatMessage?: string | null;
   document?: string;
   blocks?: SpecBlock[];
 }

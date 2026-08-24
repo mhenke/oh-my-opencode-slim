@@ -1,10 +1,11 @@
-import { describe, expect, mock, test } from 'bun:test';
+import { afterEach, describe, expect, mock, test } from 'bun:test';
 import * as fs from 'node:fs/promises';
 import { createServer as createHttpServer } from 'node:http';
 import { createServer as createNetServer } from 'node:net';
 import type { PluginConfig } from '../config';
 import { readDashboardAuthFile } from './dashboard';
-import { createInterviewManager } from './manager';
+import { createDashboardManager } from './dashboard-manager';
+import { createInterviewManager as createInterviewManagerImpl } from './manager';
 
 // Intercept getClient so the manager's service uses the same session mocks.
 mock.module('../utils/opencode-client', () => ({
@@ -12,6 +13,22 @@ mock.module('../utils/opencode-client', () => ({
     session: ctx._sessionMock ?? ctx.client.session,
   }),
 }));
+
+const managers = new Set<ReturnType<typeof createInterviewManagerImpl>>();
+
+function createInterviewManager(
+  ...args: Parameters<typeof createInterviewManagerImpl>
+): ReturnType<typeof createInterviewManagerImpl> {
+  const manager = createInterviewManagerImpl(...args);
+  managers.add(manager);
+  return manager;
+}
+
+afterEach(async () => {
+  const pending = [...managers];
+  managers.clear();
+  await Promise.all(pending.map((manager) => manager.dispose()));
+});
 
 // Helper to find a free port (matches interview.test.ts pattern)
 async function findFreePort(): Promise<number> {
@@ -163,6 +180,29 @@ describe('interview manager - per-session mode', () => {
       await fs.rm(tempDir, { recursive: true, force: true });
     });
 
+    test('disposes the per-session server idempotently', async () => {
+      const tempDir = await fs.mkdtemp('/tmp/manager-test-');
+      const manager = createInterviewManager(
+        createMockContext({ directory: tempDir }),
+        createTestConfig({ port: 0 }),
+      );
+
+      try {
+        await manager.handleCommandExecuteBefore(
+          {
+            command: 'interview',
+            sessionID: 'session-dispose-local',
+            arguments: 'Dispose Local Test',
+          },
+          { parts: [] },
+        );
+        await manager.dispose();
+        await manager.dispose();
+      } finally {
+        await fs.rm(tempDir, { recursive: true, force: true });
+      }
+    });
+
     test('registers session when interview is created', async () => {
       const tempDir = await fs.mkdtemp('/tmp/manager-test-');
       const ctx = createMockContext({ directory: tempDir });
@@ -194,7 +234,7 @@ describe('interview manager - per-session mode', () => {
         const promptCalls = ctx.client.session.prompt.mock.calls;
         expect(promptCalls.length).toBeGreaterThan(0);
         const text =
-          promptCalls[promptCalls.length - 1][0].parts?.[0]?.text ?? '';
+          promptCalls[promptCalls.length - 1][0].body?.parts?.[0]?.text ?? '';
         const match = text.match(/interview\/([^\s]+)/);
         expect(match).not.toBeNull();
         const interviewId = match?.[1];
@@ -285,7 +325,7 @@ describe('interview manager - state push callback wiring', () => {
       const promptCalls = ctx.client.session.prompt.mock.calls;
       expect(promptCalls.length).toBeGreaterThan(0);
       const text =
-        promptCalls[promptCalls.length - 1][0].parts?.[0]?.text ?? '';
+        promptCalls[promptCalls.length - 1][0].body?.parts?.[0]?.text ?? '';
       const match = text.match(/interview\/([^\s]+)/);
       expect(match).not.toBeNull();
       const interviewId = match?.[1];
@@ -374,7 +414,7 @@ describe('interview manager - session registration', () => {
       const promptCalls = ctx.client.session.prompt.mock.calls;
       expect(promptCalls.length).toBeGreaterThan(0);
       const text =
-        promptCalls[promptCalls.length - 1][0].parts?.[0]?.text ?? '';
+        promptCalls[promptCalls.length - 1][0].body?.parts?.[0]?.text ?? '';
       const match = text.match(/interview\/([^\s]+)/);
       expect(match).not.toBeNull();
       const interviewId = match?.[1];
@@ -427,24 +467,32 @@ describe('interview manager - session registration', () => {
       const promptCalls = ctx.client.session.prompt.mock.calls;
       expect(promptCalls.length).toBeGreaterThan(0);
       const text =
-        promptCalls[promptCalls.length - 1][0].parts?.[0]?.text ?? '';
+        promptCalls[promptCalls.length - 1][0].body?.parts?.[0]?.text ?? '';
       const match = text.match(/interview\/([^\s]+)/);
       expect(match).not.toBeNull();
       const _interviewId = match?.[1];
 
       // Give registration a moment
       await new Promise((r) => setTimeout(r, 100));
+      const auth = await readDashboardAuthFile(freePort);
+      expect(auth).not.toBeNull();
 
       // Delete session
       await manager.handleEvent({
         event: {
           type: 'session.deleted',
-          properties: { sessionID: 'session-delete-reg' },
+          properties: { info: { id: 'session-delete-reg' } },
         },
       });
 
       // Give cleanup a moment
       await new Promise((r) => setTimeout(r, 50));
+
+      const stateResponse = await fetch(
+        `http://127.0.0.1:${freePort}/api/interviews/${_interviewId}` +
+          `/state?token=${auth?.token}`,
+      );
+      expect(stateResponse.status).toBe(404);
 
       // Interview file should still exist
       const interviewDir = `${tempDir}/interview`;
@@ -509,7 +557,7 @@ describe('interview manager - session registration', () => {
       await clientManager.handleEvent({
         event: {
           type: 'session.deleted',
-          properties: { sessionID: 'session-fallback-cleanup' },
+          properties: { info: { id: 'session-fallback-cleanup' } },
         },
       });
 
@@ -523,9 +571,260 @@ describe('interview manager - session registration', () => {
       await fs.rm(clientDir, { recursive: true, force: true });
     }
   });
+
+  test('disposes dashboard resources idempotently', async () => {
+    const tempDir = await fs.mkdtemp('/tmp/manager-test-');
+    const ctx = createMockContext({ directory: tempDir });
+    const freePort = await findFreePort();
+    const manager = createInterviewManager(
+      ctx,
+      createTestConfig({ port: freePort, dashboard: true }),
+    );
+
+    try {
+      await manager.handleCommandExecuteBefore(
+        {
+          command: 'interview',
+          sessionID: 'session-dispose',
+          arguments: 'Dispose Test',
+        },
+        { parts: [] },
+      );
+
+      expect(await readDashboardAuthFile(freePort)).not.toBeNull();
+      await manager.dispose();
+      await manager.dispose();
+      expect(await readDashboardAuthFile(freePort)).toBeNull();
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('interview manager - edge cases', () => {
+  test('does not roll back a claim during an overlapping in-process delivery', async () => {
+    const tempDir = await fs.mkdtemp('/tmp/manager-test-');
+    const ctx = createMockContext({ directory: tempDir });
+    const freePort = await findFreePort();
+    const config = createTestConfig({ port: freePort, dashboard: true });
+    const messages: Array<{
+      info?: { role: string };
+      parts?: Array<{ type: string; text?: string }>;
+    }> = [];
+    let signalFirstDelivery!: () => void;
+    const firstDeliveryStarted = new Promise<void>((resolve) => {
+      signalFirstDelivery = resolve;
+    });
+    let releaseFirstDelivery!: () => void;
+    const firstDeliveryGate = new Promise<void>((resolve) => {
+      releaseFirstDelivery = resolve;
+    });
+    let submitAttempts = 0;
+    const runtime = {
+      messages: async () => messages,
+      notify: async () => {},
+      continue: async () => {
+        submitAttempts++;
+        if (submitAttempts === 1) {
+          signalFirstDelivery();
+          await firstDeliveryGate;
+        } else {
+          throw new Error('session busy');
+        }
+      },
+      rename: async () => {},
+    };
+    const manager = createDashboardManager(ctx, config, freePort, 'interview', {
+      runtime,
+    });
+
+    try {
+      await manager.handleCommandExecuteBefore(
+        {
+          command: 'interview',
+          sessionID: 'session-overlap',
+          arguments: 'Overlap Delivery Test',
+        },
+        { parts: [] },
+      );
+      const interviewId =
+        manager.service.getActiveInterviewId('session-overlap');
+      expect(interviewId).not.toBeNull();
+
+      messages.push({
+        info: { role: 'assistant' },
+        parts: [
+          {
+            type: 'text',
+            text: '<interview_state>{"summary":"Draft","questions":[{"id":"q-1","question":"What?","options":["A"]}]}</interview_state>',
+          },
+        ],
+      });
+      const auth = await readDashboardAuthFile(freePort);
+      expect(auth).not.toBeNull();
+      const queued = await fetch(
+        `http://127.0.0.1:${freePort}/api/interviews/${interviewId}/answers?token=${auth?.token}`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            answers: [{ questionId: 'q-1', answer: 'A' }],
+          }),
+        },
+      );
+      expect(queued.status).toBe(202);
+
+      const idleEvent = {
+        event: {
+          type: 'session.status',
+          properties: {
+            sessionID: 'session-overlap',
+            status: { type: 'idle' },
+          },
+        },
+      };
+      const first = manager.handleEvent(idleEvent);
+      await firstDeliveryStarted;
+      const second = manager.handleEvent(idleEvent);
+      await second;
+      releaseFirstDelivery();
+      await first;
+
+      expect(submitAttempts).toBe(1);
+
+      // The successful owner acknowledged the claim. A later idle event must
+      // not see a rolled-back claim and submit the same answer again.
+      await manager.handleEvent(idleEvent);
+      expect(submitAttempts).toBe(1);
+    } finally {
+      releaseFirstDelivery();
+      await manager.dispose();
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  test('waits for accepted delivery before disposal and replacement polling', async () => {
+    const tempDir = await fs.mkdtemp('/tmp/manager-test-');
+    const ctx = createMockContext({ directory: tempDir });
+    const freePort = await findFreePort();
+    const config = createTestConfig({ port: freePort, dashboard: true });
+    const messages: Array<{
+      info?: { role: string };
+      parts?: Array<{ type: string; text?: string }>;
+    }> = [];
+    let signalFirstDelivery!: () => void;
+    const firstDeliveryStarted = new Promise<void>((resolve) => {
+      signalFirstDelivery = resolve;
+    });
+    let releaseFirstDelivery!: () => void;
+    const firstDeliveryGate = new Promise<void>((resolve) => {
+      releaseFirstDelivery = resolve;
+    });
+    let submitAttempts = 0;
+    const runtime = {
+      messages: async () => messages,
+      notify: async () => {},
+      continue: async () => {
+        submitAttempts++;
+        signalFirstDelivery();
+        await firstDeliveryGate;
+      },
+      rename: async () => {},
+    };
+    const manager = createDashboardManager(ctx, config, freePort, 'interview', {
+      runtime,
+    });
+
+    try {
+      await manager.handleCommandExecuteBefore(
+        {
+          command: 'interview',
+          sessionID: 'session-dispose-race',
+          arguments: 'Dispose Race Test',
+        },
+        { parts: [] },
+      );
+      const interviewId = manager.service.getActiveInterviewId(
+        'session-dispose-race',
+      );
+      expect(interviewId).not.toBeNull();
+      messages.push({
+        info: { role: 'assistant' },
+        parts: [
+          {
+            type: 'text',
+            text: '<interview_state>{"summary":"Draft","questions":[{"id":"q-1","question":"What?","options":["A"]}]}</interview_state>',
+          },
+        ],
+      });
+      const auth = await readDashboardAuthFile(freePort);
+      expect(auth).not.toBeNull();
+      const queued = await fetch(
+        `http://127.0.0.1:${freePort}/api/interviews/${interviewId}/answers?token=${auth?.token}`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            answers: [{ questionId: 'q-1', answer: 'A' }],
+          }),
+        },
+      );
+      expect(queued.status).toBe(202);
+
+      const idleEvent = {
+        event: {
+          type: 'session.status',
+          properties: {
+            sessionID: 'session-dispose-race',
+            status: { type: 'idle' },
+          },
+        },
+      };
+      const delivery = manager.handleEvent(idleEvent);
+      await firstDeliveryStarted;
+      let disposed = false;
+      const disposal = manager.dispose().then(() => {
+        disposed = true;
+      });
+      await Promise.resolve();
+      expect(disposed).toBe(false);
+
+      releaseFirstDelivery();
+      await delivery;
+      await disposal;
+      expect(submitAttempts).toBe(1);
+
+      const files = await fs.readdir(`${tempDir}/interview`);
+      const documentPath = `${tempDir}/interview/${files.find((file) => file.endsWith('.md'))}`;
+      const replacement = createDashboardManager(
+        ctx,
+        config,
+        freePort,
+        'interview',
+        { runtime },
+      );
+      try {
+        await replacement.handleCommandExecuteBefore(
+          {
+            command: 'interview',
+            sessionID: 'session-dispose-race',
+            arguments: documentPath,
+          },
+          { parts: [] },
+        );
+        await replacement.handleEvent(idleEvent);
+        expect(submitAttempts).toBe(1);
+        expect(await fs.readFile(documentPath, 'utf8')).toContain('A: A');
+      } finally {
+        await replacement.dispose();
+      }
+    } finally {
+      releaseFirstDelivery();
+      await manager.dispose();
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
   test('handles session.status event with idle status', async () => {
     const tempDir = await fs.mkdtemp('/tmp/manager-test-');
     const ctx = createMockContext({ directory: tempDir });
@@ -696,14 +995,14 @@ describe('interview manager - integration with real dashboard', () => {
       // Extract interview IDs
       const promptCalls1 = ctx1.client.session.prompt.mock.calls;
       const text1 =
-        promptCalls1[promptCalls1.length - 1][0].parts?.[0]?.text ?? '';
+        promptCalls1[promptCalls1.length - 1][0].body?.parts?.[0]?.text ?? '';
       const match1 = text1.match(/interview\/([^\s]+)/);
       expect(match1).not.toBeNull();
       const interviewId1 = match1?.[1];
 
       const promptCalls2 = ctx2.client.session.prompt.mock.calls;
       const text2 =
-        promptCalls2[promptCalls2.length - 1][0].parts?.[0]?.text ?? '';
+        promptCalls2[promptCalls2.length - 1][0].body?.parts?.[0]?.text ?? '';
       const match2 = text2.match(/interview\/([^\s]+)/);
       expect(match2).not.toBeNull();
       const interviewId2 = match2?.[1];
@@ -734,6 +1033,225 @@ describe('interview manager - integration with real dashboard', () => {
       );
       expect(state2Response.status).toBe(200);
     } finally {
+      await fs.rm(tempDir1, { recursive: true, force: true });
+      await fs.rm(tempDir2, { recursive: true, force: true });
+    }
+  });
+
+  test('does not redeliver after a successful delivery loses its ACK response', async () => {
+    const tempDir1 = await fs.mkdtemp('/tmp/manager-test-');
+    const tempDir2 = await fs.mkdtemp('/tmp/manager-test-');
+    const port = await findFreePort();
+    const config = createTestConfig({ port, dashboard: true });
+    createInterviewManager(createMockContext({ directory: tempDir1 }), config);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const ctx2 = createMockContext({ directory: tempDir2 });
+    const manager2 = createInterviewManager(ctx2, config);
+    const originalFetch = globalThis.fetch;
+    let droppedAck = false;
+
+    globalThis.fetch = async (input, init) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (!droppedAck && url.includes('/nudge/ack')) {
+        droppedAck = true;
+        throw new Error('simulated ACK transport failure');
+      }
+      return originalFetch(input, init);
+    };
+
+    try {
+      const output = { parts: [] as Array<{ type: string; text?: string }> };
+      await manager2.handleCommandExecuteBefore(
+        {
+          command: 'interview',
+          sessionID: 'session-exactly-once',
+          arguments: 'Exactly Once Test',
+        },
+        output,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const promptCalls = ctx2.client.session.prompt.mock.calls;
+      const kickoff =
+        promptCalls[promptCalls.length - 1]?.[0].body?.parts?.[0]?.text;
+      const interviewId = kickoff?.match(/interview\/([^\s]+)/)?.[1];
+      expect(interviewId).toBeTruthy();
+
+      const auth = await readDashboardAuthFile(port);
+      expect(auth).not.toBeNull();
+      const nudgeResponse = await originalFetch(
+        `http://127.0.0.1:${port}/api/interviews/${interviewId}/nudge?token=${auth?.token}`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ action: 'more-questions' }),
+        },
+      );
+      expect(nudgeResponse.status).toBe(202);
+
+      await manager2.handleEvent({
+        event: {
+          type: 'session.status',
+          properties: {
+            sessionID: 'session-exactly-once',
+            status: { type: 'idle' },
+          },
+        },
+      });
+      expect(droppedAck).toBe(true);
+      expect(ctx2.client.session.promptAsync).toHaveBeenCalledTimes(1);
+
+      await manager2.handleEvent({
+        event: {
+          type: 'session.status',
+          properties: {
+            sessionID: 'session-exactly-once',
+            status: { type: 'idle' },
+          },
+        },
+      });
+      expect(ctx2.client.session.promptAsync).toHaveBeenCalledTimes(1);
+    } finally {
+      globalThis.fetch = originalFetch;
+      await fs.rm(tempDir1, { recursive: true, force: true });
+      await fs.rm(tempDir2, { recursive: true, force: true });
+    }
+  });
+
+  test('delivers a new answer claim after an earlier claim ACK is uncertain', async () => {
+    const tempDir1 = await fs.mkdtemp('/tmp/manager-test-');
+    const tempDir2 = await fs.mkdtemp('/tmp/manager-test-');
+    const port = await findFreePort();
+    const config = createTestConfig({ port, dashboard: true });
+    createInterviewManager(createMockContext({ directory: tempDir1 }), config);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    const messagesData: Array<{
+      info?: { role: string };
+      parts?: Array<{ type: string; text?: string }>;
+    }> = [];
+    const ctx2 = createMockContext({ directory: tempDir2, messagesData });
+    const manager2 = createInterviewManager(ctx2, config);
+    const originalFetch = globalThis.fetch;
+    let failedFirstAck = false;
+
+    globalThis.fetch = async (input, init) => {
+      const url = typeof input === 'string' ? input : input.toString();
+      if (!failedFirstAck && url.includes('/pending/ack')) {
+        failedFirstAck = true;
+        return new Response(JSON.stringify({ error: 'already accepted' }), {
+          status: 409,
+          headers: { 'content-type': 'application/json' },
+        });
+      }
+      return originalFetch(input, init);
+    };
+
+    try {
+      const output = { parts: [] as Array<{ type: string; text?: string }> };
+      await manager2.handleCommandExecuteBefore(
+        {
+          command: 'interview',
+          sessionID: 'session-answer-claims',
+          arguments: 'Answer Claims Test',
+        },
+        output,
+      );
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      const promptCalls = ctx2.client.session.prompt.mock.calls;
+      const kickoff =
+        promptCalls[promptCalls.length - 1]?.[0].body?.parts?.[0]?.text;
+      const interviewId = kickoff?.match(/interview\/([^\s]+)/)?.[1];
+      expect(interviewId).toBeTruthy();
+
+      messagesData.push({
+        info: { role: 'assistant' },
+        parts: [
+          {
+            type: 'text',
+            text:
+              '<interview_state>\n' +
+              '{"summary":"Answer questions","questions":' +
+              '[{"id":"q-1","question":"What?"}]}\n' +
+              '</interview_state>',
+          },
+        ],
+      });
+
+      const auth = await readDashboardAuthFile(port);
+      expect(auth).not.toBeNull();
+      const interviewUrl = `http://127.0.0.1:${port}/api/interviews/${interviewId}`;
+      const authQuery = `?token=${auth?.token}`;
+      const firstAnswer = await originalFetch(
+        `${interviewUrl}/answers${authQuery}`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            answers: [{ questionId: 'q-1', answer: 'First answer' }],
+          }),
+        },
+      );
+      expect(firstAnswer.status).toBe(202);
+
+      const firstClaimResponse = await originalFetch(
+        `${interviewUrl}/pending${authQuery}`,
+      );
+      const firstClaim = (await firstClaimResponse.json()) as {
+        claimId: string;
+        answers: Array<{ questionId: string; answer: string }> | null;
+      };
+      expect(firstClaim.claimId).toBeTruthy();
+      expect(firstClaim.answers).toEqual([
+        { questionId: 'q-1', answer: 'First answer' },
+      ]);
+
+      await manager2.handleEvent({
+        event: {
+          type: 'session.status',
+          properties: {
+            sessionID: 'session-answer-claims',
+            status: { type: 'idle' },
+          },
+        },
+      });
+      expect(failedFirstAck).toBe(true);
+      expect(ctx2.client.session.promptAsync).toHaveBeenCalledTimes(1);
+
+      const recoveredAck = await originalFetch(
+        `${interviewUrl}/pending/ack${authQuery}`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ claimId: firstClaim.claimId }),
+        },
+      );
+      expect(recoveredAck.status).toBe(200);
+
+      const secondAnswer = await originalFetch(
+        `${interviewUrl}/answers${authQuery}`,
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            answers: [{ questionId: 'q-1', answer: 'Second answer' }],
+          }),
+        },
+      );
+      expect(secondAnswer.status).toBe(202);
+
+      await manager2.handleEvent({
+        event: {
+          type: 'session.status',
+          properties: {
+            sessionID: 'session-answer-claims',
+            status: { type: 'idle' },
+          },
+        },
+      });
+      expect(ctx2.client.session.promptAsync).toHaveBeenCalledTimes(2);
+    } finally {
+      globalThis.fetch = originalFetch;
       await fs.rm(tempDir1, { recursive: true, force: true });
       await fs.rm(tempDir2, { recursive: true, force: true });
     }
