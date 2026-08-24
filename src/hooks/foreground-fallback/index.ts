@@ -86,10 +86,16 @@ const PROVIDER_OUTAGE_PATTERNS = [
   /\bmodel is not available\b/i,
   /\bunsupported model\b/i,
   /\bunknown model\b/i,
-  /\bupstream error\b/i,
-  /\bstreaming response failed\b/i,
   /\brequest queue is full\b/i,
   /\bworker local total request limit reached\b/i,
+];
+
+// Generic streaming-error phrases are only failover when paired with a
+// transient 5xx status — bare matches classify permanent model/config
+// failures as retryable (Greptile P2).
+const GENERIC_STREAMING_PATTERNS = [
+  /\bupstream error\b/i,
+  /\bstreaming response failed\b/i,
 ];
 
 function extractStatusCode(error: {
@@ -163,9 +169,14 @@ export function isFailoverError(error: unknown): boolean {
     err.data?.message ?? '',
     err.data?.responseBody ?? '',
   ].join(' ');
+  const isTransientStatus =
+    statusCode !== undefined &&
+    (OUTAGE_STATUS_CODES.has(statusCode) ||
+      (statusCode >= 500 && statusCode < 600));
   const hasFailoverReason =
     RETRYABLE_ERROR_PATTERNS.some((p) => p.test(text)) ||
-    PROVIDER_OUTAGE_PATTERNS.some((p) => p.test(text));
+    PROVIDER_OUTAGE_PATTERNS.some((p) => p.test(text)) ||
+    (isTransientStatus && GENERIC_STREAMING_PATTERNS.some((p) => p.test(text)));
   // Providers sometimes return recoverable rate-limit/outage payloads with
   // an HTTP 400 wrapper. Preserve application-level 400 failures, but let a
   // recognizable failover body continue through the fallback path.
@@ -232,6 +243,10 @@ export class ForegroundFallbackManager {
   /** sessionID → consecutive 429 count for the current model.
    *  Reset on model swap or session deletion. */
   private readonly sessionRetries = new Map<string, number>();
+  /** sessionID → retry count for no-chain same-model retries.
+   *  Separate from sessionRetries to avoid budget-reset bugs when
+   *  consumeRetryBudget deletes the entry on exhaustion (Greptile P1). */
+  private readonly sessionNoChainRetries = new Map<string, number>();
 
   /** Exposed for task-session-manager: prevents idle reconciliation
    *  while a fallback abort/re-prompt is in flight for this session. */
@@ -290,6 +305,7 @@ export class ForegroundFallbackManager {
         this.lastTrigger.delete(id);
         this.lastTriggerModel.delete(id);
         this.sessionRetries.delete(id);
+        this.sessionNoChainRetries.delete(id);
       });
     }
   }
@@ -327,12 +343,17 @@ export class ForegroundFallbackManager {
         }
         // Failover-worthy error on an individual message
         if (info.error && isFailoverError(info.error)) {
-          if (this.shouldTriggerFallback(sessionID)) {
+          if (this.hasFallbackChain(sessionID)) {
+            if (this.shouldTriggerFallback(sessionID)) {
+              await this.tryFallback(sessionID);
+            }
+          } else {
             await this.tryFallback(sessionID);
           }
         } else {
           // Successful response: clear retry count so recovery is not forgotten.
           this.sessionRetries.delete(sessionID);
+          this.sessionNoChainRetries.delete(sessionID);
         }
         break;
       }
@@ -343,13 +364,14 @@ export class ForegroundFallbackManager {
           | undefined;
         if (!props) break;
         const sessionID = eventSessionID(props);
-        if (
-          sessionID &&
-          props.error &&
-          isFailoverError(props.error) &&
-          this.shouldTriggerFallback(sessionID)
-        ) {
-          await this.tryFallback(sessionID);
+        if (sessionID && props.error && isFailoverError(props.error)) {
+          if (this.hasFallbackChain(sessionID)) {
+            if (this.shouldTriggerFallback(sessionID)) {
+              await this.tryFallback(sessionID);
+            }
+          } else {
+            await this.tryFallback(sessionID);
+          }
         }
         break;
       }
@@ -396,7 +418,11 @@ export class ForegroundFallbackManager {
           }
           // Otherwise (attempt === 1, or model didn't change, or outside
           // dedup window): process as genuine retry for current model.
-          if (this.shouldTriggerFallback(sessionID)) {
+          if (this.hasFallbackChain(sessionID)) {
+            if (this.shouldTriggerFallback(sessionID)) {
+              await this.tryFallbackWithAbort(sessionID);
+            }
+          } else {
             await this.tryFallbackWithAbort(sessionID);
           }
           break;
@@ -405,6 +431,7 @@ export class ForegroundFallbackManager {
         if (this.isRecoveredStatus(props.status?.type)) {
           // Recovered/terminal status: clear retry count.
           this.sessionRetries.delete(sessionID);
+          this.sessionNoChainRetries.delete(sessionID);
         }
         // Note: do NOT clear sessionRetries here on non-rate-limit statuses.
         // Abort events triggered by our own fallback carry non-rate-limit
@@ -521,9 +548,7 @@ export class ForegroundFallbackManager {
     const promptBody = {
       parts: [
         ...(lastUser.parts as any[]),
-        createInternalAgentTextPart(
-          label ?? 'Foreground fallback replay.',
-        ),
+        createInternalAgentTextPart(label ?? 'Foreground fallback replay.'),
       ],
       model,
       ...(agentName ? { agent: agentName } : {}),
@@ -570,21 +595,26 @@ export class ForegroundFallbackManager {
 
     // Agent chain explicitly disabled — skip same-model retry.
     const agentName = this.sessionAgent.get(sessionID);
-    if (agentName && Array.isArray(this.chains[agentName]) && this.chains[agentName].length === 0) return;
+    if (
+      agentName &&
+      Array.isArray(this.chains[agentName]) &&
+      this.chains[agentName].length === 0
+    )
+      return;
 
-    const tried = this.sessionRetries.get(sessionID) ?? 0;
+    const tried = this.sessionNoChainRetries.get(sessionID) ?? 0;
     if (tried >= this.maxRetries) {
-      log(
-        '[foreground-fallback] same-model retries exhausted, giving up',
-        { sessionID, currentModel, tried },
-      );
-      this.sessionRetries.delete(sessionID);
+      log('[foreground-fallback] same-model retries exhausted, giving up', {
+        sessionID,
+        currentModel,
+        tried,
+      });
       return;
     }
 
     if (this.isDeduped(sessionID)) return;
 
-    this.sessionRetries.set(sessionID, tried + 1);
+    this.sessionNoChainRetries.set(sessionID, tried + 1);
 
     this.inProgress.add(sessionID);
     try {
@@ -641,21 +671,26 @@ export class ForegroundFallbackManager {
 
     // Agent chain explicitly disabled — skip same-model retry.
     const agentName = this.sessionAgent.get(sessionID);
-    if (agentName && Array.isArray(this.chains[agentName]) && this.chains[agentName].length === 0) return;
+    if (
+      agentName &&
+      Array.isArray(this.chains[agentName]) &&
+      this.chains[agentName].length === 0
+    )
+      return;
 
-    const tried = this.sessionRetries.get(sessionID) ?? 0;
+    const tried = this.sessionNoChainRetries.get(sessionID) ?? 0;
     if (tried >= this.maxRetries) {
-      log(
-        '[foreground-fallback] same-model retries exhausted, giving up',
-        { sessionID, currentModel, tried },
-      );
-      this.sessionRetries.delete(sessionID);
+      log('[foreground-fallback] same-model retries exhausted, giving up', {
+        sessionID,
+        currentModel,
+        tried,
+      });
       return;
     }
 
     if (this.isDeduped(sessionID)) return;
 
-    this.sessionRetries.set(sessionID, tried + 1);
+    this.sessionNoChainRetries.set(sessionID, tried + 1);
 
     this.inProgress.add(sessionID);
     try {

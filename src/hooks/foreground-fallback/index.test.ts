@@ -215,6 +215,32 @@ describe('isFailoverError', () => {
       }),
     ).toBe(false);
   });
+
+  test('permanent error with generic streaming phrase and non-5xx status is NOT a failover error', () => {
+    expect(
+      isFailoverError({
+        data: { statusCode: 400, responseBody: 'streaming response failed' },
+      }),
+    ).toBe(false);
+    // No status at all → must not match the generic phrase.
+    expect(isFailoverError({ message: 'streaming response failed' })).toBe(
+      false,
+    );
+    expect(isFailoverError({ message: 'upstream error' })).toBe(false);
+  });
+
+  test('transient 5xx with generic streaming phrase IS a failover error', () => {
+    // 524 is already in OUTAGE_STATUS_CODES.
+    expect(
+      isFailoverError({
+        data: { statusCode: 524, responseBody: 'upstream error' },
+      }),
+    ).toBe(true);
+    // 520 is a 5xx but not in OUTAGE_STATUS_CODES — generic phrase must still match.
+    expect(
+      isFailoverError({ data: { statusCode: 520, message: 'upstream error' } }),
+    ).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -1714,6 +1740,48 @@ describe('ForegroundFallbackManager no-chain sessions', () => {
 
     expect(mocks.abort).not.toHaveBeenCalled();
     expect(mocks.promptAsync).not.toHaveBeenCalled();
+  });
+
+  test('no-chain session gives up after maxRetries and does not replay again (no budget reset)', async () => {
+    const { mocks } = createMockClient();
+    const mgr = new ForegroundFallbackManager(
+      makeChains(),
+      true,
+      { directory: '/test' } as any,
+      3,
+    );
+
+    await mgr.handleEvent({
+      type: 'message.updated',
+      properties: {
+        info: {
+          sessionID: 'nc-budget',
+          agent: 'councillor',
+          providerID: 'openai',
+          modelID: 'gpt-5.4',
+        },
+      },
+    });
+
+    const realNow = Date.now;
+    let t = 0;
+    Date.now = () => (t += 10_000); // advance 10s per call → never deduplicated
+    try {
+      for (let i = 0; i < 10; i++) {
+        await mgr.handleEvent({
+          type: 'session.error',
+          properties: {
+            sessionID: 'nc-budget',
+            error: { message: 'rate limit exceeded' },
+          },
+        });
+      }
+    } finally {
+      Date.now = realNow;
+    }
+
+    // maxRetries is 3 → at most 3 same-model replays, never resets to 0.
+    expect(mocks.promptAsync).toHaveBeenCalledTimes(3);
   });
 });
 
