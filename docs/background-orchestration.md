@@ -73,6 +73,8 @@ Its job is to:
 
 Specialists do the work. The orchestrator manages the work.
 
+By default, the orchestrator's file-mutation tools (`edit`, `write`, `apply_patch`, `ast_grep_replace`) are denied at the tool-call level; shell-mediated edits are discouraged by prompt only. An explicit `permission` entry can re-allow them.
+
 ### Unattributed sessions and restart scope
 
 A child observed before it can be attributed to a task launch is retained as a

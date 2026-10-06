@@ -54,6 +54,14 @@ const ORCHESTRATOR_DEFAULT_TOOL_NAMES = [
   'task_result',
   'acp_run',
 ] as const;
+/** File-mutation tools the orchestrator must not call directly (issue #1012).
+ * Denied by default; an explicit user permission entry re-allows. */
+const ORCHESTRATOR_DENIED_TOOL_NAMES = [
+  'edit',
+  'write',
+  'apply_patch',
+  'ast_grep_replace',
+] as const;
 const MARKETPLACE_TOOL_NAMES = [
   'marketplace_inspect',
   'marketplace_manage',
@@ -676,6 +684,15 @@ function applyDefaultPermissions(
       existing[toolName] ?? (agent.name === 'orchestrator' ? 'allow' : 'deny'),
     ]),
   );
+  const orchestratorDeniedPermissions =
+    agent.name === 'orchestrator'
+      ? Object.fromEntries(
+          ORCHESTRATOR_DENIED_TOOL_NAMES.map((toolName) => [
+            toolName,
+            existing[toolName] ?? 'deny',
+          ]),
+        )
+      : {};
   const waitForUserPerm =
     agent.name === 'orchestrator'
       ? (existing.wait_for_user ?? 'allow')
@@ -698,6 +715,7 @@ function applyDefaultPermissions(
     ...existing,
     question: questionPerm,
     ...orchestratorDefaultPermissions,
+    ...orchestratorDeniedPermissions,
     wait_for_user: waitForUserPerm,
     ...marketplacePermissions,
     // Apply skill permissions as nested object under 'skill' key

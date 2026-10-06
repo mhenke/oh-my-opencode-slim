@@ -51,7 +51,7 @@ export const DEFAULT_MODELS: Record<AgentName, string | undefined> = {
 };
 
 // Workflow reminders
-export const PHASE_REMINDER_TEXT = `!IMPORTANT! Scheduler workflow: pick the lightest workflow that fits. Direct work: execute and verify proportionately. Otherwise: plan lanes → dispatch background specialists → track task IDs → await hook-driven completion → reconcile terminal results → verify. !END!`;
+export const PHASE_REMINDER_TEXT = `!IMPORTANT! Scheduler workflow: pick the lightest workflow that fits. Delegate implementation to specialists; the orchestrator coordinates, verifies, and integrates. For delegated work: plan lanes → dispatch background specialists → track task IDs → await hook-driven completion → reconcile terminal results → verify. !END!`;
 
 export function formatSystemReminder(text: string): string {
   return `<system-reminder>\n${text}\n</system-reminder>`;
@@ -65,6 +65,12 @@ export const WRITABLE_FILE_OPERATIONS_RULES = `**File Operations Rules**:
 - Shell is acceptable for bulk or mechanical filesystem changes when it is clearer or safer than many individual edits (for example: truncate generated logs, remove build artifacts, batch rename/move files), especially when the user explicitly asks for that shell operation.
 - Before destructive or broad shell operations, verify the target set and quote paths. Prefer a dry-run/listing first when practical.
 - Do not use cat/head/tail/sed/awk only to read code into context; use read/grep unless a shell pipeline is genuinely the better diagnostic.`;
+
+export const ORCHESTRATOR_FILE_OPERATIONS_RULES = `**File Operations Rules**:
+- File-mutation tools (edit, write, apply_patch, ast_grep_replace) are denied to you by configuration; inspect and report, do not modify files.
+- Prefer dedicated file tools for codebase inspection: glob/grep/ast_grep_search for discovery and read for file contents.
+- Use bash for orchestration and verification only: git, package managers, tests, builds, diagnostics. Do not use bash to modify files (prompt-level rule, not SDK-enforced): no sed -i, no redirection into source files, no shell-native edits.
+- Delegate every file change to @fixer (or @designer for UI work).`;
 
 export const READONLY_FILE_OPERATIONS_RULES = `**File Operations Rules**:
 - READ-ONLY: inspect and report; do not modify files.

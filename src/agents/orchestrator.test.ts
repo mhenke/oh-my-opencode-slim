@@ -137,4 +137,17 @@ describe('orchestrator prompt', () => {
     );
     expect(prompt).toContain('Choose the path that optimizes all four.');
   });
+
+  test('enforces delegation: no direct-work escape hatch, denial stated', () => {
+    const prompt = buildOrchestratorPrompt();
+
+    expect(prompt).toContain('denied to you by configuration');
+    expect(prompt).toContain('Delegate all implementation work to specialists');
+    expect(prompt).toContain('Do not use bash to modify files');
+    expect(prompt).not.toContain('Handle work directly only when');
+    expect(prompt).not.toContain('delegation overhead exceeds');
+    expect(prompt).not.toContain(
+      'Do not delegate merely because an agent exists',
+    );
+  });
 });
