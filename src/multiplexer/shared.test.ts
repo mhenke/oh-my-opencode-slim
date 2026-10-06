@@ -1,5 +1,7 @@
 import { afterEach, describe, expect, mock, test } from 'bun:test';
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 type SpawnResult = {
   exited: Promise<number>;
@@ -278,17 +280,42 @@ describe('findBinaryLogPrefix', () => {
 });
 
 describe('buildViewCommand', () => {
+  test('defaults to the resolved absolute host executable (#514)', async () => {
+    const { buildViewCommand } = await importShared();
+    const dir = mkdtempSync(join(tmpdir(), 'omos-514-'));
+    const bin = join(dir, 'opencode');
+    writeFileSync(bin, '');
+    const original = process.env.OPENCODE_BIN;
+    process.env.OPENCODE_BIN = bin;
+    try {
+      const cmd = buildViewCommand('sess', 'http://x', '/repo');
+      expect(cmd).toStartWith(`'${bin}' attach`);
+    } finally {
+      if (original === undefined) delete process.env.OPENCODE_BIN;
+      else process.env.OPENCODE_BIN = original;
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   test('v1 flavor is byte-identical to the legacy attach command', async () => {
     const { buildOpencodeAttachCommand, buildViewCommand } =
       await importShared();
-    const legacy = buildOpencodeAttachCommand('sess', 'http://x', '/repo');
-    expect(buildViewCommand('sess', 'http://x', '/repo')).toBe(legacy);
+    const legacy = buildOpencodeAttachCommand(
+      'sess',
+      'http://x',
+      '/repo',
+      'opencode',
+    );
+    expect(
+      buildViewCommand('sess', 'http://x', '/repo', { executable: 'opencode' }),
+    ).toBe(legacy);
   });
 
   test('v2-shared omits URL and secret (the viewer discovers the service)', async () => {
     const { buildViewCommand } = await importShared();
     expect(
       buildViewCommand('ses_abc', 'http://unused', '/repo', {
+        executable: 'opencode',
         viewerFlavor: 'v2-shared',
       }),
     ).toBe("opencode --session 'ses_abc' '/repo'");
@@ -298,6 +325,7 @@ describe('buildViewCommand', () => {
     const { buildViewCommand } = await importShared();
     expect(
       buildViewCommand('ses_abc', 'http://192.168.5.212:8192', '/repo', {
+        executable: 'opencode',
         viewerFlavor: 'v2-remote',
       }),
     ).toBe(
@@ -308,6 +336,7 @@ describe('buildViewCommand', () => {
   test('v2-remote ignores a stray password option (no secret in command text)', async () => {
     const { buildViewCommand } = await importShared();
     const options = {
+      executable: 'opencode' as const,
       viewerFlavor: 'v2-remote' as const,
       viewerPassword: 'pw-123',
     };
@@ -323,18 +352,21 @@ describe('buildViewCommand', () => {
     const { buildViewCommand } = await importShared();
     expect(
       buildViewCommand('sess', 'http://x', '/repo', {
+        executable: 'opencode',
         viewerFlavor: 'v1',
         viewerSurface: 'mini',
       }),
     ).toBe("opencode attach 'http://x' --session 'sess' --dir '/repo' --mini");
     expect(
       buildViewCommand('ses_abc', 'http://unused', '/repo', {
+        executable: 'opencode',
         viewerFlavor: 'v2-shared',
         viewerSurface: 'mini',
       }),
     ).toBe("opencode mini --session 'ses_abc'");
     expect(
       buildViewCommand('ses_abc', 'http://192.168.5.212:8192', '/repo', {
+        executable: 'opencode',
         viewerFlavor: 'v2-remote',
         viewerSurface: 'mini',
       }),

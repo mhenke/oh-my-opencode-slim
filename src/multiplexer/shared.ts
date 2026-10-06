@@ -26,7 +26,10 @@ export function buildOpencodeAttachCommand(
   sessionId: string,
   serverUrl: string,
   directory: string,
-  executable = 'opencode',
+  // Resolved host binary (falls back to bare 'opencode'): pane shells
+  // (zellij `sh -lc`, tmux server PATH) may not have `opencode` on PATH
+  // (e.g. linuxbrew installs), #514.
+  executable = resolveOpencodeExecutable(),
 ): string {
   const attachDir = normalizePathForShell(directory);
   return [
@@ -52,7 +55,8 @@ export type ViewerCommandOptions = Pick<
   PaneSpawnOptions,
   'viewerFlavor' | 'viewerSurface'
 > & {
-  /** Absolute host binary; defaults to the bare `opencode` name. */
+  /** Absolute host binary; defaults to the resolved host binary (falls
+   back to bare `opencode`). */
   executable?: string;
 };
 
@@ -60,7 +64,8 @@ export type ViewerCommandOptions = Pick<
  * Builds the pane viewer command for one host flavor (FR-2 command matrix).
  * Every adapter routes through here so the matrix lives in exactly one place.
  *
- * - `v1`: `opencode attach <url> --session <id> --dir <dir>` (unchanged)
+ * - `v1`: `<resolved-binary> attach <url> --session <id> --dir <dir>`
+ *   (was bare `opencode`; now resolveOpencodeExecutable())
  * - `v2-shared`: `opencode --session <id> <dir>` — the viewer discovers the
  *   same shared background service by itself; no URL is passed.
  * - `v2-remote`: `opencode --server <url> --session <id> <dir>` — the
@@ -80,7 +85,7 @@ export function buildViewCommand(
   options: ViewerCommandOptions = {},
 ): string {
   const flavor = options.viewerFlavor ?? 'v1';
-  const executable = options.executable ?? 'opencode';
+  const executable = options.executable ?? resolveOpencodeExecutable();
   const mini = options.viewerSurface === 'mini';
   if (flavor === 'v1') {
     const attach = buildOpencodeAttachCommand(

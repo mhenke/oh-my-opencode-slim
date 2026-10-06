@@ -41,7 +41,6 @@ import {
   gracefulClosePane,
   normalizePathForShell,
   redactViewerSecretArgs,
-  resolveOpencodeExecutable,
 } from '../shared';
 import type { Multiplexer, PaneResult, PaneSpawnOptions } from '../types';
 
@@ -129,10 +128,12 @@ export class KittyMultiplexer implements Multiplexer {
     await this.ensureLayout(kittyLayout, parentWindowId);
 
     try {
-      const opencodeCmd = buildViewCommand(sessionId, serverUrl, directory, {
-        ...options,
-        executable: resolveOpencodeExecutable(),
-      });
+      const opencodeCmd = buildViewCommand(
+        sessionId,
+        serverUrl,
+        directory,
+        options,
+      );
 
       // Normalize for Windows/MSYS2/Git Bash (backslashes would be treated as
       // escape chars). No-op on macOS/Linux. Mirrors the herdr adapter.
