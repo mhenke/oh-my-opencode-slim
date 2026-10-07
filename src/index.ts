@@ -1,4 +1,4 @@
-import type { Hooks, Plugin, ToolDefinition } from '@opencode-ai/plugin';
+import type { Hooks, Plugin } from '@opencode-ai/plugin';
 import {
   type createAgents,
   type getAgentConfigsFromDefinitions,
@@ -18,6 +18,7 @@ import {
   type V2ProfileRefreshResult,
 } from './bootstrap/profile';
 import { createSessionState } from './bootstrap/session-state';
+import { createTools } from './bootstrap/tools';
 import { CompanionManager } from './companion/manager';
 import { ensureCompanionVersion } from './companion/updater';
 import { loadPluginConfig } from './config';
@@ -61,21 +62,9 @@ import { MarketplaceService } from './marketplace/service';
 import { resolveDesiredMarketplacePackageIds } from './marketplace/status';
 import { createBuiltinMcps, getOverriddenBuiltinMcpKeys } from './mcp';
 import {
-  ast_grep_replace,
-  ast_grep_search,
-  createAcpRunTool,
-  createCancelTaskTool,
   createMarketplaceTools,
-  createTaskMessageTool,
-  createTaskReplyTool,
-  createTaskResultTool,
-  createTaskReviveTool,
-  createTaskStatusTool,
-  createWaitForUserTool,
-  createWebfetchTool,
   resolveFinalizedOrchestratorIdentities,
 } from './tools';
-import { pickAgentModelRef } from './tools/smartfetch/secondary-model';
 import {
   applyActivityEvent,
   resolveEventSessionID,
@@ -181,7 +170,6 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
     Record<string, readonly import('./v2/types').V2PermissionRule[]>
   > = {};
   let registryRetired = false;
-  let mcps: ReturnType<typeof createBuiltinMcps>;
   // MCP entries this hook itself injected on the previous config() pass.
   // A re-invoked config() can hand back the object we already mutated
   // (built-ins merged in); without this, those built-ins would be misread
@@ -211,6 +199,7 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
     registerV1DelegatedIntent,
   } = sessionState;
   let jobs: ReturnType<typeof createBackgroundJobs> | undefined;
+  let toolsResult: ReturnType<typeof createTools> | undefined;
   sessionState.bind({
     getRuntime: () => runtime,
     getForegroundFallback: () => jobs?.foregroundFallback,
@@ -238,17 +227,7 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
   let finalHostAgentConfig: Record<string, unknown> | undefined;
   let interviewManager: ReturnType<typeof createInterviewManager>;
   let companionManager: CompanionManager;
-  let taskCancelTools: ReturnType<typeof createCancelTaskTool>;
-  let taskMessageTools: ReturnType<typeof createTaskMessageTool>;
-  let taskReplyTools: ReturnType<typeof createTaskReplyTool>;
-  let taskResultTools: ReturnType<typeof createTaskResultTool>;
-  let taskReviveTools: ReturnType<typeof createTaskReviveTool>;
-  let taskStatusTools: ReturnType<typeof createTaskStatusTool>;
   const taskActivityTracker = new TaskActivityTracker();
-  let waitForUserTools: ReturnType<typeof createWaitForUserTool>;
-  let acpRunTools: Record<string, ReturnType<typeof createAcpRunTool>>;
-  let webfetch: ReturnType<typeof createWebfetchTool>;
-  let tools: Record<string, ToolDefinition>;
   let rewriteDisplayNameMentions: ReturnType<
     typeof createDisplayNameMentionRewriter
   >;
@@ -278,39 +257,6 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
     rewriteDisplayNameMentions = profileResult.rewriteDisplayNameMentions;
     const delegation = profileResult.delegation;
 
-    mcps = createBuiltinMcps(runtime.disabledMcps);
-    acpRunTools =
-      Object.keys(runtime.acpAgents ?? {}).length > 0
-        ? { acp_run: createAcpRunTool(runtime.acpAgents) }
-        : {};
-    const webfetchModel = runtime.webfetch?.model;
-    const webfetchModels = (() => {
-      if (!webfetchModel) return undefined;
-      const entries = Array.isArray(webfetchModel)
-        ? webfetchModel
-        : [webfetchModel];
-      type ModelRefInput = string | { id: string; variant?: string };
-      const models: Array<{ id: string; variant?: string }> = [];
-      for (const entry of entries as ModelRefInput[]) {
-        const id = typeof entry === 'string' ? entry : entry.id;
-        if (!id) continue;
-        models.push({
-          id,
-          ...(typeof entry === 'object' && entry.variant
-            ? { variant: entry.variant }
-            : {}),
-        });
-      }
-      return models.length > 0 ? models : undefined;
-    })();
-    webfetch = createWebfetchTool(ctx, {
-      binaryDir: undefined,
-      imageRouting: () => runtime.imageRouting,
-      webfetchModels,
-      explorerModel: pickAgentModelRef(runtime.agent('explorer')?.model),
-      librarianModel: pickAgentModelRef(runtime.agent('librarian')?.model),
-      smallModelRef: () => runtime.smallModel(),
-    });
     jobs = createBackgroundJobs(ctx, {
       runtime,
       hostFlavor,
@@ -318,7 +264,6 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
       sessionState,
       isDisposed: () => instanceDisposed,
     });
-    const bg = jobs;
 
     // Initialize auto-update checker hook
     autoUpdateChecker = createAutoUpdateCheckerHook(ctx, {
@@ -410,8 +355,9 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
     jsonErrorRecoveryAfter = wrapPostToolHook('json-error-recovery', (i, o) =>
       jsonErrorRecovery['tool.execute.after'](i as never, o as never),
     );
+    const tsmHook = jobs.taskSessionManagerHook;
     taskSessionManagerAfter = wrapPostToolHook('task-session-manager', (i, o) =>
-      bg.taskSessionManagerHook['tool.execute.after'](i as never, o as never),
+      tsmHook['tool.execute.after'](i as never, o as never),
     );
     interviewManager = createInterviewManager(ctx, config);
     companionManager = new CompanionManager(
@@ -420,103 +366,15 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
       runtime.companion,
       hostFlavor,
     );
-    taskCancelTools = createCancelTaskTool({
-      input: ctx,
-      backgroundJobBoard: bg.coordinator,
-      terminalGate: bg.terminalGate,
-      shouldManageSession: (sessionID) =>
-        sessionMetadata.getAgent(sessionID) === 'orchestrator' ||
-        sessionMetadata.isTaskManaged(sessionID),
-      recoverRetainedSession: bg.recoverRetainedSession,
-      resolveCanonicalTaskRef: bg.aliasAuthority.resolveCanonical,
+    toolsResult = createTools(ctx, {
+      runtime,
+      jobs,
+      sessionState,
+      taskActivityTracker,
+      hostFlavor,
       isDisposed: () => instanceDisposed,
     });
-    taskMessageTools = createTaskMessageTool({
-      input: ctx,
-      backgroundJobBoard: bg.coordinator,
-      promptMessageIDFor: (taskID, generation) =>
-        bg.revivedRunTracker.promptMessageIDFor(taskID, generation),
-      resolveCanonicalTaskRef: bg.aliasAuthority.resolveCanonical,
-      isDisposed: () => instanceDisposed,
-    });
-    taskReplyTools = createTaskReplyTool({
-      input: ctx,
-      backgroundJobBoard: bg.coordinator,
-      resolveCanonicalTaskRef: bg.aliasAuthority.resolveCanonical,
-      isDisposed: () => instanceDisposed,
-    });
-    taskResultTools = createTaskResultTool({
-      input: ctx,
-      backgroundJobBoard: bg.coordinator,
-      terminalGate: bg.terminalGate,
-      resolveCanonicalTaskRef: bg.aliasAuthority.resolveCanonical,
-      isDisposed: () => instanceDisposed,
-    });
-    taskReviveTools = createTaskReviveTool({
-      ...(hostFlavor !== 'v2' && { registerIntent: registerV1DelegatedIntent }),
-      terminalGate: bg.terminalGate,
-      input: ctx,
-      backgroundJobBoard: bg.coordinator,
-      shouldManageSession: (sessionID) =>
-        sessionMetadata.getAgent(sessionID) === 'orchestrator' ||
-        sessionMetadata.isTaskManaged(sessionID),
-      backgroundJobSupervisor: bg.supervisor,
-      revivedRunTracker: bg.revivedRunTracker,
-      recoverRetainedSession: bg.recoverRetainedSession,
-      isDisposed: () => instanceDisposed,
-      resolveCanonicalTaskRef: bg.aliasAuthority.resolveCanonical,
-    });
-    taskStatusTools = createTaskStatusTool({
-      input: ctx,
-      backgroundJobBoard: bg.coordinator,
-      activityTracker: taskActivityTracker,
-      resolveCanonicalTaskRef: bg.aliasAuthority.resolveCanonical,
-      isDisposed: () => instanceDisposed,
-    });
-    waitForUserTools = createWaitForUserTool({
-      shouldManageSession: (sessionID) =>
-        sessionMetadata.getAgent(sessionID) === 'orchestrator' ||
-        sessionMetadata.isTaskManaged(sessionID),
-      resolveAgentName: (agent) => resolveRuntimeAgentName(runtime, agent),
-      registerSessionAsOrchestrator: (sessionID) => {
-        sessionMetadata.markTaskManaged(sessionID);
-      },
-      beginUserWait: (sessionID) => {
-        bg.taskSessionManagerHook.beginUserWait(sessionID);
-        bg.wakeScheduler?.suppress(sessionID);
-      },
-      waitForUserGuardEnabled: runtime.backgroundJobs.waitForUserGuard,
-      hasOutstandingBackgroundTasks: (sessionID) =>
-        runtime.backgroundJobs.orchestratorWake.enabled &&
-        bg.coordinator.hasRunning(sessionID),
-    });
-
-    const shouldRegisterWebfetch = runtime.webfetch.enabled !== false;
-    tools = {
-      ...taskCancelTools,
-      ...taskMessageTools,
-      ...taskReplyTools,
-      ...taskResultTools,
-      ...taskReviveTools,
-      ...taskStatusTools,
-      ...waitForUserTools,
-      ...acpRunTools,
-      ...(shouldRegisterWebfetch ? { webfetch } : {}),
-      ast_grep_search,
-      ast_grep_replace,
-    };
-    if (runtime.disabledTools.length > 0) {
-      const disabledTools = new Set(runtime.disabledTools);
-      tools = Object.fromEntries(
-        Object.entries(tools).filter(([name]) => !disabledTools.has(name)),
-      );
-    }
-
-    toolCount =
-      Object.keys(tools).length +
-      ['marketplace_inspect', 'marketplace_manage'].filter(
-        (name) => !runtime.disabledTools.includes(name),
-      ).length;
+    toolCount = toolsResult.toolCount;
   } catch (err) {
     jobs?.abort();
     // The scope claim must not outlive a failed init: a leaked live-directory
@@ -548,6 +406,7 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
     sessionLifecycle,
     backgroundTaskConcurrency,
   } = jobs;
+  const { tools, mcps } = toolsResult;
 
   // ── Health check: validate registrations ────────────────────────────
   const agentCount = Object.keys(agents).length;
