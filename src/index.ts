@@ -3,6 +3,7 @@ import {
   type AdmissionRuntimeLease,
   acquireAdmissionRuntime,
 } from './admission-runtime';
+import { createSessionState } from './bootstrap/session-state';
 import {
   type AgentModelProjection,
   type AgentRuntimeProfiles,
@@ -355,206 +356,45 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
   // v1). Survives the try block so prompt-assembly hooks can use it.
   let hostFlavor: string | undefined;
   let instanceDisposed = false;
-  // v1 task() has no model override. Prompts claim these bounded intentions
-  // from host state, never from asynchronous session.created delivery.
-  const MAX_PENDING_V1_DELEGATED_INTENTS = 32;
-  const v1DelegatedIntents: {
-    parentID: string;
-    agentName: string;
-    childID?: string;
-  }[] = [];
   let autoUpdateChecker: ReturnType<typeof createAutoUpdateCheckerHook>;
-  const v1InternalSelectionOverrides = new Map<
-    string,
-    {
-      agent?: string;
-      model?: { providerID: string; modelID: string };
-      modelText?: string;
-      variant?: string;
-    }
-  >();
-  const sessionMetadata = new SessionMetadataStore({
-    maxEntries: DEFAULT_MAX_SESSION_METADATA_ENTRIES,
-    onEvict: (sessionID) => {
-      v1InternalSelectionOverrides.delete(sessionID);
-      log('[session] evicted oldest session metadata', {
-        threshold: DEFAULT_MAX_SESSION_METADATA_ENTRIES,
-        droppedSessionId: sessionID,
-      });
-    },
+  const sessionState = createSessionState(ctx);
+  const {
+    sessionMetadata,
+    internalSessionIds,
+    compactingSessionIds,
+    v1InternalSelectionOverrides,
+    v1DelegatedIntents,
+    pendingTuiBusySessions,
+    ownedTuiActivitySessions,
+    tuiActivityDirectory,
+  } = sessionState;
+  const {
+    markTuiAgentActive,
+    markTuiAgentInactive,
+    clearTuiActivities,
+    resolvePrimaryModelFromFinalHostConfig,
+    resolveTuiVariantForModel,
+    resolveDelegatedModelForParent,
+    registerV1DelegatedIntent,
+  } = sessionState;
+  let jobs: {
+    foregroundFallback: ForegroundFallbackManager;
+    board: BackgroundJobBoard;
+  } | undefined;
+  sessionState.bind({
+    getRuntime: () => runtime,
+    // Interim: these read the factory lets until the background-jobs module
+    // owns them (slice 3 swaps in the jobs facade thunks).
+    getForegroundFallback: () => foregroundFallback,
+    getBoard: () => backgroundJobBoard,
+    getRegistry: () => resolvedAgentRegistry,
+    getFinalHostAgentConfig: () => finalHostAgentConfig,
   });
-  const compactingSessionIds = new Set<string>();
-  // smartfetch's temporary secondary-model sessions run under the default
-  // agent; they must never reach the sidebar, metadata or session hooks.
-  const internalSessionIds = new Set<string>();
-  const ownedTuiActivitySessions = new Map<string, string>();
-  // #1079: lifecycle continuations (orchestrator wake, terminal
-  // notifications) resolve the session's CURRENT agent/model at send
-  // time instead of hardcoding `orchestrator`. Host-persisted selection
-  // normally wins; when a v1 unpinned internal continuation has temporarily
-  // overwritten it, preserve the exact policy-selected continuation until
-  // the next real operator admission.
-  const lifecycleSelectionReader = createSessionSelectionReader(
-    ctx.client,
-    ctx.directory,
-  );
-  const lifecycleSelectionResolver = async (sessionID: string) => {
-    const resolved = await resolveCurrentSelection(
-      sessionID,
-      lifecycleSelectionReader,
-      sessionMetadata,
-    );
-    const internalOverride = v1InternalSelectionOverrides.get(sessionID);
-    if (!internalOverride) return resolved;
-
-    // v1 computes an unpinned synthetic continuation from the static agent
-    // primary and persists that choice before chat.message runs. While that
-    // host selection is known to be internal, preserve the exact selection
-    // chosen for that continuation. A later external admission clears the
-    // override and makes the host authoritative again.
-    const agent = internalOverride.agent ?? resolved.agent;
-    const modelText = internalOverride.modelText;
-    const model = internalOverride.model ?? resolved.model;
-    return {
-      ...(agent ? { agent } : {}),
-      ...(model ? { model } : {}),
-      ...(internalOverride.variant
-        ? { variant: internalOverride.variant }
-        : modelText && agent
-          ? { variant: resolveTuiVariantForModel(agent, modelText) }
-          : resolved.variant
-            ? { variant: resolved.variant }
-            : {}),
-      provenance: 'observed-external' as const,
-    };
-  };
-  // Busy/retry arrived before the session's agent was known. chat.message
-  // latches the agent and flushes these so the spinner still starts. The
-  // observed status is kept so the flushed activation records the right
-  // sidebar detail (busy vs retry).
-  const pendingTuiBusySessions = new Map<string, 'busy' | 'retry'>();
-  const tuiActivityDirectory = (sessionID: string): string => {
-    return sessionMetadata.getDirectory(sessionID) ?? ctx.directory;
-  };
-  // Sidebar activity scoping (#1147): every active session and the visible
-  // route session resolve their conversation root against the persistent
-  // sessionParents index at render time. The recorder only persists the
-  // child→parent links; roots are never stored per-activity, so a
-  // late-learned link re-roots everything consistently. Process identity
-  // cannot scope this because v2 daemons are shared across windows.
-  const markTuiAgentActive = (
-    sessionID: string,
-    agentName: string,
-    status?: 'busy' | 'retry',
-  ): void => {
-    const directory = tuiActivityDirectory(sessionID);
-    // Alias from an already-registered board record (launch may have
-    // arrived before or after busy; both orders converge here or via the
-    // coordinator's identity listener).
-    const alias = backgroundJobBoard?.get(sessionID)?.alias;
-    const details: TuiSessionDetails = {
-      ...(alias ? { alias } : {}),
-      ...(status ? { status } : {}),
-    };
-    recordTuiAgentActivity(
-      {
-        sessionID,
-        agentName,
-        active: true,
-        ...(Object.keys(details).length > 0 ? { details } : {}),
-      },
-      directory,
-    );
-    ownedTuiActivitySessions.set(sessionID, directory);
-    void hydrateTuiSessionParent(sessionID, directory);
-  };
-  // Sessions whose child→parent link is missing ask the host and walk up
-  // to a confirmed root. Only confirmed roots and in-flight lookups stay
-  // in this set; a valid response without parentID is a final answer
-  // (top-level chat).
-  const hydratedTuiParents = new Set<string>();
-  const hydrateTuiSessionParent = async (
-    startSessionID: string,
-    directory: string,
-  ): Promise<void> => {
-    const sessionApi = (ctx as { client?: { session?: { get?: unknown } } })
-      .client?.session;
-    if (typeof sessionApi?.get !== 'function') return;
-    const lookup = sessionApi.get as (input: {
-      path: { id: string };
-      query: { directory: string };
-    }) => Promise<{ data?: unknown; error?: unknown; parentID?: unknown }>;
-    const visited = new Set<string>();
-    let current = startSessionID;
-    while (!visited.has(current)) {
-      visited.add(current);
-      const snapshot = readTuiSnapshot(directory);
-      const known = snapshot.sessionParents[current];
-      if (known !== undefined) {
-        current = known; // Persisted link; keep walking toward the root.
-        continue;
-      }
-      if (hydratedTuiParents.has(current)) return;
-      hydratedTuiParents.add(current);
-      let parentID: unknown;
-      try {
-        // Call with the session object as receiver: the SDK's generated
-        // method reads `this._client` (#595 class of regression).
-        const response = await lookup.call(sessionApi, {
-          path: { id: current },
-          query: { directory },
-        });
-        if (response?.error !== undefined) {
-          // HTTP error resolved instead of thrown: release the slot so a
-          // later activity can retry.
-          hydratedTuiParents.delete(current);
-          return;
-        }
-        const info = response?.data;
-        if (info === null || typeof info !== 'object') {
-          // Malformed response outside the host contract: release the
-          // slot rather than caching "confirmed root" on garbage.
-          hydratedTuiParents.delete(current);
-          return;
-        }
-        parentID = (info as { parentID?: unknown }).parentID;
-      } catch {
-        hydratedTuiParents.delete(current);
-        return;
-      }
-      if (typeof parentID === 'string' && parentID !== current) {
-        recordTuiSessionParent(current, parentID, directory);
-        hydratedTuiParents.delete(current);
-        current = parentID;
-        continue;
-      }
-      if (parentID !== undefined && parentID !== null) {
-        // Malformed non-string parent: release the slot so a later
-        // activity can retry instead of caching a false confirmed root.
-        hydratedTuiParents.delete(current);
-      }
-      // Valid response without a parent: confirmed root, stop.
-      return;
-    }
-  };
-  const markTuiAgentInactive = (sessionID: string): void => {
-    pendingTuiBusySessions.delete(sessionID);
-    const directory =
-      ownedTuiActivitySessions.get(sessionID) ??
-      tuiActivityDirectory(sessionID);
-    recordTuiAgentActivity({ sessionID, active: false }, directory);
-    ownedTuiActivitySessions.delete(sessionID);
-  };
-  const clearTuiActivities = (): void => {
-    for (const [sessionID, directory] of ownedTuiActivitySessions) {
-      recordTuiAgentActivity({ sessionID, active: false }, directory);
-    }
-    ownedTuiActivitySessions.clear();
-  };
-  clearTuiAgentActivities(ctx.directory);
-  let sessionLifecycle: SessionLifecycle;
 
   let chatHeadersHook: ReturnType<typeof createChatHeadersHook> | undefined;
+  // Interim factory-lets: still assigned by init code that moves into
+  // src/bootstrap/background-jobs.ts / tools.ts in later slices.
+  let sessionLifecycle: SessionLifecycle;
   let foregroundFallback: ForegroundFallbackManager;
   let foregroundFallbackChains: Record<string, ForegroundFallbackModel[]> = {};
   let selectedMarketplacePackageIds: readonly string[] = [];
@@ -662,77 +502,6 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
     }
     return lines.join('\n');
   }
-
-  const resolvePrimaryModelFromFinalHostConfig = (
-    agentType: string,
-  ): string | undefined => {
-    const readModel = (entry: unknown): string | undefined => {
-      if (entry === null || typeof entry !== 'object') return undefined;
-      return resolvePrimaryModelValue((entry as Record<string, unknown>).model);
-    };
-
-    // v2 finalizes the host snapshot directly through the registry bridge, so
-    // it does not run the v1 config() projection assignment below. Prefer the
-    // generation-local finalized projection in both runtimes; the config-hook
-    // projection remains a fallback only before registry finalization.
-    const finalAgentConfig =
-      resolvedAgentRegistry?.finalAgentConfig ?? finalHostAgentConfig;
-    const directModel = readModel(finalAgentConfig?.[agentType]);
-    if (directModel) return directModel;
-
-    const resolvedName = resolveRuntimeAgentName(runtime, agentType);
-    return readModel(finalAgentConfig?.[resolvedName]);
-  };
-
-  const resolveDelegatedModelForParent = (
-    agentType: string,
-    parentSessionID?: string,
-  ): DelegatedModelSelection | undefined => {
-    if (!parentSessionID) return undefined;
-    const agentName = resolveRuntimeAgentName(runtime, agentType);
-    const parentAgentRaw = sessionMetadata.getAgent(parentSessionID);
-    const parentAgent = parentAgentRaw
-      ? resolveRuntimeAgentName(runtime, parentAgentRaw)
-      : undefined;
-    const inheritance = runtime.agent(agentName)?.inheritModelFrom;
-    const followsParent =
-      inheritance === 'orchestrator' || inheritance === 'session';
-    return selectDelegatedModel({
-      agentName,
-      childChain: runtime.modelArrays[agentName],
-      followsParent,
-      // External-selection metadata deliberately ignores internal fallback
-      // replays (#1079). Delegation needs the opposite view: the model
-      // actually executing this parent turn, or children will be launched
-      // back onto the provider the parent just escaped.
-      parentModel:
-        foregroundFallback?.getActiveFallbackModel(parentSessionID) ??
-        sessionMetadata.getModel(parentSessionID),
-      parentChain: parentAgent ? runtime.modelArrays[parentAgent] : undefined,
-    });
-  };
-
-  const registerV1DelegatedIntent = (
-    parentID: string,
-    childID: string | undefined,
-    agentType: string,
-  ) => {
-    const selected = resolveDelegatedModelForParent(agentType, parentID);
-    if (selected?.route && (childID || !selected.inherited)) {
-      // A resume retry replaces its own unclaimed intention.
-      const stale = v1DelegatedIntents.findIndex(
-        (intent) => childID && intent.childID === childID,
-      );
-      if (stale >= 0) v1DelegatedIntents.splice(stale, 1);
-      v1DelegatedIntents.push({
-        parentID,
-        agentName: selected.agentName,
-        ...(childID ? { childID } : {}),
-      });
-      if (v1DelegatedIntents.length > MAX_PENDING_V1_DELEGATED_INTENTS)
-        v1DelegatedIntents.shift();
-    }
-  };
 
   try {
     // Directory scope (multi-instance): the host loads this plugin once per
@@ -978,7 +747,7 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
       backgroundJobBoard: backgroundJobCoordinator,
       terminalGate,
       backgroundJobSupervisor,
-      resolveSelection: lifecycleSelectionResolver,
+      resolveSelection: sessionState.lifecycleSelectionResolver,
       onRegister: (taskID) => markRevivedRunPending(taskID),
       onSettled: (taskID) => markRevivedRunSettled(taskID),
       contextFilesForPrompt: (taskID) => getRevivedContextFiles(taskID),
@@ -1183,7 +952,7 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
         taskSessionManagerHook.hasInputWait(sessionID),
       isFallbackInProgress: (sessionID) =>
         foregroundFallback.isFallbackInProgress(sessionID),
-      resolveSelection: lifecycleSelectionResolver,
+      resolveSelection: sessionState.lifecycleSelectionResolver,
       isStoppedJobRecoveryCurrent: (taskID, generation) => {
         const record = backgroundJobCoordinator.get(taskID);
         return (
@@ -1575,34 +1344,6 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
   }
 
   companionManager.onLoad();
-
-  function resolveTuiVariantForModel(
-    agentName: string,
-    model: string,
-  ): string | undefined {
-    const configEntry = runtime.agents()[agentName];
-    const defaultVariant =
-      typeof configEntry?.variant === 'string'
-        ? configEntry.variant
-        : undefined;
-    const chain = runtime.modelArrays[agentName];
-    if (chain) {
-      const match = chain.find((entry) => entry.id === model);
-      return (
-        match?.variant ?? (chain[0]?.id === model ? defaultVariant : undefined)
-      );
-    }
-
-    if (
-      typeof configEntry?.model === 'string' &&
-      configEntry.model === model &&
-      defaultVariant
-    ) {
-      return defaultVariant;
-    }
-
-    return undefined;
-  }
 
   let registryBridge: RegistryFactoryBridge;
   const marketplaceService = new MarketplaceService({
