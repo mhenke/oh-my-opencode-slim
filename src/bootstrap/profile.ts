@@ -1,8 +1,5 @@
 import type { Plugin } from '@opencode-ai/plugin';
-import type {
-  AgentModelProjection,
-  AgentRuntimeProfiles,
-} from '../agents';
+import type { AgentModelProjection, AgentRuntimeProfiles } from '../agents';
 import {
   createAgents,
   getAgentConfigsFromDefinitions,
@@ -14,9 +11,9 @@ import { deepMerge, loadPluginConfig, type Preset } from '../config';
 import type { ConfigLoadWarningKind } from '../config/loader';
 import { RuntimeConfig } from '../config/runtime';
 import { resolveDesiredMarketplacePackageIds } from '../marketplace/status';
-import { delegationWording } from '../v2/delegation';
-import { createDisplayNameMentionRewriter, log } from '../utils';
 import { recordTuiAgentModels } from '../tui-state';
+import { createDisplayNameMentionRewriter, log } from '../utils';
+import { delegationWording } from '../v2/delegation';
 
 /**
  * Result of the v2-only `v2.refreshProfiles` hook. `ok: true` carries the
@@ -47,7 +44,7 @@ export const HARD_PROFILE_REFRESH_WARNING_KINDS: ReadonlySet<ConfigLoadWarningKi
   new Set(['invalid-json', 'invalid-schema', 'read-error']);
 
 /** Result of the startup profile boot (config load + agent creation). */
-export type BootProfileResult = ReturnType<typeof bootProfile>;/**
+export type BootProfileResult = ReturnType<typeof bootProfile>; /**
  * Load the plugin config, seed RuntimeConfig, reapply any persisted runtime
  * preset and build the generation's agent definitions.
  *
@@ -57,7 +54,10 @@ export type BootProfileResult = ReturnType<typeof bootProfile>;/**
  * pre-mutation snapshot and derives preset/runtime state through its own
  * getters.
  */
-export function bootProfile(ctx: Parameters<Plugin>[0], hostFlavor: string | undefined) {
+export function bootProfile(
+  ctx: Parameters<Plugin>[0],
+  hostFlavor: string | undefined,
+) {
   const config = loadPluginConfig(ctx.directory, { hostFlavor });
   // Seed the per-directory runtime registry with the raw plugin file
   // config. The runtime preset reapplication below mutates `config` for
@@ -79,9 +79,7 @@ export function bootProfile(ctx: Parameters<Plugin>[0], hostFlavor: string | und
     // Runtime preset is override so it wins over config-file preset.
     const presetAgents = config.presets?.[runtimePreset];
     if (!presetAgents) {
-      throw new Error(
-        `Resolved runtime preset '${runtimePreset}' is missing`,
-      );
+      throw new Error(`Resolved runtime preset '${runtimePreset}' is missing`);
     }
     config.agents = deepMerge(config.agents, presetAgents);
   } else if (previousRuntimePreset) {
@@ -95,8 +93,7 @@ export function bootProfile(ctx: Parameters<Plugin>[0], hostFlavor: string | und
     config,
     activePresetName,
   );
-  const rewriteDisplayNameMentions =
-    createDisplayNameMentionRewriter(runtime);
+  const rewriteDisplayNameMentions = createDisplayNameMentionRewriter(runtime);
   // Host flavor marker ('v2' on OpenCode v2 hosts, set by the v2 client
   // shim; absent on v1). Threads the native delegation vocabulary into
   // prompt assembly so v2 prompts say subagent(...)/agent directly.

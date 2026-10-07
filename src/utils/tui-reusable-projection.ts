@@ -23,7 +23,7 @@ import type { BackgroundJobBoard } from './background-job-board';
 // Retry parent sections whose removal failed when a projection was disposed.
 const unretractedParents = new Map<string, Set<string>>();
 
-interface ProjectorHandle {
+export interface ProjectorHandle {
   /** Cancel the projection permanently (host teardown). */
   dispose(): void;
 }

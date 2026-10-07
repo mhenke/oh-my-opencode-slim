@@ -12,8 +12,8 @@ import {
   type TuiSessionDetails,
 } from '../tui-state';
 import type { BackgroundJobBoard } from '../utils';
-import { log } from '../utils/logger';
 import { resolveRuntimeAgentName } from '../utils';
+import { log } from '../utils/logger';
 import { SessionMetadataStore } from '../utils/session-metadata';
 import {
   createSessionSelectionReader,
