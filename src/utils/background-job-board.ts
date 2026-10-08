@@ -9,6 +9,7 @@ import { escapeRegExp } from './agent-variant';
 import type { BackgroundJobStore } from './background-job-store';
 import {
   clearBackgroundJobSuppression,
+  getBackgroundJobLifecycleLedger,
   recordBackgroundJobSuppression,
 } from './background-job-store';
 import {
@@ -1211,6 +1212,14 @@ export class BackgroundJobBoard implements BackgroundJobStore {
 
   getLastLiveBusyAt(taskID: string): number | undefined {
     return this.field(taskID, 'lastLiveBusyAt');
+  }
+
+  deletionEpoch(taskID: string): number | undefined {
+    return getBackgroundJobLifecycleLedger(this).deletionEpochs.get(taskID);
+  }
+
+  isSuppressed(taskID: string): boolean {
+    return getBackgroundJobLifecycleLedger(this).tombstones.has(taskID);
   }
 
   claimWallClockDeadline(

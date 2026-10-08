@@ -9,10 +9,7 @@ import type {
 } from '../hooks/task-session-manager/session-recovery';
 import { pluginDisposedMessage } from '../hooks/task-session-manager/session-recovery';
 import type { BackgroundJobLease } from '../utils/background-job-board';
-import {
-  type BackgroundJobStore,
-  getBackgroundJobLifecycleLedger,
-} from '../utils/background-job-store';
+import type { BackgroundJobStore } from '../utils/background-job-store';
 import {
   type BackgroundJobTerminalGate,
   createBackgroundJobTerminalGate,
@@ -581,9 +578,7 @@ function deletionEpoch(
   options: TaskControlToolOptions,
   taskID: string,
 ): number | undefined {
-  return getBackgroundJobLifecycleLedger(
-    options.backgroundJobBoard,
-  ).deletionEpochs.get(taskID);
+  return options.backgroundJobBoard.deletionEpoch(taskID);
 }
 
 async function getSessionStatus(

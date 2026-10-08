@@ -375,6 +375,14 @@ export class BackgroundJobCoordinator implements BackgroundJobStore {
     return this.board.isTerminalUnreconciled(taskID);
   }
 
+  deletionEpoch(taskID: string): number | undefined {
+    return this.board.deletionEpoch(taskID);
+  }
+
+  isSuppressed(taskID: string): boolean {
+    return this.board.isSuppressed(taskID);
+  }
+
   getResultSummary(taskID: string): string | undefined {
     return this.board.getResultSummary(taskID);
   }

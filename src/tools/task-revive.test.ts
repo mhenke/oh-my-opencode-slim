@@ -16,10 +16,7 @@ import { createSessionRecovery } from '../hooks/task-session-manager/session-rec
 import { BackgroundJobBoard as ProductionBoard } from '../utils/background-job-board';
 import { BackgroundJobBoard } from '../utils/background-job-fixture';
 import { getSuppressionTombstone } from '../utils/background-job-persistence';
-import {
-  getBackgroundJobLifecycleLedger,
-  recordBackgroundJobSuppression,
-} from '../utils/background-job-store';
+import { recordBackgroundJobSuppression } from '../utils/background-job-store';
 import {
   type BackgroundJobTerminalGate,
   createBackgroundJobTerminalGate,
@@ -256,8 +253,7 @@ describe('task_revive tool', () => {
       expect(await result).toContain('status: admission_unknown');
     }
     board.drop('ses_1');
-    const tombstones = getBackgroundJobLifecycleLedger(board).tombstones;
-    expect(tombstones.has('ses_1')).toBe(true);
+    expect(board.isSuppressed('ses_1')).toBe(true);
     status.mockImplementation(() => {
       reading.resolve();
       return read.promise;
@@ -344,7 +340,7 @@ describe('task_revive tool', () => {
         expect.objectContaining({ taskID: 'ses_1' }),
       );
     expect(board.get('ses_1')).toBeUndefined();
-    expect(tombstones.has('ses_1')).toBe(true);
+    expect(board.isSuppressed('ses_1')).toBe(true);
     expect(terminal).not.toHaveBeenCalled();
     if (outcome === 'status timeout') {
       read.reject(new Error('late read failure')); // timeout loser is observed
@@ -941,9 +937,8 @@ describe('task_revive tool', () => {
     );
     expect(result).toContain('state: running');
     expect(result).toContain('started');
-    const ledger = getBackgroundJobLifecycleLedger(adopted.board);
-    expect(ledger.tombstones.has('ses_1')).toBe(false);
-    expect(ledger.deletionEpochs.has('ses_1')).toBe(true);
+    expect(adopted.board.isSuppressed('ses_1')).toBe(false);
+    expect(adopted.board.deletionEpoch('ses_1')).toBeDefined();
     expect(adopted.board.get('ses_1')).toMatchObject({
       parentSessionID: 'parent-1',
       agent: 'explorer',
@@ -1240,9 +1235,7 @@ describe('task_revive tool', () => {
     }
     if (outcome === 'dropped revoked') {
       expect(board.get('ses_1')).toBeUndefined();
-      expect(
-        getBackgroundJobLifecycleLedger(board).tombstones.has('ses_1'),
-      ).toBe(true);
+      expect(board.isSuppressed('ses_1')).toBe(true);
       return;
     }
     const available = board.acquireRelaunchLease(

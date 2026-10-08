@@ -267,6 +267,10 @@ export interface BackgroundJobStore {
   isTerminalUnreconciled(taskID: string): boolean;
   getResultSummary(taskID: string): string | undefined;
   getLastLiveBusyAt(taskID: string): number | undefined;
+  /** Deletion epoch for generation fencing; undefined when never deleted. */
+  deletionEpoch(taskID: string): number | undefined;
+  /** True while a rehydrate/late-output tombstone suppresses recovery. */
+  isSuppressed(taskID: string): boolean;
   getParentSessionID(taskID: string): string | undefined;
   getState(taskID: string): BackgroundJobRecord['state'] | undefined;
   resolve(

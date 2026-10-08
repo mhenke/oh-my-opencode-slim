@@ -3,7 +3,6 @@ import { type ToolDefinition, tool } from '@opencode-ai/plugin';
 import type { RevivedRunTracker } from '../hooks/task-session-manager/revived-run-tracker';
 import { pluginDisposedMessage } from '../hooks/task-session-manager/session-recovery';
 import type { BackgroundJobLease } from '../utils/background-job-board';
-import { getBackgroundJobLifecycleLedger } from '../utils/background-job-store';
 import type { BackgroundJobSupervisor } from '../utils/background-job-supervisor';
 import { responseError } from '../utils/child-transcript';
 import { log } from '../utils/logger';
@@ -179,9 +178,9 @@ export function createTaskReviveTool(
         | undefined;
       try {
         const observedLiveBusyAt = current.lastLiveBusyAt;
-        const deletionEpoch = getBackgroundJobLifecycleLedger(
-          options.backgroundJobBoard,
-        ).deletionEpochs.get(current.taskID);
+        const deletionEpoch = options.backgroundJobBoard.deletionEpoch(
+          current.taskID,
+        );
         const baselineMessageID = queueContinuation
           ? undefined
           : await withTimeout(
@@ -254,9 +253,8 @@ export function createTaskReviveTool(
         );
         if (
           options.isDisposed?.() ||
-          getBackgroundJobLifecycleLedger(
-            options.backgroundJobBoard,
-          ).deletionEpochs.get(current.taskID) !== deletionEpoch ||
+          options.backgroundJobBoard.deletionEpoch(current.taskID) !==
+            deletionEpoch ||
           !options.backgroundJobBoard.validateLease(relaunchLease) ||
           // V1 adoption still requires live quiescence. The V2 identity-bound
           // queue path deliberately permits the existing execution to run.
@@ -680,9 +678,8 @@ async function resolveOrAdoptUntrackedTask(
       ? undefined
       : `${prefix}. Tracking does not survive a host restart; verify whether the host restored it before re-dispatching.`;
   if (
-    getBackgroundJobLifecycleLedger(
-      options.backgroundJobBoard,
-    ).deletionEpochs.get(recovery.taskID) !== recovery.deletionEpoch
+    options.backgroundJobBoard.deletionEpoch(recovery.taskID) !==
+    recovery.deletionEpoch
   ) {
     return `Task ${requested} was deleted during recovery; no prompt was sent`;
   }
