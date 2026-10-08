@@ -3,7 +3,9 @@
 ## Responsibility
 
 Core plugin implementation for **oh-my-opencode-slim**, providing:
-- Main plugin initialization and OpenCode integration (`index.ts`)
+- Main plugin initialization and OpenCode integration: a thin `index.ts`
+  orchestrator delegating to the `src/bootstrap/` modules (session state,
+  profile boot, background jobs, tools)
 - Dual v1/v2 host export: `default.server` (v1) + `default.setup` (v2 adapter via `src/v2/`)
 - Terminal User Interface (TUI) sidebar plugin for agent status display (`tui.ts`)
 - Client-side multiplexer pane lifecycle, wired only from the TUI entry (`src/multiplexer/client/`)
@@ -48,7 +50,8 @@ OpenCode Core → Plugin Initialization (index.ts)
 
 | File | Role | Dependencies |
 |------|------|--------------|
-| `index.ts` | Main plugin entry, orchestrates all server-side subsystems; exports dual `server`/`setup` default | Config system, agent factories, tool creators, hooks, v2 adapter |
+| `index.ts` | Thin plugin entry: delegates bootstrap to `src/bootstrap/` and orchestrates the remaining server-side subsystems; exports dual `server`/`setup` default | bootstrap modules, hooks, commands, v2 adapter |
+| `bootstrap/` | Bootstrap modules extracted from `index.ts`: session-state, profile boot + v2 profile refresh, background jobs, tools | config/, agents/, hooks/, utils/, tools/, mcp/ |
 | `admission-runtime.ts` | Per-directory scheduler/pending-call runtime lease | Background task concurrency, task-session pending calls |
 | `tui.ts` | TUI sidebar plugin for agent model display; wires the client-side multiplexer pane lifecycle | tui-state.ts, config constants, multiplexer/client |
 | `tui-state.ts` | Persistent state management for TUI | Node.js fs/promises, os module |
@@ -60,12 +63,34 @@ OpenCode Core → Plugin Initialization (index.ts)
 
 ### Plugin Initialization Flow (index.ts)
 
-1. **Config Loading**: `loadPluginConfig()` reads and validates plugin configuration; `RuntimeConfig` singleton seeded and host config captured
-2. **Agent Creation**: `createAgents()` instantiates agent definitions (incl. dynamic councillors) with prompts and permissions
-3. **Agent Configuration**: `getAgentConfigs()` merges defaults with user overrides and runtime presets
-4. **Tool Registration**: Tools are created conditionally based on config (task_cancel, task_message, task_revive, task_status, task_result, wait_for_user, webfetch, AST-grep, acp_run)
-5. **MCP Registration**: Built-in MCPs are created (context7, gh_grep)
-6. **Hook Initialization**: Auto-update checker, phase reminders, skill filters, task-session manager, cache monitor, orchestrator-wake scheduler, etc.
+The entry point is a thin orchestrator: it creates `createSessionState(ctx)`
+(with lazy `bind()` accessors) before the init try-block, then calls the
+`src/bootstrap/` factories in order — `bootProfile` → `createBackgroundJobs`
+→ `createTools` — with the remaining hooks/commands wired between. See
+`src/bootstrap/codemap.md` for the module details.
+
+1. **Session State** (`bootstrap/session-state.ts`): `createSessionState()`
+   builds session metadata, TUI activity tracking, and model-selection
+   resolvers; `bind()` wires lazy accessors to the runtime, fallback
+   manager, job board, and final host agent config
+2. **Profile Boot** (`bootstrap/profile.ts`): `bootProfile()` calls
+   `loadPluginConfig()` and seeds the `RuntimeConfig` singleton (host
+   config captured); the persisted runtime preset is reapplied
+3. **Agent Creation** (`bootProfile`): `createAgents()` instantiates agent
+   definitions (incl. dynamic councillors) with prompts and permissions;
+   `getAgentConfigsFromDefinitions()` merges defaults with user overrides
+   and runtime presets
+4. **Background Job Machinery** (`bootstrap/background-jobs.ts`):
+   `createBackgroundJobs()` builds the job board, coordinator, terminal
+   gate, supervisor, revived-run tracker, foreground fallback manager,
+   task-session manager hook, and orchestrator-wake scheduler
+5. **Hook/Command Initialization**: Auto-update checker, chat headers,
+   phase reminders, council inject, apply-patch, guards/recovery, deepwork/
+   reflect/loop commands, interview manager, companion manager
+6. **Tool + MCP Registration** (`bootstrap/tools.ts`): `createTools()`
+   assembles the task tool family, wait_for_user, ACP, webfetch, AST-grep,
+   and built-in MCPs (context7, gh_grep), applying the disabled-tools
+   filter
 7. **Runtime Model Resolution**: Resolves model arrays to startup primaries; v1 `task` and `task_revive` share prompt-claimed live fallback intentions, `task_message` pins transcript execution selection excluding compaction summaries, and v2 uses per-call `model#variant` overrides; internal v1 completions still follow the continuation policy
 8. **TUI State Sync**: `recordTuiAgentModels()` captures resolved models/variants for TUI display
 9. **Health Check**: Validates agent/tool/MCP counts against `HEALTH_CHECK` thresholds, adjusted for disabled baseline tools via `minimumExpectedToolCount`

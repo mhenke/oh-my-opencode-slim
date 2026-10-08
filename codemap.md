@@ -18,7 +18,7 @@ This codemap covers the plugin repository itself and excludes the nested `openco
 | Path | Role |
 |---|---|
 | `package.json` | Package manifest, dependency graph, release scripts, published file list. |
-| `src/index.ts` | Main plugin bootstrap: wires agents (incl. dynamic councillors), tools, MCPs, hooks, shared background job board + supervisor, interview support, cache monitor, orchestrator-wake scheduler, TUI preset switching, and health checks. Does not touch multiplexer pane lifecycle (client-only). Exports the dual `default.server`/`default.setup` so v1 and v2 hosts share one build. |
+| `src/index.ts` | Thin plugin orchestrator: creates session state, delegates bootstrap to `src/bootstrap/` (profiles → background jobs → tools), then wires hooks, commands, interview support, the cache monitor, and health checks. Does not touch multiplexer pane lifecycle (client-only). Exports the dual `default.server`/`default.setup` so v1 and v2 hosts share one build. |
 | `src/cli/index.ts` | CLI entrypoint for installation/bootstrap workflows. |
 | `src/config/schema.ts` | Source-of-truth runtime config schema used by validation and schema generation. |
 | `src/config/runtime.ts` | Per-directory `RuntimeConfig` singleton: derived getters over the frozen plugin config, pre-mutation host-config snapshot, and preset/model overrides. |
@@ -30,6 +30,7 @@ This codemap covers the plugin repository itself and excludes the nested `openco
 |---|---|---|
 | `src/` | Main application surface that composes plugin bootstrap, runtime model chains, hook orchestration, task-session aliasing, and installer-facing code. | [View Map](src/codemap.md) |
 | `src/agents/` | Agent factory layer for orchestrator and specialists (incl. dynamic `councillor-<name>` agents from council presets), including prompt/model overrides, task-rejection instruction, display-name normalization, MCP assignment, and permission shaping. | [View Map](src/agents/codemap.md) |
+| `src/bootstrap/` | Plugin-factory bootstrap modules extracted from `src/index.ts`: session state behind lazy `bind()` accessors, config/agent-profile boot with the v2 live profile refresh, the background-job machinery, and tool assembly. `index.ts` remains the thin orchestrator calling them in order. | [View Map](src/bootstrap/codemap.md) |
 | `src/cli/` | Installer, config editing, provider preset generation, and built-in skill installation. | [View Map](src/cli/codemap.md) |
 | `src/config/` | Configuration schema, layered loaders, the depth-first preset resolver, compatibility migrations, constant tables, provider/model-ID schema, project-local skill discovery, the `RuntimeConfig` runtime-state singleton, and agent/MCP policy helpers. | [View Map](src/config/codemap.md) |
 
