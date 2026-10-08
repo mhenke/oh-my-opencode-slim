@@ -55,6 +55,10 @@ export function createTools(
   } = deps;
   const { sessionMetadata, registerV1DelegatedIntent } = sessionState;
 
+  const shouldManageSession = (sessionID: string) =>
+    sessionMetadata.getAgent(sessionID) === 'orchestrator' ||
+    sessionMetadata.isTaskManaged(sessionID);
+
   const mcps = createBuiltinMcps(runtime.disabledMcps);
   const acpRunTools: Record<
     string,
@@ -95,9 +99,7 @@ export function createTools(
     input: ctx,
     backgroundJobBoard: jobs.coordinator,
     terminalGate: jobs.terminalGate,
-    shouldManageSession: (sessionID) =>
-      sessionMetadata.getAgent(sessionID) === 'orchestrator' ||
-      sessionMetadata.isTaskManaged(sessionID),
+    shouldManageSession,
     recoverRetainedSession: jobs.recoverRetainedSession,
     resolveCanonicalTaskRef: jobs.aliasAuthority.resolveCanonical,
     isDisposed,
@@ -128,9 +130,7 @@ export function createTools(
     terminalGate: jobs.terminalGate,
     input: ctx,
     backgroundJobBoard: jobs.coordinator,
-    shouldManageSession: (sessionID) =>
-      sessionMetadata.getAgent(sessionID) === 'orchestrator' ||
-      sessionMetadata.isTaskManaged(sessionID),
+    shouldManageSession,
     backgroundJobSupervisor: jobs.supervisor,
     revivedRunTracker: jobs.revivedRunTracker,
     recoverRetainedSession: jobs.recoverRetainedSession,
@@ -145,9 +145,7 @@ export function createTools(
     isDisposed,
   });
   const waitForUserTools = createWaitForUserTool({
-    shouldManageSession: (sessionID) =>
-      sessionMetadata.getAgent(sessionID) === 'orchestrator' ||
-      sessionMetadata.isTaskManaged(sessionID),
+    shouldManageSession,
     resolveAgentName: (agent) => resolveRuntimeAgentName(runtime, agent),
     registerSessionAsOrchestrator: (sessionID) => {
       sessionMetadata.markTaskManaged(sessionID);

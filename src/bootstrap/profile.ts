@@ -43,8 +43,7 @@ export type V2ProfileRefreshResult =
 export const HARD_PROFILE_REFRESH_WARNING_KINDS: ReadonlySet<ConfigLoadWarningKind> =
   new Set(['invalid-json', 'invalid-schema', 'read-error']);
 
-/** Result of the startup profile boot (config load + agent creation). */
-export type BootProfileResult = ReturnType<typeof bootProfile>; /**
+/**
  * Load the plugin config, seed RuntimeConfig, reapply any persisted runtime
  * preset and build the generation's agent definitions.
  *

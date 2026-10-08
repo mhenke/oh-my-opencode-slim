@@ -109,7 +109,7 @@ function selectDelegatedModel(input: {
  * the factory assigns them) the getters report undefined exactly like the
  * former `let` declarations did.
  */
-export type SessionStateDeps = {
+type SessionStateDeps = {
   getRuntime: () => RuntimeConfig;
   getForegroundFallback: () => ForegroundFallbackManager | undefined;
   getBoard: () => BackgroundJobBoard | undefined;

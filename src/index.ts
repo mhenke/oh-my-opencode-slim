@@ -11,10 +11,13 @@ import {
   type ResolvedAgentRegistry,
 } from './agents/registry';
 import type { RegistryFactoryBridge } from './agents/registry-bridge';
-import { createBackgroundJobs } from './bootstrap/background-jobs';
+import {
+  type BackgroundJobs,
+  createBackgroundJobs,
+} from './bootstrap/background-jobs';
 import {
   bootProfile,
-  refreshProfilesFromDisk as refreshProfiles,
+  refreshProfilesFromDisk,
   type V2ProfileRefreshResult,
 } from './bootstrap/profile';
 import { createSessionState } from './bootstrap/session-state';
@@ -198,7 +201,7 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
     resolveDelegatedModelForParent,
     registerV1DelegatedIntent,
   } = sessionState;
-  let jobs: ReturnType<typeof createBackgroundJobs> | undefined;
+  let jobs: BackgroundJobs | undefined;
   let toolsResult: ReturnType<typeof createTools> | undefined;
   sessionState.bind({
     getRuntime: () => runtime,
@@ -279,10 +282,8 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
     }
 
     deepworkCommandHook = createDeepworkCommandHook();
-    deepworkCommandHook = createDeepworkCommandHook();
     reflectCommandHook = createReflectCommandHook();
     loopCommandHook = createLoopCommandHook();
-    // Initialize hooks and wrapPostToolHook helper for error isolation
 
     // Wrap tool.execute.after handlers with per-hook error isolation.
     // Preserves the old runPostToolHook behavior: one failing hook doesn't
@@ -667,12 +668,12 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
   }
   toolCount = Object.keys(tools).length;
 
-  const refreshProfilesFromDisk = async (options?: {
+  const refreshProfilesForInstance = async (options?: {
     /** Startup has no last-good table yet; use the loader's normal fallback
      * config so malformed user input remains non-fatal for this generation. */
     allowInvalidFallback?: boolean;
   }): Promise<V2ProfileRefreshResult> =>
-    refreshProfiles(
+    refreshProfilesFromDisk(
       ctx,
       { runtime, getRegistry: () => resolvedAgentRegistry, hostFlavor },
       options,
@@ -684,7 +685,7 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
     // v2-only extension hook: re-read the plugin config and resolve the
     // inference/runtime profiles for new child sessions + the sidebar.
     // Unknown to v1 hosts, consumed by src/v2/setup.ts.
-    'v2.refreshProfiles': refreshProfilesFromDisk,
+    'v2.refreshProfiles': refreshProfilesForInstance,
     // v2's native override accepts provider/model#variant. Follow the parent's
     // real fallback using the child's chain, including its configured variant.
     // Explicit inheritance stays live; only the v2 bridge consumes this override.
@@ -1783,7 +1784,7 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
       await taskSessionManagerAfter(input, output);
     },
   } as Hooks & {
-    'v2.refreshProfiles': typeof refreshProfilesFromDisk;
+    'v2.refreshProfiles': typeof refreshProfilesForInstance;
     'v2.resolveDelegatedModel': (input: {
       agentType: string;
       parentSessionID: string;
