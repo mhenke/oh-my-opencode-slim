@@ -3,10 +3,10 @@
   "tag": "companion-v0.1.4",
   "repo": "alvinunreal/oh-my-opencode-slim",
   "checksums": {
-    "oh-my-opencode-slim-companion-v0.1.4-aarch64-apple-darwin.tar.gz": "f7490f77755535711b52322228808b4d54b4e3a20a7ac2d86344156f87c283da",
-    "oh-my-opencode-slim-companion-v0.1.4-aarch64-unknown-linux-gnu.tar.gz": "3a3741a513feb4b62ed41e728a196ce4aa59cf66b0ecb8d6b616163a4f15497a",
-    "oh-my-opencode-slim-companion-v0.1.4-x86_64-apple-darwin.tar.gz": "ce0d58e01d5e0e69428a9c7bb8d5c32193a914b9a36b1fdab4d65d8aa88c4529",
-    "oh-my-opencode-slim-companion-v0.1.4-x86_64-pc-windows-msvc.zip": "2f9f0809b124f90e8957a6a9a9b8ae8493bc7e1d4e11fc3e69fbcff1b4226693",
-    "oh-my-opencode-slim-companion-v0.1.4-x86_64-unknown-linux-gnu.tar.gz": "85c7c81231388822725fd70714229ac18a9c2d8c313fcea1916295fbbee7c3aa"
+    "oh-my-opencode-slim-companion-v0.1.4-aarch64-apple-darwin.tar.gz": "4d493f9884effc226f55c2a2c1a95c50bdb6b54ff2e8ff054c7115eaca200250",
+    "oh-my-opencode-slim-companion-v0.1.4-aarch64-unknown-linux-gnu.tar.gz": "689d3c050fddd2a42eb57f14220dc2917393c69f1ebbf8093769151a5d19d51f",
+    "oh-my-opencode-slim-companion-v0.1.4-x86_64-apple-darwin.tar.gz": "08907342509ee08722335a24737dd88dbf220aa6fe78f3b6a5c60fd7fdf02ee0",
+    "oh-my-opencode-slim-companion-v0.1.4-x86_64-pc-windows-msvc.zip": "09ecd61081a5ed03528e45dbb1419cf86e5020ec0ede1a2be9880f51cfb4d03c",
+    "oh-my-opencode-slim-companion-v0.1.4-x86_64-unknown-linux-gnu.tar.gz": "6d181a66cba88e0aaef16ba154a37477b38cfd1fbcd8611710f73459aba288ef"
   }
 }
