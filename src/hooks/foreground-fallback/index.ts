@@ -1643,6 +1643,15 @@ export class ForegroundFallbackManager {
       this.sessionModel.set(sessionID, from);
       if (event.decision?.retry === true) {
         this.rearmIfFreshDescent(sessionID);
+        // A no-chain status event already covered by terminal state or by
+        // this failure's charged episode must stop here: falling through
+        // would trigger a second same-model replay for one failure.
+        if (
+          !this.hasFallbackChain(sessionID) &&
+          this.skipNoChainAbsorbCharge(sessionID)
+        ) {
+          return;
+        }
         // Permanent quota/billing exhaustion never recovers by waiting on
         // this model — skip the host-retry budget and steer at once.
         if (
@@ -1975,10 +1984,13 @@ export class ForegroundFallbackManager {
       text: string;
     }>;
 
-    // No `modelSwitch: 'required'`: the replay targets the session's
-    // CURRENT model, so the v2 shim may skip the switch (preserving the
-    // host-side variant) and hosts without session.switchModel can still
-    // deliver it. v1 call bytes stay untouched.
+    // v2 hosts: no modelSwitch flag on a same-model retry. Nothing
+    // changes, so the shim's model-preserving path is exactly right;
+    // requiring a switch would make hosts without session.switchModel
+    // reject a replay that needs no switch, and let hosts with it reset
+    // the current variant. isV2Host still gates the catch below: on v2 a
+    // rejected replay is final (an abort cannot make admission succeed
+    // and may kill a promoted background job). v1 call bytes untouched.
     const isV2Host =
       (this.input as PluginInput & { hostFlavor?: string }).hostFlavor === 'v2';
     const promptBody = {
@@ -1990,7 +2002,6 @@ export class ForegroundFallbackManager {
         ...(opts.variant ? { variant: opts.variant } : {}),
         ...(opts.agentName ? { agent: opts.agentName } : {}),
       },
-      ...(isV2Host && opts.variant ? { modelVariant: opts.variant } : {}),
     };
     const sendReplayPrompt = (): Promise<unknown> => {
       this.rememberReplayMessage(sessionID, promptBody.body.messageID);
@@ -2017,10 +2028,10 @@ export class ForegroundFallbackManager {
       } catch (promptErr) {
         const lastChance = sendAttempt >= SAME_MODEL_REPLAY_ATTEMPTS;
         if (promptErr instanceof OperationTimeoutError) {
-          // A send timeout cannot prove busyness: never abort or duplicate
-          // the replay (matches the chain replay path).
-          // Delivery is unknown (the host may still admit it), so the
-          // charge stands; only a confirmed rejection refunds.
+          // A send timeout neither proves busyness nor cancels the
+          // prompt: the host may still admit it. Never abort or duplicate
+          // the replay, and keep the budget charge — refunding would let
+          // a later failure from the accepted replay escape the limit.
           log('[foreground-fallback] same-model replay send timed out', {
             sessionID,
             error: stringifyError(promptErr),
@@ -2736,7 +2747,6 @@ export class ForegroundFallbackManager {
           ...(variant ? { variant } : {}),
           ...(agentName ? { agent: agentName } : {}),
         },
-        ...(isV2Host ? { modelSwitch: 'required' as const } : {}),
         ...(isV2Host && variant ? { modelVariant: variant } : {}),
       };
 

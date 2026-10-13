@@ -3604,7 +3604,7 @@ describe('ForegroundFallbackManager session.error', () => {
     expect(onModelChanged).toHaveBeenCalledWith('sess-1', 'openai/gpt-4o');
   });
 
-  test('v2 host promptBody requests a required model switch', async () => {
+  test('v2 host promptBody does NOT request a model switch for same-model retry', async () => {
     const { mocks } = createMockClient();
     const mgr = new ForegroundFallbackManager(makeChains(), true, {
       directory: '/test',
@@ -3615,10 +3615,11 @@ describe('ForegroundFallbackManager session.error', () => {
       type: 'message.updated',
       properties: {
         info: {
-          sessionID: 'sess-v2',
+          sessionID: 'sess-1',
           providerID: 'anthropic',
           modelID: 'claude-opus-4-5',
           role: 'assistant',
+          agent: 'anthropic/claude-opus-4-5',
         },
       },
     });
@@ -3631,7 +3632,7 @@ describe('ForegroundFallbackManager session.error', () => {
     });
 
     const call = mocks.promptAsync.mock.calls[0] as [Record<string, unknown>];
-    expect(call[0].modelSwitch).toBe('required');
+    expect(call[0].modelSwitch).toBeUndefined();
   });
 
   test('switched:false result (v2 switch failure) skips the switch claim', async () => {
@@ -3657,10 +3658,11 @@ describe('ForegroundFallbackManager session.error', () => {
       type: 'message.updated',
       properties: {
         info: {
-          sessionID: 'sess-degrade',
+          sessionID: 'sess-v2',
           providerID: 'anthropic',
           modelID: 'claude-opus-4-5',
           role: 'assistant',
+          agent: 'anthropic/claude-opus-4-5',
         },
       },
     });
