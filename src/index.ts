@@ -83,7 +83,7 @@ import {
   listChildInputWaits,
 } from './hooks/task-session-manager/child-input-wait';
 import { createBackgroundFallbackHandoff } from './hooks/task-session-manager/fallback-observation-transfer';
-import { createRevivedRunTracker } from './hooks/task-session-manager/revived-run-tracker';
+import type { createRevivedRunTracker } from './hooks/task-session-manager/revived-run-tracker';
 import {
   createAliasAuthority,
   createSessionRecovery,
@@ -101,6 +101,7 @@ import { discoverPreflightSkills } from './marketplace/preflight';
 import { MarketplaceService } from './marketplace/service';
 import { resolveDesiredMarketplacePackageIds } from './marketplace/status';
 import { createBuiltinMcps, getOverriddenBuiltinMcpKeys } from './mcp';
+import { createBackgroundJobsSystem } from './plugin/background-jobs';
 import {
   registerWakeScheduler,
   type WakeScheduler,
@@ -139,9 +140,9 @@ import {
   updateTuiSessionDetails,
 } from './tui-state';
 import {
-  BackgroundJobBoard,
+  type BackgroundJobBoard,
   BackgroundJobCoordinator,
-  BackgroundJobSupervisor,
+  type BackgroundJobSupervisor,
   type BackgroundTaskConcurrency,
   createDisplayNameMentionRewriter,
   normalizeAgentName,
@@ -766,58 +767,30 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
       librarianModel: pickAgentModelRef(runtime.agent('librarian')?.model),
       smallModelRef: () => runtime.smallModel(),
     });
-    backgroundJobBoard = new BackgroundJobBoard({
-      maxReusablePerAgent: runtime.backgroundJobs.maxSessionsPerAgent,
-      maxContextLines: runtime.backgroundJobs.maxContextLines,
-      readContextMinLines: runtime.backgroundJobs.readContextMinLines,
-      readContextMaxFiles: runtime.backgroundJobs.readContextMaxFiles,
-      delegationTool: delegation.tool,
-      deferNumberedAliases: true,
-      // Terminal-session GC (#1387 P2): when a retention trim evicts a
-      // terminal or retained-stopped record, remove the underlying host
-      // child session — but only a background, non-provisional child this
-      // plugin launched itself (never foreground children, unattributed
-      // placeholders, or adopted/restored/rehydrated sessions), and only
-      // after bounded host reads confirm its parentID still matches the
-      // record's parent and it is idle, and the board does not track it
-      // again. A parked child-input wait blocks removal. The prune is
-      // fire-and-forget so the synchronous board never awaits it; the
-      // delete has a deadline so the pending-prune fence always settles.
-      ...(runtime.backgroundJobs.pruneEvictedSessions
-        ? {
-            onEvictedSession: (evicted: BackgroundJobEvictedSession) => {
-              if (!isPrunableEvictedSession(evicted)) return;
-              if (listChildInputWaits(evicted.taskID).length > 0) return;
-              // Same-tick: the prune (parent read + delete) starts and is
-              // registered in one synchronous step with no await in
-              // between, so a task_revive can never observe a
-              // started-but-unregistered prune and adopt the session the
-              // delete is about to remove (#1387 race).
-              registerPendingSessionPrune(
-                evicted.taskID,
-                pruneEvictedHostSession({
-                  session: ctx.client.session,
-                  directory: ctx.directory,
-                  evicted,
-                  readTimeoutMs: DEFAULT_RUNTIME_SESSION_STATUS_TIMEOUT_MS,
-                  deleteTimeoutMs: DEFAULT_RUNTIME_SESSION_STATUS_TIMEOUT_MS,
-                  isTracked: (taskID) => backgroundJobBoard.isTracked(taskID),
-                }),
-              );
-            },
-          }
-        : {}),
+    const backgroundJobs = createBackgroundJobsSystem({
+      ctx,
+      runtime,
+      hostFlavor,
+      sessionMetadata,
+      lifecycleSelectionResolver,
+      resolvePrimaryModelFromFinalHostConfig,
+      revivedRunCallbacks: {
+        onRegister: (taskID) => markRevivedRunPending(taskID),
+        onSettled: (taskID) => markRevivedRunSettled(taskID),
+        contextFilesFor: (taskID) => getRevivedContextFiles(taskID),
+        prune: () => pruneRevivedContext(),
+      },
+      getForegroundFallback: () => foregroundFallback,
+      getTaskSessionManagerHook: () => taskSessionManagerHook,
+      getOrchestratorWakeScheduler: () => orchestratorWakeScheduler,
     });
-    admissionRuntimeLease = acquireAdmissionRuntime(
-      ctx.directory,
-      runtime.backgroundJobs.concurrency,
-    );
-    backgroundTaskConcurrency = admissionRuntimeLease.backgroundTaskConcurrency;
-
-    // Initialize coordinator as the sole writer to the board
-    const backgroundJobCoordinator = new BackgroundJobCoordinator(
-      backgroundJobBoard,
-    );
+    backgroundJobBoard = backgroundJobs.backgroundJobBoard;
+    admissionRuntimeLease = backgroundJobs.admissionRuntimeLease;
+    backgroundTaskConcurrency = backgroundJobs.backgroundTaskConcurrency;
+    terminalGate = backgroundJobs.terminalGate;
+    backgroundJobSupervisor = backgroundJobs.backgroundJobSupervisor;
+    revivedRunTracker = backgroundJobs.revivedRunTracker;
+    const backgroundJobCoordinator = backgroundJobs.backgroundJobCoordinator;
     // Project launch identity (alias↔session) into TUI state so the
     // clickable sidebar can label active subagent sessions. Best-effort:
     // a failed tui-state write must never fail a launch.
@@ -848,54 +821,6 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
         clearTuiSessionAlias(event.taskID, directory);
       }
     });
-    terminalGate = createBackgroundJobTerminalGate({
-      backgroundJobBoard: backgroundJobCoordinator,
-      input: ctx,
-      // Configurable stop-confirmation grace (backgroundJobs.
-      // stopConfirmationMs); the default equals
-      // STOP_CONFIRMATION_GRACE_MS, so unset config keeps v1 behavior.
-      graceMs: runtime.backgroundJobs.stopConfirmationMs,
-      baselineFor: (taskID, generation) =>
-        revivedRunTracker?.baselineFor(taskID, generation),
-      promptMessageIDFor: (taskID, generation) =>
-        revivedRunTracker?.promptMessageIDFor(taskID, generation),
-      // Local in-process integration: host and plugin timestamps share Unix ms.
-      hostOutcomeClock: 'shared-unix-ms',
-      attemptStartedAtFor: (taskID, generation) =>
-        revivedRunTracker?.attemptStartedAtFor(taskID, generation),
-      observationRevisionFor: (taskID, generation) =>
-        revivedRunTracker?.revisionFor(taskID, generation),
-      isObservationPending: (taskID, generation) =>
-        (foregroundFallback?.isFallbackInProgress(taskID) ?? false) ||
-        (taskSessionManagerHook?.hasDeferredError(taskID) ?? false) ||
-        (revivedRunTracker?.isObservationPending(taskID, generation) ?? false),
-      onRunning: (record) => {
-        if (record.background)
-          backgroundTaskConcurrency.restoreTask(
-            record.taskID,
-            sessionMetadata.getModel(record.taskID) ??
-              resolvePrimaryModelFromFinalHostConfig(record.agent) ??
-              sessionMetadata.getModel(record.parentSessionID),
-          );
-        if (
-          !revivedRunTracker?.promptMessageIDFor(
-            record.taskID,
-            record.generation,
-          )
-        )
-          backgroundJobSupervisor?.onLaunch(record);
-      },
-    });
-    backgroundJobSupervisor = new BackgroundJobSupervisor({
-      backgroundJobStore: backgroundJobCoordinator,
-      terminalGate,
-      wallClockTimeoutMs: runtime.backgroundJobs.wallClockTimeoutMs,
-      abortGraceMs: runtime.backgroundJobs.abortGraceMs,
-      abort: (taskID) =>
-        ctx.client.session.abort({
-          path: { id: taskID },
-        }),
-    });
     backgroundJobCoordinator.addTerminalOutcomeListener((record) => {
       const current = backgroundJobCoordinator.get(record.taskID);
       if (
@@ -912,32 +837,6 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
       pruneRevivedContext();
       backgroundJobSupervisor.onTerminal(record);
       backgroundTaskConcurrency.releaseTask(record.taskID);
-    });
-    revivedRunTracker = createRevivedRunTracker({
-      input: ctx,
-      backgroundJobBoard: backgroundJobCoordinator,
-      terminalGate,
-      backgroundJobSupervisor,
-      resolveSelection: lifecycleSelectionResolver,
-      onRegister: (taskID) => markRevivedRunPending(taskID),
-      onSettled: (taskID) => markRevivedRunSettled(taskID),
-      contextFilesForPrompt: (taskID) => getRevivedContextFiles(taskID),
-      pruneContext: () => pruneRevivedContext(),
-      // Degraded-fallback wiring (revived-lineage strand): when every
-      // tracker notification attempt has failed, the publication this
-      // tracker suppressed in the terminal-outcome listener would
-      // otherwise never reach the idle parent. Re-emit it DIRECTLY
-      // through the wake scheduler — never through the listener's
-      // suppression chain: a revived lineage has no native notifier, so
-      // the first-publication-native-owned (and tracker-owned) skips
-      // must not apply to this fallback. The scheduler's own guards
-      // (canSchedule, one-flight wake gate, publication throttle) still
-      // apply, correctly.
-      onOwnershipReleased: (parentSessionID, taskID, generation) => {
-        void orchestratorWakeScheduler
-          ?.triggerTerminalPublicationWake(parentSessionID, taskID, generation)
-          ?.catch(() => undefined);
-      },
     });
     backgroundJobCoordinator.addTerminalOutcomeListener((record) => {
       revivedRunTracker.onTerminal(record);
@@ -975,10 +874,7 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
     // gate before the await, admit() enrolls the run tracker after host
     // acceptance, reject() withdraws on failure; see
     // fallback-observation-transfer.ts.
-    const backgroundFallbackHandoff = createBackgroundFallbackHandoff({
-      backgroundJobBoard: backgroundJobCoordinator,
-      revivedRunTracker,
-    });
+    const backgroundFallbackHandoff = backgroundJobs.backgroundFallbackHandoff;
     // The current v2 host interface has no per-turn/atomic conditional
     // switch, so an in-flight REPLAY (abort + re-prompt) can commit on the
     // host after a newer user turn has taken over — the replay path stays
