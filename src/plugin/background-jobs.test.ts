@@ -90,9 +90,7 @@ const installMocks = () => {
     },
   })) as never;
   mock.module('../utils', () => ({
-    BackgroundJobCoordinator: class {
-      constructor(_board: unknown) {}
-    },
+    BackgroundJobCoordinator: class {},
     BackgroundJobSupervisor: class {
       opts: Captured;
       constructor(opts: Captured) {
@@ -220,10 +218,10 @@ describe('createBackgroundJobsSystem terminal gate wiring', () => {
     let tsmHasDeferred = false;
     const trackerPending = false;
     DEFAULT_DEPS.getForegroundFallback = (() => ({
-      isFallbackInProgress: (id: string) => fallback,
+      isFallbackInProgress: (_id: string) => fallback,
     })) as never;
     DEFAULT_DEPS.getTaskSessionManagerHook = (() => ({
-      hasDeferredError: (id: string) => tsmHasDeferred,
+      hasDeferredError: (_id: string) => tsmHasDeferred,
     })) as never;
     const sys = system();
     const gate = gateCalls[0] as unknown as {
@@ -238,7 +236,7 @@ describe('createBackgroundJobsSystem terminal gate wiring', () => {
     tsmHasDeferred = false;
     // After the tracker exists, its predicate participates:
     trackerResult = {
-      isObservationPending: (t: string, g: number) => trackerPending,
+      isObservationPending: (_t: string, _g: number) => trackerPending,
     };
     void trackerPending;
     void sys;
@@ -266,7 +264,7 @@ describe('createBackgroundJobsSystem terminal gate wiring', () => {
 
   test('onRunning falls back to host-config model then parent model', () => {
     DEFAULT_DEPS.sessionMetadata = {
-      getModel: (id: string) => undefined,
+      getModel: (_id: string) => undefined,
     } as never;
     system();
     const gate = gateCalls[0] as unknown as {
@@ -284,7 +282,7 @@ describe('createBackgroundJobsSystem terminal gate wiring', () => {
 
   test('onRunning skips restore for foreground records', () => {
     DEFAULT_DEPS.sessionMetadata = {
-      getModel: (id: string) => 'direct' as never,
+      getModel: (_id: string) => 'direct' as never,
     } as never;
     system();
     const gate = gateCalls[0] as unknown as {
