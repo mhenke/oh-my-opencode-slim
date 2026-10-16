@@ -298,7 +298,7 @@ describe('createV2Bridges prepareCommands', () => {
       getHostFlavor: () => undefined,
     });
     wired.registryBridge.prepareCommands({} as never);
-    expect(hooks).toContain('interview');
+    expect(registered.length).toBe(1);
     expect(registered[0]).toEqual({ interview: false, implement: true });
   });
 });
