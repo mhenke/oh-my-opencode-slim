@@ -21,6 +21,7 @@ export default {
       'src/plugin/v2-bridges.test.ts',
       'src/plugin/wake-scheduler.test.ts',
       'src/plugin/background-jobs.test.ts',
+      'src/plugin/marketplace.test.ts',
     ],
   },
 };
