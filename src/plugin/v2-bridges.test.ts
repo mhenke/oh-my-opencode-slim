@@ -256,7 +256,7 @@ describe('createV2Bridges prepareCommands', () => {
   });
 
   test('disabling only interview still passes the implement gate', () => {
-    const { unit } = makeUnit({
+    void makeUnit({
       runtime: runtimeStub({
         disabledCommands: new Set(['interview']),
       }),

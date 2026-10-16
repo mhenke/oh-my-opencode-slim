@@ -70,7 +70,6 @@ const installMocks = () => {
           constructor(opts: Captured) {
             this.opts = opts;
             boardCalls.push(opts);
-            return boardResult as never;
           }
         },
         isPrunableEvictedSession: (evicted: Record<string, unknown>) =>
