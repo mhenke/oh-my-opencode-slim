@@ -1031,14 +1031,14 @@ describe('CompanionManager', () => {
     m.onSessionStatus({ sessionId: 'ses_b', agent: 'fixer', status: 'busy' });
     m.onSessionStatus({
       sessionId: 'ses_c',
-      agent: 'librarian',
+      agent: 'oracle',
       status: 'busy',
     });
     const agents = readState().sessions[0].active_agents;
     expect(agents).toHaveLength(3);
     expect(agents).toContain('explorer');
     expect(agents).toContain('fixer');
-    expect(agents).toContain('librarian');
+    expect(agents).toContain('oracle');
   });
 
   it('removes a specialist when its session goes idle', () => {
@@ -1369,7 +1369,7 @@ describe('CompanionManager', () => {
     });
     b.onSessionStatus({
       sessionId: 'ses_2',
-      agent: 'librarian',
+      agent: 'oracle',
       status: 'busy',
     });
     const state = readState();
@@ -1380,7 +1380,7 @@ describe('CompanionManager', () => {
       (s: { session_id: string }) => s.session_id === 'b',
     );
     expect(sa.active_agents).toEqual(['designer']);
-    expect(sb.active_agents).toEqual(['librarian']);
+    expect(sb.active_agents).toEqual(['oracle']);
   });
 
   it('prunes dead process sessions while preserving live project sessions', () => {

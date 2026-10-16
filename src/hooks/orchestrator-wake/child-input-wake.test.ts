@@ -5,9 +5,11 @@ import {
   expect,
   jest,
   mock,
+  spyOn,
   test,
 } from 'bun:test';
 import { BackgroundJobBoard } from '../../utils/background-job-board';
+import * as loggerModule from '../../utils/logger';
 import { mapV2EventToV1 } from '../../v2/event-adapter';
 import { createTaskSessionManagerHook } from '../task-session-manager';
 import {
@@ -60,14 +62,24 @@ function makeScheduler(
   options?: {
     shouldManageSession?: (id: string) => boolean;
     isChildInputWaitCurrent?: (taskID: string, requestID: string) => boolean;
+    mode?: 'todo' | 'children';
+    childInputWakeKinds?: { permission: boolean; question: boolean };
+    hasPendingDelegatedWork?: (id: string) => boolean;
+    resolveSelection?: (id: string) => Promise<never>;
   },
 ) {
   return createOrchestratorWakeScheduler(makeCtx(session), {
-    config: { enabled: true, intervalMs: 60_000, mode: 'todo' },
+    config: {
+      enabled: true,
+      intervalMs: 60_000,
+      mode: options?.mode ?? 'todo',
+    },
     shouldManageSession: options?.shouldManageSession ?? (() => true),
     hasInputWait: () => false,
-    hasPendingDelegatedWork: () => true,
+    hasPendingDelegatedWork: options?.hasPendingDelegatedWork ?? (() => true),
     isChildInputWaitCurrent: options?.isChildInputWaitCurrent ?? (() => true),
+    childInputWakeKinds: options?.childInputWakeKinds,
+    resolveSelection: options?.resolveSelection,
   });
 }
 
@@ -638,5 +650,147 @@ describe('child input-wait wake', () => {
     expect(text).toContain('permission: tool.execute');
     expect(text).toContain('patterns: bash:*');
     expect(text).not.toContain('permission: unknown');
+  });
+});
+
+describe('child-input wake kind policy (#1504)', () => {
+  test('default kinds suppress a permission ask but let a question ask wake', async () => {
+    resetOrchestratorWakeGateForTests();
+    const promptAsync = mock(async () => ({}));
+    const scheduler = makeScheduler(v1Session(promptAsync));
+
+    // Default policy ships permission off: the ask is dropped before any
+    // timer or batch entry exists, so nothing wakes.
+    scheduler.triggerChildInputWaitWake(
+      'parent-1',
+      delta('ses_child1', 'per_1'),
+      'ses_child1:per_1',
+      'permission',
+    );
+    await flush();
+    expect(promptAsync).not.toHaveBeenCalled();
+
+    // Question asks ship on.
+    scheduler.triggerChildInputWaitWake(
+      'parent-1',
+      delta('ses_child1', 'que_1'),
+      'ses_child1:que_1',
+      'question',
+    );
+    await flush();
+    expect(promptAsync).toHaveBeenCalledTimes(1);
+  });
+
+  test('childInputWakeKinds { permission: true } lets a permission ask wake', async () => {
+    resetOrchestratorWakeGateForTests();
+    const promptAsync = mock(async () => ({}));
+    const scheduler = makeScheduler(v1Session(promptAsync), {
+      childInputWakeKinds: { permission: true, question: true },
+    });
+
+    scheduler.triggerChildInputWaitWake(
+      'parent-1',
+      delta('ses_child1', 'per_1'),
+      'ses_child1:per_1',
+      'permission',
+    );
+    await flush();
+    expect(promptAsync).toHaveBeenCalledTimes(1);
+  });
+
+  test('a no-kind re-drive is never gated, even with both kinds disabled', async () => {
+    resetOrchestratorWakeGateForTests();
+    const promptAsync = mock(async () => ({}));
+    const scheduler = makeScheduler(v1Session(promptAsync), {
+      childInputWakeKinds: { permission: false, question: false },
+    });
+
+    // The idle retrigger re-drives an already-admitted batch with no kind;
+    // the per-kind ingestion gate must not drop it.
+    scheduler.triggerChildInputWaitWake(
+      'parent-1',
+      delta(),
+      'ses_child1:que_1',
+    );
+    await flush();
+    expect(promptAsync).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('child-input parent-active admission gate (#1504)', () => {
+  test('a parent that goes busy mid-evaluation aborts at admission and the idle retrigger still delivers', async () => {
+    resetOrchestratorWakeGateForTests();
+    const entries: Array<{ message: string; data: unknown }> = [];
+    const spy = spyOn(loggerModule, 'log').mockImplementation(
+      (message: string, data?: unknown) => entries.push({ message, data }),
+    );
+    try {
+      const promptAsync = mock(async () => ({}));
+      // The parent is momentarily unobservable when the activation lands:
+      // its busy status is recorded (the race guard) but the generation
+      // does not bump, so the recheck verdict stays 'wake' and the race is
+      // caught only at the admission gate.
+      let observable = true;
+      let injectBusy = true;
+      let scheduler: ReturnType<typeof makeScheduler> | undefined;
+      const resolveSelection = async (): Promise<never> => {
+        if (injectBusy) {
+          injectBusy = false;
+          observable = false;
+          await scheduler?.event({
+            event: {
+              type: 'session.status',
+              properties: {
+                sessionID: 'parent-1',
+                status: { type: 'busy' },
+              },
+            },
+          });
+          observable = true;
+        }
+        return { agent: 'orchestrator' } as never;
+      };
+      scheduler = makeScheduler(v1Session(promptAsync), {
+        mode: 'children',
+        shouldManageSession: () => observable,
+        hasPendingDelegatedWork: () => observable,
+        resolveSelection,
+      });
+
+      scheduler.triggerChildInputWaitWake(
+        'parent-1',
+        delta(),
+        'ses_child1:que_1',
+        'question',
+      );
+      await flush();
+
+      // Aborted at the admission checkpoint; the queued batch is retained.
+      expect(promptAsync).not.toHaveBeenCalled();
+      expect(
+        entries.some((entry) => {
+          const data = entry.data as
+            | { checkpoint?: string; reason?: string }
+            | undefined;
+          return (
+            entry.message === '[orchestrator-wake] evaluate aborted' &&
+            data?.checkpoint === 'admission' &&
+            data?.reason === 'parent-active'
+          );
+        }),
+      ).toBe(true);
+
+      // Parent goes idle: the idle retrigger re-drives the retained batch.
+      await scheduler.event({
+        event: {
+          type: 'session.status',
+          properties: { sessionID: 'parent-1', status: { type: 'idle' } },
+        },
+      });
+      await flush();
+      expect(promptAsync).toHaveBeenCalledTimes(1);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

@@ -362,6 +362,26 @@ describe('applyCommandMarkerToContext', () => {
     expect(trailing.content).toEqual([{ type: 'text', text: 'standup notes' }]);
   });
 
+  test('ignores synthetic text when detecting markers and preserves it', async () => {
+    const trailing = {
+      id: 'm1',
+      role: 'user',
+      content: [
+        { type: 'text', text: wrapCommandMarker('reflect', 'standup notes') },
+        { type: 'text', text: '[chair] guard', synthetic: true },
+      ],
+    };
+    const event = makeEvent([trailing]);
+    const commandBefore: V1CommandBeforeHook = async () => {};
+
+    await applyCommandMarkerToContext(event, commandBefore);
+
+    expect(trailing.content).toEqual([
+      { type: 'text', text: 'standup notes' },
+      { type: 'text', text: '[chair] guard', synthetic: true },
+    ]);
+  });
+
   test('no-ops for assistant trailing messages and marker-less text', async () => {
     const calls: unknown[] = [];
     const commandBefore: V1CommandBeforeHook = async (input) => {
@@ -613,8 +633,8 @@ describe('createSessionContextHandler (merged context hook seam)', () => {
 });
 
 describe('context bridge: transcript identity enrichment', () => {
-  test('checkpoint board changes wait for all tool results without splitting pairs', async () => {
-    const pipeline = createPipeline({ strategy: 'checkpoint-compatible' });
+  test('board changes wait for all tool results without splitting pairs', async () => {
+    const pipeline = createPipeline();
     const launch = (taskID: string) =>
       pipeline.board.registerLaunch({
         taskID,
@@ -687,7 +707,10 @@ describe('context bridge: transcript identity enrichment', () => {
         ],
       });
       const current = await transform();
-      expect(boards(current)).toHaveLength(toolCallId === 'call-1' ? 1 : 2);
+      // Change-only: a tool-result tail is not a user anchor, so the
+      // launch's board defers to the next genuine user tail; the frozen
+      // initial board replays meanwhile and every prefix stays stable.
+      expect(boards(current)).toHaveLength(1);
       expect(projection(current).slice(0, pending.length)).toEqual(
         projection(pending),
       );
@@ -710,8 +733,8 @@ describe('context bridge: transcript identity enrichment', () => {
     }
   });
 
-  test('checkpoint board survives completion followed by tool-result continuations', async () => {
-    const pipeline = createPipeline({ strategy: 'checkpoint-compatible' });
+  test('board survives completion followed by tool-result continuations', async () => {
+    const pipeline = createPipeline();
     pipeline.board.registerLaunch({
       taskID: 'ses_remaining_child',
       parentSessionID: SESSION_ID,
@@ -909,7 +932,7 @@ describe('context bridge: transcript identity enrichment', () => {
     pipeline.board.registerLaunch({
       taskID: 'ses_child',
       parentSessionID: SESSION_ID,
-      agent: 'librarian',
+      agent: 'explorer',
       description: 'running job',
       background: true,
     });
@@ -962,7 +985,7 @@ describe('context bridge: transcript identity enrichment', () => {
     pipeline.board.registerLaunch({
       taskID: 'ses_child',
       parentSessionID: SESSION_ID,
-      agent: 'librarian',
+      agent: 'explorer',
       description: 'running job',
       background: true,
     });
@@ -1453,7 +1476,11 @@ describe('tool execute bridge normalization', () => {
     await handler(context);
     await poll('task_status', 'poll-1', 'task_id: ses_child\nstate: busy');
     await handler(context);
-    await poll('task_result', 'poll-2', 'task_id: ses_child\nstate: running');
+    await poll(
+      'task_status',
+      'poll-2',
+      'task_id: ses_child\nstate: running\nresult: true',
+    );
     await handler(context);
     const third = await poll(
       'task_status',
@@ -1476,9 +1503,9 @@ describe('tool execute bridge normalization', () => {
       ),
     );
     const nextTurn = await poll(
-      'task_result',
+      'task_status',
       'poll-4',
-      'task_id: ses_child\nstate: running',
+      'task_id: ses_child\nstate: running\nresult: true',
     );
     expect(nextTurn).not.toContain(LOOP_GUARD_WARNING);
   });

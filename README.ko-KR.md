@@ -4,7 +4,7 @@
   </a>
   <h3>✨ oh-my-opencode-slim ✨</h3>
 
-  <p><i>코드의 여명에서 일곱 신성한 존재가 나타났습니다. 각자는 불멸의 장인으로서,<br>당신의 명령을 기다리며 혼돈에서 질서를 빚고 한때 불가능하다고 여겨졌던 것을 만들어냅니다.</i></p>
+  <p><i>코드의 여명에서 여섯 신성한 존재가 나타났습니다. 각자는 불멸의 장인으로서,<br>당신의 명령을 기다리며 혼돈에서 질서를 빚고 한때 불가능하다고 여겨졌던 것을 만들어냅니다.</i></p>
 
   <p><b>OpenCode 멀티 에이전트 도구 모음</b> · 모델을 자유롭게 조합 · 작업 자동 위임</p>
   <p><sub>by <b>Boring Dystopia Development</b></sub></p>
@@ -35,8 +35,8 @@ oh-my-opencode-slim은 OpenCode에서 여러 전문 에이전트의 작업을 �
 
 ### ✨ 주요 특징
 
-- **[7명의 전문 에이전트](#meet-the-pantheon)** - Orchestrator, Explorer,
-  Oracle, Council, Librarian, Designer, Fixer. 작업의 각 부분을 가장 적합한
+- **[6개의 전문 에이전트](#meet-the-pantheon)** - Orchestrator, Explorer,
+  Oracle, Council, Designer, Fixer. 작업의 각 부분을 가장 적합한
   에이전트에게 맡기며, 서로 다른 프로바이더의 모델을 자유롭게 조합할 수 있습니다.
 - **[백그라운드 오케스트레이션](docs/background-orchestration.md)** -
   Orchestrator가 전문 에이전트에게 백그라운드 작업을 배정하고 진행 상황을
@@ -178,12 +178,11 @@ bun run build
   "preset": "openai",
   "presets": {
     "openai": {
-      "orchestrator": { "model": "openai/gpt-6-sol", "variant": "high", "skills": ["*"], "mcps": ["*", "!context7"] },
-      "oracle": { "model": "openai/gpt-6-astra", "variant": "high", "skills": ["simplify"], "mcps": [] },
-      "librarian": { "model": "openai/gpt-6-luna", "variant": "low", "skills": [], "mcps": ["context7", "gh_grep"] },
-      "explorer": { "model": "openai/gpt-6-luna", "variant": "low", "skills": [], "mcps": [] },
-      "designer": { "model": "openai/gpt-6-luna", "variant": "medium", "skills": [], "mcps": [] },
-      "fixer": { "model": "openai/gpt-6-luna", "variant": "high", "skills": [], "mcps": [] }
+      "orchestrator": { "model": "openai/gpt-6-sol", "variant": "high", "skills": ["*"] },
+      "oracle": { "model": "openai/gpt-6-astra", "variant": "high", "skills": ["simplify"] },
+      "explorer": { "model": "openai/gpt-6-luna", "variant": "low", "skills": [] },
+      "designer": { "model": "openai/gpt-6-luna", "variant": "medium", "skills": [] },
+      "fixer": { "model": "openai/gpt-6-luna", "variant": "high", "skills": [] }
     }
   }
 }
@@ -298,7 +297,7 @@ ping all agents
   </tr>
   <tr>
     <td colspan="2">
-      <b>역할:</b> 코드베이스 탐색
+      <b>역할:</b> 코드베이스 탐색 및 외부 조사
     </td>
   </tr>
   <tr>
@@ -419,48 +418,7 @@ ping all agents
 
 ---
 
-### 05. Librarian: 지식의 직공
-
-<table>
-  <tr>
-    <td width="30%" align="center" valign="top">
-      <img src="img/librarian.jpg" width="240" style="border-radius: 10px;">
-      <br><sub><i>이해를 엮는 자.</i></sub>
-    </td>
-    <td width="70%" valign="top">
-      Librarian은 인류가 하나의 정신으로 모든 지식을 담을 수 없음을 깨달았을 때 탄생했습니다. 흩어진 정보를 실처럼 엮어 이해라는 직물을 만드는 직공입니다. 인류 지식의 무한한 도서관을 누비며 곳곳에서 통찰을 모아 단순한 사실을 넘어서는 답을 만듭니다. Librarian이 돌려주는 것은 정보가 아닙니다. 이해입니다.
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2">
-      <b>역할:</b> 외부 지식 검색
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2">
-      <b>프롬프트:</b> <a href="src/agents/librarian.ts"><code>librarian.ts</code></a>
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2">
-      <b>기본 모델:</b> <code>openai/gpt-6-luna</code>
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2">
-      <b>추천 모델:</b> <code>deepseek-v4-flash</code> <code>gpt-5.3-codex</code> <code>mimo-v2.5</code> <code>minimax-m2.7</code>
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2">
-      <b>모델 가이드:</b> 빠르고 저렴한 모델을 선택하세요. Librarian은 자료 조사와 문서 조회를 담당하므로, 대개 높은 추론 성능보다 속도와 효율성이 중요합니다.
-    </td>
-  </tr>
-</table>
-
----
-
-### 06. Designer: 미학의 수호자
+### 05. Designer: 미학의 수호자
 
 <table>
   <tr>
@@ -501,7 +459,7 @@ ping all agents
 
 ---
 
-### 07. Fixer: 마지막 건축가
+### 06. Fixer: 마지막 건축가
 
 <table>
   <tr>

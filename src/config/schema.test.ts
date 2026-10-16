@@ -671,7 +671,7 @@ describe('PluginConfigSchema backgroundJobs', () => {
       backgroundJobs: { maxSessionsPerAgent: 16 },
       presets: { review: { explorer: { model: 'valid/model' } } },
       agents: { oracle: { model: 'valid/model' } },
-      disabled_agents: ['librarian'],
+      disabled_agents: ['designer'],
       disabled_tools: ['ast_grep_search'],
     });
 
@@ -680,7 +680,7 @@ describe('PluginConfigSchema backgroundJobs', () => {
       expect(result.data.backgroundJobs?.maxSessionsPerAgent).toBe(2);
       expect(result.data.presets?.review?.explorer?.model).toBe('valid/model');
       expect(result.data.agents?.oracle?.model).toBe('valid/model');
-      expect(result.data.disabled_agents).toEqual(['librarian']);
+      expect(result.data.disabled_agents).toEqual(['designer']);
       expect(result.data.disabled_tools).toEqual(['ast_grep_search']);
     }
     expect(warnSpy).toHaveBeenCalledTimes(1);
@@ -697,7 +697,7 @@ describe('PluginConfigSchema backgroundJobs', () => {
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.backgroundJobs?.strategy).toBe('latest');
+      expect(result.data.backgroundJobs?.maxSessionsPerAgent).toBe(2);
       expect(result.data.agents?.oracle?.model).toBe('valid/model');
     }
     expect(warnSpy).toHaveBeenCalledTimes(1);
@@ -769,16 +769,14 @@ describe('PluginConfigSchema backgroundJobs', () => {
     // whole block is dropped — the diagnostic names the parent key only.
     const result = PluginConfigSchema.safeParse({
       backgroundJobs: {
-        strategy: 'checkpoint-compatible',
+        maxSessionsPerAgent: 4,
         concurrency: { defaultConcurrency: 4, notAKey: 1 },
       },
     });
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.backgroundJobs?.strategy).toBe(
-        'checkpoint-compatible',
-      );
+      expect(result.data.backgroundJobs?.maxSessionsPerAgent).toBe(4);
       expect(result.data.backgroundJobs?.concurrency?.defaultConcurrency).toBe(
         0,
       );
@@ -801,14 +799,29 @@ describe('PluginConfigSchema backgroundJobs', () => {
     expect(JSON.stringify(raw)).toBe(before);
   });
 
-  it('defaults board injection to the legacy latest strategy', () => {
+  it('boards render structurally with no board keys on the schema', () => {
     const result = PluginConfigSchema.safeParse({ backgroundJobs: {} });
 
     expect(result.success).toBe(true);
     if (result.success) {
-      expect(result.data.backgroundJobs?.strategy).toBe('latest');
-      expect(result.data.backgroundJobs?.maxRetainedSnapshots).toBe(20);
+      expect(result.data.backgroundJobs?.maxSessionsPerAgent).toBe(2);
+      expect('strategy' in (result.data.backgroundJobs ?? {})).toBe(false);
     }
+  });
+
+  it('rejects every removed board key', () => {
+    const result = PluginConfigSchema.safeParse({
+      backgroundJobs: {
+        strategy: 'latest',
+        maxRetainedSnapshots: 20,
+        boardInjection: true,
+        maxContextLines: 10,
+        readContextMinLines: 1,
+        readContextMaxFiles: 2,
+      },
+    });
+
+    expect(result.success).toBe(false);
   });
 
   it('defaults orchestratorWake to enabled with a 5-minute interval and auto mode', () => {
@@ -856,7 +869,7 @@ describe('PluginConfigSchema backgroundJobs', () => {
     for (const publicationWakeMinIntervalMs of [0, 999, -1, 2_147_483_648]) {
       const result = PluginConfigSchema.safeParse({
         backgroundJobs: {
-          strategy: 'checkpoint-compatible',
+          maxSessionsPerAgent: 4,
           orchestratorWake: { publicationWakeMinIntervalMs },
         },
       });
@@ -865,9 +878,7 @@ describe('PluginConfigSchema backgroundJobs', () => {
       if (result.success) {
         // Sibling key must survive — direct evidence that only the bad key
         // is dropped.
-        expect(result.data.backgroundJobs?.strategy).toBe(
-          'checkpoint-compatible',
-        );
+        expect(result.data.backgroundJobs?.maxSessionsPerAgent).toBe(4);
         expect(
           result.data.backgroundJobs?.orchestratorWake
             ?.publicationWakeMinIntervalMs,
@@ -959,37 +970,6 @@ describe('PluginConfigSchema backgroundJobs', () => {
     }
   });
 
-  it('accepts checkpoint-compatible board injection', () => {
-    const result = PluginConfigSchema.safeParse({
-      backgroundJobs: { strategy: 'checkpoint-compatible' },
-    });
-
-    expect(result.success).toBe(true);
-  });
-
-  it('accepts a bounded checkpoint snapshot retention limit', () => {
-    const result = PluginConfigSchema.safeParse({
-      backgroundJobs: { maxRetainedSnapshots: 3 },
-    });
-
-    expect(result.success).toBe(true);
-    if (result.success) {
-      expect(result.data.backgroundJobs?.maxRetainedSnapshots).toBe(3);
-    }
-  });
-
-  it('drops checkpoint snapshot retention limits outside 1–100 back to the default', () => {
-    for (const maxRetainedSnapshots of [0, 101, 20.5]) {
-      const result = PluginConfigSchema.safeParse({
-        backgroundJobs: { maxRetainedSnapshots },
-      });
-      expect(result.success).toBe(true);
-      if (result.success) {
-        expect(result.data.backgroundJobs?.maxRetainedSnapshots).toBe(20);
-      }
-    }
-  });
-
   it('defaults the wall-clock supervisor to disabled with a 10 second grace', () => {
     const result = PluginConfigSchema.safeParse({ backgroundJobs: {} });
 
@@ -997,22 +977,6 @@ describe('PluginConfigSchema backgroundJobs', () => {
     if (result.success) {
       expect(result.data.backgroundJobs?.wallClockTimeoutMs).toBe(0);
       expect(result.data.backgroundJobs?.abortGraceMs).toBe(10_000);
-    }
-  });
-
-  it('defaults boardInjection to enabled and accepts an explicit off', () => {
-    const defaults = PluginConfigSchema.safeParse({ backgroundJobs: {} });
-    expect(defaults.success).toBe(true);
-    if (defaults.success) {
-      expect(defaults.data.backgroundJobs?.boardInjection).toBe(true);
-    }
-
-    const off = PluginConfigSchema.safeParse({
-      backgroundJobs: { boardInjection: false },
-    });
-    expect(off.success).toBe(true);
-    if (off.success) {
-      expect(off.data.backgroundJobs?.boardInjection).toBe(false);
     }
   });
 
@@ -1224,6 +1188,49 @@ describe('PluginConfigSchema backgroundJobs', () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.data.backgroundJobs?.childInputWake).toBe(false);
+    }
+  });
+
+  it('defaults childInputWakeKinds to permission-off, question-on', () => {
+    const result = PluginConfigSchema.safeParse({ backgroundJobs: {} });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.backgroundJobs?.childInputWakeKinds).toEqual({
+        permission: false,
+        question: true,
+      });
+    }
+  });
+
+  it('defaults a missing childInputWakeKinds field', () => {
+    const result = PluginConfigSchema.safeParse({
+      backgroundJobs: { childInputWakeKinds: { question: false } },
+    });
+
+    expect(result.success).toBe(true);
+    if (result.success) {
+      expect(result.data.backgroundJobs?.childInputWakeKinds).toEqual({
+        permission: false,
+        question: false,
+      });
+    }
+  });
+
+  // Unlike sibling keys, .catch() swallows invalid input without the
+  // backgroundJobs diagnostic — accepted per review.
+  it('falls back to defaults for invalid childInputWakeKinds', () => {
+    for (const childInputWakeKinds of [{ permission: 'yes' }, 'question']) {
+      const result = PluginConfigSchema.safeParse({
+        backgroundJobs: { childInputWakeKinds },
+      });
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.data.backgroundJobs?.childInputWakeKinds).toEqual({
+          permission: false,
+          question: true,
+        });
+      }
     }
   });
 });

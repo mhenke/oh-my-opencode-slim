@@ -4,7 +4,7 @@
   </a>
   <h3>✨ oh-my-opencode-slim ✨</h3>
 
-  <p><i>هفت موجود افسانه‌ای از دل دنیای کد ظهور کرده‌اند؛ هرکدام استادی بی‌همتا در تخصص خود،<br>آماده‌اند تا به فرمان شما آشوب را به نظم تبدیل کنند و چیزهایی بسازند که روزی ناممکن به نظر می‌رسیدند.</i></p>
+  <p><i>شش موجود افسانه‌ای از دل دنیای کد ظهور کرده‌اند؛ هرکدام استادی بی‌همتا در تخصص خود،<br>آماده‌اند تا به فرمان شما آشوب را به نظم تبدیل کنند و چیزهایی بسازند که روزی ناممکن به نظر می‌رسیدند.</i></p>
 
   <p><b>مجموعه Multi-Agent برای OpenCode</b> · ترکیب آزادانه مدل‌ها · واگذاری خودکار taskها</p>
   <p><sub>ساخته‌شده توسط <b>Boring Dystopia Development</b></sub></p>
@@ -35,8 +35,7 @@
 
 ### ✨ نکات برجسته
 
-* **[هفت Agent تخصصی / Seven specialized agents](#meet-the-pantheon)** — شامل Orchestrator، Explorer،
-  همچنین Oracle، Council، Librarian، Designer و Fixer است. هر بخش از کار به
+* **[شش Agent تخصصی / Six specialized agents](#meet-the-pantheon)** — شامل Orchestrator، Explorer، Oracle، Council، Designer و Fixer است. هر بخش از کار به
   مناسب‌ترین Agent سپرده می‌شود و می‌توانید مدل‌های مختلف از Providerهای مختلف را با هم ترکیب کنید.
 * **[هماهنگ‌سازی پس‌زمینه / Background orchestration](docs/background-orchestration.md)** — در این حالت
   عامل Orchestrator متخصص‌ها را به‌صورت background task اجرا و پیگیری می‌کند و
@@ -170,12 +169,11 @@ bun run build
   "preset": "openai",
   "presets": {
     "openai": {
-      "orchestrator": { "model": "openai/gpt-6-sol", "variant": "high", "skills": ["*"], "mcps": ["*", "!context7"] },
-      "oracle": { "model": "openai/gpt-6-astra", "variant": "high", "skills": ["simplify"], "mcps": [] },
-      "librarian": { "model": "openai/gpt-6-luna", "variant": "low", "skills": [], "mcps": ["context7", "gh_grep"] },
-      "explorer": { "model": "openai/gpt-6-luna", "variant": "low", "skills": [], "mcps": [] },
-      "designer": { "model": "openai/gpt-6-luna", "variant": "medium", "skills": [], "mcps": [] },
-      "fixer": { "model": "openai/gpt-6-luna", "variant": "high", "skills": [], "mcps": [] }
+      "orchestrator": { "model": "openai/gpt-6-sol", "variant": "high", "skills": ["*"] },
+      "oracle": { "model": "openai/gpt-6-astra", "variant": "high", "skills": ["simplify"] },
+      "explorer": { "model": "openai/gpt-6-luna", "variant": "low", "skills": [] },
+      "designer": { "model": "openai/gpt-6-luna", "variant": "medium", "skills": [] },
+      "fixer": { "model": "openai/gpt-6-luna", "variant": "high", "skills": [] }
     }
   }
 }
@@ -283,7 +281,7 @@ ping all agents
   </tr>
   <tr>
     <td colspan="2" dir="rtl" align="right">
-      <b>نقش:</b> <code>شناسایی و بررسی Codebase</code>
+      <b>نقش:</b> <code>شناسایی و بررسی Codebase و پژوهش خارجی</code>
     </td>
   </tr>
   <tr>
@@ -402,48 +400,7 @@ ping all agents
 
 ---
 
-<h3 dir="rtl" align="right">05. Librarian: پیونددهنده دانش</h3>
-
-<table>
-  <tr>
-    <td width="30%" align="center" valign="top">
-      <img src="img/librarian.jpg" width="240" style="border-radius: 10px;">
-      <br><sub><i>.جوینده‌ی فهم</i></sub>
-    </td>
-    <td width="70%" valign="top" dir="rtl" align="right">
-      Librarian زمانی شکل گرفت که انسان فهمید هیچ ذهنی به‌تنهایی نمی‌تواند همه دانش را در خود نگه دارد. او رشته‌های پراکنده اطلاعات را به تصویری یکپارچه از فهم پیوند می‌دهد. در کتابخانه بی‌پایان دانش بشر می‌گردد، از هر گوشه insight جمع می‌کند و آن‌ها را به پاسخ‌هایی فراتر از مجموعه‌ای از factها تبدیل می‌کند. چیزی که بازمی‌گرداند صرفاً اطلاعات نیست؛ فهم است.
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2" dir="rtl" align="right">
-      <b>نقش:</b> <code>بازیابی دانش خارجی</code>
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2" dir="rtl" align="right">
-      <b>Prompt:</b> <a href="src/agents/librarian.ts"><code>librarian.ts</code></a>
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2" dir="rtl" align="right">
-      <b>مدل پیش‌فرض:</b> <code>openai/gpt-6-luna</code>
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2" dir="rtl" align="right">
-      <b>مدل‌های پیشنهادی:</b> <code>deepseek-v4-flash</code> <code>gpt-5.3-codex</code> <code>mimo-v2.5</code> <code>minimax-m2.7</code>
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2" dir="rtl" align="right">
-      <b>راهنمای انتخاب مدل:</b> یک مدل سریع و کم‌هزینه انتخاب کنید. Librarian مسئول research و جست‌وجوی مستندات است، بنابراین معمولاً سرعت و بهره‌وری مهم‌تر از استفاده از قوی‌ترین مدل reasoning شماست.
-    </td>
-  </tr>
-</table>
-
----
-
-<h3 dir="rtl" align="right">06. Designer: معمار زیبایی</h3>
+<h3 dir="rtl" align="right">05. Designer: معمار زیبایی</h3>
 
 <table>
   <tr>
@@ -484,7 +441,7 @@ ping all agents
 
 ---
 
-<h3 dir="rtl" align="right">07. Fixer: آخرین سازنده</h3>
+<h3 dir="rtl" align="right">06. Fixer: آخرین سازنده</h3>
 
 <table>
   <tr>

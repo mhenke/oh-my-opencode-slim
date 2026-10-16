@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { afterEach, beforeEach, describe, expect, spyOn, test } from 'bun:test';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
@@ -141,6 +141,46 @@ describe('Project-local customization - 15 core cases', () => {
     );
     expect(oracle?.config.prompt).toContain('ancestor oracle instructions');
     expect(oracle?.config.prompt).toContain('ancestor extra rules');
+  });
+
+  test('pre-rename librarian prompt files apply to explorer and warn once', () => {
+    const userDir = path.join(tempDir, 'opencode', 'oh-my-opencode-slim');
+    fs.mkdirSync(userDir, { recursive: true });
+    fs.writeFileSync(path.join(userDir, 'librarian.md'), 'legacy prompt');
+    fs.writeFileSync(
+      path.join(userDir, 'librarian_append.md'),
+      'legacy append',
+    );
+
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(loadAgentPrompt('explorer', {})).toEqual({
+        prompt: 'legacy prompt',
+        appendPrompt: 'legacy append',
+      });
+      // Repeated loads keep applying the files; each stale file warns once.
+      expect(loadAgentPrompt('explorer', {}).prompt).toBe('legacy prompt');
+      expect(warn).toHaveBeenCalledTimes(2);
+      expect(String(warn.mock.calls[0]?.[0])).toContain(
+        "'librarian.md' uses a pre-rename name",
+      );
+      expect(String(warn.mock.calls[1]?.[0])).toContain(
+        "'librarian_append.md' uses a pre-rename name",
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('explorer prompt files win over the pre-rename librarian files', () => {
+    const userDir = path.join(tempDir, 'opencode', 'oh-my-opencode-slim');
+    fs.mkdirSync(userDir, { recursive: true });
+    fs.writeFileSync(path.join(userDir, 'explorer.md'), 'canonical prompt');
+    fs.writeFileSync(path.join(userDir, 'librarian.md'), 'legacy prompt');
+
+    expect(loadAgentPrompt('explorer', {})).toEqual({
+      prompt: 'canonical prompt',
+    });
   });
 
   // Test Case 1: Project prompt root beats user prompt root
@@ -429,7 +469,7 @@ describe('Project-local customization - 15 core cases', () => {
             },
           },
           orchestrator: {
-            librarian: { model: 'user/librarian' },
+            oracle: { model: 'user/oracle' },
           },
         },
       },
@@ -442,7 +482,7 @@ describe('Project-local customization - 15 core cases', () => {
             },
           },
           orchestrator: {
-            librarian: { inheritModelFrom: 'orchestrator' },
+            oracle: { inheritModelFrom: 'orchestrator' },
           },
         },
       },
@@ -459,7 +499,7 @@ describe('Project-local customization - 15 core cases', () => {
       },
     });
     expect(resolvePreset('orchestrator', merged.presets ?? {})).toEqual({
-      librarian: { inheritModelFrom: 'orchestrator' },
+      oracle: { inheritModelFrom: 'orchestrator' },
     });
   });
 

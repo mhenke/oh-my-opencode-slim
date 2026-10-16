@@ -307,7 +307,6 @@ describe('built-in agent permission-rule derivation matrix', () => {
     for (const name of [
       'orchestrator',
       'explorer',
-      'librarian',
       'oracle',
       'designer',
       'fixer',
@@ -321,7 +320,6 @@ describe('built-in agent permission-rule derivation matrix', () => {
   test.each([
     'orchestrator',
     'explorer',
-    'librarian',
     'oracle',
     'designer',
     'fixer',
@@ -1665,11 +1663,49 @@ describe('createV2Setup permission rules wiring', () => {
           effect: 'ask',
         });
         // Ordered native host rules survive compilation unchanged, including
-        // the later exception, in the real session.update replacement payload.
-        expect(calls[0].permissions.slice(-2)).toEqual([
-          { action: 'read', resource: 'src/**', effect: 'deny' },
-          { action: 'read', resource: 'src/public.ts', effect: 'allow' },
-        ]);
+        // the later exception: the read deny precedes the public.ts allow,
+        // and no compiled read rule or ask rule follows (the deny ceiling
+        // replays after them — see compileChildPermissions in
+        // src/agents/registry.ts — but this fixture's explorer baseline
+        // declares no read rules, so the exception is final).
+        const compiledPermissions = calls[0].permissions;
+        const narrowDenyIndex = compiledPermissions.findIndex(
+          (rule) =>
+            rule.action === 'read' &&
+            rule.resource === 'src/**' &&
+            rule.effect === 'deny',
+        );
+        const publicAllowIndex = compiledPermissions.findIndex(
+          (rule) =>
+            rule.action === 'read' &&
+            rule.resource === 'src/public.ts' &&
+            rule.effect === 'allow',
+        );
+        expect(narrowDenyIndex).toBeGreaterThanOrEqual(0);
+        expect(publicAllowIndex).toBeGreaterThan(narrowDenyIndex);
+        const afterAllow = compiledPermissions.slice(publicAllowIndex + 1);
+        expect(afterAllow.some((rule) => rule.action === 'read')).toBe(false);
+        expect(afterAllow.some((rule) => rule.effect === 'ask')).toBe(false);
+        expect(
+          afterAllow.some(
+            (rule) => rule.action !== 'read' && rule.effect === 'deny',
+          ),
+        ).toBe(true);
+        // Exception-level semantics: the public.ts allow survives the
+        // ceiling, everything else read-scoped stays denied.
+        const decideCompiled = (action: string, resource: string): string => {
+          const match = compiledPermissions.findLast(
+            (rule) =>
+              (rule.action === '*' || rule.action === action) &&
+              (rule.resource === '*' ||
+                rule.resource === resource ||
+                (rule.resource.endsWith('/**') &&
+                  resource.startsWith(rule.resource.slice(0, -3)))),
+          );
+          return match?.effect ?? 'ask';
+        };
+        expect(decideCompiled('read', 'src/public.ts')).toBe('allow');
+        expect(decideCompiled('read', 'src/other.ts')).toBe('deny');
         expect(
           calls[0].permissions.some(
             (rule) =>

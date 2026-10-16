@@ -1,9 +1,10 @@
-import { describe, expect, test } from 'bun:test';
+import { describe, expect, spyOn, test } from 'bun:test';
 import {
   MARKETPLACE_ROUTING_LINE_MAX_LENGTH,
   MarketplaceAgentManifestSchema,
   MarketplaceAgentManifestSummaryV2Schema,
   MarketplaceAgentManifestSummaryV3Schema,
+  MarketplaceBuiltinSchema,
   MarketplaceModelCandidateSchema,
   MarketplacePackageManifestSchema,
   MarketplacePackageManifestV3Schema,
@@ -359,5 +360,46 @@ describe('agents-only marketplace manifest schemas', () => {
         unknownField: true,
       }).success,
     ).toBe(false);
+  });
+});
+
+let dynamicImportCounter = 0;
+
+describe('legacy marketplace builtin names', () => {
+  test("parses 'librarian' as the merged 'explorer'", () => {
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(MarketplaceBuiltinSchema.parse('librarian')).toBe('explorer');
+      expect(MarketplaceBuiltinSchema.parse('explorer')).toBe('explorer');
+      expect(MarketplaceBuiltinSchema.safeParse('unknown-role').success).toBe(
+        false,
+      );
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  test('warns exactly once per process when the rename applies', async () => {
+    // The once-per-process guard is module state shared across the whole
+    // test process; a cache-busted import observes it from a fresh start.
+    const fresh = (await import(
+      `./schemas.js?librarian-rename=${dynamicImportCounter++}`
+    )) as typeof import('./schemas.js');
+    const warn = spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      expect(fresh.MarketplaceBuiltinSchema.parse('librarian')).toBe(
+        'explorer',
+      );
+      expect(fresh.MarketplaceBuiltinSchema.parse('librarian')).toBe(
+        'explorer',
+      );
+      expect(fresh.MarketplaceBuiltinSchema.parse('explorer')).toBe('explorer');
+      expect(warn).toHaveBeenCalledTimes(1);
+      expect(String(warn.mock.calls[0]?.[0])).toContain(
+        "'librarian' was merged into 'explorer'",
+      );
+    } finally {
+      warn.mockRestore();
+    }
   });
 });

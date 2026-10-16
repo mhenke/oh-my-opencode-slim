@@ -708,7 +708,7 @@ Register the shim directory in the OpenCode v2 config:
 re-export the fresh bundles and no publish step is involved.
 
 Verify with `opencode2 run "list your specialist agents" --standalone` — the
-orchestrator should name explorer, librarian, oracle, designer, fixer.
+orchestrator should name explorer, oracle, designer, fixer.
 
 ### Registration rules
 

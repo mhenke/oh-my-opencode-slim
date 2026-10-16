@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { MarketplacePackageIdSchema } from '../marketplace/schemas';
 import {
   AGENT_THEME_COLORS,
-  DEFAULT_MAX_RETAINED_SNAPSHOTS,
+  DEFAULT_CHILD_INPUT_WAKE_KINDS,
   STRING_ONLY_PERMISSION_KEYS,
 } from './constants';
 import { CouncilConfigSchema } from './council-schema';
@@ -427,7 +427,7 @@ export type PresetInput = z.infer<typeof PresetSchema>;
 export const McpNameSchema = z.enum(['context7', 'gh_grep']);
 export type McpName = z.infer<typeof McpNameSchema>;
 
-const InterviewOutputFolderSchema = z
+export const InterviewOutputFolderSchema = z
   .string()
   .trim()
   .min(1)
@@ -496,24 +496,36 @@ export type BackgroundTaskConcurrencyConfig = z.infer<
 
 export const BackgroundJobsConfigStrictSchema = z.object({
   strategy: z
-    .enum(['latest', 'checkpoint-compatible'])
-    .default('latest')
-    .describe(
-      'Board injection strategy. "latest" retains and replays one frozen board part per eligible turn without a cap; unchanged boards use a short marker for up to nine turns, then a full board. "checkpoint-compatible" appends only changed snapshots with a bounded cache epoch.',
-    ),
+    .never({
+      error:
+        'backgroundJobs.strategy was removed; board placement is change-only with frozen replay',
+    })
+    .optional(),
   maxSessionsPerAgent: z.number().int().min(1).max(10).default(2),
-  maxContextLines: z.number().int().min(0).max(500_000).default(50_000),
-  readContextMinLines: z.number().int().min(0).max(1000).default(10),
-  readContextMaxFiles: z.number().int().min(0).max(50).default(8),
+  maxContextLines: z
+    .never({
+      error:
+        'backgroundJobs.maxContextLines was removed; reusability is state-based',
+    })
+    .optional(),
+  readContextMinLines: z
+    .never({
+      error:
+        'backgroundJobs.readContextMinLines was removed; the read-context list is path-only',
+    })
+    .optional(),
+  readContextMaxFiles: z
+    .never({
+      error:
+        'backgroundJobs.readContextMaxFiles was removed; the display cap is internal',
+    })
+    .optional(),
   maxRetainedSnapshots: z
-    .number()
-    .int()
-    .min(1)
-    .max(100)
-    .default(DEFAULT_MAX_RETAINED_SNAPSHOTS)
-    .describe(
-      'Maximum board snapshots retained per checkpoint cache epoch (1–100). Exceeding the limit starts a new epoch with the current snapshot and intentionally creates one cache miss.',
-    ),
+    .never({
+      error:
+        'backgroundJobs.maxRetainedSnapshots was removed; the frozen-replay map is session-bounded',
+    })
+    .optional(),
   orchestratorWake: z
     .object({
       enabled: z
@@ -541,7 +553,7 @@ export const BackgroundJobsConfigStrictSchema = z.object({
         .boolean()
         .default(true)
         .describe(
-          'When false, the periodic idle evaluation never runs; only event-driven wakes (stopped-job recovery, terminal-publication rev>1, child-input) still deliver. Failed event wakes keep their timer-based retry path. Default enabled; v2 hosts derive a disabled default when the key is not explicitly configured.',
+          'When false, the periodic idle evaluation never runs; only event-driven wakes (stopped-job recovery, terminal-publication rev>1, child-input) still deliver. Failed event wakes keep their timer-based retry path. Default enabled on v1 hosts; v2 hosts never run the periodic evaluation (the native background notifier delivers first terminal publications).',
         ),
       wakeOnTerminalPublication: z
         .boolean()
@@ -611,13 +623,22 @@ export const BackgroundJobsConfigStrictSchema = z.object({
     .boolean()
     .default(true)
     .describe(
-      'When false, the Background Job Board reminder is never injected into prompts. Background task tracking, wake, and task_status all keep working; the orchestrator simply no longer passively sees the board. Default enabled; v2 hosts derive a disabled default when the key is not explicitly configured.',
+      'When false on v1 hosts, the Background Job Board is never injected into prompts — tracking, wake, and task_status keep working, and terminal retirement runs through prompt-shape consumption (covering cancelled, which has no native delivery). Default enabled. On v2 hosts the key is ignored with a warning: the native background notifier and inbox delivery replace the passive board.',
     ),
   childInputWake: z
     .boolean()
     .default(true)
     .describe(
       'When true, a background child ask wakes its parent with the ask content. Default enabled.',
+    ),
+  childInputWakeKinds: z
+    .object({
+      permission: z.boolean().default(false).catch(false),
+      question: z.boolean().default(true).catch(true),
+    })
+    .catch({ ...DEFAULT_CHILD_INPUT_WAKE_KINDS })
+    .describe(
+      'Which background child ask kinds may wake the parent. Permission asks default off (#1504): their replies carry no host wake and are resolved by the UI or an external responder, so a parent turn is wasted. Question asks default on.',
     ),
   pruneEvictedSessions: z
     .boolean()
@@ -852,7 +873,7 @@ export const WebfetchConfigSchema = z
     model: AgentOverrideConfigSchema.shape.model.describe(
       'Dedicated model(s) for smartfetch secondary-model summarization. ' +
         'Same shape as agent model config (string, array of strings/objects with id+variant). ' +
-        'Takes priority over small_model, agents.explorer.model, and agents.librarian.model.',
+        'Takes priority over small_model and agents.explorer.model.',
     ),
   })
   .strict();

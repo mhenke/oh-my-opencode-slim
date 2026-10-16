@@ -40,10 +40,9 @@ If you define an MCP server with the same name in `opencode.json` / `opencode.js
 | Agent | Default MCPs |
 |-------|-------------|
 | `orchestrator` | `*`, `!context7` |
-| `librarian` | `context7`, `gh_grep` |
+| `explorer` | `context7`, `gh_grep` |
 | `designer` | none |
 | `oracle` | none |
-| `explorer` | none |
 | `fixer` | none |
  | `councillor` | none |
 
@@ -75,9 +74,6 @@ Control which MCPs each agent can use via the `mcps` array in your preset config
       "orchestrator": {
         "mcps": ["*", "!context7"]
       },
-      "librarian": {
-        "mcps": ["context7", "gh_grep"]
-      },
       "oracle": {
         "mcps": ["*", "!gh_grep"]
       },
@@ -88,6 +84,11 @@ Control which MCPs each agent can use via the `mcps` array in your preset config
   }
 }
 ```
+
+> **Tip:** Omit the `mcps` key entirely to inherit the per-agent defaults from
+> the table above. An explicit `mcps` value (including `[]`) always wins — so
+> a generated or hand-written `explorer.mcps: []` disables explorer's
+> `context7`/`gh_grep` access. Only set `mcps` when you intend to override.
 
 ---
 

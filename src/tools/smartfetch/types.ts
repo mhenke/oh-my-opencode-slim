@@ -22,8 +22,6 @@ export type SmartfetchOptions = {
   smallModelRef?: () => string | undefined;
   /** Explorer agent model id, resolved from in-memory config at construction. */
   explorerModel?: string;
-  /** Librarian agent model id, resolved from in-memory config at construction. */
-  librarianModel?: string;
 };
 
 export type SecondaryModel = {

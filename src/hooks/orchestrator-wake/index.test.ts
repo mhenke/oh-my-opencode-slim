@@ -1273,6 +1273,24 @@ describe('orchestrator wake scheduler', () => {
     expect(call?.body.parts[0]?.text).not.toContain('Background Job Board');
   });
 
+  test('v1 keeps the periodic evaluation when periodicWakeEnabled is left at its default', async () => {
+    const promptAsync = mock(async () => ({}));
+    const { scheduler } = createScheduler({
+      hostFlavor: 'v1',
+      sessionClient: makeClient({
+        todos: [{ id: 't1', status: 'pending' }],
+        promptAsync,
+      }),
+    });
+
+    await scheduler.event({
+      event: { type: 'session.idle', properties: { sessionID: 'p1' } },
+    });
+    await clock.advance(180_000);
+    await clock.advance(120_000);
+    expect(promptAsync).toHaveBeenCalled();
+  });
+
   test('a failed recovery delivery still retries on its own timer while periodicWakeEnabled=false', async () => {
     let fail = true;
     const promptAsync = mock(async () => {

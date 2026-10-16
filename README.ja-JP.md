@@ -4,7 +4,7 @@
   </a>
   <h3>✨ oh-my-opencode-slim ✨</h3>
 
-  <p><i>コードの夜明けから七柱の神聖なる存在が現れました。それぞれが不朽の技の達人として、<br>あなたの命令を待ち、混沌から秩序を鍛え上げ、かつて不可能と思われたものを築きます。</i></p>
+  <p><i>コードの夜明けから六柱の神聖なる存在が現れました。それぞれが不朽の技の達人として、<br>あなたの命令を待ち、混沌から秩序を鍛え上げ、かつて不可能と思われたものを築きます。</i></p>
 
   <p><b>Opencode マルチエージェントスイート</b> · 任意のモデルを組み合わせ · タスクを自動委譲</p>
   <p><sub>by <b>Boring Dystopia Development</b></sub></p>
@@ -35,7 +35,7 @@ oh-my-opencode-slim は OpenCode 向けのエージェントオーケストレ�
 
 ### ✨ ハイライト
 
-- **[7 つの専門エージェント](#meet-the-pantheon)** - Orchestrator、Explorer、Oracle、Council、Librarian、Designer、Fixer。各作業に最適なエージェントを割り当て、プロバイダーを問わず任意のモデルを組み合わせられます。
+- **[6つの専門エージェント](#meet-the-pantheon)** - Orchestrator、Explorer、Oracle、Council、Designer、Fixer。各作業に最適なエージェントを割り当て、プロバイダーを問わず任意のモデルを組み合わせられます。
 - **[バックグラウンドオーケストレーション](docs/background-orchestration.md)** - Orchestrator が専門家をバックグラウンドタスクとして派遣・追跡し、続行前に結果を統合します。並列作業がデフォルトです。
 - **[同梱スキル](#skills)** - `deepwork`、`codemap`、`verification-planning`、`reflect` などのプロンプトベースのワークフローを、エージェントごとに割り当てます。
 - **[Council](docs/council.md)** - `@council` で同じ質問を複数モデルに並列で投げ、1 つの回答に統合します。
@@ -158,17 +158,15 @@ bun run build
   "preset": "openai",
   "presets": {
     "openai": {
-      "orchestrator": { "model": "openai/gpt-6-sol", "variant": "high", "skills": ["*"], "mcps": ["*", "!context7"] },
-      "oracle": { "model": "openai/gpt-6-astra", "variant": "high", "skills": ["simplify"], "mcps": [] },
-      "librarian": { "model": "openai/gpt-6-luna", "variant": "low", "skills": [], "mcps": ["context7", "gh_grep"] },
-      "explorer": { "model": "openai/gpt-6-luna", "variant": "low", "skills": [], "mcps": [] },
-      "designer": { "model": "openai/gpt-6-luna", "variant": "medium", "skills": [], "mcps": [] },
-      "fixer": { "model": "openai/gpt-6-luna", "variant": "high", "skills": [], "mcps": [] }
+      "orchestrator": { "model": "openai/gpt-6-sol", "variant": "high", "skills": ["*"] },
+      "oracle": { "model": "openai/gpt-6-astra", "variant": "high", "skills": ["simplify"] },
+      "explorer": { "model": "openai/gpt-6-luna", "variant": "low", "skills": [] },
+      "designer": { "model": "openai/gpt-6-luna", "variant": "medium", "skills": [] },
+      "fixer": { "model": "openai/gpt-6-luna", "variant": "high", "skills": [] }
     },
     "opencode-go": {
       "orchestrator": { "model": "opencode-go/minimax-m3", "variant": "thinking" },
       "oracle": { "model": "opencode-go/qwen3.7-max", "variant": "max" },
-      "librarian": { "model": "opencode-go/deepseek-v4-flash", "variant": "high" },
       "explorer": { "model": "opencode-go/deepseek-v4-flash", "variant": "high" },
       "designer": { "model": "opencode-go/kimi-k2.7-code" },
       "fixer": { "model": "opencode-go/deepseek-v4-flash", "variant": "high" },
@@ -272,7 +270,7 @@ ping all agents
   </tr>
   <tr>
     <td colspan="2">
-      <b>Role:</b> <code>Codebase reconnaissance</code>
+      <b>Role:</b> <code>Codebase reconnaissance and external research</code>
     </td>
   </tr>
   <tr>
@@ -389,48 +387,7 @@ ping all agents
 
 ---
 
-### 05. Librarian: 知識の織り手
-
-<table>
-  <tr>
-    <td width="30%" align="center" valign="top">
-      <img src="img/librarian.jpg" width="240" style="border-radius: 10px;">
-      <br><sub><i>理解を編み上げる者。</i></sub>
-    </td>
-    <td width="70%" valign="top">
-      Librarian は、ひとつの知性だけではあらゆる知識を抱えきれないと人類が悟ったときに鍛え上げられました。バラバラに散らばった情報の糸を、ひとつの理解のタペストリーへと織り上げる存在です。人類の知の無限の書庫を巡り、あらゆる片隅から洞察を集め、単なる事実を超えた回答へと束ねます。彼らが返すのは情報ではなく、理解そのものです。
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2">
-      <b>Role:</b> <code>External knowledge retrieval</code>
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2">
-      <b>Prompt:</b> <a href="src/agents/librarian.ts"><code>librarian.ts</code></a>
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2">
-      <b>Default Model:</b> <code>openai/gpt-6-luna</code>
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2">
-      <b>Recommended Models:</b> <code>openai/gpt-5.3-codex</code> <code>cerebras/zai-glm-4.7</code> <code>fireworks-ai/accounts/fireworks/routers/kimi-k2p6-turbo</code>
-    </td>
-  </tr>
-  <tr>
-    <td colspan="2">
-      <b>Model Guidance:</b> 高速・低コストなモデルを選びましょう。Librarian は調査やドキュメント参照を担うため、通常は最強の推論モデルを使うよりも速度と効率の方が重要です。
-    </td>
-  </tr>
-</table>
-
----
-
-### 06. Designer: 美の守護者
+### 05. Designer: 美の守護者
 
 <table>
   <tr>
@@ -471,7 +428,7 @@ ping all agents
 
 ---
 
-### 07. Fixer: 最後の建造者
+### 06. Fixer: 最後の建造者
 
 <table>
   <tr>

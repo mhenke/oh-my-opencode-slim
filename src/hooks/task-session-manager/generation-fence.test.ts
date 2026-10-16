@@ -15,7 +15,6 @@ function createHook(board: BackgroundJobBoard) {
     } as never,
     {
       maxSessionsPerAgent: 2,
-      maxRetainedSnapshots: 4,
       backgroundJobBoard: board,
       shouldManageSession: () => true,
       runtimeStatusReconcileDelayMs: 60_000,

@@ -32,6 +32,13 @@ describe('orchestrator prompt: host vocabulary', () => {
     expect(prompt).not.toContain('models tool');
   });
 
+  test('result reads go through task_status, not a task_result tool', () => {
+    for (const prompt of [v1(), v2()]) {
+      expect(prompt).toContain('with `result: true` it reads a');
+      expect(prompt).not.toContain('task_result');
+    }
+  });
+
   test('unknown flavors render the v1 vocabulary', () => {
     expect(buildOrchestratorPrompt({ hostFlavor: 'v1' })).toBe(v1());
     expect(buildOrchestratorPrompt({ hostFlavor: 'v3-ish' })).toBe(v1());
@@ -124,7 +131,7 @@ describe('orchestrator prompt: cache safety', () => {
     const scoped1 = v2(opts);
     const scoped2 = v2(opts);
     expect(scoped1).not.toContain('@explorer');
-    expect(scoped1).toContain('@librarian');
+    expect(scoped1).toContain('@oracle');
     expect(scoped1).toBe(scoped2);
   });
 

@@ -254,7 +254,6 @@ describe('tui sidebar agents', () => {
 
     expect(agentNames).toEqual(['explorer', 'fixer']);
     expect(agentNames).not.toContain('observer');
-    expect(agentNames).not.toContain('librarian');
   });
 
   test('fills empty snapshot models from the v1 host agent list (#1133)', async () => {

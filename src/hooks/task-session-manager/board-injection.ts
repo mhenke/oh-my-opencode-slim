@@ -7,7 +7,7 @@
  * All injection logic must go through the cache-safe helpers in
  * ../cache-safe-injection.ts to ensure prompt cache safety.
  */
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import { formatSystemReminder } from '../../config/constants';
 import type {
   BackgroundJobExecution,
@@ -33,11 +33,9 @@ import { log } from '../../utils/logger';
 import {
   appendTaggedSyntheticPart,
   appendTrailingVolatileMessage,
-  createTaggedSyntheticPart,
   hasTaggedPart,
   isTaggedPart,
   isVolatileTaggedMessage,
-  stripTaggedContent,
 } from '../cache-safe-injection';
 import type { MessagePart, MessageWithParts } from '../types';
 import { isMessageWithParts, isUserMessageWithParts } from '../types';
@@ -48,35 +46,14 @@ import { extractTaskSummary, isLateCancelledTaskError } from './status-utils';
 export const BACKGROUND_JOB_BOARD_METADATA_KEY =
   'oh-my-opencode-slim.backgroundJobBoard';
 
-const UNCHANGED_BOARD_MARKER = formatSystemReminder(
-  '### Background Job Board unchanged since the last full snapshot.',
-);
-const MAX_UNCHANGED_MARKERS = 9;
-
 const BACKGROUND_COMPLETION_COMPLETED = /^Background task completed: /;
 const BACKGROUND_COMPLETION_FAILED = /^Background task failed: /;
 
-type RetainedBoardSnapshot = {
-  anchorKey: string;
-  id: string;
-  text: string;
-  terminalUnreconciledTaskIDs: BackgroundJobExecution[];
-};
-
-export type RetainedBoardSnapshotState = {
-  snapshots: RetainedBoardSnapshot[];
-  /** Random per state instance, so ids differ across restarts and resets. */
-  epoch: string;
-  nextSnapshotSequence: number;
-  realMessageCount: number;
-  firstRealMessageAnchorKey?: string;
-};
-
 /**
- * A board the `latest` strategy has already placed (and therefore already sent
- * to the provider) on a specific anchor message. Replayed byte-identically on
- * every later request once that anchor is no longer the tail, so a board that
- * was sent on a message the provider has cached never disappears.
+ * A board the change-only scheme has already placed (and therefore already
+ * sent to the provider) on a specific anchor message. Replayed byte-identically
+ * on every later request once that anchor is no longer the tail, so a board
+ * that was sent on a message the provider has cached never disappears.
  *
  * Only a board that rode as a trailing PART on a USER anchor is retained:
  * it can be reproduced without inserting a message mid-array (A1) or grafting
@@ -240,9 +217,9 @@ function deliverReopenCorrections(
       },
       {
         text:
-          state.boardInjection !== false
-            ? formatReopenCorrectionText(correction)
-            : formatReopenCorrectionTextNoBoard(correction),
+          state.hostFlavor === 'v2' || state.boardInjection === false
+            ? formatReopenCorrectionTextNoBoard(correction)
+            : formatReopenCorrectionText(correction),
         metadataKey: state.metadataKey,
         extraMetadata: { reopenCorrection: true },
       },
@@ -262,6 +239,13 @@ export function pruneReopenCorrectionState(
   parentSessionID: string,
 ): void {
   state.reportedTerminalRunsByParent?.delete(parentSessionID);
+  // Delivery keys are content-addressed, so a stale key can never
+  // mis-retire a recreated session — but retaining them leaks memory for
+  // dead parents. Keys for a recreated session are fresh message IDs.
+  state.observedNativeDeliveries?.delete(parentSessionID);
+  // Same for the change-only digest: a recreated session must start with
+  // no injected history, so its first board renders fresh.
+  state.lastInjectedBoardTextByParent?.delete(parentSessionID);
 }
 
 const HOST_MESSAGE_OCCURRENCE_PREFIX = 'host-message:';
@@ -270,10 +254,6 @@ export interface InjectionState {
   backgroundJobBoard: BackgroundJobStore;
   terminalGate: BackgroundJobTerminalGate;
   lifecycleLedger: BackgroundJobLifecycleLedger;
-  maxRetainedSnapshots: number;
-  strategy: 'latest' | 'checkpoint-compatible';
-  /** When false, the board reminder is never injected (backgroundJobs.boardInjection). */
-  boardInjection?: boolean;
   processedInjectedCompletions: Set<string>;
   processedInjectedCompletionOrder: string[];
   /**
@@ -296,6 +276,41 @@ export interface InjectionState {
     Map<string, BackgroundJobExecution>
   >;
   /**
+   * Native v2 delivery parts already consumed by the observer
+   * (`reconcileObservedNativeDeliveries`), keyed by parent session, then by
+   * the delivery part's own message/part identity (byte-stable, persisted in
+   * history) — never by prompt shape. Keys are consumed only once the
+   * delivery can actually act (retire, or is provably stale vs
+   * lastLaunchedAt, or its record already reconciled), so a delivery
+   * observed while its record is still running retries on the next
+   * transform. No size bound: consumed keys must survive so an evicted key
+   * can never re-pair against a newer run; growth is O(deliveries for the
+   * parent) and the set dies with the parent at session end. Optional for
+   * states built before the field existed.
+   */
+  observedNativeDeliveries?: Map<string, Set<string>>;
+  /** Host flavor marker ('v2' on OpenCode v2 hosts). v2 is structurally
+   *  boardless: observation-based retirement plus reopen corrections only.
+   *  v1 renders the board unless boardInjection is honoured-off. */
+  hostFlavor?: string;
+  /** v1-only honoured switch (schema default true; RuntimeConfig forces
+   *  false on v2, so on v2 this field is always false and the dispatch
+   *  already returned). `false` on v1 = boardless: no board part is
+   *  placed and terminal retirement runs through prompt-shape consumption
+   *  (covers cancelled, which has no native delivery and no timestamp
+   *  fallback). */
+  boardInjection?: boolean;
+  /**
+   * Last board text injected per parent session — the change-only digest.
+   * A fresh tail board is placed only when the rendered text differs; an
+   * unchanged digest replays frozen boards and reconciles consumed terminal
+   * jobs but places nothing new (unchanged turns carry zero new
+   * information). Cleared at session end (pruneReopenCorrectionState) so a
+   * recreated session renders fresh. Optional for states built before the
+   * field existed.
+   */
+  lastInjectedBoardTextByParent?: Map<string, string>;
+  /**
    * Terminal runs this parent has already consumed (reconciled through
    * `reconcileExecutionBatch`), keyed `${taskID}:${generation}`. Used to
    * detect a reconciled job REOPENING to running (typically a child session
@@ -313,14 +328,13 @@ export interface InjectionState {
     contextFilesForPrompt(taskId: string): ContextFile[];
     prune(board: { taskIDs(): Set<string> }): void;
   };
-  retainedBoardSnapshots: Map<string, RetainedBoardSnapshotState>;
   /**
-   * Per-session log of boards the `latest` strategy has placed on real anchor
-   * messages, keyed by anchor message id. Once an anchor is no longer the tail
-   * its board is replayed byte-identically every later request, so a board sent
-   * on a now-mid-history message is never stripped (which would rewrite already
-   * cached bytes and bust the provider prompt-cache prefix from that message
-   * onward - the field bust in dumps 000086->000087).
+   * Per-session log of boards the change-only scheme has placed on real
+   * anchor messages, keyed by anchor message id. Once an anchor is no longer
+   * the tail its board is replayed byte-identically every later request, so a
+   * board sent on a now-mid-history message is never stripped (which would
+   * rewrite already cached bytes and bust the provider prompt-cache prefix
+   * from that message onward - the field bust in dumps 000086->000087).
    */
   retainedTailBoards: Map<string, Map<string, RetainedTailBoard>>;
 }
@@ -1161,15 +1175,6 @@ function executionKey(execution: BackgroundJobExecution): string {
   return `${execution.taskID}\u001f${execution.generation}\u001f${execution.terminalRevision}`;
 }
 
-function sameExecutionIdentity(
-  left: readonly BackgroundJobExecution[],
-  right: readonly BackgroundJobExecution[],
-): boolean {
-  if (left.length !== right.length) return false;
-  const leftKeys = new Set(left.map(executionKey));
-  return right.every((execution) => leftKeys.has(executionKey(execution)));
-}
-
 function rememberPendingInjectedTerminalJob(
   state: InjectionState,
   parentSessionID: string,
@@ -1297,6 +1302,304 @@ export function reconcileInjectedTerminalJobs(
   state.pendingInjectedTerminalJobsByParent.delete(parentSessionID);
 }
 
+// ── Native delivery observer (v2 boardless primary; v1 never reaches it) ─
+//
+// On OpenCode v2 hosts the host itself delivers each background completion
+// exactly once as a synthetic session message in the parent's history:
+// `<subagent sessionID="..." state="completed|error|cancelled">…</subagent>`
+// (host `SessionInbox` steer/queue delivery; the native notifier never
+// delivers `stopped`). Observing that delivery retires the tracked record
+// directly, replacing the prompt-shape registration bookkeeping
+// (`rememberInjectedTerminalJobs` + `reconcileConsumedTerminalJobs`) on the
+// v2 path. v1 is structurally board-on: its prompt-shape path owns
+// retirement, so this pass never runs there.
+
+type ObservedNativeDelivery = {
+  /** Child session ID from the delivery tag; the board taskID on v2. */
+  taskID: string;
+  state: 'completed' | 'error' | 'cancelled';
+  /** Dedupe key: the delivery part's own message/part identity. */
+  seenKey: string;
+};
+
+/** Delivery states the native notifier publishes (never `stopped`). */
+const NATIVE_DELIVERY_STATES = new Set(['completed', 'error', 'cancelled']);
+
+/**
+ * Skew allowance for the current-publication check: the terminal event the
+ * plugin observes and the host's delivery-message creation are concurrent
+ * within one tick on the same clock, but either may land a few milliseconds
+ * first. A delivery authored earlier than this before the current
+ * publication's completedAt is unambiguously an older report.
+ */
+const NATIVE_DELIVERY_PUBLICATION_SKEW_MS = 2_000;
+
+/**
+ * Byte-stable, persisted identity for one observed delivery part: the host
+ * message id plus the part index, bound to the part text so an id reused
+ * for different content cannot collide. Parts without a host message id
+ * fall back to a content hash. Prompt shape never enters the key.
+ */
+function nativeDeliverySeenKey(
+  message: MessageWithParts,
+  partIndex: number,
+  text: string,
+): string {
+  const messageID =
+    typeof message.info.id === 'string' && message.info.id.trim() !== ''
+      ? message.info.id
+      : undefined;
+  const textHash = sha256Hash(text);
+  return messageID === undefined
+    ? `anon:${textHash}`
+    : `${messageID}:${partIndex}:${textHash}`;
+}
+
+/**
+ * True only for the host's native v2 completion delivery. The host's
+ * `sessions.synthetic` part opens with the
+ * `<subagent sessionID="..." state="...">` tag AND carries
+ * `metadata: { source: 'subagent', childID, state }`. Both are required:
+ * header anchoring alone would let pasted user/assistant text masquerade as
+ * a delivery (Greptile P1), so the metadata must exist and agree with the
+ * tag. A result body merely quoting foreign task markup is nested, never at
+ * the header, and cannot match either.
+ */
+function parseNativeDelivery(
+  part: MessagePart,
+): Omit<ObservedNativeDelivery, 'seenKey'> | undefined {
+  const text = part.text;
+  if (typeof text !== 'string' || !/^\s*<subagent\b/i.test(text)) {
+    return undefined;
+  }
+  const taskID = parseTaskIdFromTaskOutput(text);
+  const state = parseTaskStateFromOutput(text);
+  if (!taskID || !state || !NATIVE_DELIVERY_STATES.has(state)) {
+    return undefined;
+  }
+  const meta = part.metadata;
+  if (
+    !isRecord(meta) ||
+    meta.source !== 'subagent' ||
+    meta.childID !== taskID ||
+    meta.state !== state
+  ) {
+    return undefined;
+  }
+  return { taskID, state: state as ObservedNativeDelivery['state'] };
+}
+
+function messageCreatedAt(message: MessageWithParts): number | undefined {
+  const info = message.info as { time?: unknown };
+  // The v2 host decodes `Session.Message.time` into Effect `DateTime.Utc`
+  // instances — structs carrying `epochMilliseconds`, NOT plain numbers —
+  // so `info.time.created` fails a naive `typeof value === 'number'` check
+  // and a numeric wire form (JSON round-trips, fixtures) fails
+  // `isRecord`. Accept every shape this clock actually arrives in.
+  const asMillis = (value: unknown): number | undefined => {
+    if (typeof value === 'number' && Number.isFinite(value)) return value;
+    if (typeof value !== 'object' || value === null) return undefined;
+    const millis = (value as { epochMilliseconds?: unknown }).epochMilliseconds;
+    if (typeof millis === 'number' && Number.isFinite(millis)) return millis;
+    return undefined;
+  };
+  if (!isRecord(info.time)) {
+    const direct = asMillis(info.time);
+    if (direct !== undefined) return direct;
+    return undefined;
+  }
+  // An assistant turn carries only `completed`; a user turn carries
+  // `created`. Both are the message's own clock, in the same unit.
+  for (const key of ['created', 'completed'] as const) {
+    const value = asMillis(info.time[key]);
+    if (value !== undefined) return value;
+  }
+  return undefined;
+}
+
+/**
+ * Reconcile tracked records against the native v2 deliveries already
+ * present in the parent's message history. Pairing is ONE-SHOT: a delivery
+ * key is remembered on first observation and can retire at most one
+ * terminal publication — the record's CURRENT terminal run at that moment,
+ * and only when the delivered state equals it. Deliveries observed earlier
+ * (running, reconciled, mismatched, stopped) can never pair later (Greptile
+ * P1-2). Untracked sessionIDs are idempotent no-ops. `stopped` records are
+ * never retired here (native never delivers stops; they retire through the
+ * recovery-wake + task_revive ack flow).
+ */
+function reconcileObservedNativeDeliveries(
+  state: InjectionState,
+  messages: unknown[],
+): void {
+  // Boardless only: v2 structurally, v1 via the honoured boardInjection
+  // switch. On a v1 boardless parent the pass is a near no-op (completions
+  // arrive untagged) but stays harmless and future-proof.
+  if (state.hostFlavor !== 'v2' && state.boardInjection !== false) return;
+  state.observedNativeDeliveries ??= new Map<string, Set<string>>();
+  const seenByParent = state.observedNativeDeliveries;
+  for (const message of messages) {
+    if (!isMessageWithParts(message)) continue;
+    const parentSessionID = message.info.sessionID;
+    if (!parentSessionID || !state.shouldManageSession(parentSessionID)) {
+      continue;
+    }
+    let seen = seenByParent.get(parentSessionID);
+    if (!seen) {
+      seen = new Set<string>();
+      seenByParent.set(parentSessionID, seen);
+    }
+    message.parts.forEach((part, partIndex) => {
+      if (part.type !== 'text' || typeof part.text !== 'string') return;
+      if (isTaggedPart(part, state.metadataKey)) return;
+      const delivery = parseNativeDelivery(part);
+      if (!delivery) return;
+      const seenKey = nativeDeliverySeenKey(message, partIndex, part.text);
+      if (seen.has(seenKey)) return;
+
+      const record = state.backgroundJobBoard.get(delivery.taskID);
+      if (!record || record.parentSessionID !== parentSessionID) {
+        // Unknown child or parent mismatch: leave the key unobserved (a
+        // later transform may know the child), bounded by session end.
+        return;
+      }
+      // One-shot pairing with a reopen gate (Greptile P1-2): a delivery's
+      // own publication causally precedes the record's later reopens, so a
+      // delivery observed while its record runs after a reopen can never
+      // report the CURRENT run. Remember such keys on first sight; never
+      // let them pair later. Deliveries of the current run are either
+      // observed when the record is already terminal (paired below), or
+      // race the terminal gate (still retryable — no reopen happened yet,
+      // so lastLiveBusyAt is unset). The current publication otherwise
+      // retires via its own delivery or retireStaleTerminalRecords.
+      const deliveryTime = messageCreatedAt(message);
+      if (!record.terminalUnreconciled) {
+        if (
+          record.state === 'running' &&
+          record.lastLiveBusyAt !== undefined &&
+          deliveryTime !== undefined &&
+          (deliveryTime < record.lastLiveBusyAt ||
+            deliveryTime < record.lastLaunchedAt)
+        ) {
+          // Authored at or before the reopen (or the current launch): this
+          // is a previous publication's report, stranded in history.
+          rememberDeliveryKey(state, parentSessionID, seenKey);
+        }
+        return;
+      }
+      // Remember the key on first terminal observation: from here the
+      // record can only reopen (bumping terminalRevision via
+      // markRunningFromLiveSession) — any later same-state match would be
+      // a NEWER publication this delivery cannot report.
+      rememberDeliveryKey(state, parentSessionID, seenKey);
+      // Provably stale: authored before the record's last launch, so it
+      // predates the current run and every future one (lastLaunchedAt only
+      // advances). A record can reopen and change terminal state, so state
+      // equality alone is never proof of currency.
+      if (deliveryTime !== undefined && deliveryTime < record.lastLaunchedAt) {
+        return;
+      }
+      // Predates the CURRENT publication: markRunningFromLiveSession clears
+      // completedAt on reopen, so completedAt always marks the current
+      // terminal publication. Both clocks are host-side, but the terminal
+      // event and the message creation are concurrent within one tick —
+      // allow a small skew so a same-publication delivery is never burned.
+      if (
+        record.completedAt !== undefined &&
+        deliveryTime !== undefined &&
+        deliveryTime < record.completedAt - NATIVE_DELIVERY_PUBLICATION_SKEW_MS
+      ) {
+        return;
+      }
+      // A delivery retires only the terminal run it reports: the record's
+      // terminal state must equal the delivered state.
+      const terminalState = record.terminalState ?? record.state;
+      if (terminalState !== delivery.state) return;
+      if (
+        !NATIVE_DELIVERY_STATES.has(
+          record.state as ObservedNativeDelivery['state'],
+        )
+      ) {
+        // stopped: retires only through the recovery-wake + task_revive
+        // ack flow; the remembered key never pairs.
+        return;
+      }
+      reconcileExecutionBatch(state, parentSessionID, [
+        {
+          taskID: record.taskID,
+          generation: record.generation,
+          terminalRevision: record.terminalRevision,
+        },
+      ]);
+    });
+  }
+}
+
+function rememberDeliveryKey(
+  state: InjectionState,
+  parentSessionID: string,
+  seenKey: string,
+): void {
+  // No size bound by design: remembered keys must survive so an evicted key
+  // can never re-pair against a newer run (council-b blocker). Growth is
+  // O(deliveries for this parent) and the set dies with the parent at
+  // session end (pruneReopenCorrectionState).
+  state.observedNativeDeliveries?.get(parentSessionID)?.add(seenKey);
+}
+
+/**
+ * Council risk #1 mitigation: a completed/error record whose terminal time
+ * is older than the newest parent assistant turn retires unconditionally at
+ * the next transform — the parent demonstrably moved past the terminal
+ * report, so a missed observation (compaction/restart/steer race) cannot
+ * wedge the hasTerminalUnreconciled consumers forever. `stopped` records
+ * are excluded (recovery-wake ownership); `cancelled` retires only via an
+ * observed delivery. Runs without comparable timestamps fail closed.
+ */
+function retireStaleTerminalRecords(
+  state: InjectionState,
+  messages: unknown[],
+): void {
+  // Boardless only: v2 structurally, v1 via the honoured boardInjection
+  // switch (the owner's numeric-clock regression covers exactly this
+  // combination). A v1 board-on parent retires through board consumption.
+  if (state.hostFlavor !== 'v2' && state.boardInjection !== false) return;
+  const newestAssistantTurnByParent = new Map<string, number>();
+  for (const message of messages) {
+    if (!isMessageWithParts(message)) continue;
+    if (message.info.role !== 'assistant') continue;
+    const parentSessionID = message.info.sessionID;
+    if (!parentSessionID || !state.shouldManageSession(parentSessionID)) {
+      continue;
+    }
+    const createdAt = messageCreatedAt(message);
+    if (createdAt === undefined) continue;
+    const newest = newestAssistantTurnByParent.get(parentSessionID);
+    if (newest === undefined || createdAt > newest) {
+      newestAssistantTurnByParent.set(parentSessionID, createdAt);
+    }
+  }
+  if (newestAssistantTurnByParent.size === 0) return;
+  for (const [
+    parentSessionID,
+    newestAssistantTurn,
+  ] of newestAssistantTurnByParent) {
+    for (const record of state.backgroundJobBoard.list(parentSessionID)) {
+      if (!record.terminalUnreconciled) continue;
+      if (record.state !== 'completed' && record.state !== 'error') continue;
+      if (record.completedAt === undefined) continue;
+      if (record.completedAt >= newestAssistantTurn) continue;
+      reconcileExecutionBatch(state, parentSessionID, [
+        {
+          taskID: record.taskID,
+          generation: record.generation,
+          terminalRevision: record.terminalRevision,
+        },
+      ]);
+    }
+  }
+}
+
 function reconcileConsumedTerminalJobs(
   state: InjectionState,
   parentSessionID: string,
@@ -1322,8 +1625,23 @@ export async function injectBackgroundJobBoard(
 ): Promise<void> {
   const messages = Array.isArray(output.messages) ? output.messages : [];
 
-  if (state.strategy === 'checkpoint-compatible') {
-    injectCheckpointBoard(state, messages);
+  // Native-delivery observation runs first on every boardless parent (v2
+  // structurally, v1 via the honoured boardInjection switch): deliveries
+  // already in history retire their records, and the stale-terminal
+  // fallback bounds a missed observation. On v1 boardless the observer is a
+  // near-no-op (completions are untagged) but the fallback retires
+  // completed/error once the parent demonstrably moved past them; the
+  // prompt-shape path inside injectLatestBoard covers cancelled, which has
+  // no native delivery and no timestamp fallback. v1 board-on skips both
+  // passes — its board render + consumption path owns retirement.
+  reconcileObservedNativeDeliveries(state, messages);
+  retireStaleTerminalRecords(state, messages);
+
+  // Structural flavor split: v2 never renders a board (observer + fallback +
+  // reopen corrections only); v1 renders the board unless the honoured
+  // boardInjection switch says boardless.
+  if (state.hostFlavor === 'v2') {
+    deliverV2ReopenCorrections(state, messages);
     return;
   }
 
@@ -1331,9 +1649,33 @@ export async function injectBackgroundJobBoard(
 }
 
 /**
- * `latest` strategy: keep exactly one FRESH board on the current tail while
- * every board already sent on an earlier (now mid-history) message stays put,
- * byte-identical.
+ * v2 boardless tail: reopen corrections are staleness notices, not board
+ * status, so they deliver here in the board-less variant (see
+ * `formatReopenCorrectionTextNoBoard`). Gated exactly like the v1 path —
+ * a managed parent's latest real user turn anchors the volatile trailing
+ * notice — and delivered on internal-initiator turns too (a publication
+ * wake makes the parent run on an internal trigger, and the correction is
+ * exactly what that turn needs).
+ */
+function deliverV2ReopenCorrections(
+  state: InjectionState,
+  messages: unknown[],
+): void {
+  const trigger = findTriggeringUserMessage(messages, state.metadataKey);
+  const sessionID = trigger?.info.sessionID;
+  if (!trigger || !sessionID || !state.shouldManageSession(sessionID)) {
+    return;
+  }
+  deliverReopenCorrections(state, sessionID, messages, trigger.info);
+}
+
+/**
+ * Change-only board placement on the `latest` frozen-replay machinery: keep
+ * exactly one FRESH board on the current tail while every board already sent
+ * on an earlier (now mid-history) message stays put, byte-identical. A fresh
+ * board is placed only when the rendered text differs from the last board
+ * injected for the parent (`lastInjectedBoardTextByParent`); unchanged turns
+ * place nothing.
  *
  * The board is never persisted, so opencode rebuilds real history board-free
  * each request. That means the plugin — not storage — must reproduce every
@@ -1352,10 +1694,12 @@ export async function injectBackgroundJobBoard(
  *   2. Replay every FROZEN board (one placed on a message that is no longer the
  *      tail) byte-identically on its original anchor, so an already-sent board
  *      never disappears.
- *   3. Add ONE fresh board to the current tail, preserving the #889 placement
- *      (trailing PART on a user tail; separate trailing message on an assistant
- *      tail) so the tail breakpoint still lands on stable content, and record
- *      it so the NEXT request can freeze/replay it once the tail advances.
+ *   3. Add ONE fresh board to the current tail ONLY on a digest change,
+ *      preserving the #889 placement (trailing PART on a user tail; separate
+ *      trailing message on an assistant tail) so the tail breakpoint still
+ *      lands on stable content, and record it so the NEXT request can
+ *      freeze/replay it once the tail advances. A retry of the same request
+ *      restores the tail's frozen copy instead (byte-identical).
  * A board on any earlier message is never mutated or stripped.
  */
 function injectLatestBoard(state: InjectionState, messages: unknown[]): void {
@@ -1377,11 +1721,10 @@ function injectLatestBoard(state: InjectionState, messages: unknown[]): void {
   // Replay frozen boards even when this turn is ineligible for a fresh board
   // (internal-initiator turn, empty board): an already-sent board must stay put
   // regardless of the current turn. The current tail anchor is skipped — its
-  // board is (re)placed fresh below.
-  const lastComplete =
-    sessionID !== undefined
-      ? replayRetainedTailBoards(state, sessionID, messages, anchorId)
-      : undefined;
+  // board is (re)placed or restored below.
+  if (sessionID !== undefined) {
+    replayRetainedTailBoards(state, sessionID, messages, anchorId);
+  }
 
   if (!trigger) return;
   if (!sessionID || !state.shouldManageSession(sessionID)) return;
@@ -1406,24 +1749,15 @@ function injectLatestBoard(state: InjectionState, messages: unknown[]): void {
   if (!textPart || isInternalInitiatorPart(textPart)) return;
 
   if (state.boardInjection === false) {
-    // Board injection disabled: the native background notifier owns
-    // completed/error delivery (first publications are native-owned on
-    // both hosts), so no board part is placed — but those terminal jobs
-    // still register against the current prompt shape so the consumption
-    // reconciliation above keeps retiring them on the parent's next real
-    // activity. Without this, the store stays "completed"/unreconciled
-    // forever and every hasTerminalUnreconciled consumer wedges: explicit
-    // task-id resumes are refused, same-objective dispatches stay
-    // deduplicated, and delegated-work detection never settles.
-    //
-    // Stopped jobs are EXCLUDED: the native notifier never delivers a stop
-    // (it only injects completed/error results), so registering one here
-    // would mark it reconciled before the parent has seen it — the
-    // stopped-job recovery wake's isCurrent check would then drop it and
-    // the stop would be silent. A stopped job retires through the
-    // recovery flow instead: the wake surfaces it, and `task_revive`'s
-    // ack (or the recovery it performs) clears the flag, keeping the
-    // same-objective dispatch safeguard active until actual recovery.
+    // v1 boardless (honoured switch; on v2 the dispatch already returned):
+    // no board part is placed. The native-delivery observer and the
+    // stale-terminal fallback ran above (v1 completions are untagged, so
+    // the observer is a near-no-op here); terminal retirement rides the
+    // prompt-shape consumption path — the only channel that covers
+    // cancelled records (no native delivery, no timestamp fallback).
+    // Stopped jobs are EXCLUDED: registering one would mark it reconciled
+    // before the parent has seen it — the stopped-job recovery wake's
+    // isCurrent check would then drop it and the stop would be silent.
     const nativeExecutions = (
       state.backgroundJobBoard.formatForPromptWithMetadata(sessionID)
         ?.terminalUnreconciledTaskIDs ?? []
@@ -1449,16 +1783,24 @@ function injectLatestBoard(state: InjectionState, messages: unknown[]): void {
   const boardMeta =
     state.backgroundJobBoard.formatForPromptWithMetadata(sessionID);
   const reminder = boardMeta?.text;
-  if (!reminder) return;
-
-  if (boardMeta.terminalUnreconciledTaskIDs.length > 0) {
-    rememberInjectedTerminalJobs(
-      state,
-      sessionID,
-      boardMeta.terminalUnreconciledTaskIDs,
-      shapeKey ?? promptShapeKey(realMessages(messages, state.metadataKey)),
-    );
+  if (!reminder) {
+    // Transition to an empty board set is a digest change: drop the stored
+    // text so a recreated parent (or the next job wave) renders fresh.
+    state.lastInjectedBoardTextByParent?.delete(sessionID);
+    return;
   }
+
+  // Change-only digest: a fresh tail board is placed only when the rendered
+  // text differs from the last board injected for this parent AND that board
+  // is still visible in this payload. A retained (user-anchor) board is
+  // replayed frozen by the pass above, so an unchanged steady-state turn
+  // carries zero new information and the tail gets no fresh board and no
+  // terse marker. A non-retained (assistant-tail) placement never survives
+  // the history rebuild, so the unchanged text re-renders on the volatile
+  // tail instead of vanishing from the prompt entirely.
+  const unchanged =
+    state.lastInjectedBoardTextByParent?.get(sessionID) === reminder &&
+    boardTextVisible(messages, state.metadataKey, reminder);
 
   // Placement rules — correctness first, then prompt-cache safety.
   //
@@ -1494,20 +1836,34 @@ function injectLatestBoard(state: InjectionState, messages: unknown[]): void {
   //   breakpoint lands on the previous (byte-stable, real) message. This is
   //   also the only placement replayable later without inserting a message
   //   mid-array, so it is the only one recorded for replay.
-  // - If the tail is an assistant message, a separate trailing USER board
-  //   message is appended at the very end of the array. It does not merge
-  //   (different role), so the assistant message keeps its own readable
-  //   breakpoint, and it uses the USER `trigger.info` — never `anchor.info` —
-  //   so the message carrying board text is genuinely user-role (A3).
+  // - If the tail is an assistant message, NOTHING is placed (see the
+  //   A5 branch below): an appended trailing board message can never be
+  //   retained, so it would vanish from the next payload and break the
+  //   byte prefix. The state change renders on the next user-side tail.
   const recordId = anchor.id;
   if (canCarryBoardPart(anchor.message)) {
-    const unchanged =
-      boardMeta.terminalUnreconciledTaskIDs.length === 0 &&
-      lastComplete?.text === reminder &&
-      lastComplete.markersSince < MAX_UNCHANGED_MARKERS;
-    const text = unchanged ? UNCHANGED_BOARD_MARKER : reminder;
+    if (unchanged) {
+      // Byte-identical replay: display-then-consume holds because
+      // boardTextVisible proved these exact bytes are in the payload. Most
+      // keys were registered at their placement; a same-text relaunch that
+      // re-terminated into identical bytes (no rendered generation) is the
+      // one gap — register only what the live entry does not cover.
+      const live = state.terminalJobsInjectedByParent.get(sessionID);
+      const uncovered = boardMeta.terminalUnreconciledTaskIDs.filter(
+        (execution) => !live?.executions.has(executionKey(execution)),
+      );
+      if (uncovered.length > 0) {
+        rememberInjectedTerminalJobs(
+          state,
+          sessionID,
+          uncovered,
+          shapeKey ?? promptShapeKey(realMessages(messages, state.metadataKey)),
+        );
+      }
+      return;
+    }
     appendTaggedSyntheticPart(anchor.message, {
-      text,
+      text: reminder,
       metadataKey: state.metadataKey,
     });
     // Recording the placement under the tail's anchor id lets the NEXT request
@@ -1515,30 +1871,29 @@ function injectLatestBoard(state: InjectionState, messages: unknown[]): void {
     // so the bytes the provider just cached for this message never change.
     rememberTailBoard(state, sessionID, {
       anchorId: recordId,
-      text,
+      text: reminder,
     });
   } else {
-    appendTrailingVolatileMessage(
-      messages,
-      {
-        ...trigger.info,
-        id: `${trigger.info.id ?? 'board'}-background-job-board-${djb2Hash(reminder)}`,
-      },
-      {
-        text: reminder,
-        metadataKey: state.metadataKey,
-      },
-    );
-    // A5: this placement is deliberately NOT retained for replay. Reproducing
-    // it once the tail advances would require splicing a message back into the
-    // middle of the array, which is exactly what orphaned an assistant
-    // tool_call from its tool_result and made the whole request invalid. A
-    // cache bust (the board's bytes move to the new tail) is strictly
-    // preferable to a hard `AI_InvalidPromptError`, so the board is simply
-    // re-rendered on the new tail instead. Any stale entry for this anchor is
-    // dropped so the retained map cannot grow or retry the unsafe placement.
-    forgetTailBoard(state, sessionID, recordId);
+    // A5, assistant tail: place NOTHING and register nothing. An appended
+    // board can never be retained for replay, and registering here would
+    // let the next shape change consume a stop that was never shown (and
+    // starve the recovery wake's terminalUnreconciled check, Greptile P1).
+    // The state change renders on the next user-side tail.
+    return;
   }
+  // A fresh board went out: its terminal facts are parent-visible, so they
+  // register for prompt-shape consumption now — never before placement.
+  if (boardMeta.terminalUnreconciledTaskIDs.length > 0) {
+    rememberInjectedTerminalJobs(
+      state,
+      sessionID,
+      boardMeta.terminalUnreconciledTaskIDs,
+      shapeKey ?? promptShapeKey(realMessages(messages, state.metadataKey)),
+    );
+  }
+  // Pin the digest for this parent.
+  state.lastInjectedBoardTextByParent ??= new Map();
+  state.lastInjectedBoardTextByParent.set(sessionID, reminder);
 }
 
 /** The last real (non-fully-tagged) message — the current tail anchor. */
@@ -1547,6 +1902,32 @@ function findBoardAnchor(
   metadataKey: string,
 ): BoardAnchor | undefined {
   return boardAnchors(messages, metadataKey).at(-1);
+}
+
+/**
+ * True when the payload already carries the exact board text as a tagged
+ * part — a frozen replay reproduced it mid-history, so the unchanged tail
+ * needs no fresh copy. Runs AFTER the tail strip, so a board that existed
+ * only on the (stripped) volatile tail does not count as visible.
+ */
+function boardTextVisible(
+  messages: unknown[],
+  metadataKey: string,
+  text: string,
+): boolean {
+  for (const message of messages) {
+    if (!isMessageWithParts(message)) continue;
+    for (const part of message.parts) {
+      if (
+        part.type === 'text' &&
+        part.text === text &&
+        isTaggedPart(part, metadataKey)
+      ) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 /**
@@ -1659,21 +2040,6 @@ function rememberTailBoard(
 }
 
 /**
- * Stop tracking a retained board for an anchor (A5). Used when the placement
- * cannot be safely reproduced, so the map neither grows without bound nor
- * retries an unsafe replay on every later request.
- */
-function forgetTailBoard(
-  state: InjectionState,
-  sessionID: string,
-  anchorId: string,
-): void {
-  const perSession = state.retainedTailBoards.get(sessionID);
-  if (!perSession) return;
-  perSession.delete(anchorId);
-  if (perSession.size === 0) state.retainedTailBoards.delete(sessionID);
-}
-
 /**
  * Re-append every FROZEN retained board onto its original anchor message,
  * exactly as first sent, so a board that was sent on a message which is no
@@ -1690,22 +2056,20 @@ function forgetTailBoard(
  * request validation and fails the turn outright.
  *
  * The current tail anchor (`currentAnchorId`) is skipped: its board is volatile
- * and is (re)placed fresh by the caller. Anchors no longer present in history
- * (compaction, revert) are pruned — their bytes are gone from the provider's
- * view too. Replay is skipped when the anchor already carries a board, keeping
- * the operation idempotent under repeated transforms on a shared array.
- * Returns the last complete board still present and its subsequent marker
- * count. Orphan markers are discarded if their full reference is absent.
+ * and is (re)placed fresh — or restored from its frozen copy on an unchanged
+ * digest — by the caller. Anchors no longer present in history (compaction,
+ * revert) are pruned — their bytes are gone from the provider's view too.
+ * Replay is skipped when the anchor already carries a board, keeping the
+ * operation idempotent under repeated transforms on a shared array.
  */
 function replayRetainedTailBoards(
   state: InjectionState,
   sessionID: string,
   messages: unknown[],
   currentAnchorId: string | undefined,
-): { text: string; markersSince: number } | undefined {
+): void {
   const perSession = state.retainedTailBoards.get(sessionID);
   if (!perSession || perSession.size === 0) return;
-  let lastComplete: { text: string; markersSince: number } | undefined;
 
   const anchorById = new Map<string, MessageWithParts>();
   for (const anchor of boardAnchors(messages, state.metadataKey)) {
@@ -1713,8 +2077,8 @@ function replayRetainedTailBoards(
   }
 
   for (const [anchorId, board] of [...perSession.entries()]) {
-    // The current tail's board is volatile — the caller strips and re-appends
-    // it. Never freeze/replay it here.
+    // The current tail's board is volatile — the caller strips and re-places
+    // (or restores) it. Never freeze/replay it here.
     if (anchorId === currentAnchorId) continue;
 
     const anchor = anchorById.get(anchorId);
@@ -1722,20 +2086,12 @@ function replayRetainedTailBoards(
       // Anchor gone from history (compaction/revert): its bytes are no longer
       // in the provider's view, so stop tracking it.
       perSession.delete(anchorId);
-      if (board.text !== UNCHANGED_BOARD_MARKER) lastComplete = undefined;
       continue;
     }
 
     // A5: a board whose anchor is no longer a user message cannot take the
     // replayable trailing-part path. Drop it rather than invalidating the turn.
     if (!canCarryBoardPart(anchor)) {
-      perSession.delete(anchorId);
-      if (board.text !== UNCHANGED_BOARD_MARKER) lastComplete = undefined;
-      continue;
-    }
-    if (board.text === UNCHANGED_BOARD_MARKER && !lastComplete) {
-      // Its full reference was pruned by compaction/revert; never replay an
-      // orphan marker into the new history.
       perSession.delete(anchorId);
       continue;
     }
@@ -1746,15 +2102,9 @@ function replayRetainedTailBoards(
         metadataKey: state.metadataKey,
       });
     }
-    if (board.text === UNCHANGED_BOARD_MARKER) {
-      if (lastComplete) lastComplete.markersSince += 1;
-    } else {
-      lastComplete = { text: board.text, markersSince: 0 };
-    }
   }
 
   if (perSession.size === 0) state.retainedTailBoards.delete(sessionID);
-  return lastComplete;
 }
 
 /**
@@ -1785,190 +2135,6 @@ function findTriggeringUserMessage(
     return message;
   }
   return undefined;
-}
-
-function injectCheckpointBoard(
-  state: InjectionState,
-  messages: unknown[],
-): void {
-  const currentMessages = realMessages(messages, state.metadataKey);
-  const shapeKey = promptShapeKey(currentMessages);
-  const tailMessage = currentMessages.at(-1);
-  const sessionID = tailMessage?.info.sessionID;
-  if (!tailMessage || !sessionID || !state.shouldManageSession(sessionID)) {
-    return;
-  }
-
-  const triggeringMessage = currentMessages.findLast(
-    (message) =>
-      isUserMessageWithParts(message) && message.info.sessionID === sessionID,
-  );
-  const textPart = triggeringMessage?.parts.find(
-    (part) => part.type === 'text' && typeof part.text === 'string',
-  );
-  const canSurface =
-    triggeringMessage !== undefined &&
-    textPart !== undefined &&
-    !isInternalInitiatorPart(textPart);
-
-  if (canSurface) reconcileConsumedTerminalJobs(state, sessionID, shapeKey);
-
-  const boardMeta =
-    state.boardInjection === false
-      ? undefined
-      : state.backgroundJobBoard.formatForPromptWithMetadata(sessionID);
-  const reminder = boardMeta?.text;
-  const canCreateSnapshot =
-    canSurface &&
-    reminder !== undefined &&
-    !hasPendingToolResults(currentMessages);
-
-  const replayBaseMessage = triggeringMessage ?? tailMessage;
-
-  if (state.boardInjection === false) {
-    // Board injection disabled (see injectLatestBoard for the full
-    // rationale): register natively delivered terminal jobs against the
-    // current prompt shape so consumption reconciliation keeps retiring
-    // them, then stop — no snapshot exists to place or replay in this
-    // mode. Only completed/error executions register: the native
-    // notifier never delivers stops, and a stop must survive until the
-    // stopped-job recovery wake surfaces it and task_revive's ack
-    // retires it (#1314 keeps board-flavored notices off in this mode).
-    if (canSurface) {
-      const nativeExecutions = (
-        state.backgroundJobBoard.formatForPromptWithMetadata(sessionID)
-          ?.terminalUnreconciledTaskIDs ?? []
-      ).filter((execution) => {
-        const record = state.backgroundJobBoard.get(execution.taskID);
-        return (
-          record !== undefined &&
-          record.generation === execution.generation &&
-          record.state !== 'stopped'
-        );
-      });
-      if (nativeExecutions.length > 0) {
-        rememberInjectedTerminalJobs(
-          state,
-          sessionID,
-          nativeExecutions,
-          shapeKey,
-        );
-      }
-    }
-    // Reopen corrections are staleness notices, not board status — they
-    // deliver in the board-less variant here (see
-    // formatReopenCorrectionTextNoBoard).
-    deliverReopenCorrections(
-      state,
-      sessionID,
-      messages,
-      replayBaseMessage.info,
-    );
-    return;
-  }
-  const snapshotState = updateBoardHistoryState(
-    state,
-    sessionID,
-    currentMessages,
-  );
-
-  if (canCreateSnapshot && reminder) {
-    const anchorKey = findLastMessageAnchorKey(currentMessages);
-    const previousSnapshot = snapshotState.snapshots.at(-1);
-    const sameSnapshot =
-      previousSnapshot?.text === reminder &&
-      sameExecutionIdentity(
-        previousSnapshot.terminalUnreconciledTaskIDs,
-        boardMeta.terminalUnreconciledTaskIDs,
-      );
-    if (anchorKey && !sameSnapshot) {
-      const encodedSessionID = encodeURIComponent(sessionID);
-      const sequence = snapshotState.nextSnapshotSequence;
-      snapshotState.nextSnapshotSequence += 1;
-      if (snapshotState.snapshots.length >= state.maxRetainedSnapshots) {
-        // Deliberately start a new cache epoch at the configured boundary.
-        snapshotState.snapshots.length = 0;
-      }
-      snapshotState.snapshots.push({
-        anchorKey,
-        id: `oh-my-opencode-slim:background-job-board:${encodedSessionID}:${snapshotState.epoch}:${sequence}`,
-        text: reminder,
-        terminalUnreconciledTaskIDs: boardMeta.terminalUnreconciledTaskIDs,
-      });
-    }
-  }
-
-  const replayedIDs = replayCheckpointBoard(
-    messages,
-    replayBaseMessage,
-    sessionID,
-    snapshotState,
-    state.metadataKey,
-  );
-  if (replayedIDs.length > 0) {
-    rememberInjectedTerminalJobs(state, sessionID, replayedIDs, shapeKey);
-  }
-
-  // Corrective notices for reconciled jobs that reopened to running ride
-  // at the very end of the payload (cache-safe trailing volatile zone).
-  // Delivered on internal-initiator turns too — a publication wake makes
-  // the parent run on an internal trigger, and the correction is exactly
-  // what that turn needs (the fresh snapshot is what internal turns lack).
-  deliverReopenCorrections(state, sessionID, messages, replayBaseMessage.info);
-}
-
-/** Defer new boards until the latest tool-call batch has all its results. */
-function hasPendingToolResults(messages: MessageWithParts[]): boolean {
-  const assistantIndex = messages.findLastIndex(
-    (message) => message.info.role === 'assistant',
-  );
-  if (assistantIndex < 0) return false;
-  const pending = new Set(
-    messages[assistantIndex].parts.flatMap((part) =>
-      part.type === 'tool-call' && typeof part.toolCallId === 'string'
-        ? [part.toolCallId]
-        : [],
-    ),
-  );
-  for (const message of messages.slice(assistantIndex + 1)) {
-    for (const part of message.parts) {
-      if (part.type === 'tool-result' && typeof part.toolCallId === 'string') {
-        pending.delete(part.toolCallId);
-      }
-    }
-  }
-  return pending.size > 0;
-}
-
-function findLastMessageAnchorKey(
-  messages: MessageWithParts[],
-): string | undefined {
-  return messageAnchorKeys(messages).at(-1);
-}
-
-function boardHistoryMessageSignature(message: MessageWithParts): string {
-  const text = message.parts
-    .filter(
-      (part) =>
-        part.synthetic !== true &&
-        part.type === 'text' &&
-        typeof part.text === 'string',
-    )
-    .map((part) => part.text)
-    .join('\n');
-  return `${message.info.role}:${message.info.agent ?? ''}:${text}`;
-}
-
-function messageAnchorKeys(messages: MessageWithParts[]): string[] {
-  const occurrences = new Map<string, number>();
-  return messages.map((message) => {
-    const base = message.info.id
-      ? `id:${message.info.id}`
-      : `anonymous:${boardHistoryMessageSignature(message)}`;
-    const occurrence = occurrences.get(base) ?? 0;
-    occurrences.set(base, occurrence + 1);
-    return `${base}:${occurrence}`;
-  });
 }
 
 function realMessages(
@@ -2031,156 +2197,4 @@ function stableSerializePromptValue(value: unknown): string {
       .join(',')}}`;
   }
   return valueType;
-}
-
-function hasCompacted(
-  previous: RetainedBoardSnapshotState,
-  currentMessages: MessageWithParts[],
-): boolean {
-  if (currentMessages.length < previous.realMessageCount) return true;
-
-  const currentAnchorKeys = messageAnchorKeys(currentMessages);
-  return (
-    (currentAnchorKeys[0] !== undefined &&
-      previous.firstRealMessageAnchorKey !== undefined &&
-      currentAnchorKeys[0] !== previous.firstRealMessageAnchorKey) ||
-    previous.snapshots.some(
-      (snapshot) => !currentAnchorKeys.includes(snapshot.anchorKey),
-    )
-  );
-}
-
-function updateBoardHistoryState(
-  state: InjectionState,
-  sessionID: string,
-  messages: MessageWithParts[],
-): RetainedBoardSnapshotState {
-  const previous = state.retainedBoardSnapshots.get(sessionID);
-  if (previous && hasCompacted(previous, messages)) {
-    const currentAnchorKeys = messageAnchorKeys(messages);
-    // Anonymous anchor keys carry an occurrence index, so when identical
-    // anonymous messages are pruned the survivor inherits the removed
-    // message's key. Only id-backed anchors are stable enough to retain.
-    previous.snapshots = previous.snapshots.filter(
-      (snapshot) =>
-        snapshot.anchorKey.startsWith('id:') &&
-        currentAnchorKeys.includes(snapshot.anchorKey),
-    );
-    if (previous.snapshots.length === 0) {
-      state.retainedBoardSnapshots.delete(sessionID);
-    }
-  }
-
-  const current = state.retainedBoardSnapshots.get(sessionID) ?? {
-    snapshots: [],
-    epoch: randomBytes(4).toString('hex'),
-    nextSnapshotSequence: 0,
-    realMessageCount: 0,
-    firstRealMessageAnchorKey: undefined,
-  };
-  const currentAnchorKeys = messageAnchorKeys(messages);
-  current.realMessageCount = messages.length;
-  current.firstRealMessageAnchorKey = currentAnchorKeys[0];
-  state.retainedBoardSnapshots.set(sessionID, current);
-  return current;
-}
-
-function createBoardMessage(
-  baseMessage: MessageWithParts,
-  sessionID: string,
-  snapshot: RetainedBoardSnapshot,
-  metadataKey: string,
-  usedMessageIDs: Set<string>,
-): MessageWithParts {
-  const baseID = snapshot.id;
-  let id = baseID;
-  let collisionIndex = 1;
-  while (usedMessageIDs.has(id)) {
-    id = `${baseID}:collision-${collisionIndex}`;
-    collisionIndex += 1;
-  }
-  usedMessageIDs.add(id);
-  return {
-    info: { ...baseMessage.info, id },
-    parts: [
-      createTaggedSyntheticPart({
-        text: snapshot.text,
-        metadataKey,
-        extraMetadata: { sessionID, snapshotID: snapshot.id },
-      }),
-    ],
-  };
-}
-
-function replayBoardSnapshots(
-  messages: unknown[],
-  baseMessage: MessageWithParts,
-  sessionID: string,
-  snapshotState: RetainedBoardSnapshotState,
-  metadataKey: string,
-): BackgroundJobExecution[] {
-  const realMessageList = realMessages(messages, metadataKey);
-  const currentAnchorKeys = messageAnchorKeys(realMessageList);
-  const snapshotsByAnchor = new Map<string, RetainedBoardSnapshot[]>();
-  for (const snapshot of snapshotState.snapshots) {
-    const snapshots = snapshotsByAnchor.get(snapshot.anchorKey) ?? [];
-    snapshots.push(snapshot);
-    snapshotsByAnchor.set(snapshot.anchorKey, snapshots);
-  }
-
-  const usedMessageIDs = new Set(
-    messages.flatMap((message) =>
-      isMessageWithParts(message) && message.info.id ? [message.info.id] : [],
-    ),
-  );
-
-  const rebuiltMessages: unknown[] = [];
-  const replayedIDs: BackgroundJobExecution[] = [];
-  let realMessageIndex = 0;
-  for (const message of messages) {
-    rebuiltMessages.push(message);
-    if (!isMessageWithParts(message) || message.parts.length === 0) continue;
-    if (message.parts.every((part) => isTaggedPart(part, metadataKey))) {
-      continue;
-    }
-
-    const anchorKey = currentAnchorKeys[realMessageIndex];
-    if (!anchorKey) continue;
-    realMessageIndex += 1;
-    for (const snapshot of snapshotsByAnchor.get(anchorKey) ?? []) {
-      rebuiltMessages.push(
-        createBoardMessage(
-          baseMessage,
-          sessionID,
-          snapshot,
-          metadataKey,
-          usedMessageIDs,
-        ),
-      );
-      if (snapshot.terminalUnreconciledTaskIDs?.length) {
-        replayedIDs.push(...snapshot.terminalUnreconciledTaskIDs);
-      }
-    }
-  }
-
-  messages.splice(0, messages.length, ...rebuiltMessages);
-  return replayedIDs;
-}
-
-function replayCheckpointBoard(
-  messages: unknown[],
-  baseMessage: MessageWithParts,
-  sessionID: string,
-  snapshotState: RetainedBoardSnapshotState,
-  metadataKey: string,
-): BackgroundJobExecution[] {
-  stripTaggedContent(messages, metadataKey);
-  const ids = replayBoardSnapshots(
-    messages,
-    baseMessage,
-    sessionID,
-    snapshotState,
-    metadataKey,
-  );
-  return ids;
 }

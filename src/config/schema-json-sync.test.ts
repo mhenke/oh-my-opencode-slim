@@ -3,14 +3,15 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { z } from 'zod';
 import { PluginConfigSchema } from './schema';
+import { dropDefaultedRequired } from './schema-json';
 
 /**
  * Keeps the committed oh-my-opencode-slim.schema.json in sync with the
  * parser: the JSON Schema must be exactly what `bun run generate-schema`
- * would emit (same zod conversion, same options). Fails when a schema
- * change (e.g. a new `z.never` removed-key entry) lands without
- * regenerating the published file — editors would then accept config the
- * parser rejects.
+ * would emit (same zod conversion, same options, same post-processing).
+ * Fails when a schema change (e.g. a new `z.never` removed-key entry) lands
+ * without regenerating the published file — editors would then accept config
+ * the parser rejects.
  */
 test('committed schema.json matches the generated JSON Schema', () => {
   // JSON round-trip drops non-enumerable zod markers (e.g. ~standard)
@@ -24,6 +25,8 @@ test('committed schema.json matches the generated JSON Schema', () => {
       }),
     ),
   ) as Record<string, unknown>;
+  // Mirrors the generator's published post-processing so both sides agree.
+  dropDefaultedRequired(generated);
   const committed = JSON.parse(
     readFileSync(
       join(import.meta.dir, '..', '..', 'oh-my-opencode-slim.schema.json'),

@@ -44,25 +44,18 @@ This is the exact configuration the author runs day-to-day.
           "crawl4ai"
         ]
       },
-      "librarian": {
+      "explorer": {
         "model": "openai/gpt-5.3-codex-spark",
         "variant": "low",
         "skills": [
           "customer-research"
         ],
         "mcps": [
+          "codegraph",
           "context7",
           "gh_app",
           "searxng",
           "crawl4ai"
-        ]
-      },
-      "explorer": {
-        "model": "openai/gpt-5.3-codex-spark",
-        "variant": "low",
-        "skills": [],
-        "mcps": [
-          "codegraph"
         ]
       },
       "designer": {

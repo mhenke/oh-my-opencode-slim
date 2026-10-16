@@ -37,7 +37,10 @@ import {
   unrecognizedTaskReferenceMessage,
 } from './session-recovery';
 import { normalizeLateCancelledTaskOutput } from './status-utils';
-import { extractReadFiles } from './task-context-tracker';
+import {
+  extractReadFiles,
+  filterStaleContextFiles,
+} from './task-context-tracker';
 
 interface TaskArgs {
   description?: unknown;
@@ -70,7 +73,7 @@ const COUNCIL_SEATS_LINE_PATTERN = /^Seats:\s*(.+)$/;
 /** Seat body per the assembly contract; read-only over the record. Only a
  * completed terminal with text is a real response — lifecycle diagnostics
  * (cancelled/error/stopped text) must never be injected as a councillor's
- * opinion (task_result itself refuses non-completed terminals). */
+ * opinion (the task_status result mode refuses non-completed terminals). */
 function councilSeatBody(record: BackgroundJobRecord | undefined): string {
   if (!record) return '[no response — unresolved ref]';
   if (record.state === 'running') return '[no response — still running]';
@@ -195,7 +198,7 @@ function refuseKnownTaskResume(
     refuseExplicitTaskId(
       requested,
       delegation.tool === 'task'
-        ? `${label}: ${job.state}, unreconciled; task() cannot resume until acknowledgement. Call task_revive(task_id: "${job.taskID}", prompt: "...") directly; it continues that same session. task_result is not required first. This prompt was not sent.`
+        ? `${label}: ${job.state}, unreconciled; task() cannot resume until acknowledgement. Call task_revive(task_id: "${job.taskID}", prompt: "...") directly; it continues that same session. No result read is required first. This prompt was not sent.`
         : `${label}: ${job.state}, unreconciled; ${delegation.tool}() cannot resume this session. Use task_revive with a new prompt. It was not dropped; no new session was created. This prompt was not sent.`,
       { state: job.state, terminalUnreconciled: true },
     );
@@ -548,8 +551,9 @@ export async function handleToolExecuteBefore(
   // loop, #1070). The full objective text is compared, not the 48-char display
   // label, so long exact duplicates match while distinct objectives that only
   // share a truncated prefix stay unaffected.
-  // Escape hatch: task_result retrieval after completion updates lastUsedAt
-  // beyond completedAt, marking the result as consumed and authorizing retry.
+  // Escape hatch: a task_status result read after completion updates
+  // lastUsedAt beyond completedAt, marking the result as consumed and
+  // authorizing retry.
   if (!pendingCall.resumedTaskId) {
     const objectiveKey = normalizeObjectiveKey(
       pendingCall.fullObjective ?? label,
@@ -568,7 +572,7 @@ export async function handleToolExecuteBefore(
       );
     if (duplicate) {
       throw new Error(
-        `A background task with the same objective already finished and its result is awaiting acknowledgment: ${duplicate.alias} / ${duplicate.taskID}. Call task_result with ${delegation.resumeParam} "${duplicate.taskID}" to retrieve it instead of spawning a duplicate. If the retrieved result is insufficient, retry the spawn after retrieval — retrieval authorizes the retry.`,
+        `A background task with the same objective already finished and its result is awaiting acknowledgment: ${duplicate.alias} / ${duplicate.taskID}. Call task_status with result true and ${delegation.resumeParam} "${duplicate.taskID}" to retrieve it instead of spawning a duplicate. If the retrieved result is insufficient, retry the spawn after retrieval — retrieval authorizes the retry.`,
       );
     }
   }
@@ -855,7 +859,10 @@ export async function handleToolExecuteAfter(
       deps.taskContextTracker.pendingManagedTaskIds.add(launch.taskID);
       deps.backgroundJobBoard.addContext(
         launch.taskID,
-        deps.taskContextTracker.contextFilesForPrompt(launch.taskID),
+        filterStaleContextFiles(deps.directory, [
+          ...(deps.backgroundJobBoard.get(launch.taskID)?.contextFiles ?? []),
+          ...deps.taskContextTracker.contextFilesForPrompt(launch.taskID),
+        ]),
       );
       return;
     }
@@ -975,7 +982,10 @@ export async function handleToolExecuteAfter(
     }
     deps.backgroundJobBoard.addContext(
       taskId,
-      deps.taskContextTracker.contextFilesForPrompt(taskId),
+      filterStaleContextFiles(deps.directory, [
+        ...(deps.backgroundJobBoard.get(taskId)?.contextFiles ?? []),
+        ...deps.taskContextTracker.contextFilesForPrompt(taskId),
+      ]),
     );
     deps.taskContextTracker.prune(deps.backgroundJobBoard);
   } finally {

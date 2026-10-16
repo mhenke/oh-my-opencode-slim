@@ -5,6 +5,7 @@ import {
   ensureCouncilCompactionException,
   ensureCouncilSynthesisReinforcement,
 } from './council';
+import { createSynthesisOnlyPermission } from './permissions';
 
 const COMPACTION_EXCEPTION =
   'if the host asks you to produce a session checkpoint or compaction summary in a specific template, follow that template exactly and do not use the council report format';
@@ -30,6 +31,21 @@ describe('createCouncilAgent', () => {
     expect(permission.task).toBe('deny');
   });
 
+  // Policy-source drift guard: any future allow-entry addition at the
+  // createSynthesisOnlyPermission() factory trips here before it can reach the
+  // request level. task tools (task_status etc.) are denied by the '*' wildcard
+  // at factory level; the per-tool control denies are injected centrally by
+  // applyDefaultPermissions at assembled-agent level (pinned in
+  // src/agents/index.test.ts), so we deliberately do NOT add a redundant
+  // per-key entry to the factory map.
+  test('synthesis-only permission factory is wildcard-deny with no allow entries', () => {
+    const permission = createSynthesisOnlyPermission();
+    expect(permission['*']).toBe('deny');
+    expect(Object.values(permission).every((value) => value === 'deny')).toBe(
+      true,
+    );
+  });
+
   test('harness assembly keeps the agent tool-less and its prompt untouched', () => {
     // Seat text now arrives by host-side attachment (tool.execute.before
     // resolver), not orchestrator paste — the synthesizer itself is unchanged:
@@ -39,7 +55,12 @@ describe('createCouncilAgent', () => {
     expect(permission['*']).toBe('deny');
     expect((agent.config as { tools?: unknown }).tools).toBeUndefined();
     const prompt = councilPrompt('provider/model');
-    expect(prompt).toContain('You have NO tools');
+    expect(prompt).toContain(
+      'You synthesize purely from the councillor responses provided in your context.',
+    );
+    expect(prompt).not.toContain('**Tools**:');
+    expect(prompt).not.toContain('You have NO tools');
+    expect(prompt).not.toContain('Do not read, glob, grep');
     expect(prompt).toContain(
       'synthesize them into a structured council report',
     );

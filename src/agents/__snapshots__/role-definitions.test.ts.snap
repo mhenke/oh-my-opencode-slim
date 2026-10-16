@@ -3,19 +3,14 @@
 exports[`specialist role definitions matches golden factory prompts and descriptions 1`] = `
 [
   {
-    "description": "Fast codebase search and pattern matching.",
+    "description": "Fast codebase search and external docs/web research.",
     "name": "explorer",
-    "promptSha256": "657724c5b0702192c525270046ea67fe6e7ba9627186a0f155661aba04820788",
-  },
-  {
-    "description": "External documentation and library research.",
-    "name": "librarian",
-    "promptSha256": "3f91bd61566c33dcfac8bd3a60c8aa3d19badf8ad0815f2d49a072f97faecaa5",
+    "promptSha256": "7cb1b44d33cef3b2ad8549519edd37c50cf59b6c75b6ca9c406b059357269cef",
   },
   {
     "description": "Strategic technical advisor.",
     "name": "oracle",
-    "promptSha256": "1189ff70ac4fea4fe380ac68a93b5f0f3e8ea0d639737b34241b920be74cc119",
+    "promptSha256": "a87d726b17d12654f6fbb606a2869f5fb6d44f7c150c65346d9fbfbd17224ba0",
   },
   {
     "description": "UI/UX design, review, and implementation.",
@@ -25,12 +20,12 @@ exports[`specialist role definitions matches golden factory prompts and descript
   {
     "description": "Fast implementation specialist.",
     "name": "fixer",
-    "promptSha256": "03beea3b18b70d4ca86601b9850dd35a69fbe359d772d2baafe5c81851c10c22",
+    "promptSha256": "741d308228a16adafc94e352747870241d508dc47de036664c6350642e8af199",
   },
   {
     "description": "Visual analysis specialist; requires a vision-capable model.",
     "name": "observer",
-    "promptSha256": "f227ecbf75d8a8ca5fdfcad94746bec754c6f3d639707bd0255e7277fe225788",
+    "promptSha256": "e746651cfdd0ace5734f4b332d9d15e6fa7ed4954c8eb506f2e91875fef96528",
   },
 ]
 `;

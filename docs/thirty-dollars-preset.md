@@ -14,8 +14,7 @@ Codex Plus covers the OpenAI models and Copilot covers the design models, so you
     "presets": {
       "thirtydollars": { "orchestrator": { "model": "openai/gpt-6-sol", "variant": "medium", "skills": [ "*" ], "mcps": [ "*" ] },
         "oracle": { "model": "openai/gpt-6-astra", "variant": "high", "skills": [], "mcps": [] },
-        "librarian": { "model": "openai/gpt-6-luna", "variant": "low", "skills": [], "mcps": [ "context7", "gh_grep" ] },
-        "explorer": { "model": "openai/gpt-6-luna", "variant": "low", "skills": [], "mcps": [] },
+        "explorer": { "model": "openai/gpt-6-luna", "variant": "low", "skills": [], "mcps": [ "context7", "gh_grep" ] },
         "designer": { "model": "github-copilot/gemini-3.5-flash", "skills": [], "mcps": [] },
         "fixer": { "model": "openai/gpt-6-luna", "variant": "medium", "skills": [], "mcps": [] }
       }

@@ -97,22 +97,22 @@ describe('createMarketplaceAgentDefinitions', () => {
   });
 
   test('read-only role extensions inherit builtin tools and MCP defaults', () => {
+    const oracle = admission('team/oracle', {
+      extends: { builtin: 'oracle', promptMode: 'append' },
+      model: { source: 'builtin' },
+      tools: [],
+      skills: [],
+      mcps: [],
+    });
     const explorer = admission('team/explorer', {
+      agentName: 'research-agent',
       extends: { builtin: 'explorer', promptMode: 'append' },
       model: { source: 'builtin' },
       tools: [],
       skills: [],
       mcps: [],
     });
-    const librarian = admission('team/librarian', {
-      agentName: 'library-agent',
-      extends: { builtin: 'librarian', promptMode: 'append' },
-      model: { source: 'builtin' },
-      tools: [],
-      skills: [],
-      mcps: [],
-    });
-    const result = build(explorer, librarian);
+    const result = build(oracle, explorer);
     expect(result.metadata[0]?.capabilities).toEqual({
       tools: ['read', 'glob', 'grep', 'ast_grep_search'],
       skills: [],
@@ -149,7 +149,7 @@ describe('createMarketplaceAgentDefinitions', () => {
     expect(result.metadata[0]?.capabilities).toEqual({
       tools: ['read', 'glob', 'grep', 'ast_grep_search', 'websearch'],
       skills: ['extra-skill'],
-      mcps: ['extra-mcp'],
+      mcps: ['context7', 'gh_grep', 'extra-mcp'],
     });
     expect(result.metadata[1]?.capabilities).toEqual({
       tools: ['websearch'],

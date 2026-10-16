@@ -7,10 +7,7 @@
  * cache-payload.snapshot.test.ts.
  */
 
-import {
-  DEFAULT_MAX_RETAINED_SNAPSHOTS,
-  resolveImageRouting,
-} from '../config/constants';
+import { resolveImageRouting } from '../config/constants';
 import { RuntimeConfig } from '../config/runtime';
 import { collapseInterviewHistory } from '../interview/history';
 import { BackgroundJobBoard, createInternalAgentTextPart } from '../utils';
@@ -33,11 +30,7 @@ export const FIXTURE_NOW = 1_700_000_000_000;
 
 export type TransformOutput = { messages: unknown[] };
 
-export type BoardStrategy = 'latest' | 'checkpoint-compatible';
-
 export interface PipelineOptions {
-  /** Board injection strategy under test; defaults to the production default. */
-  strategy?: BoardStrategy;
   activeInterview?: boolean;
   /**
    * Enable the deepwork goal pointer for the fixture session. Off by
@@ -83,8 +76,6 @@ export function createPipeline(options: PipelineOptions = {}): Pipeline {
     } as never,
     {
       maxSessionsPerAgent: 2,
-      maxRetainedSnapshots: DEFAULT_MAX_RETAINED_SNAPSHOTS,
-      ...(options.strategy ? { strategy: options.strategy } : {}),
       backgroundJobBoard: board,
       shouldManageSession: (sessionID) =>
         sessionAgentMap.get(sessionID) === 'orchestrator',

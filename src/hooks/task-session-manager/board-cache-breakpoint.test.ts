@@ -26,7 +26,6 @@
  * breakpoint now falls on stable real content.
  */
 import { describe, expect, mock, test } from 'bun:test';
-import { DEFAULT_MAX_RETAINED_SNAPSHOTS } from '../../config/constants';
 import { BackgroundJobBoard } from '../../utils/background-job-fixture';
 import {
   BACKGROUND_JOB_BOARD_METADATA_KEY,
@@ -44,7 +43,6 @@ function createHook(board: BackgroundJobBoard) {
     } as never,
     {
       maxSessionsPerAgent: 4,
-      maxRetainedSnapshots: DEFAULT_MAX_RETAINED_SNAPSHOTS,
       backgroundJobBoard: board,
       shouldManageSession: () => true,
     },
@@ -203,7 +201,7 @@ describe('background job board cache breakpoint stability', () => {
     board.registerLaunch({
       taskID: 'child-1',
       parentSessionID: SESSION,
-      agent: 'librarian',
+      agent: 'explorer',
       description: 'research',
     });
     const hook = createHook(board);
@@ -258,7 +256,7 @@ describe('background job board cache breakpoint stability', () => {
     board.registerLaunch({
       taskID: 'child-1',
       parentSessionID: SESSION,
-      agent: 'librarian',
+      agent: 'explorer',
       description: 'research',
     });
     const hook = createHook(board);
@@ -296,7 +294,7 @@ describe('background job board cache breakpoint stability', () => {
     board.registerLaunch({
       taskID: 'child-1',
       parentSessionID: SESSION,
-      agent: 'librarian',
+      agent: 'explorer',
       description: 'research',
     });
     const hook = createHook(board);
@@ -348,7 +346,7 @@ describe('background job board cache breakpoint stability', () => {
     board.registerLaunch({
       taskID: 'ses_child',
       parentSessionID: SESSION,
-      agent: 'librarian',
+      agent: 'explorer',
       description: 'grok research',
     });
     const hook = createHook(board);
@@ -399,7 +397,7 @@ describe('background job board cache breakpoint stability', () => {
     board.registerLaunch({
       taskID: 'child-1',
       parentSessionID: SESSION,
-      agent: 'librarian',
+      agent: 'explorer',
       description: 'research',
     });
     const hook = createHook(board);
@@ -415,13 +413,11 @@ describe('background job board cache breakpoint stability', () => {
       anonymousUserMsg('continue'),
     ]);
 
-    // The first anonymous message is the same append-stable anchor, while the
-    // second occurrence receives an unchanged marker on the fresh tail.
+    // The first anonymous message is the same append-stable anchor and keeps
+    // its frozen board; the unchanged digest is still visible in the payload,
+    // so the fresh tail receives nothing new (change-only scheme).
     expect(JSON.stringify(secondRequest[0])).toBe(
       JSON.stringify(firstRequest[0]),
-    );
-    expect((secondRequest[1] as Msg).parts.at(-1)?.text).toContain(
-      'Background Job Board unchanged since the last full snapshot.',
     );
     expect(
       (secondRequest as Msg[]).flatMap((message) =>
@@ -429,7 +425,7 @@ describe('background job board cache breakpoint stability', () => {
           (part) => part.metadata?.[BACKGROUND_JOB_BOARD_METADATA_KEY] === true,
         ),
       ),
-    ).toHaveLength(2);
+    ).toHaveLength(1);
   });
 
   test('field-dump scenario: tail is a tool_result user turn preceded by an assistant turn', async () => {
@@ -442,7 +438,7 @@ describe('background job board cache breakpoint stability', () => {
     board.registerLaunch({
       taskID: 'ses_child',
       parentSessionID: SESSION,
-      agent: 'librarian',
+      agent: 'explorer',
       description: 'grok research',
     });
     const hook = createHook(board);

@@ -14,7 +14,6 @@ import {
 } from './presets';
 import { stripRemovedConfigKeys } from './removed-keys';
 import {
-  type BackgroundJobsConfig,
   BackgroundJobsConfigSchema,
   DISABLED_COMMANDS_VALUES,
   DISABLED_HOOKS_VALUES,
@@ -28,6 +27,7 @@ import {
   sanitizeMultiplexerConfig,
   WebfetchConfigSchema,
 } from './schema';
+import { legacyAliasesFor } from './utils';
 
 export {
   deepMerge,
@@ -87,6 +87,18 @@ export interface LoadPluginConfigOptions {
 }
 
 const PROMPTS_DIR_NAME = 'oh-my-opencode-slim';
+
+/** Once-per-process guard for pre-rename prompt-file notices. */
+const warnedLegacyPromptFiles = new Set<string>();
+
+function warnLegacyPromptFile(agentName: string, fileName: string): void {
+  const key = `${agentName}:${fileName}`;
+  if (warnedLegacyPromptFiles.has(key)) return;
+  warnedLegacyPromptFiles.add(key);
+  console.warn(
+    `[oh-my-opencode-slim] Agent '${agentName}': prompt file '${fileName}' uses a pre-rename name and still applies. Rename it to '${agentName}.md' (or '${agentName}_append.md').`,
+  );
+}
 const INTERVIEW_CONFIG_KEYS = [
   'maxQuestions',
   'outputFolder',
@@ -774,27 +786,38 @@ export function loadPluginConfig(
     }
   }
 
-  // v2-derived defaults (pre-parse, on the merged explicit-only config so a
-  // key any layer configured explicitly is never overridden): the v2 native
-  // background notifier delivers each run's FIRST terminal publication to
-  // the parent, so the two channels that duplicate it — the passive job
-  // board injected per request and the periodic idle evaluation — default
-  // off on v2 hosts. Event-driven wakes (stopped-job recovery, rev>1
-  // terminal publications, child-input asks) are unaffected and keep their
-  // own config keys.
-  if (options?.hostFlavor === 'v2') {
-    const backgroundJobs = (config.backgroundJobs ??
-      {}) as BackgroundJobsConfig & Record<string, unknown>;
-    if (!Object.hasOwn(backgroundJobs, 'boardInjection')) {
-      backgroundJobs.boardInjection = false;
+  // boardInjection is v1-only: force-disabled at the RuntimeConfig layer on
+  // v2 (native notifier + inbox delivery replace the passive board). An
+  // explicit true warns here — pre-parse, on the merged explicit-only
+  // config — because the loader is the layer that sees user intent, and
+  // Object.hasOwn distinguishes an explicit key from an applied default.
+  // periodicWakeEnabled needs no derivation here: v2 disables the periodic
+  // evaluation structurally where the wake scheduler is wired (src/index.ts).
+  // An explicit true warns the same way, so the override is never silent.
+  if (options?.hostFlavor === 'v2' && !options?.silent) {
+    const backgroundJobs = (config.backgroundJobs ?? {}) as Record<
+      string,
+      unknown
+    >;
+    if (
+      Object.hasOwn(backgroundJobs, 'boardInjection') &&
+      backgroundJobs.boardInjection === true
+    ) {
+      console.warn(
+        '[oh-my-opencode-slim] backgroundJobs.boardInjection is ignored on OpenCode v2 hosts: the native background notifier and inbox delivery replace the passive board. Run oh-my-opencode-slim doctor for details.',
+      );
     }
-    const orchestratorWake = (backgroundJobs.orchestratorWake ??
-      {}) as BackgroundJobsConfig['orchestratorWake'] & Record<string, unknown>;
-    if (!Object.hasOwn(orchestratorWake, 'periodicWakeEnabled')) {
-      orchestratorWake.periodicWakeEnabled = false;
+    const orchestratorWake = backgroundJobs.orchestratorWake;
+    if (
+      orchestratorWake !== null &&
+      typeof orchestratorWake === 'object' &&
+      Object.hasOwn(orchestratorWake, 'periodicWakeEnabled') &&
+      (orchestratorWake as Record<string, unknown>).periodicWakeEnabled === true
+    ) {
+      console.warn(
+        '[oh-my-opencode-slim] backgroundJobs.orchestratorWake.periodicWakeEnabled is ignored on OpenCode v2 hosts: the native background notifier delivers terminal publications to an idle parent, so the periodic idle evaluation is off. Run oh-my-opencode-slim doctor for details.',
+      );
     }
-    backgroundJobs.orchestratorWake = orchestratorWake;
-    config.backgroundJobs = backgroundJobs;
   }
 
   if (config.webfetch) {
@@ -1033,17 +1056,34 @@ export function loadAgentPrompt(
 
   const result: { prompt?: string; appendPrompt?: string } = {};
 
+  // Rename continuity: fall back to pre-rename file names (e.g. a
+  // `librarian.md` override keeps applying to the merged `explorer`). Warn
+  // once per process so users learn to rename.
+  const nameCandidates = [agentName, ...legacyAliasesFor(agentName)];
+
   // Check for replacement prompt
-  result.prompt = readFirstPrompt(
-    `${agentName}.md`,
-    'Error reading prompt file',
-  );
+  for (const candidate of nameCandidates) {
+    const fileName = `${candidate}.md`;
+    const found = readFirstPrompt(fileName, 'Error reading prompt file');
+    if (found === undefined) continue;
+    if (candidate !== agentName) {
+      warnLegacyPromptFile(agentName, fileName);
+    }
+    result.prompt = found;
+    break;
+  }
 
   // Check for append prompt
-  result.appendPrompt = readFirstPrompt(
-    `${agentName}_append.md`,
-    'Error reading append prompt file',
-  );
+  for (const candidate of nameCandidates) {
+    const fileName = `${candidate}_append.md`;
+    const found = readFirstPrompt(fileName, 'Error reading append prompt file');
+    if (found === undefined) continue;
+    if (candidate !== agentName) {
+      warnLegacyPromptFile(agentName, fileName);
+    }
+    result.appendPrompt = found;
+    break;
+  }
 
   return result;
 }

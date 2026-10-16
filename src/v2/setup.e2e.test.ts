@@ -2048,7 +2048,7 @@ describe('createV2Setup e2e', () => {
         expect.objectContaining({ action: 'host-only_*', effect: 'deny' }),
       );
       await flushLoggerForTesting();
-      expect(readPluginLog()).toContain('[v2] agents registered {"count":6}');
+      expect(readPluginLog()).toContain('[v2] agents registered {"count":5}');
       await expect(earlyPrompt).resolves.toBeUndefined();
       await calls.promptHookCb?.({
         sessionID: 'ses_deferred_mcp_child',

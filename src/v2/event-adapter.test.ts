@@ -14,6 +14,67 @@ import { describe, expect, test } from 'bun:test';
 import { createCacheMonitorHook } from '../hooks/cache-monitor';
 import { mapV2EventToV1 } from './event-adapter';
 
+/**
+ * Deterministic timer replacement (mirrors publication-wake.test.ts):
+ * callbacks fire only on advance(), so scheduler timing assertions never
+ * race real-clock jitter.
+ */
+function createClock() {
+  let now = 0;
+  let nextID = 1;
+  const timers = new Map<number, { at: number; callback: () => void }>();
+
+  const setTimeoutImpl = ((callback: () => void, delay?: number) => {
+    const id = nextID++;
+    timers.set(id, { at: now + (delay ?? 0), callback });
+    const handle = {
+      __id: id,
+      unref() {
+        return handle;
+      },
+    };
+    return handle as unknown as ReturnType<typeof setTimeout>;
+  }) as unknown as typeof setTimeout;
+
+  const clearTimeoutImpl = ((handle: unknown) => {
+    if (handle == null) return;
+    const id =
+      typeof handle === 'object' &&
+      handle !== null &&
+      '__id' in handle &&
+      typeof (handle as { __id: unknown }).__id === 'number'
+        ? (handle as { __id: number }).__id
+        : Number(handle);
+    timers.delete(id);
+  }) as unknown as typeof clearTimeout;
+
+  async function flushMicrotasks(times = 30): Promise<void> {
+    for (let i = 0; i < times; i++) {
+      await Promise.resolve();
+    }
+  }
+
+  return {
+    setTimeout: setTimeoutImpl,
+    clearTimeout: clearTimeoutImpl,
+    async advance(ms: number) {
+      now += ms;
+      for (let round = 0; round < 5; round++) {
+        const due = [...timers.entries()]
+          .filter(([, t]) => t.at <= now)
+          .sort((a, b) => a[1].at - b[1].at);
+        if (due.length === 0) break;
+        for (const [id, timer] of due) {
+          timers.delete(id);
+          timer.callback();
+        }
+        await flushMicrotasks();
+      }
+      await flushMicrotasks();
+    },
+  };
+}
+
 function deepFreeze<T>(value: T): T {
   if (value && typeof value === 'object') {
     for (const key of Object.keys(value as object)) {
@@ -45,6 +106,18 @@ function v2Usage(overrides: {
       },
     }),
   };
+}
+
+/**
+ * Plugin ctx for task-session-manager hooks built in this file. The
+ * `client.session` stub (no `get`/`messages`) keeps the terminal gate's
+ * reads inert by construction instead of relying on `{}` — a ctx without
+ * `client` throws once another file's `mock.module` of
+ * `utils/opencode-client` leaks into this one and dereferences
+ * `ctx.client.session`.
+ */
+function createHookCtx(): never {
+  return { client: { session: {} }, directory: '/tmp/proj' } as never;
 }
 
 describe('mapV2EventToV1', () => {
@@ -367,9 +440,8 @@ describe('mapV2EventToV1 session.execution.* lifecycle synthesis', () => {
     );
     const { BackgroundJobBoard } = await import('../utils');
     const board = new BackgroundJobBoard();
-    const hook = createTaskSessionManagerHook({} as never, {
+    const hook = createTaskSessionManagerHook(createHookCtx(), {
       maxSessionsPerAgent: 2,
-      maxRetainedSnapshots: 2,
       backgroundJobBoard: board,
       shouldManageSession: (id: string) => id === 'parent-1',
     });
@@ -554,11 +626,18 @@ describe('mapV2EventToV1 live wire shape (payload under `data`)', () => {
     // The exact live-observed break: raw `data`-keyed events must reach
     // the v1 consumers. Arm the real scheduler with the synthesized idle
     // for a managed orchestrator whose child was registered from a live
-    // session.created, then advance past the interval and require the
-    // queued v2 wake prompt.
+    // session.created, then advance a fake clock past the interval and
+    // require the queued v2 wake prompt.
     const { createOrchestratorWakeScheduler } = await import(
       '../hooks/orchestrator-wake'
     );
+    const { resetOrchestratorWakeGateForTests } = await import(
+      '../hooks/orchestrator-wake/wake-gate'
+    );
+    // The wake gate is process-global (Symbol.for): a prior test file that
+    // tripped the two-wake no-progress cap for this session id leaks into
+    // this run. Reset it so arming state starts clean.
+    resetOrchestratorWakeGateForTests();
     const prompted: Array<Record<string, unknown>> = [];
     const sessionSdk = {
       list: async (args: Record<string, unknown>) => {
@@ -572,53 +651,78 @@ describe('mapV2EventToV1 live wire shape (payload under `data`)', () => {
         return {};
       },
     };
-    const scheduler = createOrchestratorWakeScheduler(
-      {
-        client: { session: sessionSdk },
-        directory: '/tmp/proj',
-        hostFlavor: 'v2',
-      } as never,
-      {
-        config: { enabled: true, intervalMs: 10 },
-        shouldManageSession: (id: string) => id === 'ses_parent',
-        hasInputWait: () => false,
-        intervalMs: 10,
-      },
-    );
-    await scheduler.event({
-      event: mapV2EventToV1(
+    // Children-driven periodic wakes are a STALLED-child watchdog with a
+    // real-time staleness bound (intervalMs * CHILD_STALENESS_INTERVALS).
+    // Real setTimeout jitter made the second evaluation race that bound —
+    // deterministic only under a fake clock, where the child's evidence can
+    // never go stale mid-test. Mirrors publication-wake.test.ts's clock.
+    const realSetTimeout = globalThis.setTimeout;
+    const realClearTimeout = globalThis.clearTimeout;
+    const clock = createClock();
+    globalThis.setTimeout = clock.setTimeout;
+    globalThis.clearTimeout = clock.clearTimeout;
+    try {
+      const scheduler = createOrchestratorWakeScheduler(
+        {
+          client: { session: sessionSdk },
+          directory: '/tmp/proj',
+          hostFlavor: 'v2',
+        } as never,
+        {
+          config: {
+            enabled: true,
+            intervalMs: 10,
+            periodicWakeEnabled: true,
+            mode: 'children',
+          },
+          shouldManageSession: (id: string) => id === 'ses_parent',
+          hasInputWait: () => false,
+          intervalMs: 10,
+        },
+      );
+      // The exact mapped events feed the scheduler; the busy pair from the
+      // child's execution.started must be recorded BEFORE the parent's idle
+      // arms the periodic timer (the children fingerprint needs both).
+      for (const mapped of mapV2EventToV1(
         liveEvent('session.created', {
           sessionID: 'ses_child',
           parentID: 'ses_parent',
           slug: 's',
           version: 'v',
         }),
-      )[1],
-    });
-    await scheduler.event({
-      event: mapV2EventToV1(
+      )) {
+        await scheduler.event({ event: mapped as never });
+      }
+      for (const mapped of mapV2EventToV1(
         liveEvent('session.execution.started', { sessionID: 'ses_child' }),
-      )[1],
-    });
-    await scheduler.event({
-      event: mapV2EventToV1(
+      )) {
+        await scheduler.event({ event: mapped as never });
+      }
+      for (const mapped of mapV2EventToV1(
         liveEvent('session.execution.succeeded', { sessionID: 'ses_parent' }),
-      )[2],
-    });
-    await new Promise((resolve) => setTimeout(resolve, 60));
-    // The live-shape chain armed and fired the queued v2 wake. With the
-    // 10ms test interval the two-wake no-progress cap is the stop bound
-    // (the cap itself is pinned by the dedicated wake-scheduler tests).
-    expect(prompted.length).toBeGreaterThanOrEqual(1);
-    expect(prompted.length).toBeLessThanOrEqual(2);
-    expect(prompted[0]?.delivery).toBe('queue');
-    const body = prompted[0]?.body as {
-      parts: Array<{ type: string; text: string }>;
-    };
-    expect(body.parts[0]?.type).toBe('text');
-    expect(body.parts[0]?.text).toContain(
-      'unfinished background child sessions',
-    );
+      )) {
+        await scheduler.event({ event: mapped as never });
+      }
+      // First tick: the fresh child classifies as progressing, the periodic
+      // wake defers to establish its baseline, and the scheduler re-arms.
+      await clock.advance(10);
+      expect(prompted.length).toBe(0);
+      // Second tick: unchanged fingerprint → the stalled-child wake commits
+      // and fires as a queued v2 prompt.
+      await clock.advance(10);
+      expect(prompted.length).toBe(1);
+      expect(prompted[0]?.delivery).toBe('queue');
+      const body = prompted[0]?.body as {
+        parts: Array<{ type: string; text: string }>;
+      };
+      expect(body.parts[0]?.type).toBe('text');
+      expect(body.parts[0]?.text).toContain(
+        'unfinished background child sessions',
+      );
+    } finally {
+      globalThis.setTimeout = realSetTimeout;
+      globalThis.clearTimeout = realClearTimeout;
+    }
   });
 });
 
@@ -801,9 +905,8 @@ describe('mapV2EventToV1 form → question bridge', () => {
     const { createTaskSessionManagerHook } = await import(
       '../hooks/task-session-manager'
     );
-    const hook = createTaskSessionManagerHook({} as never, {
+    const hook = createTaskSessionManagerHook(createHookCtx(), {
       maxSessionsPerAgent: 2,
-      maxRetainedSnapshots: 2,
       shouldManageSession: (id: string) => id === 'parent-1',
     });
     const asked = mapV2EventToV1({
@@ -977,9 +1080,8 @@ describe('mapV2EventToV1 permission field mapping', () => {
     const { createTaskSessionManagerHook } = await import(
       '../hooks/task-session-manager'
     );
-    const hook = createTaskSessionManagerHook({} as never, {
+    const hook = createTaskSessionManagerHook(createHookCtx(), {
       maxSessionsPerAgent: 2,
-      maxRetainedSnapshots: 2,
       shouldManageSession: (id: string) => id === 'parent-1',
     });
     const asked = mapV2EventToV1({
@@ -1072,9 +1174,8 @@ describe('mapV2EventToV1 session.deleted synthesis', () => {
     const { BackgroundJobBoard, getBackgroundJobLifecycleLedger } =
       await import('../utils');
     const board = new BackgroundJobBoard();
-    const hook = createTaskSessionManagerHook({} as never, {
+    const hook = createTaskSessionManagerHook(createHookCtx(), {
       maxSessionsPerAgent: 2,
-      maxRetainedSnapshots: 2,
       backgroundJobBoard: board,
       shouldManageSession: (id: string) => id === 'parent-1',
     });

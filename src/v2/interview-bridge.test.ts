@@ -1,5 +1,7 @@
 import { describe, expect, mock, test } from 'bun:test';
 import * as fs from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import * as path from 'node:path';
 import { bindFreePort } from '../interview/test-port';
 import {
   applyInterviewCommandParts,
@@ -184,6 +186,34 @@ describe('v2 interview bridge', () => {
     });
   });
 
+  test('uses the v2 project directory for interview files', async () => {
+    const projectDir = await fs.mkdtemp(
+      path.join(tmpdir(), 'v2-interview-project-'),
+    );
+    try {
+      const outputFolder = 'specs';
+      await fs.mkdir(path.join(projectDir, outputFolder));
+      await fs.writeFile(
+        path.join(projectDir, outputFolder, 'feature.md'),
+        '# Feature\n\n## Summary\nA feature',
+      );
+
+      const bridge = createV2InterviewBridge(
+        { ...createContext(), location: { directory: projectDir } },
+        { outputFolder } as never,
+      );
+      try {
+        await expect(bridge.service.listInterviewFiles()).resolves.toEqual([
+          expect.objectContaining({ fileName: 'feature.md' }),
+        ]);
+      } finally {
+        bridge.dispose();
+      }
+    } finally {
+      await fs.rm(projectDir, { recursive: true, force: true });
+    }
+  });
+
   test('intercepts markers when the command is enabled', async () => {
     const directory = `.tmp-v2-interview-enabled-${Date.now()}`;
     const synthetic = mock(async () => ({}));
@@ -198,7 +228,10 @@ describe('v2 interview bridge', () => {
     const trailing = {
       id: 'tail-enabled',
       role: 'user',
-      content: [{ type: 'text', text: markerText('enabled idea') }],
+      content: [
+        { type: 'text', text: markerText('enabled idea') },
+        { type: 'text', text: '[chair] guard', synthetic: true },
+      ],
     };
 
     await bridge.handleContext({
@@ -212,6 +245,11 @@ describe('v2 interview bridge', () => {
 
     expect(handler).toHaveBeenCalled();
     expect(trailing.content[0]?.text).not.toBe(markerText('enabled idea'));
+    expect(trailing.content[1]).toEqual({
+      type: 'text',
+      text: '[chair] guard',
+      synthetic: true,
+    });
     bridge.dispose();
     await fs.rm(`${process.cwd()}/${directory}`, {
       recursive: true,

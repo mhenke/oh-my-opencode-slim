@@ -9,7 +9,6 @@ import {
   DESIGNER_PROMPT,
   EXPLORER_PROMPT,
   FIXER_PROMPT,
-  LIBRARIAN_PROMPT,
   OBSERVER_PROMPT,
   ORACLE_PROMPT,
 } from './role-prompts';
@@ -36,13 +35,7 @@ export const ROLE_DEFINITIONS: Readonly<
     // Routing criteria live in the routing data / slim <Agents> lines; the
     // description (native dynamic subagent list) stays a single
     // non-duplicating identifier.
-    description: 'Fast codebase search and pattern matching.',
-  }),
-  librarian: Object.freeze({
-    id: 'librarian',
-    prompt: LIBRARIAN_PROMPT,
-    permission: { task: { ...TASK_OBSERVER_DISPATCH_ONLY } },
-    description: 'External documentation and library research.',
+    description: 'Fast codebase search and external docs/web research.',
   }),
   oracle: Object.freeze({
     id: 'oracle',
@@ -79,12 +72,9 @@ export const ROLE_DEFINITIONS: Readonly<
  * `- Permissions:` row in each role's ROLE_ROUTING_BLOCKS entry; a
  * drift-guard test (role-definitions.test.ts) cross-checks the two on
  * every run so this table cannot silently drift from the routing prose.
- * `librarian` has no Permissions row in the prose (the role predates the
- * convention) — omitted here too, so it falls through to the same
- * fail-safe `true` as any undetermined agent. No agent names are
- * hardcoded beyond this table: an unknown agent, or a missing/undeterminable
- * name, fails safe to writer (an extra verification sentence costs less
- * than a missing one).
+ * No agent names are hardcoded beyond this table: an unknown agent, or a
+ * missing/undeterminable name, fails safe to writer (an extra
+ * verification sentence costs less than a missing one).
  */
 export const ROLE_WRITE_CAPABILITY: Readonly<Record<string, boolean>> =
   Object.freeze({
@@ -94,7 +84,6 @@ export const ROLE_WRITE_CAPABILITY: Readonly<Record<string, boolean>> =
     fixer: true,
     council: false,
     observer: false,
-    // librarian: intentionally absent — fails safe to true, see doc comment.
   });
 
 export function roleHasWriteCapability(agent: string | undefined): boolean {

@@ -19,6 +19,7 @@ import type { SessionSelection } from '../utils/session-selection';
 export function registerWakeScheduler(deps: {
   ctx: Parameters<typeof createOrchestratorWakeScheduler>[0];
   runtime: Pick<RuntimeConfig, 'backgroundJobs'>;
+  hostFlavor: () => string | undefined;
   sessionMetadata: Pick<SessionMetadataStore, 'getAgent'>;
   backgroundJobCoordinator: {
     get(taskID: string): BackgroundJobRecord | undefined;
@@ -31,8 +32,21 @@ export function registerWakeScheduler(deps: {
   coordinator: SessionLifecycle;
 }) {
   return createOrchestratorWakeScheduler(deps.ctx, {
-    config: deps.runtime.backgroundJobs.orchestratorWake,
+    // Upstream master semantics (merge of origin/master): v2 hosts deliver
+    // each run's first terminal publication natively, so the periodic idle
+    // evaluation is structurally off there; event-driven wakes keep their
+    // own keys.
+    config: {
+      ...deps.runtime.backgroundJobs.orchestratorWake,
+      periodicWakeEnabled: deps.hostFlavor() === 'v2'
+        ? false
+        : deps.runtime.backgroundJobs.orchestratorWake.periodicWakeEnabled ??
+          true,
+    },
+    // Honoured switch: wake annotations follow the board the parent sees —
+    // rendered on v1 unless boardInjection is false.
     boardInjectionEnabled: deps.runtime.backgroundJobs.boardInjection,
+    childInputWakeKinds: deps.runtime.backgroundJobs.childInputWakeKinds,
     shouldManageSession: (sessionID) =>
       deps.sessionMetadata.getAgent(sessionID) === 'orchestrator',
     hasInputWait: (sessionID) => deps.hasInputWait(sessionID),

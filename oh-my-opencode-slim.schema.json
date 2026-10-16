@@ -1370,13 +1370,7 @@
       "type": "object",
       "properties": {
         "strategy": {
-          "default": "latest",
-          "description": "Board injection strategy. \"latest\" retains and replays one frozen board part per eligible turn without a cap; unchanged boards use a short marker for up to nine turns, then a full board. \"checkpoint-compatible\" appends only changed snapshots with a bounded cache epoch.",
-          "type": "string",
-          "enum": [
-            "latest",
-            "checkpoint-compatible"
-          ]
+          "not": {}
         },
         "maxSessionsPerAgent": {
           "default": 2,
@@ -1385,29 +1379,16 @@
           "maximum": 10
         },
         "maxContextLines": {
-          "default": 50000,
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 500000
+          "not": {}
         },
         "readContextMinLines": {
-          "default": 10,
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 1000
+          "not": {}
         },
         "readContextMaxFiles": {
-          "default": 8,
-          "type": "integer",
-          "minimum": 0,
-          "maximum": 50
+          "not": {}
         },
         "maxRetainedSnapshots": {
-          "default": 20,
-          "description": "Maximum board snapshots retained per checkpoint cache epoch (1–100). Exceeding the limit starts a new epoch with the current snapshot and intentionally creates one cache miss.",
-          "type": "integer",
-          "minimum": 1,
-          "maximum": 100
+          "not": {}
         },
         "orchestratorWake": {
           "default": {
@@ -1445,7 +1426,7 @@
             },
             "periodicWakeEnabled": {
               "default": true,
-              "description": "When false, the periodic idle evaluation never runs; only event-driven wakes (stopped-job recovery, terminal-publication rev>1, child-input) still deliver. Failed event wakes keep their timer-based retry path. Default enabled; v2 hosts derive a disabled default when the key is not explicitly configured.",
+              "description": "When false, the periodic idle evaluation never runs; only event-driven wakes (stopped-job recovery, terminal-publication rev>1, child-input) still deliver. Failed event wakes keep their timer-based retry path. Default enabled on v1 hosts; v2 hosts never run the periodic evaluation (the native background notifier delivers first terminal publications).",
               "type": "boolean"
             },
             "wakeOnTerminalPublication": {
@@ -1557,13 +1538,31 @@
         },
         "boardInjection": {
           "default": true,
-          "description": "When false, the Background Job Board reminder is never injected into prompts. Background task tracking, wake, and task_status all keep working; the orchestrator simply no longer passively sees the board. Default enabled; v2 hosts derive a disabled default when the key is not explicitly configured.",
+          "description": "When false on v1 hosts, the Background Job Board is never injected into prompts — tracking, wake, and task_status keep working, and terminal retirement runs through prompt-shape consumption (covering cancelled, which has no native delivery). Default enabled. On v2 hosts the key is ignored with a warning: the native background notifier and inbox delivery replace the passive board.",
           "type": "boolean"
         },
         "childInputWake": {
           "default": true,
           "description": "When true, a background child ask wakes its parent with the ask content. Default enabled.",
           "type": "boolean"
+        },
+        "childInputWakeKinds": {
+          "default": {
+            "permission": false,
+            "question": true
+          },
+          "description": "Which background child ask kinds may wake the parent. Permission asks default off (#1504): their replies carry no host wake and are resolved by the UI or an external responder, so a parent turn is wasted. Question asks default on.",
+          "type": "object",
+          "properties": {
+            "permission": {
+              "default": false,
+              "type": "boolean"
+            },
+            "question": {
+              "default": true,
+              "type": "boolean"
+            }
+          }
         },
         "pruneEvictedSessions": {
           "default": false,
@@ -1731,7 +1730,7 @@
           "type": "boolean"
         },
         "model": {
-          "description": "Dedicated model(s) for smartfetch secondary-model summarization. Same shape as agent model config (string, array of strings/objects with id+variant). Takes priority over small_model, agents.explorer.model, and agents.librarian.model.",
+          "description": "Dedicated model(s) for smartfetch secondary-model summarization. Same shape as agent model config (string, array of strings/objects with id+variant). Takes priority over small_model and agents.explorer.model.",
           "anyOf": [
             {
               "type": "string"

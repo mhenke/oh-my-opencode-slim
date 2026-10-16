@@ -36,6 +36,23 @@ function councilConfig() {
 }
 
 describe('hot-refreshed runtime profiles', () => {
+  test('host merge layer picks up pre-rename agent entries', () => {
+    const merged = mergeHostAgentConfigs(
+      { explorer: { prompt: 'base' } },
+      { librarian: { model: 'host/legacy-librarian' } },
+    );
+    expect(merged.explorer).toEqual({
+      prompt: 'base',
+      model: 'host/legacy-librarian',
+    });
+    // Host-native namespaces stay excluded.
+    const nativeOnly = mergeHostAgentConfigs(
+      { explorer: { prompt: 'base' } },
+      { explore: { model: 'host/native' } },
+    );
+    expect(nativeOnly.explorer).toEqual({ prompt: 'base' });
+  });
+
   test('applies display-name host model overrides to canonical agent profiles', () => {
     const runtime = runtimeFor({
       agents: {
@@ -165,6 +182,37 @@ describe('agent alias backward compatibility', () => {
     expect(explorer?.config.model).toBe('new-model');
   });
 
+  test("applies 'librarian' config to the merged 'explorer' agent", () => {
+    const config: PluginConfig = {
+      agents: {
+        librarian: { model: 'x/legacy-model' },
+      },
+    };
+    const runtime = runtimeFor(config);
+    const agents = createAgents(runtime);
+    const explorer = agents.find((a) => a.name === 'explorer');
+
+    expect(explorer?.config.model).toBe('x/legacy-model');
+    // The legacy key is an alias, never a custom agent of its own.
+    expect(runtime.customAgentNames).toEqual([]);
+    expect(agents.some((a) => a.name === 'librarian')).toBe(false);
+  });
+
+  test("canonical 'explorer' fields win over a merged 'librarian' record", () => {
+    const config: PluginConfig = {
+      agents: {
+        explorer: { model: 'x/canonical' },
+        librarian: { model: 'x/legacy-model', temperature: 0.7 },
+      },
+    };
+    const agents = createAgents(runtimeFor(config));
+    const explorer = agents.find((a) => a.name === 'explorer');
+
+    expect(explorer?.config.model).toBe('x/canonical');
+    expect(explorer?.config.temperature).toBe(0.7);
+    expect(agents.some((a) => a.name === 'librarian')).toBe(false);
+  });
+
   test('new agent names work directly', () => {
     const config: PluginConfig = {
       agents: {
@@ -247,19 +295,19 @@ describe('built-in subagent preset fallback', () => {
   });
 });
 describe('fixer agent fallback', () => {
-  test('fixer inherits librarian model when no fixer config provided', () => {
+  test('fixer inherits explorer model when no fixer config provided', () => {
     const config: PluginConfig = {
       agents: {
-        librarian: { model: 'librarian-custom-model' },
+        explorer: { model: 'explorer-custom-model' },
       },
     };
     const agents = createAgents(runtimeFor(config));
     const fixer = agents.find((a) => a.name === 'fixer');
-    const librarian = agents.find((a) => a.name === 'librarian');
-    expect(fixer?.config.model).toBe(librarian?.config.model);
+    const explorer = agents.find((a) => a.name === 'explorer');
+    expect(fixer?.config.model).toBe(explorer?.config.model);
   });
 
-  test('fixer can follow the session model independently of librarian', () => {
+  test('fixer can follow the session model independently of explorer', () => {
     const config: PluginConfig = {
       preset: 'balanced',
       presets: {
@@ -268,19 +316,19 @@ describe('fixer agent fallback', () => {
         },
       },
       agents: {
-        librarian: { model: 'librarian-local-model' },
+        explorer: { model: 'explorer-local-model' },
         fixer: { inheritModelFrom: 'session' },
       },
     };
     const agents = createAgents(runtimeFor(config));
     const fixer = agents.find((a) => a.name === 'fixer');
-    const librarian = agents.find((a) => a.name === 'librarian');
+    const explorer = agents.find((a) => a.name === 'explorer');
 
-    expect(librarian?.config.model).toBe('librarian-local-model');
+    expect(explorer?.config.model).toBe('explorer-local-model');
     expect(fixer?.config.model).toBeUndefined();
   });
 
-  test('librarian can follow the orchestrator model independently of fixer', () => {
+  test('explorer can follow the orchestrator model independently of fixer', () => {
     const config: PluginConfig = {
       preset: 'balanced',
       presets: {
@@ -289,33 +337,33 @@ describe('fixer agent fallback', () => {
         },
       },
       agents: {
-        librarian: { inheritModelFrom: 'orchestrator' },
+        explorer: { inheritModelFrom: 'orchestrator' },
         fixer: { model: 'fixer-local-model' },
       },
     };
     const agents = createAgents(runtimeFor(config));
-    const librarian = agents.find((a) => a.name === 'librarian');
+    const explorer = agents.find((a) => a.name === 'explorer');
     const fixer = agents.find((a) => a.name === 'fixer');
 
-    expect(librarian?.config.model).toBeUndefined();
+    expect(explorer?.config.model).toBeUndefined();
     expect(fixer?.config.model).toBe('fixer-local-model');
   });
 
   test('orchestrator inheritance keeps the agent fallback chain live', () => {
     const config: PluginConfig = {
       agents: {
-        librarian: {
+        explorer: {
           model: ['openrouter/primary', 'openai/fallback'],
           inheritModelFrom: 'orchestrator',
         },
       },
     };
-    const librarian = createAgents(runtimeFor(config)).find(
-      (agent) => agent.name === 'librarian',
+    const explorer = createAgents(runtimeFor(config)).find(
+      (agent) => agent.name === 'explorer',
     );
 
-    expect(librarian?.config.model).toBeUndefined();
-    expect(librarian?._modelArray).toEqual([
+    expect(explorer?.config.model).toBeUndefined();
+    expect(explorer?._modelArray).toEqual([
       { id: 'openrouter/primary' },
       { id: 'openai/fallback' },
     ]);
@@ -327,16 +375,16 @@ describe('fixer agent fallback', () => {
       presets: {
         split: {
           orchestrator: { model: 'orchestrator-model' },
-          librarian: { model: 'librarian-local-model' },
+          explorer: { model: 'explorer-local-model' },
           fixer: { inheritModelFrom: 'session' },
         },
       },
     };
     const agents = createAgents(runtimeFor(config));
     const fixer = agents.find((a) => a.name === 'fixer');
-    const librarian = agents.find((a) => a.name === 'librarian');
+    const explorer = agents.find((a) => a.name === 'explorer');
 
-    expect(librarian?.config.model).toBe('librarian-local-model');
+    expect(explorer?.config.model).toBe('explorer-local-model');
     expect(fixer?.config.model).toBeUndefined();
   });
 
@@ -380,7 +428,7 @@ describe('fixer agent fallback', () => {
   test('fixer uses its own model when explicitly configured', () => {
     const config: PluginConfig = {
       agents: {
-        librarian: { model: 'librarian-model' },
+        explorer: { model: 'explorer-model' },
         fixer: { model: 'fixer-specific-model' },
       },
     };
@@ -392,7 +440,7 @@ describe('fixer agent fallback', () => {
   test('explicit fixer model takes precedence over inheritance policy', () => {
     const config: PluginConfig = {
       agents: {
-        librarian: { model: 'librarian-model' },
+        explorer: { model: 'explorer-model' },
         fixer: {
           model: 'fixer-specific-model',
           inheritModelFrom: 'session',
@@ -421,7 +469,7 @@ describe('fixer agent fallback', () => {
   test('session inheritance clears a stale host model after config merging', () => {
     const runtime = runtimeFor({
       agents: {
-        librarian: { model: 'librarian-local-model' },
+        explorer: { model: 'explorer-local-model' },
         fixer: { inheritModelFrom: 'session' },
       },
     });
@@ -438,34 +486,34 @@ describe('fixer agent fallback', () => {
     const runtime = runtimeFor({
       agents: {
         orchestrator: { model: 'orchestrator-model' },
-        librarian: { inheritModelFrom: 'orchestrator' },
+        explorer: { inheritModelFrom: 'orchestrator' },
       },
     });
     const configAgent: Record<string, unknown> = {
-      librarian: { model: 'stale-host-model' },
+      explorer: { model: 'stale-host-model' },
     };
 
     applyModelInheritanceToConfig(configAgent, runtime);
 
-    expect(configAgent.librarian).toEqual({});
+    expect(configAgent.explorer).toEqual({});
   });
 
   test('orchestrator inheritance remains live after host model resolution', () => {
     const runtime = runtimeFor({
       agents: {
-        librarian: { inheritModelFrom: 'orchestrator' },
+        explorer: { inheritModelFrom: 'orchestrator' },
       },
     });
     runtime.captureHostConfig({
       agent: { orchestrator: { model: 'host-orchestrator-model' } },
     });
     const configAgent: Record<string, unknown> = {
-      librarian: { model: 'stale-host-model' },
+      explorer: { model: 'stale-host-model' },
     };
 
     applyModelInheritanceToConfig(configAgent, runtime);
 
-    expect(configAgent.librarian).toEqual({});
+    expect(configAgent.explorer).toEqual({});
   });
 });
 
@@ -690,7 +738,6 @@ describe('orchestrator agent', () => {
       'task_message',
       'task_revive',
       'task_status',
-      'task_result',
     ]) {
       expect(permission[toolName]).toBe('allow');
     }
@@ -873,7 +920,7 @@ describe('per-model variant in array config', () => {
             'openai/gpt-4o-mini',
           ],
         },
-        librarian: {
+        oracle: {
           model: [
             { id: 'anthropic/claude-haiku-4-5', variant: 'fast' },
             'openai/gpt-4o-mini',
@@ -885,8 +932,8 @@ describe('per-model variant in array config', () => {
 
     expect(configs.explorer.model).toBe('google/gemini-3-flash');
     expect(configs.explorer.variant).toBe('low');
-    expect(configs.librarian.model).toBe('anthropic/claude-haiku-4-5');
-    expect(configs.librarian.variant).toBe('fast');
+    expect(configs.oracle.model).toBe('anthropic/claude-haiku-4-5');
+    expect(configs.oracle.variant).toBe('fast');
   });
 
   test('subagent stores model array with per-model variants', () => {
@@ -913,7 +960,7 @@ describe('per-model variant in array config', () => {
     const configs = getAgentConfigs(
       runtimeFor({
         agents: {
-          librarian: {
+          oracle: {
             model: [
               { id: 'anthropic/claude-haiku-4-5', variant: 'fast' },
               'openai/gpt-4o-mini',
@@ -924,7 +971,7 @@ describe('per-model variant in array config', () => {
       }),
     );
 
-    expect(configs.librarian.variant).toBe('high');
+    expect(configs.oracle.variant).toBe('high');
   });
 
   test('top-level variant preserved alongside per-model variants', () => {
@@ -965,7 +1012,7 @@ describe('spaced model ID registrations', () => {
               { id: secondary, variant: 'balanced' },
             ],
           },
-          librarian: { model: primary, variant: 'direct' },
+          oracle: { model: primary, variant: 'direct' },
           reviewer: {
             model: [
               { id: secondary, variant: 'precise' },
@@ -990,7 +1037,7 @@ describe('spaced model ID registrations', () => {
       { id: secondary, variant: 'precise' },
       { id: fallback, variant: 'economy' },
     ]);
-    expect(runtime.agent('librarian')).toMatchObject({
+    expect(runtime.agent('oracle')).toMatchObject({
       model: primary,
       variant: 'direct',
     });
@@ -1012,7 +1059,7 @@ describe('spaced model ID registrations', () => {
       variant: 'fast',
       mode: 'subagent',
     });
-    expect(configs.librarian).toMatchObject({
+    expect(configs.oracle).toMatchObject({
       model: primary,
       variant: 'direct',
       mode: 'subagent',
@@ -1132,7 +1179,6 @@ describe('tool permissions', () => {
       'task_message',
       'task_revive',
       'task_status',
-      'task_result',
     ]) {
       expect(permission[toolName]).toBe('deny');
     }
@@ -1190,6 +1236,9 @@ describe('tool permissions', () => {
     expect(permission.ast_grep_replace).toBe('deny');
     expect(permission.task).toBe('deny');
     expect(permission.question).toBe('deny');
+    expect(permission.task_status).toBe('deny');
+    // Drift guard: the source map has no allow entries at all.
+    expect(Object.values(permission)).not.toContain('allow');
   });
 
   test('councillor remains read-only after default permissions are applied', () => {
@@ -1297,7 +1346,6 @@ test('council registers as a subagent, not a switchable primary', () => {
 describe('isSubagent type guard', () => {
   test('returns true for valid subagent names', () => {
     expect(isSubagent('explorer')).toBe(true);
-    expect(isSubagent('librarian')).toBe(true);
     expect(isSubagent('oracle')).toBe(true);
     expect(isSubagent('designer')).toBe(true);
     expect(isSubagent('fixer')).toBe(true);
@@ -1406,13 +1454,12 @@ describe('createAgents', () => {
     expect(names).toContain('explorer');
     expect(names).toContain('designer');
     expect(names).toContain('oracle');
-    expect(names).toContain('librarian');
     expect(names).toContain('fixer');
   });
 
-  test('creates exactly 6 agents by default (observer and council disabled)', () => {
+  test('creates exactly 5 agents by default (observer and council disabled)', () => {
     const agents = createAgents(runtimeFor());
-    expect(agents.length).toBe(6);
+    expect(agents.length).toBe(5);
   });
 
   test('does not create or register council agents without council config', () => {
@@ -1499,7 +1546,6 @@ describe('getAgentConfigs', () => {
     for (const name of [
       'orchestrator',
       'explorer',
-      'librarian',
       'oracle',
       'designer',
       'fixer',
@@ -1800,7 +1846,7 @@ describe('AgentOverrideConfigSchema options validation', () => {
   test('rejects unsupported model inheritance sources', () => {
     expect(
       AgentOverrideConfigSchema.safeParse({
-        inheritModelFrom: 'librarian',
+        inheritModelFrom: 'explorer',
       }).success,
     ).toBe(false);
   });
@@ -2042,8 +2088,7 @@ describe('PluginConfigSchema custom-agent-only prompt fields', () => {
     const result = PluginConfigSchema.safeParse({
       backgroundJobs: {
         maxSessionsPerAgent: 2,
-        readContextMinLines: 10,
-        readContextMaxFiles: 8,
+        boardInjection: true,
       },
     });
 
@@ -2107,7 +2152,6 @@ describe('disabled_agents', () => {
     expect(names).toContain('orchestrator');
     expect(names).toContain('explorer');
     expect(names).toContain('oracle');
-    expect(names).toContain('librarian');
   });
 
   test('protected agents cannot be disabled', () => {
@@ -2141,13 +2185,13 @@ describe('disabled_agents', () => {
 
   test('agent count decreases when agents are disabled', () => {
     const agents = createAgents(runtimeFor());
-    expect(agents.length).toBe(6); // observer and council disabled
+    expect(agents.length).toBe(5); // observer and council disabled
 
     const disabledConfig: PluginConfig = {
       disabled_agents: ['observer', 'designer'],
     };
     const disabledAgents = createAgents(runtimeFor(disabledConfig));
-    expect(disabledAgents.length).toBe(5);
+    expect(disabledAgents.length).toBe(4);
   });
 
   test('empty disabled_agents creates observer but not unconfigured council', () => {
@@ -2156,7 +2200,7 @@ describe('disabled_agents', () => {
     };
     const agents = createAgents(runtimeFor(config));
     const names = agents.map((a) => a.name);
-    expect(agents.length).toBe(7);
+    expect(agents.length).toBe(6);
     expect(names).toContain('observer');
     expect(names).not.toContain('council');
     expect(names).not.toContain('councillor');

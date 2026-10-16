@@ -51,7 +51,6 @@ function createDeps(board: BackgroundJobBoard, now: () => number) {
     },
     terminalJobsInjectedByParent: new Map(),
     pendingInjectedTerminalJobsByParent: new Map(),
-    retainedBoardSnapshots: new Map(),
     backgroundJobSupervisor,
   };
 }

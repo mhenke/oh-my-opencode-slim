@@ -48,8 +48,7 @@ role:
 |-------|-------|
 | Orchestrator | `opencode-go/minimax-m3` (`thinking`) |
 | Oracle | `opencode-go/qwen3.7-max` (`max`) |
-| Librarian | `opencode-go/deepseek-v4-flash` (`high`) + MCPs |
-| Explorer | `opencode-go/deepseek-v4-flash` (`high`) |
+| Explorer | `opencode-go/deepseek-v4-flash` (`high`) + MCPs |
 | Designer | `opencode-go/kimi-k2.7-code` |
 | Fixer | `opencode-go/deepseek-v4-flash` (`high`) |
 | Observer | `opencode-go/mimo-v2.5` |
@@ -73,11 +72,6 @@ setting the top-level `preset` field:
         "model": "opencode-go/qwen3.7-max",
         "variant": "max"
       },
-      "librarian": {
-        "model": "opencode-go/deepseek-v4-flash",
-        "variant": "high",
-        "mcps": ["context7", "gh_grep"]
-      },
       "explorer": {
         "model": "opencode-go/deepseek-v4-flash",
         "variant": "high"
@@ -99,7 +93,7 @@ setting the top-level `preset` field:
 
 ## Skill Reference
 
-This preset defines per-agent `skills` and `mcps` via `generateLiteConfig`. The generated config includes `skills: ["*"]` for Orchestrator and agent-specific MCP lists (e.g., Librarian gets `context7`, `gh_grep`).
+This preset defines per-agent `skills` and `mcps` via `generateLiteConfig`. The generated config includes `skills: ["*"]` for Orchestrator and agent-specific MCP lists (e.g., Explorer gets `context7`, `gh_grep`).
 
 | Skill | Description | Source |
 | --- | --- | --- |

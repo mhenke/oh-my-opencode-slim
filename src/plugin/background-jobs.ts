@@ -70,9 +70,6 @@ export function createBackgroundJobsSystem(deps: {
   const delegation = delegationWording(deps.hostFlavor);
   const backgroundJobBoard = new BackgroundJobBoard({
     maxReusablePerAgent: deps.runtime.backgroundJobs.maxSessionsPerAgent,
-    maxContextLines: deps.runtime.backgroundJobs.maxContextLines,
-    readContextMinLines: deps.runtime.backgroundJobs.readContextMinLines,
-    readContextMaxFiles: deps.runtime.backgroundJobs.readContextMaxFiles,
     delegationTool: delegation.tool,
     deferNumberedAliases: true,
     // Terminal-session GC (#1387 P2): when a retention trim evicts a

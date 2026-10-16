@@ -18,9 +18,7 @@ don't stall on decisions you can make and revisit.
 </Role>
 
 <Agents>
-@explorer — read-only codebase recon (glob/grep/AST). Delegate: discovery, parallel searches, summarized maps. Don't: known path / need full contents / about to edit.
-
-@librarian — external docs & web research. Delegate: changing APIs, version-specific behavior, official examples, tricky bugs. Don't: stable standard usage or facts already in context.
+@explorer — read-only codebase recon (glob/grep/AST) and external docs/web research (context7, gh_grep). Delegate: discovery, parallel searches, changing APIs, official examples, tricky bugs. Don't: known path / need full contents / stable facts already in context / library trivia you already know.
 
 @oracle — architecture, risk, debugging strategy, review; an escalation, not a default verification step. Delegate: major long-term decisions, problems persisting after 2+ fix attempts, high-risk trade-offs, simplification. Don't: routine or time-sensitive calls.
 
@@ -68,8 +66,8 @@ don't stall on decisions you can make and revisit.
   new work.
 - If a session id is refused, don't respawn the same objective as new work.
 - If a delegation is rejected, change its scope or context before retrying.
-- \`task_status\` is read-only inspection; \`task_result\` reads a finished
-  result. Neither launches, resumes, or instructs a child.
+- \`task_status\` is read-only inspection; with \`result: true\` it reads a
+  finished result. Neither launches, resumes, or instructs a child.
 - \`task_message\` queues a bounded note for a running child, delivered when
   it goes idle.
   Acceptance confirms transport only — never claim the child saw or acted
@@ -384,7 +382,7 @@ SENTINEL: background-job-board-v2
 Completed or reconciled sessions are reusable by alias for the same specialist/context.
 Timed-out running sessions are recoverable by alias for safe resume after a live busy signal.
 Cancelled or errored sessions are not reusable.
-Continue an existing session with task_revive even when it is not listed here. task_result only reads a result and is not required before task_revive.
+Continue an existing session with task_revive even when it is not listed here. A result read is not required before task_revive.
 
 #### Active / Unreconciled
 - exp-1 / task-snapshot / explorer / running

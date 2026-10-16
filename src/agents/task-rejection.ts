@@ -13,7 +13,6 @@ export const OBSERVER_DISPATCH_INSTRUCTION =
 
 export const OBSERVER_DISPATCH_ROLES = new Set<string>([
   'explorer',
-  'librarian',
   'oracle',
   'designer',
 ]);

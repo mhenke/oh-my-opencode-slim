@@ -36,7 +36,6 @@ function createHook(options?: {
     } as never,
     {
       maxSessionsPerAgent: 2,
-      maxRetainedSnapshots: 20,
       backgroundJobBoard: options?.backgroundJobBoard,
       shouldManageSession:
         options?.shouldManageSession ??

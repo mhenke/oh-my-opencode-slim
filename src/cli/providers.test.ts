@@ -48,7 +48,6 @@ describe('providers', () => {
     const expected = {
       orchestrator: { model: 'openai/gpt-6-sol', variant: 'high' },
       oracle: { model: 'openai/gpt-6-astra', variant: 'high' },
-      librarian: { model: 'openai/gpt-6-luna', variant: 'low' },
       explorer: { model: 'openai/gpt-6-luna', variant: 'low' },
       designer: { model: 'openai/gpt-6-luna', variant: 'medium' },
       fixer: { model: 'openai/gpt-6-luna', variant: 'high' },
@@ -73,12 +72,10 @@ describe('providers', () => {
     expect(agents).toMatchObject({
       orchestrator: { model: 'opencode-go/minimax-m3', variant: 'thinking' },
       oracle: { model: 'opencode-go/qwen3.7-max', variant: 'max' },
-      librarian: {
+      explorer: {
         model: 'opencode-go/deepseek-v4-flash',
         variant: 'high',
-        mcps: ['context7', 'gh_grep'],
       },
-      explorer: { model: 'opencode-go/deepseek-v4-flash', variant: 'high' },
       designer: { model: 'opencode-go/kimi-k2.7-code' },
       fixer: { model: 'opencode-go/deepseek-v4-flash', variant: 'high' },
       observer: { model: 'opencode-go/mimo-v2.5' },
@@ -172,29 +169,15 @@ describe('providers', () => {
     expect(agents.fixer.skills).toEqual([]);
   });
 
-  test('generateLiteConfig includes mcps field', () => {
+  test('generateLiteConfig omits mcps (runtime defaults apply)', () => {
     const config = generateLiteConfig({
       backgroundSubagents: 'no',
       reset: false,
     });
 
     const agents = (config.presets as any).openai;
-    expect(agents.orchestrator.mcps).toBeDefined();
-    expect(Array.isArray(agents.orchestrator.mcps)).toBe(true);
-    expect(agents.librarian.mcps).toBeDefined();
-    expect(Array.isArray(agents.librarian.mcps)).toBe(true);
-  });
-
-  test('generateLiteConfig openai includes correct mcps', () => {
-    const config = generateLiteConfig({
-      backgroundSubagents: 'no',
-      reset: false,
-    });
-
-    const agents = (config.presets as any).openai;
-    expect(agents.orchestrator.mcps).toEqual(['*', '!context7']);
-    expect(agents.librarian.mcps).toContain('context7');
-    expect(agents.librarian.mcps).toContain('gh_grep');
-    expect(agents.designer.mcps).toEqual([]);
+    expect(agents.orchestrator.mcps).toBeUndefined();
+    expect(agents.explorer.mcps).toBeUndefined();
+    expect(agents.designer.mcps).toBeUndefined();
   });
 });

@@ -8,8 +8,8 @@ import { createInterviewService } from '../interview/service';
 import type { InterviewMessage } from '../interview/types';
 import { isRecord } from '../utils/guards';
 import { log } from '../utils/logger';
-import { createSessionListShim } from './client-shim';
-import { createSessionSubmit, textFromContent } from './session-submit';
+import { createSessionListShim, resolveV2Directory } from './client-shim';
+import { createSessionSubmit, userTextFromContent } from './session-submit';
 import type {
   V2CommandDraft,
   V2Context,
@@ -73,8 +73,14 @@ export function applyInterviewCommandParts(
   text: string,
   parts: Array<Record<string, unknown>>,
 ): void {
+  const syntheticParts = trailing.content.filter(
+    (part) => part.synthetic === true,
+  );
   if (parts.length > 0) {
-    trailing.content = parts.map((part) => ({ ...part }));
+    trailing.content = [
+      ...parts.map((part) => ({ ...part })),
+      ...syntheticParts,
+    ];
     return;
   }
   trailing.content = [
@@ -85,6 +91,7 @@ export function applyInterviewCommandParts(
         .replace(INTERVIEW_MARKER_PATTERN, (_match, args: string) => args)
         .replace(IMPLEMENT_MARKER_PATTERN, (_match, args: string) => args),
     },
+    ...syntheticParts,
   ];
 }
 
@@ -160,7 +167,7 @@ export function createV2InterviewBridge(
 
   const { dashboardEnabled, outputFolder, dashboardPort } =
     computeInterviewMode(config);
-  const pluginContext = { directory: process.cwd() } as never;
+  const pluginContext = { directory: resolveV2Directory(ctx) } as never;
   const dashboardManager = dashboardEnabled
     ? createDashboardManager(
         pluginContext,
@@ -176,6 +183,7 @@ export function createV2InterviewBridge(
             list: createSessionListShim(methods),
           } as never,
           server: options.server,
+          hostFlavor: 'v2',
         },
       )
     : null;
@@ -258,7 +266,7 @@ export function createV2InterviewBridge(
   async function handleContext(event: V2SessionContextEvent): Promise<void> {
     const trailing = event.messages.at(-1);
     const text =
-      trailing?.role === 'user' ? textFromContent(trailing.content) : '';
+      trailing?.role === 'user' ? userTextFromContent(trailing.content) : '';
     const interviewMatch = text.match(INTERVIEW_MARKER_PATTERN);
     const implementMatch = text.match(IMPLEMENT_MARKER_PATTERN);
     if (interviewMatch && options.commandEnabled === false) return;

@@ -180,18 +180,12 @@ function rehydrateHistoricalRunningTasks(
 export function createTaskSessionManagerHook(
   _ctx: PluginInput,
   options: {
-    strategy?: 'latest' | 'checkpoint-compatible';
     maxSessionsPerAgent: number;
-    maxRetainedSnapshots: number;
-    readContextMinLines?: number;
-    readContextMaxFiles?: number;
     backgroundJobBoard?: BackgroundJobStore;
     terminalGate?: BackgroundJobTerminalGate;
     hostOutcomeClock?: 'shared-unix-ms';
     backgroundJobSupervisor?: BackgroundJobSupervisor;
     backgroundTaskConcurrency?: BackgroundTaskConcurrency;
-    /** When false, board reminder injection is fully disabled (#1314 thread). */
-    boardInjection?: boolean;
     /** Shared by plugin generations for one admission runtime. */
     pendingCallTracker?: PendingCallTracker;
     getModelForAgent?: (
@@ -207,6 +201,10 @@ export function createTaskSessionManagerHook(
     /** Host flavor marker ('v2' on OpenCode v2 hosts); selects the native
      *  delegation vocabulary in model-visible tool guidance. Defaults v1. */
     hostFlavor?: string;
+    /** v1-only honoured switch (runtime.backgroundJobs.boardInjection;
+     *  forced false on v2 at the RuntimeConfig layer). false on v1 =
+     *  boardless. */
+    boardInjection?: boolean;
     /** Per-instance pairing flag for the background-default flip (v2 only);
      *  see BackgroundDefaultFlipState in v2/delegation. */
     isBackgroundDefaultFlipArmed?: () => boolean;
@@ -255,8 +253,6 @@ export function createTaskSessionManagerHook(
     options.backgroundJobBoard ??
     new BackgroundJobBoard({
       maxReusablePerAgent: options.maxSessionsPerAgent,
-      readContextMinLines: options.readContextMinLines,
-      readContextMaxFiles: options.readContextMaxFiles,
     });
   const rehydrateState = getBackgroundJobLifecycleLedger(backgroundJobBoard);
   const rehydrateTombstones = rehydrateState.tombstones;
@@ -599,7 +595,6 @@ export function createTaskSessionManagerHook(
       terminalJobsInjectedByParent.delete(sessionId);
       pendingInjectedTerminalJobsByParent.delete(sessionId);
       historyBoundaries.delete(sessionId);
-      injectionState.retainedBoardSnapshots.delete(sessionId);
       injectionState.retainedTailBoards.delete(sessionId);
       // Orphaned reopen corrections must never surface in a recreated
       // session; the board entries they referenced are being dropped too.
@@ -614,8 +609,7 @@ export function createTaskSessionManagerHook(
   const injectionState: InjectionState = {
     backgroundJobBoard,
     terminalGate,
-    maxRetainedSnapshots: options.maxRetainedSnapshots,
-    strategy: options.strategy ?? 'latest',
+    hostFlavor: options.hostFlavor,
     boardInjection: options.boardInjection !== false,
     lifecycleLedger: rehydrateState,
     processedInjectedCompletions: rehydrateState.processedInjectedCompletions,
@@ -632,7 +626,7 @@ export function createTaskSessionManagerHook(
     metadataKey: BACKGROUND_JOB_BOARD_METADATA_KEY,
     shouldManageSession: options.shouldManageSession,
     taskContextTracker,
-    retainedBoardSnapshots: new Map(),
+    lastInjectedBoardTextByParent: new Map(),
     retainedTailBoards: new Map(),
   };
 
@@ -902,7 +896,6 @@ export function createTaskSessionManagerHook(
         taskContextTracker,
         terminalJobsInjectedByParent,
         pendingInjectedTerminalJobsByParent,
-        retainedBoardSnapshots: injectionState.retainedBoardSnapshots,
         backgroundJobSupervisor: options.backgroundJobSupervisor,
         bindConcurrencyTicket: (taskID, pending) =>
           pending.concurrencyTicket?.bind(taskID),

@@ -12,8 +12,6 @@ interface SecondaryModelResolutionInput {
   smallModel?: string;
   /** Explorer agent model id, resolved from in-memory config at construction. */
   explorerModel?: string;
-  /** Librarian agent model id, resolved from in-memory config at construction. */
-  librarianModel?: string;
 }
 
 function parseModelRef(value: string | undefined) {
@@ -57,9 +55,7 @@ export function resolveSecondaryModels(
   const seen = new Set<string>();
   const refs: Array<{ id: string | undefined; variant?: string }> = [
     ...(input.webfetchModels ?? []),
-    ...[input.smallModel, input.explorerModel, input.librarianModel].map(
-      (id) => ({ id }),
-    ),
+    ...[input.smallModel, input.explorerModel].map((id) => ({ id })),
   ];
   for (const ref of refs) {
     const parsed = parseModelRef(ref.id);

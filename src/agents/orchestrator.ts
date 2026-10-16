@@ -158,8 +158,8 @@ ${modelLine}
 ${continueSession}
 - If a session id is refused, don't respawn the same objective as new work.
 - If a delegation is rejected, change its scope or context before retrying.
-- \`task_status\` is read-only inspection; \`task_result\` reads a finished
-  result. Neither launches, resumes, or instructs a child.
+- \`task_status\` is read-only inspection; with \`result: true\` it reads a
+  finished result. Neither launches, resumes, or instructs a child.
 ${taskMessageDelivery}
   Acceptance confirms transport only — never claim the child saw or acted
   on it. Amend a running lane this way, then reconcile against its result;

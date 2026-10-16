@@ -234,7 +234,9 @@ describe('marketplace activation planning', () => {
       extends: { builtin: 'explorer', promptMode: 'append' },
       model: { source: 'builtin' },
     });
-    const { result } = fixture(['team/v3', 'team/v2'], [v3, v2]);
+    const { result } = fixture(['team/v3', 'team/v2'], [v3, v2], new Map(), {
+      mcps: ['context7', 'gh_grep'],
+    });
     expect(result.diagnostics).toEqual([]);
     expect(result.agents.map((agent) => agent.manifest.schemaVersion)).toEqual([
       2, 3,
@@ -305,10 +307,10 @@ describe('marketplace activation planning', () => {
 
   test('rejects unavailable MCPs required by inherited role prompts', () => {
     const { result } = fixture(
-      ['team/librarian'],
+      ['team/explorer-extension'],
       [
-        stored('team/librarian', 'library-agent', {
-          extends: { builtin: 'librarian', promptMode: 'append' },
+        stored('team/explorer-extension', 'research-agent', {
+          extends: { builtin: 'explorer', promptMode: 'append' },
         }),
       ],
       new Map(),
@@ -318,19 +320,19 @@ describe('marketplace activation planning', () => {
     expect(result.agents).toEqual([]);
     expect(result.diagnostics[0]?.code).toBe('missing-required-dependency');
     expect(result.diagnostics[0]?.message).toContain(
-      'MCP context7 inherited by librarian',
+      'MCP context7 inherited by explorer',
     );
     expect(result.diagnostics[0]?.message).toContain(
-      'MCP gh_grep inherited by librarian',
+      'MCP gh_grep inherited by explorer',
     );
   });
 
   test('admits extensions only when every inherited MCP dependency is available', () => {
     const { result } = fixture(
-      ['team/librarian'],
+      ['team/explorer-extension'],
       [
-        stored('team/librarian', 'library-agent', {
-          extends: { builtin: 'librarian', promptMode: 'append' },
+        stored('team/explorer-extension', 'research-agent', {
+          extends: { builtin: 'explorer', promptMode: 'append' },
         }),
       ],
       new Map(),
@@ -341,12 +343,29 @@ describe('marketplace activation planning', () => {
     expect(result.agents[0]?.requiredMcps).toEqual(['context7', 'gh_grep']);
   });
 
+  test("treats a legacy 'librarian' extension as an explorer extension", () => {
+    const { result } = fixture(
+      ['team/librarian-extension'],
+      [
+        stored('team/librarian-extension', 'research-agent', {
+          extends: { builtin: 'librarian', promptMode: 'append' },
+        }),
+      ],
+      new Map(),
+      { mcps: ['context7', 'gh_grep'] },
+    );
+
+    expect(result.diagnostics).toEqual([]);
+    expect(result.agents[0]?.manifest.extends?.builtin).toBe('explorer');
+    expect(result.agents[0]?.requiredMcps).toEqual(['context7', 'gh_grep']);
+  });
+
   test('rejects overlapping available implicit extension MCP namespaces', () => {
     const { result } = fixture(
-      ['team/librarian'],
+      ['team/explorer-extension'],
       [
-        stored('team/librarian', 'library-agent', {
-          extends: { builtin: 'librarian', promptMode: 'append' },
+        stored('team/explorer-extension', 'research-agent', {
+          extends: { builtin: 'explorer', promptMode: 'append' },
         }),
       ],
       new Map(),

@@ -4,7 +4,6 @@ import { SUPPORTED_SPECIALIST_ROLES } from '../config/agent-roles';
 import { createDesignerAgent } from './designer';
 import { createExplorerAgent } from './explorer';
 import { createFixerAgent } from './fixer';
-import { createLibrarianAgent } from './librarian';
 import { createObserverAgent } from './observer';
 import { createOracleAgent } from './oracle';
 import { buildOrchestratorPrompt } from './orchestrator';
@@ -17,7 +16,6 @@ import { ROLE_ROUTING_BLOCKS, ROLE_ROUTING_SLIM_LINES } from './role-routing';
 
 const FACTORIES = {
   explorer: createExplorerAgent,
-  librarian: createLibrarianAgent,
   oracle: createOracleAgent,
   designer: createDesignerAgent,
   fixer: createFixerAgent,
@@ -109,9 +107,6 @@ describe('roleHasWriteCapability', () => {
   });
 
   test('fails safe to writer on undeterminable input', () => {
-    // No permission row in the routing data (librarian): undeterminable.
-    expect(ROLE_ROUTING_BLOCKS.librarian).not.toContain('Permissions:');
-    expect(roleHasWriteCapability('librarian')).toBe(true);
     // Unknown/custom agents and missing agents.
     expect(roleHasWriteCapability('custom-unknown')).toBe(true);
     expect(roleHasWriteCapability(undefined)).toBe(true);
@@ -123,20 +118,16 @@ describe('roleHasWriteCapability drift guard', () => {
   test('table and Permissions rows in routing prose cover each other exactly', () => {
     for (const [role, block] of Object.entries(ROLE_ROUTING_BLOCKS)) {
       const permissions = /^- Permissions: (.+)$/m.exec(block);
-      if (permissions) {
-        // A role with a prose row must be in the table with a matching
-        // verdict — a new read-only role omitted from the table would
-        // otherwise fail safe to writer without a failing test.
-        expect(ROLE_WRITE_CAPABILITY[role]).toBe(
-          permissions[1].includes('write_files'),
-        );
-      } else {
-        // The explicit exception: librarian has no Permissions row (the
-        // role predates the convention) and stays omitted from the table
-        // so it fails safe to writer like any undetermined agent.
-        expect(role).toBe('librarian');
-        expect(role in ROLE_WRITE_CAPABILITY).toBe(false);
-      }
+      // Every routing role must declare a Permissions row; a prose-only role
+      // would otherwise fail safe to writer without a failing test.
+      expect(permissions).not.toBeNull();
+      if (!permissions) continue;
+      // A role with a prose row must be in the table with a matching
+      // verdict — a new read-only role omitted from the table would
+      // otherwise fail safe to writer without a failing test.
+      expect(ROLE_WRITE_CAPABILITY[role]).toBe(
+        permissions[1].includes('write_files'),
+      );
     }
     // No stale table entries for roles absent from the routing data.
     for (const role of Object.keys(ROLE_WRITE_CAPABILITY)) {
@@ -147,12 +138,7 @@ describe('roleHasWriteCapability drift guard', () => {
 
 describe('nested-dispatch stance', () => {
   test('advisory roles scope task to observer-only with deny-first order', () => {
-    for (const role of [
-      'explorer',
-      'librarian',
-      'oracle',
-      'designer',
-    ] as const) {
+    for (const role of ['explorer', 'oracle', 'designer'] as const) {
       const def = FACTORIES[role]('provider/model');
       const task = (
         def.config.permission as Record<string, Record<string, string>>

@@ -516,6 +516,8 @@ export function isInlineFailoverError(error: unknown): boolean {
 /** Used only to reject stale retry events from the previous model episode. */
 const DEDUP_WINDOW_MS = 5_000;
 const REPROMPT_DELAY_MS = 500;
+/** Longer host backoffs should use the configured model chain instead. */
+const MAX_HOST_RETRY_DELAY_MS = 30 * 60_000;
 /** Ceiling on host calls: a hung transport must not stall fallback. */
 const HOST_CALL_TIMEOUT_MS = 2_000;
 /** The replay send's ack can lag after the host admitted it: wait as long as
@@ -1570,7 +1572,12 @@ export class ForegroundFallbackManager {
           | {
               sessionID?: string;
               info?: { id?: string };
-              status?: { type?: string; message?: string; attempt?: number };
+              status?: {
+                type?: string;
+                message?: string;
+                attempt?: number;
+                next?: number;
+              };
               error?: unknown;
             }
           | undefined;
@@ -1634,7 +1641,12 @@ export class ForegroundFallbackManager {
           if (
             !isPermanentQuotaBillingError(retryError) &&
             !isSpentQuotaError(retryError) &&
-            this.absorbHostRetry(sessionID)
+            this.absorbHostRetry(
+              sessionID,
+              props.status?.next === undefined
+                ? undefined
+                : props.status.next - Date.now(),
+            )
           ) {
             this.recordRetryAttempt(sessionID, attempt);
             this.cancelInitialDelay(sessionID);
@@ -1813,7 +1825,7 @@ export class ForegroundFallbackManager {
         if (
           !isPermanentQuotaBillingError(event.error) &&
           !isSpentQuotaError(event.error) &&
-          this.absorbHostRetry(sessionID)
+          this.absorbHostRetry(sessionID, event.decision.delay)
         )
           return;
       }
@@ -1885,14 +1897,13 @@ export class ForegroundFallbackManager {
    *  leaves the counter charged for the remainder of the chain descent.
    *  The counter is shared: host-retry absorbs and same-model replay
    *  charges draw from the same sessionRetries budget. */
-  private absorbHostRetry(sessionID: string): boolean {
+  private absorbHostRetry(sessionID: string, delayMs?: number): boolean {
+    const hasChain = this.hasFallbackChain(sessionID);
+    if (hasChain && (delayMs ?? 0) > MAX_HOST_RETRY_DELAY_MS) return false;
     // No-chain sessions only absorb to fund a same-model replay; once the
     // session is terminal or this failure episode already charged the
     // shared budget, the absorb must not charge again.
-    if (
-      !this.hasFallbackChain(sessionID) &&
-      this.skipNoChainAbsorbCharge(sessionID)
-    ) {
+    if (!hasChain && this.skipNoChainAbsorbCharge(sessionID)) {
       return false;
     }
     const tried = this.sessionRetries.get(sessionID) ?? 0;

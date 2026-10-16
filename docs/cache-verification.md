@@ -85,10 +85,6 @@ bun run cache:smoke -- --scenario extensive  # full matrix, several minutes
 bun run cache:smoke -- --scenario board,agents
 bun run cache:smoke -- --provider anthropic --model claude-sonnet-5
 bun run cache:smoke -- --server http://127.0.0.1:4096   # reuse a running server
-
-# Issue #874 A/B: pin the board strategy via a scratch project config
-bun run cache:smoke -- --scenario board-churn --board-strategy latest
-bun run cache:smoke -- --scenario board-churn --board-strategy checkpoint-compatible
 ```
 
 Two failure signatures are detected, plus an inconclusive case:
@@ -127,8 +123,6 @@ logs three warning shapes (observation only, to the plugin log):
   consecutive requests while ≥50K uncached input tokens accumulate (once per
   plateau; re-arms when the read value changes). The issue #874 signature:
   the reusable prefix has stopped growing even though nothing reads zero.
-  The warning suggests trying `backgroundJobs.strategy`
-  `"checkpoint-compatible"`.
 
 This is the field safety net for provider-side behavior no offline test can
 model.

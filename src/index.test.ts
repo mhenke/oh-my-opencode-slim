@@ -207,7 +207,6 @@ describe('plugin tool registration', () => {
     } as never);
 
     expect(hooks.tool?.task_status).toBeDefined();
-    expect(hooks.tool?.task_result).toBeDefined();
     expect(hooks.tool?.task_message).toBeDefined();
     expect(hooks.tool?.task_cancel).toBeDefined();
     expect(hooks.tool?.task_revive).toBeDefined();
@@ -1902,6 +1901,31 @@ describe('plugin reload generation cleanup', () => {
     }
   });
 
+  test.each([
+    { hostFlavor: 'v2', periodic: false },
+    { hostFlavor: 'v1', periodic: true },
+  ] as const)(
+    '$hostFlavor wake scheduler periodic gate is structural (periodic=$periodic)',
+    async ({ hostFlavor, periodic }) => {
+      const createScheduler = wakeHooks.createOrchestratorWakeScheduler;
+      const scheduler = spyOn(
+        wakeHooks,
+        'createOrchestratorWakeScheduler',
+      ).mockImplementation((...args: Parameters<typeof createScheduler>) =>
+        createScheduler(...args),
+      );
+      try {
+        await createHooks({ hostFlavor });
+        const options = scheduler.mock.calls[0]?.[1] as {
+          config: { periodicWakeEnabled?: boolean };
+        };
+        expect(options.config.periodicWakeEnabled).toBe(periodic);
+      } finally {
+        scheduler.mockRestore();
+      }
+    },
+  );
+
   test.each(['provisional', 'promoted', 'preserveRun', 'attributed'])(
     'stopped recovery listener respects explicit provenance: %s',
     async (kind) => {
@@ -2654,16 +2678,16 @@ describe('plugin TUI agent activity', () => {
       {} as never,
     );
     await hooks?.['chat.message']?.(
-      { sessionID: 'lib-child', agent: 'librarian' } as never,
+      { sessionID: 'research-child', agent: 'explorer' } as never,
       {} as never,
     );
 
     expect(readTuiSnapshot(projectDir).activeSessions).toEqual({});
 
-    await busy('lib-child');
+    await busy('research-child');
 
     expect(readTuiSnapshot(projectDir).activeSessions).toEqual({
-      'lib-child': 'librarian',
+      'research-child': 'explorer',
     });
   });
 
@@ -3687,7 +3711,7 @@ describe('plugin config model inheritance', () => {
   test('session inheritance removes a stale host model in the final config', async () => {
     const hooks = await loadConfiguredPlugin({
       agents: {
-        librarian: { model: 'local/librarian' },
+        explorer: { model: 'local/explorer' },
         fixer: { inheritModelFrom: 'session' },
       },
     });
@@ -3744,13 +3768,13 @@ describe('plugin config model inheritance', () => {
   test('orchestrator inheritance leaves the child model-less for live parent selection', async () => {
     const hooks = await loadConfiguredPlugin({
       agents: {
-        librarian: { inheritModelFrom: 'orchestrator' },
+        oracle: { inheritModelFrom: 'orchestrator' },
       },
     });
     const hostConfig: Record<string, unknown> = {
       agent: {
         orchestrator: { model: 'host/orchestrator' },
-        librarian: { model: 'host/stale-librarian' },
+        oracle: { model: 'host/stale-oracle' },
       },
     };
 
@@ -3761,7 +3785,7 @@ describe('plugin config model inheritance', () => {
         string,
         Record<string, unknown>
       >;
-      expect(agents.librarian?.model).toBeUndefined();
+      expect(agents.oracle?.model).toBeUndefined();
     } finally {
       await hooks.dispose?.();
     }

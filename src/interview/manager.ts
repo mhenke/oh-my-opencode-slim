@@ -57,11 +57,8 @@ export function createInterviewManager(
   }
 
   // ─── Dashboard mode ─────────────────────────────────────────────
-  return createDashboardManager(
-    ctx,
-    config,
-    dashboardPort,
-    outputFolder,
-    options,
-  );
+  return createDashboardManager(ctx, config, dashboardPort, outputFolder, {
+    ...options,
+    hostFlavor: (ctx as PluginInput & { hostFlavor?: string }).hostFlavor,
+  });
 }

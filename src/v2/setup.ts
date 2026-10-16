@@ -90,7 +90,7 @@ import {
 } from './runtime-profiles';
 import {
   createSessionSubmit,
-  textFromContent,
+  userTextFromContent,
   type V2CommandSubmit,
 } from './session-submit';
 import type {
@@ -230,7 +230,7 @@ export async function applyCommandMarkerToContext(
 ): Promise<void> {
   const trailing = event.messages.at(-1);
   if (trailing?.role !== 'user') return;
-  const text = textFromContent(trailing.content);
+  const text = userTextFromContent(trailing.content);
   const parsed = parseCommandMarker(text);
   if (!parsed) return;
 
@@ -244,12 +244,22 @@ export async function applyCommandMarkerToContext(
     output,
   );
 
+  const syntheticParts = trailing.content.filter(
+    (part) => part.synthetic === true,
+  );
+
   if (output.parts.length > 0) {
-    trailing.content = output.parts.map((part) => ({ ...part }));
+    trailing.content = [
+      ...output.parts.map((part) => ({ ...part })),
+      ...syntheticParts,
+    ];
     return;
   }
   // Hook produced nothing: strip the marker and leave the raw args text.
-  trailing.content = [{ type: 'text', text: stripCommandMarker(text) }];
+  trailing.content = [
+    { type: 'text', text: stripCommandMarker(text) },
+    ...syntheticParts,
+  ];
 }
 
 /** Payload the v1 `chat.message` bridge feeds its consumers (a subset of
@@ -390,7 +400,7 @@ export function createSessionContextHandler(
     // injection does), so rebuild event.messages from the transformed
     // v1messages rather than index-based content copy-back.
     if (deps.messagesTransform && Array.isArray(event.messages)) {
-      // Transcript identity enrichment (v2-only): checkpoint board replay
+      // Transcript identity enrichment (v2-only): frozen board replay
       // reads info.sessionID from the real-message tail, which may be an
       // assistant or tool result. Stamp missing session IDs on every role;
       // agent identity and internal-wake handling remain user-only.

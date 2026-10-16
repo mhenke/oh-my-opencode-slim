@@ -125,7 +125,6 @@ export function createWebfetchTool(
         webfetchModels: options.webfetchModels,
         smallModel: options.smallModelRef?.() ?? undefined,
         explorerModel: options.explorerModel,
-        librarianModel: options.librarianModel,
       });
       const normalized = normalizeUrl(args.url);
       const url = new URL(normalized.url);

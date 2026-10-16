@@ -36,8 +36,7 @@ The task API and background-control tools are:
 |------|---------|
 | `task(..., background: true)` | Start a specialist in the background and immediately return a task ID |
 | hook-driven completion | OpenCode injects terminal background task results automatically |
-| `task_status` | Check the status of a tracked task (read-only fallback for owned untracked sessions after a restart) |
-| `task_result` | Retrieve a tracked task's result |
+| `task_status` | Check a tracked task (read-only fallback for owned untracked sessions after a restart); `result: true` retrieves its result |
 | `task_message` | Send a non-interrupting message and return `queued` (v2: steering acceptance with `delivery: "steer"`) |
 | `task_cancel` | Stop a generation while retaining its session |
 | `task_revive` | Resume a retained session with a new instruction |
@@ -78,7 +77,7 @@ Specialists do the work. The orchestrator manages the work.
 Moving a child session to another directory does not move its task ownership.
 The delegating parent's plugin instance still observes that tracked child's
 lifecycle, so completion and revived-run notifications do not require polling
-`task_result`. The destination directory handles its own permissions and runtime
+`task_status`. The destination directory handles its own permissions and runtime
 profiles; unrelated sessions remain excluded from the parent's event handling.
 
 ### Unattributed sessions and restart scope
@@ -99,7 +98,7 @@ parent's history still resolves its alias when it is the final non-empty line of
 that tool result (tail-anchored only), and `task_status` reports a read-only
 observed state for an owned session the board no longer tracks — completed or
 uncertain running-or-incomplete from transcript evidence (unknown when the
-live status read fails), never claiming definite running — pointing to `task_result` for completed text; it never
+live status read fails), never claiming definite running — pointing to a `task_status` result read for completed text; it never
 re-registers or prompts the task. One recovery channel is explicit:
 `task_revive` on a raw session ID verifies the
 session against the host (existence and parent ownership) and re-adopts an
@@ -239,8 +238,8 @@ The orchestrator should use background completion events to:
 - collect outputs before final response,
 - surface failures or blocked tasks clearly.
 
-Use `task_status` to inspect a task and `task_result` to collect its result.
-`task_result` is a read, not a required step before every continuation.
+Use `task_status` to inspect a task and `task_status` with `result: true` to collect its result.
+A result read is a read, not a required step before every continuation.
 `task_message` sends a non-interrupting message and does not stop the current
 generation. On v2 it accepts an optional `delivery`: the default `"queue"`
 waits for an idle boundary — `resume: false` never wakes the child, so
@@ -283,7 +282,7 @@ it is not an exactly-once delivery guarantee.
 To stop self-reinforcing acknowledgment loops, a brand-new `task` spawn is
 refused while the parent still owns an unreconciled terminal job with the same
 agent and an exactly matching objective. The refusal names the existing task ID
-and directs the caller to `task_result`; once that result has been retrieved,
+and directs the caller to `task_status` with `result: true`; once that result has been retrieved,
 the same objective may be dispatched again for follow-up work.
 
 Separately, the default-on orchestrator wake scheduler may prompt an
@@ -325,13 +324,9 @@ reconciled, and supported by final-state evidence.
 
 ### Explorer
 
-Read-only reconnaissance and codebase mapping. Usually the first background task
-for unfamiliar work.
-
-### Librarian
-
-External docs, version-specific API behavior, and real-world examples. Runs in
-parallel with Explorer when implementation depends on current library behavior.
+Read-only reconnaissance, codebase mapping, and external research (docs,
+version-specific API behavior, real-world examples). Usually the first
+background task for unfamiliar work.
 
 ### Fixer
 
@@ -553,46 +548,51 @@ the children-only fingerprint keeps the two-wake no-progress cap bounding
 cost. v2's native subagent completion nudges still cover the happy path; this
 watchdog covers stuck children and unreconciled jobs.
 
-#### v2 lean defaults
+#### v2 structural defaults
 
 On OpenCode v2 hosts the host's native background notifier already delivers
 each run's first terminal result (completed, error, or cancelled) to the
 parent: an idle parent gets a new turn, a busy parent gets a steer. Two plugin
-channels would duplicate that delivery, so on v2 they default **off** unless a
-config layer sets them explicitly:
+channels would duplicate that delivery, so on v2 they are **structurally off**
+— not configurable:
 
-- `backgroundJobs.boardInjection` — the passive Background Job Board is not
-  injected into orchestrator prompts.
-- `backgroundJobs.orchestratorWake.periodicWakeEnabled` — the periodic idle
-  evaluation described above never runs.
+- The passive Background Job Board is never injected into orchestrator
+  prompts. `backgroundJobs.boardInjection` is a v1-only switch: on v2 an
+  explicit `true` is ignored with a load-time warning.
+- The periodic idle evaluation described above never runs.
+  `backgroundJobs.orchestratorWake.periodicWakeEnabled` is honored on v1
+  only: on v2 an explicit `true` is ignored with a load-time warning.
 
-Event-driven wakes keep working: stopped-job recovery, later terminal
-publications of the same run (for example a child that self-continued), and
-child-input asks still wake an idle parent, and their SDK-error retries still
-use the idle timer. v1 hosts are unchanged. To restore the previous behavior
-on v2, set the keys explicitly:
-
-```jsonc
-{
-  "backgroundJobs": {
-    "boardInjection": true,
-    "orchestratorWake": { "periodicWakeEnabled": true }
-  }
-}
-```
+Event-driven wakes keep working on both flavors: stopped-job recovery, later
+terminal publications of the same run (for example a child that
+self-continued), and child-input asks still wake an idle parent, and their
+SDK-error retries still use the idle timer. On v2, terminal retirement is
+observation-based: the plugin watches the host's native `<subagent>`
+deliveries in the parent's transcript and retires the matching record, with a
+timestamp fallback for a missed observation. On v1, `boardInjection: false`
+keeps tracking, wake, and `task_status` working — the orchestrator simply no
+longer passively sees the board, and terminal retirement runs through
+prompt-shape consumption instead.
 
 Child-input wakes wait 250 ms before notifying the parent, on both host
-versions. Requests answered during that window by the host, a UI auto-replier,
-or another caller are discarded. Requests still open are checked again before
-delivery. Duplicate events enrich the queued notice without restarting the
-deadline. Stopped-job recovery and terminal-publication wakes are not delayed.
-An ask arriving during a host read or model-selection lookup defers a
-child-input-only wake until settling completes, without sending a stopped-job
-notice in its place. Overflowed request IDs are also revalidated: resolved
-requests cannot keep an overflow-only wake alive. Remaining overflow notices
-carry task IDs for `task_status`, and delivery retires only the overflow IDs
-actually sent, preserving requests added while a send is in flight. Entries
-beyond the retained-ID cap stay counted because their state cannot be checked.
+versions. Per-kind policy applies: by default only question asks wake the
+parent; permission asks do not (#1504). Requests answered during that window by
+the host, a UI auto-replier, or another caller are discarded. Requests still
+open are checked again before delivery. Duplicate events enrich the queued
+notice without restarting the deadline. Stopped-job recovery and
+terminal-publication wakes are not delayed. An ask arriving during a host read
+or model-selection lookup defers a child-input-only wake until settling
+completes, without sending a stopped-job notice in its place. Overflowed
+request IDs are also revalidated: resolved requests cannot keep an overflow-only
+wake alive. Remaining overflow notices carry task IDs for `task_status`, and
+delivery retires only the overflow IDs actually sent, preserving requests added
+while a send is in flight. Entries beyond the retained-ID cap stay counted
+because their state cannot be checked. Delivery still uses the existing
+`delivery:'queue'` behavior. In headless setups with no UI or external
+responder, a parked permission ask no longer produces a parent wake; the child
+stays parked (visible via `task_status` as `waiting_input`), so either set
+`backgroundJobs.childInputWakeKinds.permission = true` or rely on
+`wallClockTimeoutMs`.
 
 Wake and `task_status` share compact request details and reply guidance.
 V1 questions and permission requests use `task_reply`; v2 forms require the
@@ -628,40 +628,28 @@ uses the `question` tool as the blocking boundary instead. On v2 hosts
 
 ### Background Job Board Injection
 
-By default, `latest` freezes one board part per eligible turn and replays
-earlier parts without a cap; it does not replace prior boards. When the board
-has not changed and contains no new terminal result, it freezes a short
-"unchanged" marker instead, refreshing the full board every tenth turn.
-Terminal results always get a full board. Retained parts disappear on process
-restart, compaction, revert, or session deletion.
+Board placement is change-only; the placement rule itself is not configurable. A fresh board part is
+placed only when the rendered board text differs from the board last injected
+for that parent — one board per state change of the job set. Once placed, the
+board is frozen: later turns replay it byte-identically on its original anchor
+message, so bytes the provider already cached never change. Unchanged turns
+inject nothing at all — no board part and no marker — because they carry zero
+new information. A transition to an empty board set is itself a state change
+and renders once.
 
-For long-lived processes, opt in to the bounded, checkpoint-compatible strategy:
+Placement only ever targets a user-role tail (a board part appended to the
+last real user message, keeping the message count stable so the provider's
+tail cache breakpoint lands on stable content). An assistant tail is never a
+placement target: a board appended there could not be retained for replay, so
+it would silently vanish from the next payload and break the byte prefix —
+the pending state change renders on the next user-side tail instead.
 
-```jsonc
-{
-  "backgroundJobs": {
-    "strategy": "checkpoint-compatible",
-    "maxRetainedSnapshots": 20
-  }
-}
-```
-
-`checkpoint-compatible` preserves prior board snapshots and appends a snapshot
-anchored after the current real-message tail only when the formatted board
-changes. Once created, snapshots are replayed on every managed turn, including
-turns with an internal initiator or an empty board; those turns do not create a
-new snapshot. Re-running injection with an unchanged board does not create a
-duplicate. This changes board message history only; task coordination, storage,
-terminal reconciliation, and reusable-session behavior remain unchanged. The
-retained snapshot cache is in memory, is limited to 20 snapshots per cache epoch,
-and is reset when OpenCode reports a session boundary or a compacted/rebased
-message history. `maxRetainedSnapshots` controls
-the epoch size and accepts integers from 1 to 100 (default `20`). When a changed
-snapshot would exceed the configured limit, all retained snapshots are discarded
-and only the new current snapshot is kept. This intentionally creates one cache
-miss at the epoch boundary, after which a fresh run of up to the configured limit
-can accumulate. The cache is lost on plugin restart, so snapshots are not
-restored beyond those present in the current OpenCode message history.
+Retained boards are in-memory per parent session and are cleared at session
+end; they are not restored across a plugin restart beyond what the current
+OpenCode message history still carries. Board injection is v1-only: on v2
+hosts the board never renders (the native notifier and inbox delivery replace
+it), and on v1 the `backgroundJobs.boardInjection: false` switch turns the
+render off while tracking, wake, and `task_status` keep working.
 
 ### Runtime Liveness Reconciliation
 

@@ -40,7 +40,6 @@ function createDeps(board: BackgroundJobBoard) {
     },
     terminalJobsInjectedByParent: new Map(),
     pendingInjectedTerminalJobsByParent: new Map(),
-    retainedBoardSnapshots: new Map(),
   };
 }
 

@@ -30,6 +30,7 @@ export function createDashboardManager(
     sessionClient?: DashboardConfig['sessionClient'];
     /** Already-listening server for the dashboard role to adopt. */
     server?: Server;
+    hostFlavor?: DashboardConfig['hostFlavor'];
   } = {},
 ): {
   service: ReturnType<typeof createInterviewService>;
@@ -246,6 +247,7 @@ export function createDashboardManager(
       dashboard = await tryBecomeDashboard({
         port: dashboardPort,
         outputFolder,
+        hostFlavor: options.hostFlavor,
         sessionClient: options.sessionClient ?? getClient(ctx).session,
         server: options.server,
       });
@@ -286,6 +288,7 @@ export function createDashboardManager(
           dashboard?.registerSession({
             sessionID: interviewOwnerSessionID(interview),
             directory: ctx.directory,
+            outputFolder,
             pid: process.pid,
             registeredAt: Date.now(),
           });
@@ -300,6 +303,7 @@ export function createDashboardManager(
         dashboard.registerSession({
           sessionID: `dashboard-self-${process.pid}`,
           directory: ctx.directory,
+          outputFolder,
           pid: process.pid,
           registeredAt: Date.now(),
         });
@@ -606,6 +610,7 @@ export function createDashboardManager(
           body: JSON.stringify({
             sessionID,
             directory: ctx.directory,
+            outputFolder,
             pid: process.pid,
           }),
           signal: AbortSignal.timeout(3000),

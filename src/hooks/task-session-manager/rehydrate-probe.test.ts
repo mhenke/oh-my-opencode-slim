@@ -96,7 +96,6 @@ function createHook(options: {
     } as never,
     {
       maxSessionsPerAgent: 2,
-      maxRetainedSnapshots: 4,
       backgroundJobBoard: options.board,
       hostOutcomeClock: 'shared-unix-ms', // The fixture shares Date.now with the gate.
       backgroundJobSupervisor: options.supervisor,

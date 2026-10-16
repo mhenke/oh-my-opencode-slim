@@ -33,7 +33,30 @@ export const MarketplaceVersionSchema = z
     'Expected canonical exact semantic version spelling',
   );
 
-export const MarketplaceBuiltinSchema = z.enum(SUPPORTED_SPECIALIST_ROLES);
+/**
+ * Rename continuity: marketplace packages extending `builtin: 'librarian'`
+ * keep working — they extend the merged `explorer` (which inherited
+ * librarian's role and MCPs). Warned once per process.
+ */
+const MARKETPLACE_BUILTIN_RENAMES: Record<string, string> = {
+  librarian: 'explorer',
+};
+
+const warnedMarketplaceBuiltinRenames = new Set<string>();
+
+export const MarketplaceBuiltinSchema = z.preprocess((value) => {
+  if (typeof value === 'string') {
+    const renamed = MARKETPLACE_BUILTIN_RENAMES[value];
+    if (renamed && !warnedMarketplaceBuiltinRenames.has(value)) {
+      warnedMarketplaceBuiltinRenames.add(value);
+      console.warn(
+        `[oh-my-opencode-slim] Marketplace builtin '${value}' was merged into '${renamed}'; the package now extends '${renamed}'. Update the manifest when convenient.`,
+      );
+    }
+    return renamed ?? value;
+  }
+  return value;
+}, z.enum(SUPPORTED_SPECIALIST_ROLES));
 export type MarketplaceBuiltin = z.infer<typeof MarketplaceBuiltinSchema>;
 
 const BoundedTextSchema = (max: number) => z.string().trim().min(1).max(max);

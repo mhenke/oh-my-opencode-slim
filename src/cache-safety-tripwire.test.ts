@@ -60,10 +60,6 @@ const ALLOWLIST = new Map<string, string>([
     'Date.now() captures idleObservedAt to detect post-idle busy recovery from foreground-fallback re-prompts; never serialized into prompt content.',
   ],
   [
-    'hooks/task-session-manager/board-injection.ts',
-    'randomBytes(4) names each process instance of checkpoint board snapshot ids (#1368): the epoch is restart-scoped identity metadata on injected message ids. snapshotID metadata is dropped by the host converter and never reaches provider bytes (pinned by board-injection-cache-safety.test.ts); board text itself is deterministic.',
-  ],
-  [
     'hooks/task-session-manager/revived-run-tracker.ts',
     'Date.now() captures immutable observation-attempt boundaries for terminal attribution; these timestamps are never serialized into notification prompts.',
   ],

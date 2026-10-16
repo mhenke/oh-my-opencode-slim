@@ -1,5 +1,4 @@
 import { describe, expect, mock, test } from 'bun:test';
-import { DEFAULT_MAX_RETAINED_SNAPSHOTS } from '../../config/constants';
 import { BackgroundJobBoard, BackgroundTaskConcurrency } from '../../utils';
 import { createTaskSessionManagerHook } from './index';
 
@@ -34,7 +33,6 @@ function createHook(options?: IntegrationHookOptions) {
     } as never,
     {
       maxSessionsPerAgent: 2,
-      maxRetainedSnapshots: DEFAULT_MAX_RETAINED_SNAPSHOTS,
       backgroundJobBoard: options?.backgroundJobBoard,
       backgroundTaskConcurrency: options?.backgroundTaskConcurrency,
       getModelForAgent: options?.getModelForAgent,

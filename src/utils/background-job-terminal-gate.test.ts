@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, mock, spyOn, test } from 'bun:test';
 import { createTaskSessionManagerHook } from '../hooks/task-session-manager';
 import { createRevivedRunTracker } from '../hooks/task-session-manager/revived-run-tracker';
-import { createTaskResultTool } from '../tools/task-result';
+import { createTaskStatusTool } from '../tools/task-status';
 import { buildPluginInput } from '../v2/client-shim';
 import { BackgroundJobBoard } from './background-job-board';
 import { BackgroundJobCoordinator } from './background-job-coordinator';
@@ -546,7 +546,7 @@ describe('terminal gate', () => {
       lastLiveBusyAt: 30,
     });
   });
-  test('task_result leaves a differing native result unacknowledged rather than substituting text', async () => {
+  test('task_status result mode leaves a differing native result unacknowledged rather than substituting text', async () => {
     let response: unknown;
     const h = harness({ readTerminalEvidence: async () => response });
     h.observe('quiescent');
@@ -567,13 +567,13 @@ describe('terminal gate', () => {
         session: { get: async () => ({ data: { parentID: 'parent' } }) },
       },
     } as never;
-    const result = createTaskResultTool({
+    const result = createTaskStatusTool({
       input,
       backgroundJobBoard: h.board,
       terminalGate: h.gate,
-    }).task_result;
+    }).task_status;
     expect(
-      await result.execute({ task_id: h.run.taskID }, {
+      await result.execute({ task_id: h.run.taskID, result: true }, {
         sessionID: 'parent',
       } as never),
     ).toContain('unconfirmed');
@@ -1291,10 +1291,26 @@ test('integration: late acknowledgement and transport success for A cannot consu
       info: {
         id: 'consume-B',
         sessionID: 'parent',
-        role: 'assistant',
+        role: 'user',
         agent: 'orchestrator',
       },
       parts: [{ type: 'text', text: 'received B' }],
+    });
+    await hook['experimental.chat.messages.transform']({}, { messages });
+    await hook.injectBackgroundJobBoard({}, { messages });
+    // Change-only: the completion surfaces on the next user-side tail
+    // (assistant tails neither place nor register), so consumption needs
+    // one more shape advance. The stale step-1 entry (revision of A) is
+    // dropped without acknowledging.
+    expect(acknowledge).not.toHaveBeenCalled();
+    messages.push({
+      info: {
+        id: 'consume-B-2',
+        sessionID: 'parent',
+        role: 'assistant',
+        agent: 'orchestrator',
+      },
+      parts: [{ type: 'text', text: 'acknowledged B' }],
     });
     await hook['experimental.chat.messages.transform']({}, { messages });
     await hook.injectBackgroundJobBoard({}, { messages });
@@ -1434,18 +1450,18 @@ test.each(['transcript', 'outcome'])(
         state: 'completed',
         resultSummary: 'v2 result',
       });
-      const result = createTaskResultTool({
+      const result = createTaskStatusTool({
         input,
         backgroundJobBoard: board,
         terminalGate: gate,
-      }).task_result;
+      }).task_status;
       expect(
-        await result.execute({ task_id: run.taskID }, {
+        await result.execute({ task_id: run.taskID, result: true }, {
           sessionID: 'parent',
         } as never),
       ).toBe('v2 result');
       expect(
-        await result.execute({ task_id: run.taskID }, {
+        await result.execute({ task_id: run.taskID, result: true }, {
           sessionID: 'parent',
         } as never),
       ).toBe('v2 result');

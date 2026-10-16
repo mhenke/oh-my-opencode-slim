@@ -208,11 +208,11 @@ const redoEvents = {
     type: 'session.error',
     properties: { sessionID, info: { id: messageID }, error },
   }),
-  retry: (sessionID: string, attempt = 1) => ({
+  retry: (sessionID: string, attempt = 1, next?: number) => ({
     type: 'session.status',
     properties: {
       sessionID,
-      status: { type: 'retry', attempt, message: 'rate limit' },
+      status: { type: 'retry', attempt, message: 'rate limit', next },
     },
   }),
   success: (sessionID: string, modelID = 'a') => ({
@@ -1254,15 +1254,60 @@ describe('foreground fallback redo: host retry budget', () => {
   test('identical retry attempts are deduplicated before charging the budget', async () => {
     const { manager, mocks } = makeManager({ maxRetries: 1 });
     await manager.handleEvent(redoEvents.assistant('retry-attempt-dedup'));
-    await manager.handleEvent(redoEvents.retry('retry-attempt-dedup', 1));
-    await manager.handleEvent(redoEvents.retry('retry-attempt-dedup', 1));
+    const next = Date.now() + 30 * 60_000;
+    await manager.handleEvent(redoEvents.retry('retry-attempt-dedup', 1, next));
+    await manager.handleEvent(redoEvents.retry('retry-attempt-dedup', 1, next));
 
     expect(mocks.abort).not.toHaveBeenCalled();
     expect(mocks.promptAsync).not.toHaveBeenCalled();
 
-    await manager.handleEvent(redoEvents.retry('retry-attempt-dedup', 2));
+    await manager.handleEvent(redoEvents.retry('retry-attempt-dedup', 2, next));
     expect(mocks.abort).toHaveBeenCalledTimes(1);
     expect(mocks.promptAsync).toHaveBeenCalledTimes(1);
+  });
+
+  test('v1 skips a day-long host retry wait before spending the retry budget', async () => {
+    const { manager, mocks } = makeManager();
+    const sid = 'long-host-wait';
+    await manager.handleEvent(redoEvents.assistant(sid));
+    const retry = redoEvents.retry(
+      sid,
+      1,
+      Date.now() + (23 * 60 + 55) * 60_000,
+    );
+    retry.properties.status.message =
+      "This request would exceed your account's rate limit. Please try again later.";
+    await manager.handleEvent(retry);
+
+    expect(mocks.abort).toHaveBeenCalledTimes(1);
+    expect(mocks.promptAsync.mock.calls[0]?.[0]).toMatchObject({
+      body: { model: { providerID: 'test', modelID: 'b' } },
+    });
+  });
+
+  test('v2 skips a day-long host retry wait before spending the retry budget', async () => {
+    const { manager, mocks } = makeManager({ hostFlavor: 'v2' });
+    const switchModel = mock(async () => {});
+    const event = {
+      ...retryEvent('long-host-wait-v2', 'a', {
+        retry: true,
+        delay: (23 * 60 + 55) * 60_000,
+      }),
+      error: {
+        type: 'provider.rate-limit',
+        status: 429,
+        message:
+          "This request would exceed your account's rate limit. Please try again later.",
+      },
+    };
+    await manager.handleV2Retry(event, switchModel);
+
+    expect(switchModel).toHaveBeenCalledWith(event.sessionID, {
+      providerID: 'test',
+      id: 'b',
+    });
+    expect(event.decision).toEqual({ retry: true, delay: 0 });
+    expect(mocks.promptAsync).not.toHaveBeenCalled();
   });
 
   test('G2: retry statuses do not postpone the first scheduled abort', async () => {

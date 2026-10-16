@@ -94,7 +94,6 @@ async function assembly(
       ...setup.rootConfigOverrides,
       backgroundJobs: {
         concurrency: { defaultConcurrency: 1 },
-        readContextMinLines: 1,
         ...(setup.configOverrides ?? {}),
       },
     }),
@@ -1847,7 +1846,7 @@ function solePartMetadata(
   return parts[0]?.metadata as Record<string, unknown> | undefined;
 }
 
-test('v2 derived board-off defaults still retire consumed terminal jobs', async () => {
+test('v2 hosts are structurally boardless and still retire consumed terminal jobs', async () => {
   resetOrchestratorWakeGateForTests();
   const capture = captureGateLogs();
   try {
@@ -1862,9 +1861,9 @@ test('v2 derived board-off defaults still retire consumed terminal jobs', async 
         promptAsync,
       },
     });
-    // No boardInjection override: the v2 host-flavor derived default
-    // (board off) applies, exercising the native-delivery registration
-    // that keeps consumption reconciliation alive without the board.
+    // No board config: the structural v2 flavor never renders a board.
+    // Retirement is observation-based — the native delivery retires its
+    // record, and the stale-terminal fallback bounds a missed observation.
     const { h, pump, awaitPublication } = await openV2Lifecycle(probe, {
       hostFlavor: 'v2',
     });
@@ -1977,10 +1976,6 @@ test('reopen-after-reconcile: child self-continuation republishes, wakes the idl
       // publication wake is observable without a half-minute sleep.
       configOverrides: {
         orchestratorWake: { publicationWakeMinIntervalMs: 1_000 },
-        // This suite exercises the BOARD-ON reconcile/correction contract.
-        // v2 hosts derive boardInjection=false when no layer configures it,
-        // so the board-dependent assertions here opt in explicitly.
-        boardInjection: true,
       },
     });
 

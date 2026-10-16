@@ -237,15 +237,12 @@ All config files support **JSONC** (JSON with Comments):
 | `multiplexer.zellij_pane_mode` | — | — | Removed: ignored with a warning. See [Removed config keys](#removed-config-keys). |
 | `tmux` (top-level) | — | — | Removed: ignored with a warning. Use `multiplexer.*`. See [Removed config keys](#removed-config-keys). |
 | `backgroundJobs.maxSessionsPerAgent` | integer | `2` | Maximum completed/reconciled reusable child sessions per specialist type in the current orchestrator session (1–10) See [Background Job Management](#background-job-management). |
-| `backgroundJobs.maxContextLines` | integer | `50000` | Maximum total context lines (sum of all tracked file line counts) for a session to remain reusable. Sessions exceeding this threshold are evicted from the reusable pool on completion See [Background Job Management](#background-job-management). |
-| `backgroundJobs.readContextMinLines` | integer | `10` | Minimum number of lines read from a file before it appears in reusable background-job context (0–1000) See [Background Job Management](#background-job-management). |
-| `backgroundJobs.readContextMaxFiles` | integer | `8` | Maximum number of recent read-context files shown per reusable child session (0–50) See [Background Job Management](#background-job-management). |
-| `backgroundJobs.maxRetainedSnapshots` | integer | `20` | Maximum board snapshots retained per checkpoint cache epoch (1–100). Adding a snapshot beyond the limit starts a new epoch with only the current snapshot, intentionally creating one cache miss See [Background Job Management](#background-job-management). |
-| `backgroundJobs.strategy` | `"latest"` \| `"checkpoint-compatible"` | `"latest"` | `latest` freezes one board part per eligible turn and replays earlier parts without a cap; unchanged boards use a short marker for up to nine turns, then a full board (terminal results always get a full board). Parts disappear on process restart, compaction, revert, or session deletion. For long-lived processes, `checkpoint-compatible` appends only changed boards and bounds retention per cache epoch with `backgroundJobs.maxRetainedSnapshots` See [Background Job Management](#background-job-management). |
+| `backgroundJobs.maxRetainedSnapshots` | — | — | Removed: ignored with a warning. See [Removed config keys](#removed-config-keys). |
+| `backgroundJobs.strategy` | — | — | Removed: board placement is change-only. See [Removed config keys](#removed-config-keys). |
 | `backgroundJobs.orchestratorWake.enabled` | boolean | `true` | When true, idle orchestrator sessions with incomplete todos may receive periodic internal wake prompts (default every 5 minutes of continuous parent idle). Requires host session APIs. See [Background Orchestration](background-orchestration.md#orchestrator-wake-scheduler) See [Background Job Management](#background-job-management). |
 | `backgroundJobs.orchestratorWake.intervalMs` | integer | `300000` | Continuous parent-idle interval between wake evaluations (`60000`–`2147483647` ms). `0` is invalid. See [Background Orchestration](background-orchestration.md#orchestrator-wake-scheduler) See [Background Job Management](#background-job-management). |
 | `backgroundJobs.orchestratorWake.mode` | string | `"auto"` | Wake-condition source: `"auto"` uses todo-gating on OpenCode v1 and children-driven degraded mode on v2 hosts; `"todo"`/`"children"` pin one mode (explicit `"todo"` degrades to children where no todo API exists). See [Background Orchestration](background-orchestration.md#orchestrator-wake-scheduler). |
-| `backgroundJobs.orchestratorWake.periodicWakeEnabled` | boolean | `true` | When false, the periodic idle evaluation never runs; only event-driven wakes (stopped-job recovery, later terminal publications, child-input asks) still deliver, and failed event wakes keep their timer-based retry. On v2 hosts the derived default is `false` when neither config layer sets the key — the native background notifier already delivers first terminal publications to an idle parent. See [Background Orchestration](background-orchestration.md#orchestrator-wake-scheduler). |
+| `backgroundJobs.orchestratorWake.periodicWakeEnabled` | boolean | `true` | When false, the periodic idle evaluation never runs; only event-driven wakes (stopped-job recovery, later terminal publications, child-input asks) still deliver, and failed event wakes keep their timer-based retry. On v2 hosts the periodic evaluation is structurally off regardless of this key — the native background notifier already delivers first terminal publications to an idle parent; the key is honored on v1 only, and an explicit `true` on v2 is ignored with a warning. See [Background Orchestration](background-orchestration.md#orchestrator-wake-scheduler). |
 | `backgroundJobs.orchestratorWake.wakeOnTerminalPublication` | boolean | `true` | When true, a terminal completed/error publication that reaches an idle parent wakes it immediately instead of waiting for the next periodic evaluation. The first terminal publication of any generation (terminalRevision 1) is skipped (the native notifier armed by that generation's `subagent` tool call already delivers it); busy parents are skipped the same way See [Background Orchestration](background-orchestration.md#orchestrator-wake-scheduler) See [Background Job Management](#background-job-management). |
 | `backgroundJobs.orchestratorWake.publicationWakeMinIntervalMs` | integer | `30000` | Per-parent minimum spacing between terminal-publication wakes (`1000`–`2147483647` ms; `0` is invalid — the schema floor is 1,000ms). A burst of publications collapses into one wake; the window is consumed only when a wake is actually delivered See [Background Orchestration](background-orchestration.md#orchestrator-wake-scheduler) See [Background Job Management](#background-job-management). |
 | `backgroundJobs.wallClockTimeoutMs` | integer | `0` | **Opt-in wall-clock supervisor.** `0` disables it. Otherwise, only native background child sessions (`task(..., background: true)` on v1, `subagent(..., background: true)` on v2) are supervised; accepted values are `60000`–`2147483647` milliseconds See [Background Job Management](#background-job-management). |
@@ -255,9 +252,10 @@ All config files support **JSONC** (JSON with Comments):
 | `backgroundJobs.concurrency.providerConcurrency` | object | `{}` | Per-provider caps keyed by provider ID. Each value must be `0`–`1000`, where `0` means unlimited for that provider. The most specific configured cap wins: model > provider > default See [Background Job Management](#background-job-management). |
 | `backgroundJobs.concurrency.modelConcurrency` | object | `{}` | Per-model caps keyed by `provider/model` ID. Each value must be `0`–`1000`, where `0` means unlimited for that model. The most specific configured cap wins: model > provider > default See [Background Job Management](#background-job-management). |
 | `backgroundJobs.sameProviderPolicy` | object | `{}` | Opt-in per-provider policy keyed by provider ID; the only value is `"foreground"`. When the parent session's current model and the child agent's resolved model both resolve to a configured provider, an explicit background call (`task(..., background: true)` on v1, `subagent(..., background: true)` on v2) is converted to the existing foreground execution path. On v2 hosts, when the background-default flip is active, calls that omit `background` are first defaulted to background, so they are converted too. Unconfigured, different, or undeterminable providers keep background behavior. See [Background Job Management](#background-job-management). |
-| `backgroundJobs.childInputWake` | boolean | `true` | When true, a background child's question or permission request wakes its parent with the ask content. See [Background Job Management](#background-job-management). |
+| `backgroundJobs.childInputWake` | boolean | `true` | Master switch for child-input wakes: when true, each ask kind wakes its parent only if enabled in `backgroundJobs.childInputWakeKinds` (default: questions wake, permissions do not). When false, no child ask wakes the parent. |
+| `backgroundJobs.childInputWakeKinds` | object | `{ permission: false, question: true }` | Which child ask kinds may wake the parent. Permission asks default off (#1504) because their replies carry no host wake and are resolved by the UI or an external responder. Invalid or partial values fall back to per-field defaults silently. See [Background Job Management](#background-job-management). |
 | `backgroundJobs.waitForUserGuard` | boolean | `true` | v1 only (`wait_for_user` is not registered on v2). When true, intercepts `wait_for_user` calls while background tasks are still running and the orchestrator wake scheduler is enabled, returning guidance to end the turn instead of blocking on manual input. See [Background Job Management](#background-job-management). |
-| `backgroundJobs.boardInjection` | boolean | `true` | When false, the Background Job Board reminder is never injected into prompts. Background task tracking, wake, and task_status all keep working; the orchestrator simply no longer passively sees the board. On v2 hosts the derived default is `false` when neither config layer sets the key — the native background notifier delivers each run's first terminal publication (with its full result) to the parent, so the board's passive injection duplicates that channel there. Explicit `true` restores it. See [Background Job Management](#background-job-management). |
+| `backgroundJobs.boardInjection` | boolean | `true` | When false, the Background Job Board reminder is never injected into prompts. Background task tracking, wake, and task_status all keep working; the orchestrator simply no longer passively sees the board. v1 hosts only: on v2 the key is ignored with a warning because the native background notifier and inbox delivery replace the passive board entirely. See [Background Job Management](#background-job-management). |
 | `backgroundJobs.pruneEvictedSessions` | boolean | `false` | When true, removes the host child session when a retention trim (per-agent count cap or context budget, reusable or retained-stopped) evicts its terminal or retained-stopped background job record. Only background children this plugin launched itself through a tracked `task(..., background: true)` call are eligible: foreground task children, unattributed placeholder sessions, and adopted, restored, or rehydrated sessions are never deleted. Bounded host reads must also confirm the session's `parentID` still matches the record's parent and that the session is idle; a session the board tracks again (revived, re-registered, or leased) or with a parked child-input wait is never removed, and the delete itself has a deadline; parent deletion (`session.deleted`) and explicit drops never remove host sessions. v1 hosts only for now: v2 has no live session-status map, so every prune is skipped there. See [Background Job Management](#background-job-management). |
 | `disabled_mcps` | string[] | `[]` | MCP server IDs to disable globally |
 | `disabled_tools` | string[] | `[]` | Slim tool names to disable globally. Disabled Slim tools are not registered with OpenCode and cannot be used by agents; OpenCode built-in tools are not affected |
@@ -313,6 +311,11 @@ replacement yourself where one exists.
 | `council.presets.<name>.master` (councillor named `master`) | None; rename the councillor if you still want it |
 | `council.presets.<name>.councillors` (nested wrapper) | Put councillors directly under `council.presets.<name>` (the wrapped entries are dropped) |
 | `backgroundJobs.continueOnIdle` | `backgroundJobs.orchestratorWake.enabled` |
+| `backgroundJobs.maxContextLines` | None; reusability is state-based (terminal, reconciled, status-certain). See [Background Job Management](#background-job-management) |
+| `backgroundJobs.readContextMinLines` | None; the per-session read-context list is path-only with an internal display cap |
+| `backgroundJobs.readContextMaxFiles` | None; the display cap is internal |
+| `backgroundJobs.strategy` | None; board placement is change-only (one frozen board per state change, replayed byte-identically; nothing on unchanged turns) |
+| `backgroundJobs.maxRetainedSnapshots` | None; frozen boards are retained per parent session and cleared at session end |
 | `fallback.timeoutMs`, `fallback.retry_on_empty`, `fallback.runtimeOverride` | None; tune `fallback.maxRetries` / `fallback.retryDelayMs` |
 | `multiplexer.zellij_pane_mode` | None; Zellij panes always open in the parent pane's tab |
 
@@ -539,22 +542,42 @@ process, not once per session).
 
 Background job management is enabled by default and does not need to be present
 in the starter config. Add `backgroundJobs` only if you want to tune how many
-completed/reconciled child-agent sessions are reusable, how much read context is
-shown, how board snapshots are injected, or to change the default-on
-orchestrator wake interval. For glossary definitions of background-job terms
-(board snapshot, checkpoint cache epoch, injection strategy, etc.), see
+completed/reconciled child-agent sessions are reusable, whether the board is
+injected at all (`boardInjection`, v1 only), or to change the default-on
+orchestrator wake interval. Board placement itself is not configurable: it is
+change-only — one frozen board per state change, replayed byte-identically on
+later turns, nothing injected on unchanged turns. For glossary definitions of
+background-job terms, see
 [CONTEXT.md — Background Jobs](../CONTEXT.md#background-jobs).
 
-**v2 derived defaults.** On OpenCode v2 hosts, `boardInjection` and
-`orchestratorWake.periodicWakeEnabled` default to `false` when neither config
-layer sets the key: the v2 native background notifier delivers each run's first
-terminal publication (with its full result) to the parent — idle parents get a
-new turn, busy parents get a steer — so the passive board injection and the
-periodic idle evaluation duplicate that channel. Event-driven wakes
-(stopped-job recovery, later terminal publications, child-input asks) are
-unaffected. Set the keys explicitly (`"boardInjection": true`,
-`"periodicWakeEnabled": true`) to restore the v1-style behavior on v2; v1
-hosts are unchanged.
+**What gates reusability.** A completed child session enters the reusable pool
+when it reached a canonical terminal state, has been reconciled, and its status
+is certain — nothing else. There is no size-based eviction: reading many or
+large files never disqualifies a session, and an explicit resume by session id
+is never refused for budget reasons. The only retention bound is the
+`maxSessionsPerAgent` count cap (LRU eviction).
+
+**What the read-context list shows.** Each reusable or retained-stopped board
+entry can carry one `Context read by <alias>: …` line listing the paths that
+child read via the `read` tool (deduped per path, most recently read first,
+internal display cap with a `(+N more)` tail). It is informational only — the
+list never feeds reusability, eviction, or any policy decision.
+
+**Board injection on v2.** On OpenCode v2 hosts the passive board reminder is
+always off: the native background notifier and inbox delivery surface each
+run's first terminal publication, and `task_status` covers on-demand
+discovery. An explicitly configured `backgroundJobs.boardInjection: true` is
+ignored with a warning on v2.
+
+**v2 structural wake.** On OpenCode v2 hosts the periodic idle evaluation is
+structurally off regardless of configuration: the v2 native background
+notifier delivers each run's first terminal publication (with its full result)
+to the parent — idle parents get a new turn, busy parents get a steer — so the
+periodic evaluation duplicates that channel. Setting
+`orchestratorWake.periodicWakeEnabled` has no effect on v2 (the key stays
+honored on v1); an explicit `true` is ignored with a warning. Event-driven wakes (stopped-job recovery, later terminal
+publications, child-input asks) keep working on both flavors. `boardInjection`
+is likewise v1-only, forced off on v2 (see above).
 
 `routingBlock` deliberately gets **no** v2-derived default. Unlike the board
 injection, the `<Agents>` block is not duplicated by a native channel: the
@@ -572,7 +595,7 @@ never register there — the stopped-job recovery wake surfaces them and
 retirement goes through the recovery flow; reopen corrections (a previously
 terminal job running again) still deliver, in a board-free wording that
 points at `task_status`; and a natively delivered result lost host-side has
-no passive display fallback — check `task_status` or `task_result` if a
+no passive display fallback — check `task_status` if a
 completion looks missing.
 The wall-clock supervisor is separately opt-in and remains disabled unless
 `wallClockTimeoutMs` is set:
@@ -581,8 +604,6 @@ The wall-clock supervisor is separately opt-in and remains disabled unless
 {
   "backgroundJobs": {
     "maxSessionsPerAgent": 3,
-    "strategy": "checkpoint-compatible",
-    "maxRetainedSnapshots": 10,
     "orchestratorWake": {
       "enabled": true,
       "intervalMs": 300000,
@@ -687,6 +708,11 @@ OpenCode's provider retry policy. A value of `0` allows no host retry events
 before foreground failover; it does not prevent OpenCode from retrying a
 provider request in a child session.
 
+With a configured chain, a host-announced retry wait longer than 30 minutes
+bypasses this budget and starts fallback. Waits up to 30 minutes, or retries
+without timing metadata, still use the configured retry count. The configured
+fallback delays still apply; sessions without a chain keep their existing behavior.
+
 Both fallback paths scan the chain from its head, skipping models already tried
 and providers abandoned by this session or its parent. Starting on a later entry
 does not skip the untried entries before it. A provider is excluded only after a
@@ -771,16 +797,33 @@ Notes:
 - Display names must be unique
 - Display names cannot conflict with internal agent names like `oracle` or `explorer`
 
+> **Rename continuity:** `librarian` was merged into `explorer`. Existing
+> `agents.librarian` config (model, variant, mcps, skills, prompt,
+> `inheritModelFrom`) keeps working: it is applied to `explorer`, the merged
+> research agent. An explicit `agents.explorer` field wins over the legacy
+> `librarian` field. `disabled_agents: ['librarian']` now disables `explorer`.
+> A `librarian.md` / `librarian_append.md` prompt override still applies —
+> rename it to `explorer.md` when convenient (a one-time notice reminds you).
+> Marketplace packages extending `builtin: 'librarian'` now extend
+> `builtin: 'explorer'` (same one-time notice). `librarian` remains a reserved
+> legacy name: it cannot be reused as a custom, ACP, or display name. New
+> configs should use `explorer` directly.
+>
+> Still true: an explicit `explorer.mcps` list (including `[]`) overrides the
+> runtime defaults — old generated presets pinned `mcps: []`; remove that
+> override or set it to `["context7", "gh_grep"]`. Newly generated configs
+> omit `mcps` so defaults always apply.
+
 ### Independent agent model inheritance
 
-By default, the `fixer` agent inherits the `librarian` model when no fixer
+By default, the `fixer` agent inherits the `explorer` model when no fixer
 model is configured. To decouple agents, set `inheritModelFrom` on the agent
 that should follow the current session or the configured orchestrator model:
 
 ```jsonc
 {
   "agents": {
-    "librarian": {
+    "explorer": {
       "model": "ollama/qwen3.8:27B"
     },
     "fixer": {
@@ -846,8 +889,8 @@ Model selection follows these rules:
   agent follows the session/orchestrator model, and the array serves as the
   fallback chain tried when that model fails. See
   [Following the session model with a fallback chain](#following-the-session-model-with-a-fallback-chain).
-- If neither field is present, the existing model precedence and the historical
-  fixer-to-librarian fallback remain unchanged.
+- If neither field is present, the existing model precedence and the
+  fixer-to-explorer fallback remain unchanged.
 
 The setting works in both root `agents` overrides and preset agent overrides.
 
@@ -916,7 +959,7 @@ the configured `council` color unless `agents.councillor.color` overrides it.
 ### Per-preset agent configuration
 
 To get per-preset behavior for any agent, built-in (`council`, `oracle`,
-`explorer`, `librarian`, `fixer`, `designer`, `observer`) or custom, define
+`explorer`, `fixer`, `designer`, `observer`) or custom, define
 the agent override inside each preset block, not in root `agents`.
 
 ```jsonc

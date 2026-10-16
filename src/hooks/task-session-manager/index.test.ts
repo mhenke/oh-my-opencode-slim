@@ -7,7 +7,7 @@ import {
   spyOn,
   test,
 } from 'bun:test';
-import { DEFAULT_MAX_RETAINED_SNAPSHOTS } from '../../config/constants';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { SessionLifecycle } from '../../hooks/session-lifecycle';
 import { createTaskReviveTool } from '../../tools/task-revive';
 import {
@@ -29,6 +29,10 @@ import {
   createPhaseReminderHook,
   PHASE_REMINDER_METADATA_KEY,
 } from '../phase-reminder';
+import {
+  type InjectionState,
+  pruneReopenCorrectionState,
+} from './board-injection';
 import {
   BACKGROUND_JOB_BOARD_METADATA_KEY,
   createTaskSessionManagerHook,
@@ -217,11 +221,6 @@ function createHook(options?: HookOptions) {
     } as never,
     {
       maxSessionsPerAgent: 2,
-      maxRetainedSnapshots:
-        options?.maxRetainedSnapshots ?? DEFAULT_MAX_RETAINED_SNAPSHOTS,
-      strategy: options?.strategy,
-      readContextMinLines: options?.readContextMinLines,
-      readContextMaxFiles: options?.readContextMaxFiles,
       backgroundJobBoard: options?.backgroundJobBoard,
       terminalGate: options?.terminalGate,
       hostOutcomeClock: options?.hostOutcomeClock,
@@ -728,7 +727,7 @@ describe('task-session-manager hook', () => {
       {
         args: {
           background: true,
-          subagent_type: 'librarian',
+          subagent_type: 'explorer',
           description: 'nested task',
         },
       },
@@ -1668,79 +1667,24 @@ describe('task-session-manager hook', () => {
 
     await hook.injectBackgroundJobBoard({}, messages);
 
-    // Mid-history board message preserved; fresh board appended to the tail.
+    // Mid-history board message preserved byte-identically (cache
+    // invariant). The board digest is unchanged, so the tail stays
+    // board-free — the model still sees the current board via the
+    // persisted copy, and duplicating it on the tail would buy nothing.
     expect(messages.messages).toHaveLength(2);
     expect(messages.messages[0].parts[0].metadata).toEqual({
       [BACKGROUND_JOB_BOARD_METADATA_KEY]: true,
     });
+    expect(messages.messages[0].parts).toHaveLength(1);
     expect(messages.messages[1].parts[0].text).toBe('current turn');
-    expect(messages.messages[1].parts.at(-1)?.metadata).toEqual({
-      [BACKGROUND_JOB_BOARD_METADATA_KEY]: true,
-    });
-  });
-
-  test('preserves prior board snapshots in checkpoint-compatible mode', async () => {
-    const board = new BackgroundJobBoard();
-    board.registerLaunch({
-      taskID: 'child-1',
-      parentSessionID: 'parent-1',
-      agent: 'explorer',
-      description: 'map hooks',
-    });
-    const { hook } = createHook({
-      backgroundJobBoard: board,
-      strategy: 'checkpoint-compatible',
-    });
-    const messages = createMessages('parent-1', 'first turn');
-
-    await hook.injectBackgroundJobBoard({}, messages);
-    messages.messages.push({
-      info: { role: 'user', agent: 'orchestrator', sessionID: 'parent-1' },
-      parts: [{ type: 'text', text: 'second turn' }],
-    });
-    board.updateStatus({
-      taskID: 'child-1',
-      state: 'completed',
-      resultSummary: 'finished mapping',
-    });
-
-    await hook.injectBackgroundJobBoard({}, messages);
-
-    const boardParts = messages.messages.flatMap((message) =>
-      message.parts.filter(
-        (part) => part.metadata?.[BACKGROUND_JOB_BOARD_METADATA_KEY] === true,
+    expect(
+      messages.messages[1].parts.some(
+        (part) =>
+          (part as { metadata?: Record<string, unknown> }).metadata?.[
+            BACKGROUND_JOB_BOARD_METADATA_KEY
+          ] === true,
       ),
-    );
-    expect(boardParts).toHaveLength(2);
-    expect(boardParts[0].text).toContain('running');
-    expect(boardParts[1].text).toContain('completed, unreconciled');
-    expect(messages.messages.at(-1)?.parts[0]).toBe(boardParts[1]);
-  });
-
-  test('does not append an unchanged board in checkpoint-compatible mode', async () => {
-    const board = new BackgroundJobBoard();
-    board.registerLaunch({
-      taskID: 'child-1',
-      parentSessionID: 'parent-1',
-      agent: 'explorer',
-      description: 'map hooks',
-    });
-    const { hook } = createHook({
-      backgroundJobBoard: board,
-      strategy: 'checkpoint-compatible',
-    });
-    const messages = createMessages('parent-1');
-
-    await hook.injectBackgroundJobBoard({}, messages);
-    await hook.injectBackgroundJobBoard({}, messages);
-
-    const boardParts = messages.messages.flatMap((message) =>
-      message.parts.filter(
-        (part) => part.metadata?.[BACKGROUND_JOB_BOARD_METADATA_KEY] === true,
-      ),
-    );
-    expect(boardParts).toHaveLength(1);
-    expect(messages.messages.at(-1)?.parts[0]).toBe(boardParts[0]);
+    ).toBe(false);
   });
 
   test('clears checkpoint snapshots when a session is recreated', async () => {
@@ -1823,7 +1767,7 @@ describe('task-session-manager hook', () => {
     expect(boardText(resetRequest)).toContain('completed, unreconciled');
   });
 
-  test('board-off still retires consumed terminal jobs without injecting any board part', async () => {
+  test('board-off retires an observed native delivery without injecting any board part', async () => {
     const board = new BackgroundJobBoard();
     board.registerLaunch({
       taskID: 'child-1',
@@ -1835,15 +1779,18 @@ describe('task-session-manager hook', () => {
       taskID: 'child-1',
       state: 'completed',
       resultSummary: 'done',
+      now: 1000,
     });
     const { hook } = createHook({
       backgroundJobBoard: board,
       boardInjection: false,
+      hostFlavor: 'v2',
       idleReconcileDelayMs: 0,
     });
 
-    // First real orchestrator turn: no board part is placed, but the
-    // natively delivered terminal job registers for consumption.
+    // First real orchestrator turn, no delivery yet: no board part is
+    // placed and the terminal job stays unreconciled — nothing is
+    // registered against the prompt shape anymore.
     const firstRequest = createMessages('parent-1', 'first turn');
     await transformMessages(hook, firstRequest);
     expect(
@@ -1855,22 +1802,937 @@ describe('task-session-manager hook', () => {
       state: 'completed',
       terminalUnreconciled: true,
     });
+    expect(board.hasTerminalUnreconciled('parent-1')).toBe(true);
 
-    // Next real turn with an advanced prompt shape retires the job.
-    const secondRequest = createAnchoredMessages('parent-1', [
-      'first turn',
-      'consumed the native result',
-      'next step',
-    ]);
-    await transformMessages(hook, secondRequest);
+    // The host's native delivery lands in history: the observer retires
+    // the record on this transform, still with no board part placed.
+    const deliveredRequest = {
+      messages: [
+        ...firstRequest.messages,
+        {
+          info: {
+            id: 'delivery-1',
+            role: 'user',
+            agent: 'orchestrator',
+            sessionID: 'parent-1',
+          },
+          parts: [
+            {
+              type: 'text',
+              text: '<subagent sessionID="child-1" state="completed" description="map hooks">\ndone\n</subagent>',
+              metadata: {
+                source: 'subagent',
+                childID: 'child-1',
+                state: 'completed',
+              },
+            },
+          ],
+        },
+      ],
+    };
+    await transformMessages(hook, deliveredRequest as never);
     expect(
-      secondRequest.messages.flatMap((message) =>
-        message.parts.filter((part) => isBoardPartForTest(part)),
+      deliveredRequest.messages.flatMap((message) =>
+        (message as { parts: unknown[] }).parts.filter((part) =>
+          isBoardPartForTest(part as { metadata?: Record<string, unknown> }),
+        ),
       ),
     ).toHaveLength(0);
     expect(board.get('child-1')).toMatchObject({
       state: 'reconciled',
       terminalUnreconciled: false,
+    });
+    expect(board.hasTerminalUnreconciled('parent-1')).toBe(false);
+
+    // Replaying the same history is a dedupe no-op.
+    await transformMessages(hook, deliveredRequest as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'reconciled',
+      terminalUnreconciled: false,
+    });
+  });
+
+  test('board-off ignores deliveries for unknown sessionIDs', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'completed',
+      resultSummary: 'done',
+      now: 1000,
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      boardInjection: false,
+      hostFlavor: 'v2',
+      idleReconcileDelayMs: 0,
+    });
+
+    const deliveredRequest = {
+      messages: [
+        {
+          info: {
+            role: 'user',
+            agent: 'orchestrator',
+            sessionID: 'parent-1',
+          },
+          parts: [{ type: 'text', text: 'first turn' }],
+        },
+        {
+          info: { id: 'delivery-unknown', role: 'user', sessionID: 'parent-1' },
+          parts: [
+            {
+              type: 'text',
+              text: '<subagent sessionID="child-unknown" state="completed" description="other">\ndone\n</subagent>',
+              metadata: {
+                source: 'subagent',
+                childID: 'child-unknown',
+                state: 'completed',
+              },
+            },
+          ],
+        },
+      ],
+    };
+    await transformMessages(hook, deliveredRequest as never);
+    expect(board.get('child-unknown')).toBeUndefined();
+    expect(board.get('child-1')).toMatchObject({
+      state: 'completed',
+      terminalUnreconciled: true,
+    });
+  });
+
+  test('board-off ignores a mismatched delivery for a stopped record', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'stopped',
+      resultSummary: 'stopped without a terminal result',
+      now: 1000,
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      boardInjection: false,
+      hostFlavor: 'v2',
+      idleReconcileDelayMs: 0,
+    });
+
+    // Even a completed-shaped delivery for the stopped taskID cannot retire
+    // it: state equality fails, and stops retire only through the
+    // recovery-wake + task_revive ack flow.
+    const deliveredRequest = {
+      messages: [
+        {
+          info: {
+            role: 'user',
+            agent: 'orchestrator',
+            sessionID: 'parent-1',
+          },
+          parts: [{ type: 'text', text: 'first turn' }],
+        },
+        {
+          info: { id: 'delivery-1', role: 'user', sessionID: 'parent-1' },
+          parts: [
+            {
+              type: 'text',
+              text: '<subagent sessionID="child-1" state="completed" description="map hooks">\ndone\n</subagent>',
+              metadata: {
+                source: 'subagent',
+                childID: 'child-1',
+                state: 'completed',
+              },
+            },
+          ],
+        },
+      ],
+    };
+    await transformMessages(hook, deliveredRequest as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'stopped',
+      terminalUnreconciled: true,
+    });
+  });
+
+  test('board-off pairs repeated deliveries FIFO across terminal revisions', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'completed',
+      resultSummary: 'first result',
+      now: 1000,
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      boardInjection: false,
+      hostFlavor: 'v2',
+      idleReconcileDelayMs: 0,
+    });
+    const firstRevision = board.get('child-1')?.terminalRevision;
+
+    const firstDelivery = {
+      info: { id: 'delivery-1', role: 'user', sessionID: 'parent-1' },
+      parts: [
+        {
+          type: 'text',
+          text: '<subagent sessionID="child-1" state="completed" description="map hooks">\nfirst result\n</subagent>',
+          metadata: {
+            source: 'subagent',
+            childID: 'child-1',
+            state: 'completed',
+          },
+        },
+      ],
+    };
+    await transformMessages(hook, {
+      messages: [
+        createMessages('parent-1', 'first turn').messages[0],
+        firstDelivery,
+      ],
+    } as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'reconciled',
+      terminalUnreconciled: false,
+      terminalRevision: firstRevision,
+    });
+
+    // The run reopens and completes again: a second native delivery for
+    // the newer revision retires it, while replaying the first delivery is
+    // a dedupe no-op.
+    board.markRunningFromLiveSession('child-1', 1500);
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'completed',
+      resultSummary: 'second result',
+      now: 2000,
+    });
+    const secondRevision = board.get('child-1')?.terminalRevision;
+    expect(secondRevision).not.toBe(firstRevision);
+    expect(board.get('child-1')).toMatchObject({ terminalUnreconciled: true });
+
+    const secondDelivery = {
+      info: { id: 'delivery-2', role: 'user', sessionID: 'parent-1' },
+      parts: [
+        {
+          type: 'text',
+          text: '<subagent sessionID="child-1" state="completed" description="map hooks">\nsecond result\n</subagent>',
+          metadata: {
+            source: 'subagent',
+            childID: 'child-1',
+            state: 'completed',
+          },
+        },
+      ],
+    };
+    const replayedHistory = {
+      messages: [
+        createMessages('parent-1', 'first turn').messages[0],
+        firstDelivery,
+        secondDelivery,
+      ],
+    };
+    await transformMessages(hook, replayedHistory as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'reconciled',
+      terminalUnreconciled: false,
+      terminalRevision: secondRevision,
+    });
+  });
+
+  test('board-off fallback retires a completed record older than the newest parent assistant turn', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'completed',
+      resultSummary: 'done',
+      now: 1000,
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      boardInjection: false,
+      hostFlavor: 'v2',
+      idleReconcileDelayMs: 0,
+    });
+
+    // No native delivery in history, but the parent demonstrably moved
+    // past the terminal report: unconditional retire.
+    const advancedRequest = {
+      messages: [
+        {
+          info: { id: 'm-1', role: 'user', sessionID: 'parent-1' },
+          parts: [{ type: 'text', text: 'first turn' }],
+        },
+        {
+          info: {
+            id: 'm-2',
+            role: 'assistant',
+            sessionID: 'parent-1',
+            time: { created: 2000 },
+          },
+          parts: [{ type: 'text', text: 'consumed the native result' }],
+        },
+      ],
+    };
+    await transformMessages(hook, advancedRequest as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'reconciled',
+      terminalUnreconciled: false,
+    });
+  });
+
+  test('board-off fallback retires on v2 wire-form numeric timestamps', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'completed',
+      resultSummary: 'done',
+      now: 1000,
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      boardInjection: false,
+      idleReconcileDelayMs: 0,
+    });
+
+    // JSON round-trips of a v2 message carry `time` as a finite
+    // epoch-millis number. The fallback must read it too.
+    const advancedRequest = {
+      messages: [
+        {
+          info: { id: 'm-1', role: 'user', sessionID: 'parent-1' },
+          parts: [{ type: 'text', text: 'first turn' }],
+        },
+        {
+          info: {
+            id: 'm-2',
+            role: 'assistant',
+            sessionID: 'parent-1',
+            time: 2000,
+          },
+          parts: [{ type: 'text', text: 'consumed the native result' }],
+        },
+      ],
+    };
+    await transformMessages(hook, advancedRequest as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'reconciled',
+      terminalUnreconciled: false,
+    });
+  });
+
+  test('board-off fallback retires on v2 decoded DateTime.Utc timestamps', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'completed',
+      resultSummary: 'done',
+      now: 1000,
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      boardInjection: false,
+      idleReconcileDelayMs: 0,
+    });
+
+    // The host decodes Session.Message.time into Effect DateTime.Utc
+    // instances: `created` is a struct with `epochMilliseconds`, not a
+    // number. The stale fallback must read it (greptile P1: the fallback
+    // never fired on real v2 messages).
+    const advancedRequest = {
+      messages: [
+        {
+          info: { id: 'm-1', role: 'user', sessionID: 'parent-1' },
+          parts: [{ type: 'text', text: 'first turn' }],
+        },
+        {
+          info: {
+            id: 'm-2',
+            role: 'assistant',
+            sessionID: 'parent-1',
+            time: { created: { _tag: 'Utc', epochMilliseconds: 2000 } },
+          },
+          parts: [{ type: 'text', text: 'consumed the native result' }],
+        },
+      ],
+    };
+    await transformMessages(hook, advancedRequest as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'reconciled',
+      terminalUnreconciled: false,
+    });
+  });
+
+  test('board-off fallback fails closed without comparable timestamps', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'completed',
+      resultSummary: 'done',
+      now: 3000,
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      boardInjection: false,
+      hostFlavor: 'v2',
+      idleReconcileDelayMs: 0,
+    });
+
+    // The terminal report (3000) is NEWER than the newest assistant turn
+    // (2000): the parent has not moved past it, so it stays unreconciled.
+    const pendingRequest = {
+      messages: [
+        {
+          info: { id: 'm-1', role: 'user', sessionID: 'parent-1' },
+          parts: [{ type: 'text', text: 'first turn' }],
+        },
+        {
+          info: {
+            id: 'm-2',
+            role: 'assistant',
+            sessionID: 'parent-1',
+            time: { created: 2000 },
+          },
+          parts: [{ type: 'text', text: 'still working' }],
+        },
+      ],
+    };
+    await transformMessages(hook, pendingRequest as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'completed',
+      terminalUnreconciled: true,
+    });
+
+    // And history without any assistant timestamps cannot retire either.
+    await transformMessages(
+      hook,
+      createAnchoredMessages('parent-1', ['first turn', 'next step']) as never,
+    );
+    expect(board.get('child-1')).toMatchObject({
+      state: 'completed',
+      terminalUnreconciled: true,
+    });
+  });
+
+  test('v1 board-off (default flavor) retires cancelled records via prompt-shape consumption', async () => {
+    // Greptile P1-1 regression: v1 delivers completions in untagged formats
+    // the native-delivery observer cannot parse, and the stale-terminal
+    // fallback excludes cancelled — so v1 board-off must keep the
+    // prompt-shape consumption path or cancelled records stay unreconciled
+    // forever (pending delegated work, same-objective rejections).
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'cancelled',
+      resultSummary: 'cancelled by user',
+      now: 1000,
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      boardInjection: false,
+      idleReconcileDelayMs: 0,
+    });
+
+    // First turn: the cancelled record registers against the prompt shape
+    // (cancelled is not stopped — the recovery wake does not own it).
+    await transformMessages(hook, createMessages('parent-1', 'first turn'));
+    expect(board.get('child-1')).toMatchObject({
+      state: 'cancelled',
+      terminalUnreconciled: true,
+    });
+
+    // The parent demonstrably moved past the shaped delivery: retire.
+    await transformMessages(
+      hook,
+      createAnchoredMessages('parent-1', ['first turn', 'next step']) as never,
+    );
+    expect(board.get('child-1')).toMatchObject({
+      state: 'reconciled',
+      terminalUnreconciled: false,
+    });
+  });
+
+  test('v2 board-off retries a delivery observed before its gate reconciled', async () => {
+    // Greptile P1-2 regression: child idle events start terminalGate.reconcile
+    // without awaiting it, so a delivery can reach a transform while the
+    // board still says running. The observer must NOT consume that delivery —
+    // a consumed-early key would forget it forever (cancelled has no
+    // timestamp fallback).
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      boardInjection: false,
+      hostFlavor: 'v2',
+      idleReconcileDelayMs: 0,
+    });
+
+    const raceRequest = {
+      messages: [
+        createMessages('parent-1', 'first turn').messages[0],
+        {
+          info: { id: 'delivery-1', role: 'user', sessionID: 'parent-1' },
+          parts: [
+            {
+              type: 'text',
+              text: '<subagent sessionID="child-1" state="completed" description="map hooks">\ndone\n</subagent>',
+              metadata: {
+                source: 'subagent',
+                childID: 'child-1',
+                state: 'completed',
+              },
+            },
+          ],
+        },
+      ],
+    };
+    // Record still running: the delivery is present but not consumable.
+    await transformMessages(hook, raceRequest as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'running',
+      terminalUnreconciled: false,
+    });
+
+    // The gate finishes; the SAME delivery (still in history, still
+    // unconsumed) retires the record on the next transform.
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'completed',
+      resultSummary: 'done',
+      now: 1000,
+    });
+    expect(board.get('child-1')).toMatchObject({ terminalUnreconciled: true });
+    await transformMessages(hook, raceRequest as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'reconciled',
+      terminalUnreconciled: false,
+    });
+  });
+
+  test('v2 board-off clears consumed delivery keys when the parent session ends', () => {
+    // Greptile P2 regression: per-parent key sets must not outlive their
+    // parent. pruneReopenCorrectionState is the session-end hook (wired at
+    // task-session-manager/index.ts), so the keys die with the parent's
+    // other bookkeeping; a recreated session only ever produces fresh
+    // message IDs.
+    const state = {
+      reportedTerminalRunsByParent: new Map([
+        ['parent-1', new Map()],
+      ]) as unknown as InjectionState['reportedTerminalRunsByParent'],
+      observedNativeDeliveries: new Map([
+        ['parent-1', new Set(['delivery-1:0:abc'])],
+        ['parent-2', new Set(['delivery-2:0:def'])],
+      ]) as unknown as InjectionState['observedNativeDeliveries'],
+    } as never as InjectionState;
+    pruneReopenCorrectionState(state, 'parent-1');
+    expect(state.observedNativeDeliveries?.has('parent-1')).toBe(false);
+    // Other parents are untouched.
+    expect(state.observedNativeDeliveries?.has('parent-2')).toBe(true);
+    expect(state.reportedTerminalRunsByParent?.has('parent-1')).toBe(false);
+  });
+
+  test('v2 board-off never retires a reopened run through an older mismatched delivery', async () => {
+    // Greptile P1-2: an old delivery left pending while a child runs can
+    // mis-pair with a later same-state completion. Pairing is one-shot per
+    // publication: the delivery below was authored for the FIRST terminal
+    // publication (state mismatched, so it retired nothing); after the run
+    // reopens and completes again, the remembered key can never pair the
+    // NEWER publication — only the run's own delivery (or the
+    // stale-terminal fallback) retires it. Council-b's "pending until
+    // match" semantics are refuted: matching only by state and launch time
+    // is exactly the mis-pairing Greptile flagged.
+    const BASE = 1_760_000_000_000;
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+      now: BASE + 500,
+    });
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'error',
+      resultSummary: 'failed',
+      now: BASE + 1000,
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      boardInjection: false,
+      hostFlavor: 'v2',
+      idleReconcileDelayMs: 0,
+    });
+    const staleDelivery = {
+      info: {
+        id: 'delivery-1',
+        role: 'user',
+        sessionID: 'parent-1',
+        time: { created: BASE + 1200 },
+      },
+      parts: [
+        {
+          type: 'text',
+          text: '<subagent sessionID="child-1" state="completed" description="map hooks">\ndone\n</subagent>',
+          metadata: {
+            source: 'subagent',
+            childID: 'child-1',
+            state: 'completed',
+          },
+        },
+      ],
+    };
+    await transformMessages(hook, {
+      messages: [
+        createMessages('parent-1', 'first turn').messages[0],
+        staleDelivery,
+      ],
+    } as never);
+    // Observed while the record was error-terminal: state mismatch, key
+    // remembered, nothing retired.
+    expect(board.get('child-1')).toMatchObject({
+      state: 'error',
+      terminalUnreconciled: true,
+    });
+
+    // The run reopens and completes with the state the OLD delivery
+    // reports. The remembered key must not pair this newer publication.
+    board.markRunningFromLiveSession('child-1', BASE + 1500);
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'completed',
+      resultSummary: 'done',
+      now: BASE + 2000,
+    });
+    expect(board.get('child-1')).toMatchObject({ terminalUnreconciled: true });
+    await transformMessages(hook, {
+      messages: [
+        createMessages('parent-1', 'second turn').messages[0],
+        staleDelivery,
+      ],
+    } as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'completed',
+      terminalUnreconciled: true,
+    });
+
+    // The run's own delivery (authored after this publication) retires it.
+    await transformMessages(hook, {
+      messages: [
+        createMessages('parent-1', 'second turn').messages[0],
+        staleDelivery,
+        {
+          info: {
+            id: 'delivery-2',
+            role: 'user',
+            sessionID: 'parent-1',
+            time: { created: BASE + 2500 },
+          },
+          parts: [
+            {
+              type: 'text',
+              text: '<subagent sessionID="child-1" state="completed" description="map hooks">\nnew result\n</subagent>',
+              metadata: {
+                source: 'subagent',
+                childID: 'child-1',
+                state: 'completed',
+              },
+            },
+          ],
+        },
+      ],
+    } as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'reconciled',
+      terminalUnreconciled: false,
+    });
+  });
+
+  test('v2 board-off ignores pasted delivery-shaped text without host metadata', async () => {
+    // Greptile P1: a user or assistant text part pasting a delivery-shaped
+    // body must never acknowledge a child — only the host's
+    // sessions.synthetic part carries
+    // metadata {source:'subagent', childID, state}, and it must agree with
+    // the tag header.
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+      now: 500,
+    });
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'completed',
+      resultSummary: 'done',
+      now: 1000,
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      boardInjection: false,
+      hostFlavor: 'v2',
+      idleReconcileDelayMs: 0,
+    });
+    const pastedRequest = {
+      messages: [
+        createMessages('parent-1', 'first turn').messages[0],
+        {
+          info: {
+            id: 'delivery-1',
+            role: 'user',
+            sessionID: 'parent-1',
+            time: { created: 3000 },
+          },
+          parts: [
+            {
+              type: 'text',
+              text: '<subagent sessionID="child-1" state="completed" description="map hooks">\ndone\n</subagent>',
+            },
+          ],
+        },
+      ],
+    };
+    await transformMessages(hook, pastedRequest as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'completed',
+      terminalUnreconciled: true,
+    });
+
+    // Metadata that disagrees with the tag header is equally rejected.
+    const mismatched = {
+      messages: [
+        createMessages('parent-1', 'second turn').messages[0],
+        {
+          info: {
+            id: 'delivery-2',
+            role: 'user',
+            sessionID: 'parent-1',
+            time: { created: 3100 },
+          },
+          parts: [
+            {
+              type: 'text',
+              text: '<subagent sessionID="child-1" state="completed" description="map hooks">\ndone\n</subagent>',
+              metadata: {
+                source: 'subagent',
+                childID: 'child-1',
+                state: 'error',
+              },
+            },
+          ],
+        },
+      ],
+    };
+    await transformMessages(hook, mismatched as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'completed',
+      terminalUnreconciled: true,
+    });
+  });
+
+  test('v2 board-off consumes a delivery provably older than the current launch', async () => {
+    // Council-b blocker 2: state equality alone can mis-pair an older
+    // run's delivery with a newer run. A delivery authored BEFORE the
+    // record's last launch predates the current run and every future one
+    // (lastLaunchedAt only advances), so it is consumed without retiring —
+    // and cannot mis-retire a reopened run of the same state.
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+      now: 500,
+    });
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'completed',
+      resultSummary: 'done',
+      now: 1000,
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      boardInjection: false,
+      hostFlavor: 'v2',
+      idleReconcileDelayMs: 0,
+    });
+    const staleDelivery = {
+      info: {
+        id: 'delivery-1',
+        role: 'user',
+        sessionID: 'parent-1',
+        time: { created: 400 },
+      },
+      parts: [
+        {
+          type: 'text',
+          text: '<subagent sessionID="child-1" state="completed" description="map hooks">\nold result\n</subagent>',
+          metadata: {
+            source: 'subagent',
+            childID: 'child-1',
+            state: 'completed',
+          },
+        },
+      ],
+    };
+    await transformMessages(hook, {
+      messages: [
+        createMessages('parent-1', 'first turn').messages[0],
+        staleDelivery,
+      ],
+    } as never);
+    // time 400 < lastLaunchedAt 500: consumed as provably stale, no retire.
+    expect(board.get('child-1')).toMatchObject({
+      state: 'completed',
+      terminalUnreconciled: true,
+    });
+
+    // A later relaunch + same-state completion is NOT retired by the stale
+    // delivery: its key is burned and the timestamp check rejects it anyway.
+    board.markRunningFromLiveSession('child-1', 2000);
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'completed',
+      resultSummary: 'new result',
+      now: 2500,
+    });
+    await transformMessages(hook, {
+      messages: [
+        createMessages('parent-1', 'second turn').messages[0],
+        staleDelivery,
+      ],
+    } as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'completed',
+      terminalUnreconciled: true,
+    });
+
+    // The run's own delivery (newer than the relaunch) retires it.
+    await transformMessages(hook, {
+      messages: [
+        createMessages('parent-1', 'second turn').messages[0],
+        staleDelivery,
+        {
+          info: {
+            id: 'delivery-2',
+            role: 'user',
+            sessionID: 'parent-1',
+            time: { created: 3000 },
+          },
+          parts: [
+            {
+              type: 'text',
+              text: '<subagent sessionID="child-1" state="completed" description="map hooks">\nnew result\n</subagent>',
+              metadata: {
+                source: 'subagent',
+                childID: 'child-1',
+                state: 'completed',
+              },
+            },
+          ],
+        },
+      ],
+    } as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'reconciled',
+      terminalUnreconciled: false,
+    });
+  });
+
+  test('board-on (v1) leaves an observed-shaped delivery to prompt-shape retirement', async () => {
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+    });
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'completed',
+      resultSummary: 'done',
+      now: 1000,
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      idleReconcileDelayMs: 0,
+    });
+
+    // v1 never runs the native observer: the terminal job registers for
+    // consumption retirement exactly as before, even with a
+    // delivery-shaped part already in history.
+    const deliveredRequest = {
+      messages: [
+        {
+          info: { id: 'delivery-1', role: 'user', sessionID: 'parent-1' },
+          parts: [
+            {
+              type: 'text',
+              text: '<subagent sessionID="child-1" state="completed" description="map hooks">\ndone\n</subagent>',
+              metadata: {
+                source: 'subagent',
+                childID: 'child-1',
+                state: 'completed',
+              },
+            },
+          ],
+        },
+      ],
+    };
+    await transformMessages(hook, deliveredRequest as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'completed',
+      terminalUnreconciled: true,
     });
   });
 
@@ -1894,14 +2756,14 @@ describe('task-session-manager hook', () => {
     const { hook } = createHook({
       backgroundJobBoard: board,
       boardInjection: false,
+      hostFlavor: 'v2',
       idleReconcileDelayMs: 0,
     });
 
-    // A real user turn registers natively delivered terminal jobs — but a
-    // stop was never natively delivered, so it must stay unreconciled for
-    // the stopped-job recovery wake to surface (registering it would let
-    // the wake's isCurrent check drop the stop before the parent has seen
-    // it, and would clear the same-objective dispatch safeguard).
+    // A stop was never natively delivered, so it must stay unreconciled
+    // for the stopped-job recovery wake to surface (retiring it here would
+    // let the wake's isCurrent check drop the stop before the parent has
+    // seen it, and would clear the same-objective dispatch safeguard).
     await transformMessages(hook, createMessages('parent-1', 'first turn'));
     expect(board.get('child-1')).toMatchObject({
       state: 'stopped',
@@ -1921,124 +2783,6 @@ describe('task-session-manager hook', () => {
     // the unreconciled flag once the parent has acted on the stop.
     expect(board.get('child-1')).toMatchObject({
       state: 'stopped',
-      terminalUnreconciled: false,
-    });
-  });
-
-  test('retains checkpoint snapshots across fresh storage-derived message arrays', async () => {
-    const board = new BackgroundJobBoard();
-    board.registerLaunch({
-      taskID: 'child-1',
-      parentSessionID: 'parent-1',
-      agent: 'explorer',
-      description: 'map hooks',
-    });
-    board.updateStatus({
-      taskID: 'child-1',
-      state: 'completed',
-      resultSummary: 'done',
-    });
-    const { hook } = createHook({
-      backgroundJobBoard: board,
-      strategy: 'checkpoint-compatible',
-      idleReconcileDelayMs: 0,
-    });
-    const firstRequest = createMessages('parent-1', 'first turn');
-
-    await transformMessages(hook, firstRequest);
-    const storedMessages = JSON.parse(
-      JSON.stringify(
-        firstRequest.messages.filter(
-          (message) =>
-            !message.parts?.some(
-              (part) =>
-                part.metadata?.[BACKGROUND_JOB_BOARD_METADATA_KEY] === true,
-            ),
-        ),
-      ),
-    );
-
-    const secondRequest = { messages: storedMessages };
-    await transformMessages(hook, secondRequest);
-
-    const boardParts = secondRequest.messages.flatMap((message) =>
-      message.parts.filter(
-        (part) => part.metadata?.[BACKGROUND_JOB_BOARD_METADATA_KEY] === true,
-      ),
-    );
-    expect(boardParts).toHaveLength(1);
-    expect(boardParts[0].text).toContain('completed, unreconciled');
-    expect(boardParts[0].synthetic).toBe(true);
-
-    await hook.event({
-      event: {
-        type: 'session.status',
-        properties: { sessionID: 'parent-1', status: { type: 'idle' } },
-      },
-    });
-    await flushContinuation();
-
-    expect(board.get('child-1')).toMatchObject({
-      state: 'reconciled',
-      terminalUnreconciled: false,
-    });
-  });
-
-  test('replays snapshots immediately after their anchors in fresh arrays', async () => {
-    const board = new BackgroundJobBoard();
-    board.registerLaunch({
-      taskID: 'child-1',
-      parentSessionID: 'parent-1',
-      agent: 'explorer',
-      description: 'map hooks',
-    });
-    const { hook } = createHook({
-      backgroundJobBoard: board,
-      strategy: 'checkpoint-compatible',
-      idleReconcileDelayMs: 0,
-    });
-    const first = createAnchoredMessages('parent-1', ['R1']);
-
-    await hook.injectBackgroundJobBoard({}, first);
-    board.updateStatus({
-      taskID: 'child-1',
-      state: 'completed',
-      resultSummary: 'done',
-    });
-
-    const second = {
-      messages: createAnchoredMessages('parent-1', ['R1', 'A1', 'U2']).messages,
-    };
-    await hook.injectBackgroundJobBoard({}, second);
-    const order = second.messages.flatMap((message) =>
-      message.parts.map((part) => part.text),
-    );
-
-    expect(order).toEqual([
-      'R1',
-      expect.stringContaining('running'),
-      'A1',
-      'U2',
-      expect.stringContaining('completed, unreconciled'),
-    ]);
-
-    const third = { messages: JSON.parse(JSON.stringify(second.messages)) };
-    await hook.injectBackgroundJobBoard({}, third);
-    expect(
-      third.messages.filter((message) =>
-        message.parts.some((part) => isBoardPartForTest(part)),
-      ),
-    ).toHaveLength(2);
-
-    await hook.event({
-      event: {
-        type: 'session.status',
-        properties: { sessionID: 'parent-1', status: { type: 'idle' } },
-      },
-    });
-    await flushContinuation();
-    expect(board.get('child-1')).toMatchObject({
-      state: 'reconciled',
       terminalUnreconciled: false,
     });
   });
@@ -2077,103 +2821,6 @@ describe('task-session-manager hook', () => {
       state: 'reconciled',
       terminalUnreconciled: false,
     });
-  });
-
-  test('resets checkpoint snapshots after compaction', async () => {
-    const board = new BackgroundJobBoard();
-    board.registerLaunch({
-      taskID: 'child-1',
-      parentSessionID: 'parent-1',
-      agent: 'explorer',
-      description: 'map hooks',
-    });
-    const { hook } = createHook({
-      backgroundJobBoard: board,
-      strategy: 'checkpoint-compatible',
-    });
-    const first = createMessages('parent-1', 'before compaction');
-    await hook.injectBackgroundJobBoard({}, first);
-
-    const compacted = createMessages('parent-1', 'compacted history');
-    await hook.injectBackgroundJobBoard({}, compacted);
-
-    expect(
-      compacted.messages.filter((message) =>
-        message.parts.some((part) => isBoardPartForTest(part)),
-      ),
-    ).toHaveLength(1);
-  });
-
-  test('starts a new checkpoint cache epoch at the snapshot limit', async () => {
-    const board = new BackgroundJobBoard();
-    const { hook } = createHook({
-      backgroundJobBoard: board,
-      strategy: 'checkpoint-compatible',
-    });
-
-    const history: string[] = ['root'];
-    for (let turn = 0; turn < 20; turn += 1) {
-      // Register a distinct job for each turn
-      const taskID = `child-${turn}`;
-      board.registerLaunch({
-        taskID,
-        parentSessionID: 'parent-1',
-        agent: 'explorer',
-        description: `map hooks turn ${turn}`,
-      });
-      // Complete the job immediately
-      board.updateStatus({
-        taskID,
-        state: 'completed',
-        resultSummary: `result-${turn}`,
-      });
-      history.push(`turn-${turn}`);
-      const request = createAnchoredMessages('parent-1', history);
-      await hook.injectBackgroundJobBoard({}, request);
-
-      if (turn === 19) {
-        expect(boardSnapshotIDs(request)).toHaveLength(20);
-        expect(boardSnapshotIDs(request)[0]).toEndWith(':0');
-        expect(boardSnapshotIDs(request)[19]).toEndWith(':19');
-      }
-    }
-
-    history.push('epoch-2-turn-1');
-    // Register and complete first job in epoch 2
-    board.registerLaunch({
-      taskID: 'child-20',
-      parentSessionID: 'parent-1',
-      agent: 'explorer',
-      description: 'map hooks epoch 2 turn 1',
-    });
-    board.updateStatus({
-      taskID: 'child-20',
-      state: 'completed',
-      resultSummary: 'epoch-2-result-1',
-    });
-    const epochStart = createAnchoredMessages('parent-1', history);
-    await hook.injectBackgroundJobBoard({}, epochStart);
-    expect(boardSnapshotIDs(epochStart)).toHaveLength(1);
-    expect(boardSnapshotIDs(epochStart)[0]).toEndWith(':20');
-
-    history.push('epoch-2-turn-2');
-    // Register and complete second job in epoch 2
-    board.registerLaunch({
-      taskID: 'child-21',
-      parentSessionID: 'parent-1',
-      agent: 'explorer',
-      description: 'map hooks epoch 2 turn 2',
-    });
-    board.updateStatus({
-      taskID: 'child-21',
-      state: 'completed',
-      resultSummary: 'epoch-2-result-2',
-    });
-    const secondEpochRequest = createAnchoredMessages('parent-1', history);
-    await hook.injectBackgroundJobBoard({}, secondEpochRequest);
-    expect(boardSnapshotIDs(secondEpochRequest)).toHaveLength(2);
-    expect(boardSnapshotIDs(secondEpochRequest)[0]).toEndWith(':20');
-    expect(boardSnapshotIDs(secondEpochRequest)[1]).toEndWith(':21');
   });
 
   test('strips the tail board when no jobs produce a prompt, leaving mid-history', async () => {
@@ -2769,7 +3416,7 @@ describe('task-session-manager hook', () => {
       ),
     ).rejects.toThrow('awaiting acknowledgment');
 
-    // task_result retrieval marks the job used after completion (#1070 escape hatch).
+    // A task_status result read marks the job used after completion (#1070 escape hatch).
     board.markUsed('parent-1', 'child-1', 300);
     await hook['tool.execute.before'](
       { tool: 'task', sessionID: 'parent-1', callID: 'retry-1' },
@@ -3638,223 +4285,6 @@ describe('task-session-manager hook', () => {
     });
   });
 
-  test('checkpoint replay does not reconcile a relaunch with the same task ID', async () => {
-    const board = new BackgroundJobBoard();
-    const { hook } = createHook({
-      backgroundJobBoard: board,
-      strategy: 'checkpoint-compatible',
-      idleReconcileDelayMs: 0,
-    });
-
-    board.registerLaunch({
-      taskID: 'child-1',
-      parentSessionID: 'parent-1',
-      agent: 'oracle',
-      description: 'first execution',
-    });
-    board.updateStatus({ taskID: 'child-1', state: 'completed' });
-
-    const firstRequest = createAnchoredMessages('parent-1', ['turn 1']);
-    await transformMessages(hook, firstRequest);
-    expect(boardSnapshotIDs(firstRequest)).toHaveLength(1);
-    expect(board.get('child-1')).toMatchObject({
-      generation: 1,
-      terminalUnreconciled: true,
-    });
-
-    await hook.event({
-      event: {
-        type: 'session.status',
-        properties: { sessionID: 'parent-1', status: { type: 'idle' } },
-      },
-    });
-    await flushChildIdleReconcile();
-    expect(board.get('child-1')).toMatchObject({
-      generation: 1,
-      state: 'reconciled',
-    });
-
-    board.drop('child-1');
-    board.registerLaunch({
-      taskID: 'child-1',
-      parentSessionID: 'parent-1',
-      agent: 'oracle',
-      description: 'second execution',
-    });
-    board.updateStatus({
-      taskID: 'child-1',
-      state: 'completed',
-      resultSummary: 'second result',
-    });
-    expect(board.get('child-1')).toMatchObject({
-      generation: 2,
-      terminalUnreconciled: true,
-    });
-
-    // Hide the current board payload so only the stale generation-1 snapshot
-    // is delivered on this request.
-    board.formatForPromptWithMetadata = () => undefined;
-    const replayedRequest = createAnchoredMessages('parent-1', [
-      'turn 1',
-      'turn 2',
-    ]);
-    await transformMessages(hook, replayedRequest);
-    expect(boardSnapshotIDs(replayedRequest)).toEqual([
-      expect.stringMatching(
-        /^oh-my-opencode-slim:background-job-board:parent-1:[0-9a-f]+:0$/,
-      ),
-    ]);
-
-    await hook.event({
-      event: {
-        type: 'session.status',
-        properties: { sessionID: 'parent-1', status: { type: 'idle' } },
-      },
-    });
-    await flushChildIdleReconcile();
-
-    expect(board.get('child-1')).toMatchObject({
-      generation: 2,
-      state: 'completed',
-      terminalUnreconciled: true,
-      resultSummary: 'second result',
-    });
-  });
-
-  test('checkpoint creates a new execution-aware snapshot when visible board text is unchanged', async () => {
-    const board = new BackgroundJobBoard();
-    const { hook } = createHook({
-      backgroundJobBoard: board,
-      strategy: 'checkpoint-compatible',
-      idleReconcileDelayMs: 0,
-    });
-
-    board.registerLaunch({
-      taskID: 'child-1',
-      parentSessionID: 'parent-1',
-      agent: 'oracle',
-      description: 'same execution text',
-    });
-    board.updateStatus({
-      taskID: 'child-1',
-      state: 'completed',
-      resultSummary: 'same result',
-    });
-
-    const firstRequest = createAnchoredMessages('parent-1', ['turn 1']);
-    await transformMessages(hook, firstRequest);
-    const firstBoardText = boardText(firstRequest);
-    expect(firstBoardText).toContain('Result: same result');
-    expect(boardSnapshotIDs(firstRequest)).toEqual([
-      expect.stringMatching(
-        /^oh-my-opencode-slim:background-job-board:parent-1:[0-9a-f]+:0$/,
-      ),
-    ]);
-
-    await hook.event({
-      event: {
-        type: 'session.status',
-        properties: { sessionID: 'parent-1', status: { type: 'idle' } },
-      },
-    });
-    await flushChildIdleReconcile();
-
-    board.registerLaunch({
-      taskID: 'child-1',
-      parentSessionID: 'parent-1',
-      agent: 'oracle',
-      description: 'same execution text',
-    });
-    board.updateStatus({
-      taskID: 'child-1',
-      state: 'completed',
-      resultSummary: 'same result',
-    });
-    expect(board.formatForPrompt('parent-1')).toBe(firstBoardText);
-    expect(board.get('child-1')).toMatchObject({
-      generation: 2,
-      terminalUnreconciled: true,
-    });
-
-    let reconciliationCount = 0;
-    const markReconciled = board.markReconciled.bind(board);
-    board.markReconciled = (taskID, now) => {
-      reconciliationCount += 1;
-      return markReconciled(taskID, now);
-    };
-
-    const secondRequest = {
-      messages: [
-        ...firstRequest.messages,
-        {
-          info: {
-            role: 'assistant',
-            agent: 'orchestrator',
-            sessionID: 'parent-1',
-          },
-          parts: [{ type: 'text', text: 'response 1' }],
-        },
-      ],
-    };
-    await transformMessages(hook, secondRequest);
-    expect(boardSnapshotIDs(secondRequest)).toEqual([
-      expect.stringMatching(
-        /^oh-my-opencode-slim:background-job-board:parent-1:[0-9a-f]+:0$/,
-      ),
-      expect.stringMatching(
-        /^oh-my-opencode-slim:background-job-board:parent-1:[0-9a-f]+:1$/,
-      ),
-    ]);
-
-    await hook.event({
-      event: {
-        type: 'session.status',
-        properties: { sessionID: 'parent-1', status: { type: 'idle' } },
-      },
-    });
-    await flushChildIdleReconcile();
-
-    expect(reconciliationCount).toBe(1);
-    expect(board.get('child-1')).toMatchObject({
-      generation: 2,
-      state: 'reconciled',
-      terminalUnreconciled: false,
-    });
-  });
-
-  test('checkpoint snapshot ids do not repeat after a restart', async () => {
-    const board = new BackgroundJobBoard();
-    board.registerLaunch({
-      taskID: 'child-1',
-      parentSessionID: 'parent-1',
-      agent: 'oracle',
-      description: 'restart check',
-    });
-    board.updateStatus({
-      taskID: 'child-1',
-      state: 'completed',
-      resultSummary: 'restart result',
-    });
-
-    const idsAfterStart = async () => {
-      // A fresh hook has empty in-memory snapshot state, like a new process.
-      const { hook } = createHook({
-        backgroundJobBoard: board,
-        strategy: 'checkpoint-compatible',
-      });
-      const request = createAnchoredMessages('parent-1', ['turn 1']);
-      await transformMessages(hook, request);
-      return boardSnapshotIDs(request);
-    };
-
-    const beforeRestart = await idsAfterStart();
-    const afterRestart = await idsAfterStart();
-
-    expect(beforeRestart).toHaveLength(1);
-    expect(afterRestart).toHaveLength(1);
-    expect(afterRestart[0]).not.toBe(beforeRestart[0]);
-  });
-
   test('ignores non-synthetic user text that resembles task status', async () => {
     const board = new BackgroundJobBoard();
     const { hook } = createHook({ backgroundJobBoard: board });
@@ -4721,11 +5151,27 @@ describe('task-session-manager hook', () => {
       state: 'reconciled',
       terminalUnreconciled: false,
     });
-    // The board should no longer show the Result line
-    expect(boardText(request2)).toContain(
+    // Change-only: an assistant tail renders nothing (the placement defers
+    // to the next user-side tail), so the reconciled board surfaces on a
+    // follow-up user turn — and no longer shows the Result line.
+    const request3 = {
+      messages: [
+        ...request2.messages,
+        {
+          info: {
+            role: 'user',
+            agent: 'orchestrator',
+            sessionID: 'parent-1',
+          },
+          parts: [{ type: 'text', text: 'user is back' }],
+        },
+      ],
+    };
+    await transformMessages(hook, request3);
+    expect(boardText(request3)).toContain(
       'ora-1 / child-1 / oracle / completed, reconciled',
     );
-    expect(boardText(request2)).not.toContain('Result: approved');
+    expect(boardText(request3)).not.toContain('Result: approved');
   });
 
   test('does not reconcile when the same request is transformed twice', async () => {
@@ -4808,7 +5254,8 @@ describe('task-session-manager hook', () => {
     ).length;
 
     await transformMessages(hook, surfacedRequest);
-    expect(boardText(surfacedRequest)).toContain('completed, unreconciled');
+    // Change-only: an assistant tail renders nothing and registers nothing
+    // — the completion stays pending for the next user-side tail.
     expect(board.get('child-1')).toMatchObject({
       state: 'completed',
       terminalUnreconciled: true,
@@ -4846,12 +5293,63 @@ describe('task-session-manager hook', () => {
 
     await transformMessages(hook, compactedWithNewTurn);
 
+    // Still an assistant tail: still deferred, nothing consumed.
+    expect(board.get('child-1')).toMatchObject({
+      state: 'completed',
+      terminalUnreconciled: true,
+    });
+
+    // The compaction preserved message and part counts, so when the next
+    // real user turn arrives the board renders on it and registers the
+    // completion; the following shape change consumes it.
+    const resumed = {
+      messages: [
+        ...compactedWithNewTurn.messages,
+        {
+          info: {
+            id: 'user-3',
+            role: 'user',
+            agent: 'orchestrator',
+            sessionID: 'parent-1',
+          },
+          parts: [{ type: 'text', text: 'user is back' }],
+        },
+      ],
+    };
+    await transformMessages(hook, resumed);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'completed',
+      terminalUnreconciled: true,
+    });
+
+    const after = {
+      messages: [
+        ...resumed.messages,
+        {
+          info: {
+            id: 'assistant-4',
+            role: 'assistant',
+            agent: 'orchestrator',
+            sessionID: 'parent-1',
+          },
+          parts: [{ type: 'text', text: 'acknowledged the result' }],
+        },
+        {
+          info: {
+            id: 'user-5',
+            role: 'user',
+            agent: 'orchestrator',
+            sessionID: 'parent-1',
+          },
+          parts: [{ type: 'text', text: 'continue' }],
+        },
+      ],
+    };
+    await transformMessages(hook, after);
     expect(board.get('child-1')).toMatchObject({
       state: 'reconciled',
       terminalUnreconciled: false,
     });
-    expect(boardText(compactedWithNewTurn)).toContain('completed, reconciled');
-    expect(boardText(compactedWithNewTurn)).not.toContain('Result: approved');
   });
 
   test('stops re-announcing a completion across a run of requests', async () => {
@@ -4911,59 +5409,6 @@ describe('task-session-manager hook', () => {
     expect(resultLines[2]).toBe(false);
     expect(resultLines[3]).toBe(false);
     expect(resultLines[4]).toBe(false);
-  });
-
-  test('reconciles a surfaced terminal job on the next request in checkpoint-compatible mode', async () => {
-    const board = new BackgroundJobBoard();
-    const { hook } = createHook({
-      backgroundJobBoard: board,
-      strategy: 'checkpoint-compatible',
-    });
-
-    board.registerLaunch({
-      taskID: 'child-1',
-      parentSessionID: 'parent-1',
-      agent: 'oracle',
-      description: 'review plan',
-    });
-    board.updateStatus({
-      taskID: 'child-1',
-      state: 'completed',
-      resultSummary: 'approved',
-    });
-
-    // Request 1: inject the board with the completed job
-    const request1 = createAnchoredMessages('parent-1', ['turn 1']);
-    await transformMessages(hook, request1);
-    const snapshots1 = boardSnapshotIDs(request1);
-    expect(snapshots1.length).toBeGreaterThan(0);
-    expect(boardText(request1)).toContain('completed, unreconciled');
-
-    // Request 2: same history + one assistant message
-    const request2 = {
-      messages: [
-        ...request1.messages,
-        {
-          info: {
-            role: 'assistant',
-            agent: 'orchestrator',
-            sessionID: 'parent-1',
-          },
-          parts: [{ type: 'text', text: 'response 1' }],
-        },
-      ],
-    };
-    await transformMessages(hook, request2);
-
-    // The job should now be reconciled
-    expect(board.get('child-1')).toMatchObject({
-      state: 'reconciled',
-      terminalUnreconciled: false,
-    });
-    // A new snapshot should be created reflecting the reconciled state
-    const snapshots2 = boardSnapshotIDs(request2);
-    expect(snapshots2.length).toBeGreaterThan(snapshots1.length);
-    expect(boardText(request2)).toContain('completed, reconciled');
   });
 
   test('reconciles all terminal jobs surfaced on the same prompt shape', async () => {
@@ -6411,7 +6856,9 @@ describe('task-session-manager hook', () => {
     } catch (error) {
       v1Message = (error as Error).message;
     }
-    expect(v1Message).toContain('Call task_result with task_id "child-1"');
+    expect(v1Message).toContain(
+      'Call task_status with result true and task_id "child-1"',
+    );
 
     const board = new BackgroundJobBoard();
     setupCompletedJob(board, {
@@ -6435,7 +6882,9 @@ describe('task-session-manager hook', () => {
     } catch (error) {
       message = (error as Error).message;
     }
-    expect(message).toContain('Call task_result with sessionID "child-1"');
+    expect(message).toContain(
+      'Call task_status with result true and sessionID "child-1"',
+    );
     expect(message).not.toContain('task_id');
   });
 
@@ -6718,12 +7167,17 @@ describe('task-session-manager hook', () => {
     expect(spawn.args.task_id).toBe('474bd269-eac6-40a9-9408-9fe430e8cd19');
   });
 
-  test('reads before and after launch attach with unique-line counts and caps', async () => {
-    const { hook } = createHook({
-      readContextMinLines: 5,
-      readContextMaxFiles: 1,
-      idleReconcileDelayMs: 0,
-    });
+  test('reads before and after launch attach, path-only, recency-capped', async () => {
+    const { hook } = createHook({ idleReconcileDelayMs: 0 });
+    // Context entries are disk-validated before board commit: create the
+    // files the simulated reads claim to inspect.
+    mkdirSync('/tmp/src', { recursive: true });
+    for (const name of ['small.ts', 'large.ts', 'medium.ts']) {
+      writeFileSync(
+        `/tmp/src/${name}`,
+        Array.from({ length: 20 }, (_, index) => `line ${index}`).join('\n'),
+      );
+    }
     await hook.event({
       event: {
         type: 'session.created',
@@ -6788,10 +7242,13 @@ describe('task-session-manager hook', () => {
     const next = createMessages('parent-1', 'reuse');
     await transformMessages(hook, next);
     const prompt = boardText(next);
-    expect(prompt).not.toContain('small.ts');
-    expect(prompt).toContain('src/large.ts (12 lines)');
-    expect(prompt).not.toContain('src/large.ts (18 lines)');
-    expect(prompt).toContain('(+1 more)');
+    // Path-only list (ruling: no line counts, no size threshold): deduped
+    // per path, most-recent-first, capped at the internal file cap. Every
+    // read path shows — small files are no longer filtered.
+    expect(prompt).toContain('src/large.ts');
+    expect(prompt).toContain('src/small.ts');
+    expect(prompt).toContain('src/medium.ts');
+    expect(prompt).not.toContain('lines)');
   });
 
   test('reusable cap evicts only old reusable jobs, not active jobs', async () => {
@@ -9776,5 +10233,203 @@ describe('task-session-manager hook', () => {
       },
     });
     expect(next.hasInputWait('parent-1')).toBe(false);
+  });
+  test('v2 board-off ignores pasted delivery-shaped text without host metadata', async () => {
+    // Greptile P1: a user or assistant text part pasting a delivery-shaped
+    // body must never acknowledge a child — only the host's
+    // sessions.synthetic part carries
+    // metadata {source:'subagent', childID, state}, and it must agree with
+    // the tag header.
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+      now: 500,
+    });
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'completed',
+      resultSummary: 'done',
+      now: 1000,
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      boardInjection: false,
+      hostFlavor: 'v2',
+      idleReconcileDelayMs: 0,
+    });
+    const pastedRequest = {
+      messages: [
+        createMessages('parent-1', 'first turn').messages[0],
+        {
+          info: {
+            id: 'delivery-1',
+            role: 'user',
+            sessionID: 'parent-1',
+            time: { created: 3000 },
+          },
+          parts: [
+            {
+              type: 'text',
+              text: '<subagent sessionID="child-1" state="completed" description="map hooks">\ndone\n</subagent>',
+            },
+          ],
+        },
+      ],
+    };
+    await transformMessages(hook, pastedRequest as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'completed',
+      terminalUnreconciled: true,
+    });
+
+    // Metadata that disagrees with the tag header is equally rejected.
+    const mismatched = {
+      messages: [
+        createMessages('parent-1', 'second turn').messages[0],
+        {
+          info: {
+            id: 'delivery-2',
+            role: 'user',
+            sessionID: 'parent-1',
+            time: { created: 3100 },
+          },
+          parts: [
+            {
+              type: 'text',
+              text: '<subagent sessionID="child-1" state="completed" description="map hooks">\ndone\n</subagent>',
+              metadata: {
+                source: 'subagent',
+                childID: 'child-1',
+                state: 'error',
+              },
+            },
+          ],
+        },
+      ],
+    };
+    await transformMessages(hook, mismatched as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'completed',
+      terminalUnreconciled: true,
+    });
+  });
+
+  test('v2 board-off never retires a reopened run through an older mismatched delivery', async () => {
+    // Greptile P1-2: an old delivery left pending while a child runs can
+    // mis-pair with a later same-state completion. Pairing is one-shot per
+    // publication: the delivery below was authored for the FIRST terminal
+    // publication (state mismatched, so it retired nothing); after the run
+    // reopens and completes again, the remembered key can never pair the
+    // NEWER publication — only the run's own delivery (or the
+    // stale-terminal fallback) retires it. Council-b's "pending until
+    // match" semantics are refuted: matching only by state and launch time
+    // is exactly the mis-pairing Greptile flagged.
+    const BASE = 1_760_000_000_000;
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+      now: BASE + 500,
+    });
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'error',
+      resultSummary: 'failed',
+      now: BASE + 1000,
+    });
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      boardInjection: false,
+      hostFlavor: 'v2',
+      idleReconcileDelayMs: 0,
+    });
+    const staleDelivery = {
+      info: {
+        id: 'delivery-1',
+        role: 'user',
+        sessionID: 'parent-1',
+        time: { created: BASE + 1200 },
+      },
+      parts: [
+        {
+          type: 'text',
+          text: '<subagent sessionID="child-1" state="completed" description="map hooks">\ndone\n</subagent>',
+          metadata: {
+            source: 'subagent',
+            childID: 'child-1',
+            state: 'completed',
+          },
+        },
+      ],
+    };
+    await transformMessages(hook, {
+      messages: [
+        createMessages('parent-1', 'first turn').messages[0],
+        staleDelivery,
+      ],
+    } as never);
+    // Observed while the record was error-terminal: state mismatch, key
+    // remembered, nothing retired.
+    expect(board.get('child-1')).toMatchObject({
+      state: 'error',
+      terminalUnreconciled: true,
+    });
+
+    // The run reopens and completes with the state the OLD delivery
+    // reports. The remembered key must not pair this newer publication.
+    board.markRunningFromLiveSession('child-1', BASE + 1500);
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'completed',
+      resultSummary: 'done',
+      now: BASE + 2000,
+    });
+    expect(board.get('child-1')).toMatchObject({ terminalUnreconciled: true });
+    await transformMessages(hook, {
+      messages: [
+        createMessages('parent-1', 'second turn').messages[0],
+        staleDelivery,
+      ],
+    } as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'completed',
+      terminalUnreconciled: true,
+    });
+
+    // The run's own delivery (authored after this publication) retires it.
+    await transformMessages(hook, {
+      messages: [
+        createMessages('parent-1', 'second turn').messages[0],
+        staleDelivery,
+        {
+          info: {
+            id: 'delivery-2',
+            role: 'user',
+            sessionID: 'parent-1',
+            time: { created: BASE + 2500 },
+          },
+          parts: [
+            {
+              type: 'text',
+              text: '<subagent sessionID="child-1" state="completed" description="map hooks">\nnew result\n</subagent>',
+              metadata: {
+                source: 'subagent',
+                childID: 'child-1',
+                state: 'completed',
+              },
+            },
+          ],
+        },
+      ],
+    } as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'reconciled',
+      terminalUnreconciled: false,
+    });
   });
 });

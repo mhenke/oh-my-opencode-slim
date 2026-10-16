@@ -109,7 +109,6 @@ questions like "summarize this page" or "extract the code examples" in one step.
 1. `webfetch.model` (dedicated — highest priority, supports array for fallback)
 2. `small_model` from the OpenCode configuration (`opencode.json` / `opencode.jsonc`)
 3. The configured `explorer` agent model
-4. The configured `librarian` agent model
 
 The secondary model is called only when all of these are true:
 - A `prompt` parameter is provided
@@ -256,7 +255,6 @@ priority order):
 2. `small_model` in the OpenCode config (`opencode.json` / `opencode.jsonc` at
    project or user level)
 3. The plugin's `agents.explorer.model` config
-4. The plugin's `agents.librarian.model` config
 
 Example `opencode.jsonc`:
 
@@ -271,8 +269,7 @@ Or in the plugin's `opencode.json` preset or project config:
 ```jsonc
 {
   "agents": {
-    "explorer": { "model": "anthropic/claude-3-haiku" },
-    "librarian": { "model": "openai/gpt-4o-mini" }
+    "explorer": { "model": "anthropic/claude-3-haiku" }
   }
 }
 ```

@@ -7,8 +7,7 @@ A glossary of the terms used in this project's domain. Definitions describe what
 - **Agent** — A named LLM role with a defined lane (permissions, tools, prompt); the unit of work delegation in the system.
 - **Orchestrator** — The primary agent. Plans work, delegates to subagents, monitors them, and reconciles their results. One per session; cannot be disabled.
 - **Subagent** — A specialist agent the orchestrator delegates bounded work to.
-- **Explorer** — Subagent for fast codebase search and pattern matching.
-- **Librarian** — Subagent for external documentation and library research.
+- **Explorer** — Subagent for fast codebase search, pattern matching, and external documentation/library research.
 - **Oracle** — Subagent for architecture, debugging strategy, and code review.
 - **Designer** — Subagent for UI/UX design and visual polish.
 - **Fixer** — Subagent for bounded implementation and execution.
@@ -58,7 +57,7 @@ A glossary of the terms used in this project's domain. Definitions describe what
 - **Loop** — An auto-iterative run that executes work with an agent, verifies it against success criteria, and repeats until done or escalated.
 - **Loop session** — The state of one loop run (goal, current phase, attempts, history).
 - **Loop phase** — A stage of a loop: `executing`, `verifying`, `done`, `escalated`, or `cancelled`.
-- **Execute agent** — The agent that performs loop work (`fixer`, `designer`, `explorer`, or `librarian`).
+- **Execute agent** — The agent that performs loop work (`fixer`, `designer`, or `explorer`).
 - **Verify agent** — The agent or strategy that verifies loop output (`oracle`, `observer`, or `test`).
 - **Success criterion** — A check that decides whether a loop iteration passed (test, build, lint, fileExists, command, oracle, observer, or manual).
 

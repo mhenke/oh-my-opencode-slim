@@ -4,22 +4,60 @@ import { mergeAgentOverrides } from './presets';
 import type { AgentOverrideConfig, PluginConfig } from './schema';
 
 /**
- * Reverse `AGENT_ALIASES` lookup: the first legacy key that maps onto `name`.
- * Computed per call on purpose — a module-level reverse map would introduce a
- * module-init ordering dependency on the alias table.
+ * All legacy alias keys that map onto `name` (rename continuity), in table
+ * order. Empty for names that were never renamed.
  */
-export function legacyAliasFor(name: string): string | undefined {
+export function legacyAliasesFor(name: string): string[] {
+  const legacyNames: string[] = [];
   for (const [legacy, canonical] of Object.entries(AGENT_ALIASES)) {
     if (canonical === name) {
-      return legacy;
+      legacyNames.push(legacy);
     }
+  }
+  return legacyNames;
+}
+
+/**
+ * Record lookup with rename continuity: the canonical entry first, then the
+ * first legacy alias entry that has a value (AGENT_ALIASES order). Field-level
+ * merging lives in `mergeWithAliases`; this is a plain fallback read.
+ */
+export function lookupWithAliases<T>(
+  record: Record<string, T>,
+  name: string,
+): T | undefined {
+  const value = record[name];
+  if (value !== undefined) return value;
+  for (const legacyName of legacyAliasesFor(name)) {
+    const legacy = record[legacyName];
+    if (legacy !== undefined) return legacy;
   }
   return undefined;
 }
 
 /**
+ * Field-level merge of every legacy alias record into the canonical one.
+ * The canonical record wins field-by-field; legacy-only fields survive
+ * (rename continuity, e.g. `agents.librarian` → `explorer`).
+ */
+export function mergeWithAliases(
+  record: Record<string, AgentOverrideConfig>,
+  name: string,
+): AgentOverrideConfig | undefined {
+  const canonical = record[name];
+  let merged = canonical;
+  for (const legacyName of legacyAliasesFor(name)) {
+    const legacy = record[legacyName];
+    if (!legacy) continue;
+    merged = merged
+      ? mergeAgentOverrides({ [name]: legacy }, { [name]: merged })[name]
+      : legacy;
+  }
+  return merged;
+}
+
+/**
  * Get agent override config by name, supporting backward-compatible aliases.
- * Checks both the current name and any legacy alias names.
  *
  * @param config - The plugin configuration
  * @param name - The current agent name
@@ -29,14 +67,7 @@ export function getAgentOverride(
   config: PluginConfig | undefined,
   name: string,
 ): AgentOverrideConfig | undefined {
-  const overrides = config?.agents ?? {};
-  const alias = legacyAliasFor(name);
-  const canonical = overrides[name];
-  const legacy = alias ? overrides[alias] : undefined;
-  if (canonical && legacy) {
-    return mergeAgentOverrides({ [name]: legacy }, { [name]: canonical })[name];
-  }
-  return canonical ?? legacy;
+  return mergeWithAliases(config?.agents ?? {}, name);
 }
 
 /**

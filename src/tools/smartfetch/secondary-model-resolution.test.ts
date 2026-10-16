@@ -20,8 +20,8 @@ describe('smartfetch model resolution', () => {
       [a, { ...b, variant: 'v' }],
     ],
     [
-      'small/explorer/librarian order',
-      { smallModel: A, explorerModel: B, librarianModel: C },
+      'webfetch/small/explorer order',
+      { webfetchModels: [{ id: A }], smallModel: B, explorerModel: C },
       [a, b, c],
     ],
     [
@@ -30,7 +30,6 @@ describe('smartfetch model resolution', () => {
         webfetchModels: [{ id: A }],
         smallModel: A,
         explorerModel: A,
-        librarianModel: A,
       },
       [a],
     ],

@@ -106,8 +106,7 @@ a raw JSON prompt for provider-specific settings (e.g.
     },
     "powerful": {
       "orchestrator": { "model": "openai/gpt-6" },
-      "oracle": { "model": "anthropic/claude-opus-4-6" },
-      "librarian": { "model": "anthropic/claude-sonnet-4-6" }
+      "oracle": { "model": "anthropic/claude-opus-4-6" }
     },
     "thinking": {
       "oracle": {
