@@ -213,7 +213,16 @@ describe('registerMarketplace getDesiredState', () => {
   });
 
   test('success → packages list from the freshly built registry', () => {
-    harness({});
+    const h = harness({
+      getRuntime: () =>
+        ({
+          getRuntimePreset: () => 'preset-live',
+          resolveRuntimePreset: (config: unknown) => {
+            // The live runtime resolves the preset out of the fresh config.
+            return { name: 'resolved-preset' };
+          },
+        }) as unknown as RuntimeConfig,
+    });
     const result = desiredState()(
       inspection({
         packages: [{ manifest: { id: 'pkg/desired' } }],
@@ -221,6 +230,10 @@ describe('registerMarketplace getDesiredState', () => {
     ) as DesiredResult;
     expect(result.error).toBeUndefined();
     expect(result.packages).toEqual([{ id: 'pkg/success' }]);
+    // The resolved preset must be forwarded to the throwaway runtime:
+    // freshRuntime.setRuntimePreset(runtimePreset) — captured as 'preset'.
+    const createdInstance = fakeRuntimeInstances[0];
+    expect(createdInstance['preset']).toEqual({ name: 'resolved-preset' });
   });
 
   test('build failure → error is the thrown message', () => {
