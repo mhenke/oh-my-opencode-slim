@@ -1,11 +1,6 @@
+import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import type { Plugin } from '@opencode-ai/plugin';
-import {
-  afterEach,
-  describe,
-  expect,
-  test,
-} from 'bun:test';
 
 const tempDirs: string[] = [];
 afterEach(() => {
@@ -15,6 +10,7 @@ afterEach(() => {
     } catch {}
   }
 });
+
 import type {
   RegistryHostSnapshot,
   ResolvedAgentRegistry,
@@ -248,7 +244,7 @@ describe('createV2Bridges refreshProfilesFromDisk', () => {
     void unused;
     // Rebuild against the temp directory so loadPluginConfig reads the
     // malformed file there.
-    
+
     tempDirs.push(dir);
     const malformedUnit = createV2Bridges({
       ctx: ctxStub(dir),
@@ -295,12 +291,11 @@ describe('createV2Bridges refreshProfilesFromDisk', () => {
     );
     const publishCalls: unknown[] = [];
     const reg = registryStub();
-    
+
     tempDirs.push(dir);
     const wired = createV2Bridges({
       ctx: ctxStub(dir),
-      getRuntime: () =>
-        RuntimeConfig.create(dir, {} as never) as RuntimeConfig,
+      getRuntime: () => RuntimeConfig.create(dir, {} as never) as RuntimeConfig,
       getRegistryRetired: () => false,
       setRegistryRetired: () => {},
       getResolvedAgentRegistry: () => reg,
@@ -334,10 +329,7 @@ describe('createV2Bridges refreshProfilesFromDisk', () => {
     // fresh runtime, the switch probe from the live one.
     const recorded = publishCalls[0] as {
       next: Record<string, { id: string }[]>;
-      rest: [
-        (name: string) => string | undefined,
-        (name: string) => boolean,
-      ];
+      rest: [(name: string) => string | undefined, (name: string) => boolean];
     };
     expect(Object.keys(recorded.next).length).toBeGreaterThan(0);
     // The switch probe is the live runtime stub: hasModelSwitched → false.
