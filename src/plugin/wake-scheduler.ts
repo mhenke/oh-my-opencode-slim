@@ -38,10 +38,11 @@ export function registerWakeScheduler(deps: {
     // own keys.
     config: {
       ...deps.runtime.backgroundJobs.orchestratorWake,
-      periodicWakeEnabled: deps.hostFlavor() === 'v2'
-        ? false
-        : deps.runtime.backgroundJobs.orchestratorWake.periodicWakeEnabled ??
-          true,
+      periodicWakeEnabled:
+        deps.hostFlavor() === 'v2'
+          ? false
+          : (deps.runtime.backgroundJobs.orchestratorWake.periodicWakeEnabled ??
+            true),
     },
     // Honoured switch: wake annotations follow the board the parent sees —
     // rendered on v1 unless boardInjection is false.
