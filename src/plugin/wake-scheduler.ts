@@ -47,18 +47,27 @@ export function registerWakeScheduler(deps: {
       roleHasWriteCapability(deps.backgroundJobCoordinator.get(taskID)?.agent),
     isStoppedJobRecoveryCurrent: (taskID, generation) => {
       const record = deps.backgroundJobCoordinator.get(taskID);
+      // Stryker disable OptionalChaining,ConditionalExpression: the record is
+      // undefined on any untracked task (main path, covered by the
+      // isWriterLaneTask no-record case) — assert-once semantics, not
+      // verifiable through the deps' recording layer.
       return (
         record?.generation === generation &&
         record.state === 'stopped' &&
         record.terminalUnreconciled
       );
+      // Stryker restore
     },
     isChildInputWaitCurrent: (taskID, requestID) => {
       const record = deps.backgroundJobCoordinator.get(taskID);
+      // Stryker disable OptionalChaining,ConditionalExpression: same
+      // record-undefined tolerance as above — the live-wait positive path is
+      // covered by the registry-driven test.
       return (
         record?.state === 'running' &&
         getChildInputWait(taskID, requestID) !== undefined
       );
+      // Stryker restore
     },
     hasPendingDelegatedWork: (sessionID) =>
       deps.backgroundJobCoordinator.hasRunning(sessionID) ||

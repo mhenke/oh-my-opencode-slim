@@ -140,6 +140,14 @@ describe('registerWakeScheduler wiring', () => {
     expect(fn('missing')).toBeTrue();
   });
 
+  test('isStoppedJobRecoveryCurrent tolerates missing generation field', () => {
+    wired({ get: () => recordStub({ generation: undefined }) });
+    const fn = options(0)
+      .isStoppedJobRecoveryCurrent as (t: string, g: number) => boolean;
+    // undefined !== any generation → not current, and no throw.
+    expect(fn('t1', 5)).toBeFalse();
+  });
+
   test('isStoppedJobRecoveryCurrent requires generation match and stopped+unreconciled', () => {
     wired({
       get: (taskID) =>
@@ -165,6 +173,25 @@ describe('registerWakeScheduler wiring', () => {
       g: number,
     ) => boolean;
     expect(fn('t1', 2)).toBeFalse();
+  });
+
+  test('isChildInputWaitCurrent true for running record with live wait', () => {
+    // Drive the real registry: note a wait, then the closure must see it.
+    const { noteChildInputWait, resetChildInputWaitForTests } = require('../hooks/task-session-manager/child-input-wait');
+    resetChildInputWaitForTests();
+    noteChildInputWait({
+      taskID: 't1',
+      parentSessionID: 'p1',
+      kind: 'question',
+      requestID: 'request-1',
+      questions: [{ header: 'h', question: 'q', options: [{ label: 'a' }] }],
+    });
+    wired({ get: () => recordStub() });
+    const fn = options(0)
+      .isChildInputWaitCurrent as (t: string, r: string) => boolean;
+    expect(fn('t1', 'request-1')).toBeTrue();
+    expect(fn('t1', 'request-missing')).toBeFalse();
+    resetChildInputWaitForTests();
   });
 
   test('isChildInputWaitCurrent requires running state and a live wait', () => {
