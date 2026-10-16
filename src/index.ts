@@ -1,20 +1,15 @@
 import type { Hooks, Plugin, ToolDefinition } from '@opencode-ai/plugin';
 import type { AdmissionRuntimeLease } from './admission-runtime';
 import {
-  type AgentModelProjection,
-  type AgentRuntimeProfiles,
   createAgents,
   getAgentConfigsFromDefinitions,
   isSubagent,
-  mergeHostAgentConfigs,
-  projectAgentRuntimeState,
   resolvePrimaryModelValue,
 } from './agents';
 import { buildOrchestratorPrompt } from './agents/orchestrator';
-import {
-  buildResolvedAgentRegistry,
-  type RegistryHostSnapshot,
-  type ResolvedAgentRegistry,
+import type {
+  RegistryHostSnapshot,
+  ResolvedAgentRegistry,
 } from './agents/registry';
 import type { RegistryFactoryBridge } from './agents/registry-bridge';
 import {
@@ -23,13 +18,12 @@ import {
   normalizeCompanionSessionStatus,
 } from './companion/manager';
 import { ensureCompanionVersion } from './companion/updater';
-import { deepMerge, loadPluginConfig, type Preset } from './config';
+import { deepMerge, loadPluginConfig } from './config';
 import {
   DEFAULT_MAX_SESSION_METADATA_ENTRIES,
   SMARTFETCH_SECONDARY_SESSION_TITLE,
   TOAST_DURATION_MS,
 } from './config/constants';
-import type { ConfigLoadWarningKind } from './config/loader';
 import { RuntimeConfig } from './config/runtime';
 import { getBuildInfo } from './generated/build-info';
 import { HEALTH_CHECK, minimumExpectedToolCount } from './health-check';
@@ -63,7 +57,6 @@ import {
 import { stripTaggedContent } from './hooks/cache-safe-injection';
 import { isCommandEnabled } from './hooks/command-hook-utils';
 import {
-  buildChainGeneration,
   type DelegatedModelSelection,
   type ModelChainEntry,
   selectDelegatedModel,
@@ -91,11 +84,11 @@ import {
 } from './hooks/types';
 import { createInterviewManager } from './interview';
 import { collapseInterviewHistory } from './interview/history';
-import { discoverPreflightSkills } from './marketplace/preflight';
 import { resolveDesiredMarketplacePackageIds } from './marketplace/status';
 import { createBuiltinMcps, getOverriddenBuiltinMcpKeys } from './mcp';
 import { createBackgroundJobsSystem } from './plugin/background-jobs';
 import { registerMarketplace } from './plugin/marketplace';
+import { createV2Bridges } from './plugin/v2-bridges';
 import {
   registerWakeScheduler,
   type WakeScheduler,
@@ -221,32 +214,8 @@ const IMAGE_RETAINED_TOAST_DEBOUNCE_MS = 60_000;
 // re-runs, it checks this variable and applies the runtime preset instead
 // of the config file's preset. State lives in RuntimeConfig.
 
-/**
- * Result of the v2-only `v2.refreshProfiles` hook. `ok: true` carries the
- * freshly resolved inference profiles plus the sidebar projection that was
- * already written; `ok: false` carries the failure reason and guarantees no
- * state was swapped.
- */
-export type V2ProfileRefreshResult =
-  | {
-      ok: true;
-      profiles: AgentRuntimeProfiles;
-      projection: AgentModelProjection;
-    }
-  | { ok: false; reason: string };
-
-/**
- * Config-load warning kinds that make a live profile refresh a hard failure.
- *
- * `loadPluginConfig` is deliberately non-fatal: malformed JSON or a schema
- * violation falls back to `{}` and reports through `onWarning`. A refresh
- * that ignored those warnings would report ok and swap the profile table +
- * sidebar projection to defaults (silently wiping every agent model). These
- * kinds therefore abort the refresh before any state is swapped; actionable
- * warning-only kinds (`missing-preset`, `normalized`) stay non-fatal.
- */
-export const HARD_PROFILE_REFRESH_WARNING_KINDS: ReadonlySet<ConfigLoadWarningKind> =
-  new Set(['invalid-json', 'invalid-schema', 'read-error']);
+export type { V2ProfileRefreshResult } from './plugin/v2-bridges';
+export { HARD_PROFILE_REFRESH_WARNING_KINDS } from './plugin/v2-bridges';
 
 export const OhMyOpenCodeLite: Plugin = async (ctx) => {
   initLogger();
@@ -1495,87 +1464,40 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
     getLatestHostSnapshot: () => latestHostSnapshot,
     getLatestNativePermissionsByAgent: () => latestNativePermissionsByAgent,
   }).marketplaceService;
-  registryBridge = {
+  const v2Bridges = createV2Bridges({
+    ctx,
+    getRuntime: () => runtime,
+    getRegistryRetired: () => registryRetired,
+    setRegistryRetired: (retired) => {
+      registryRetired = retired;
+    },
+    getResolvedAgentRegistry: () => resolvedAgentRegistry,
+    setResolvedAgentRegistry: (registry) => {
+      resolvedAgentRegistry = registry;
+    },
+    getLatestHostSnapshot: () => latestHostSnapshot,
+    setLatestHostSnapshot: (snapshot) => {
+      latestHostSnapshot = snapshot;
+    },
+    getLatestNativePermissionsByAgent: () => latestNativePermissionsByAgent,
+    setLatestNativePermissionsByAgent: (permissions) => {
+      latestNativePermissionsByAgent = permissions;
+    },
+    setHostSnapshotProvenance: (provenance) => {
+      hostSnapshotProvenance = provenance;
+    },
+    getAgentDefs: () => agentDefs,
+    getMcps: () => mcps,
+    getForegroundFallback: () => foregroundFallback,
     marketplaceService,
-    finalize(hostSnapshot, nativePermissionsByAgent) {
-      if (registryRetired) throw new Error('Agent registry is retired');
-      if (!latestHostSnapshot) {
-        latestHostSnapshot = structuredClone(hostSnapshot);
-        latestNativePermissionsByAgent = structuredClone(
-          nativePermissionsByAgent,
-        );
-        hostSnapshotProvenance = 'clean';
-      }
-      if (!resolvedAgentRegistry) {
-        RuntimeConfig.get(ctx.directory).captureHostConfig(hostSnapshot);
-        resolvedAgentRegistry = buildResolvedAgentRegistry(runtime, {
-          hostSnapshot,
-          definitions: agentDefs,
-          projectDirectory: ctx.directory,
-          hostFlavor,
-          pluginMcps: mcps,
-          nativePermissionsByAgent,
-          marketplace: {
-            selectedPackageIds: selectedMarketplacePackageIds,
-            store: marketplaceService.store,
-            pluginVersion: getBuildInfo().version,
-            availableSkillNames: selectedMarketplacePackageIds.length
-              ? discoverPreflightSkills(runtime, ctx.directory)
-              : [],
-          },
-          onHostModelSelected: (agentName) => {
-            runtime.everModelSwitched(agentName);
-          },
-        });
-        // Publish the finalized chain generation: marketplace candidates and
-        // model-switch disables are merged by the shared publisher — the same
-        // path every profile refresh republishes.
-        foregroundFallback.publishChainGeneration(
-          buildChainGeneration(
-            runtime,
-            agentDefs,
-            resolvedAgentRegistry.modelCandidates,
-          ),
-          (name) => runtime.combinedModelInheritanceSource(name),
-          (name) => runtime.hasModelSwitched(name),
-        );
-      }
-      return resolvedAgentRegistry;
-    },
-    requireRegistry() {
-      if (registryRetired) throw new Error('Agent registry is retired');
-      if (!resolvedAgentRegistry)
-        throw new Error('Agent registry has not been finalized');
-      return resolvedAgentRegistry;
-    },
-    prepareCommands(opencodeConfig) {
-      const commandGate = {
-        disabledCommands: runtime.disabledCommands,
-        disabledSkills: runtime.disabledSkills,
-      };
-      if (
-        isCommandEnabled('interview', commandGate) ||
-        isCommandEnabled('implement', commandGate)
-      ) {
-        interviewManager.registerCommand(opencodeConfig, {
-          interview: isCommandEnabled('interview', commandGate),
-          implement: isCommandEnabled('implement', commandGate),
-        });
-      }
-      if (isCommandEnabled('deepwork', commandGate)) {
-        deepworkCommandHook.registerCommand(opencodeConfig);
-      }
-      if (isCommandEnabled('reflect', commandGate)) {
-        reflectCommandHook.registerCommand(opencodeConfig);
-      }
-      if (isCommandEnabled('loop', commandGate)) {
-        loopCommandHook.registerCommand(opencodeConfig);
-      }
-    },
-    retire() {
-      registryRetired = true;
-    },
-  };
+    selectedMarketplacePackageIds,
+    interviewManager,
+    deepworkCommandHook,
+    reflectCommandHook,
+    loopCommandHook,
+    getHostFlavor: () => hostFlavor,
+  });
+  registryBridge = v2Bridges.registryBridge;
   const marketplaceTools = createMarketplaceTools({
     service: marketplaceService,
     cwd: ctx.directory,
@@ -1619,115 +1541,7 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
    * is a hard failure: the loader would otherwise fall back to `{}` and the
    * "refresh" would report ok while wiping every profile/agent model.
    */
-  const refreshProfilesFromDisk = async (options?: {
-    /** Startup has no last-good table yet; use the loader's normal fallback
-     * config so malformed user input remains non-fatal for this generation. */
-    allowInvalidFallback?: boolean;
-  }): Promise<V2ProfileRefreshResult> => {
-    try {
-      // Malformed config handling: collect warnings and abort BEFORE any
-      // resolution or sidebar rewrite when the load is invalid. The loader
-      // falls back to `{}` for invalid JSON/schema, which would otherwise
-      // report a successful "refresh" that wipes every profile/model.
-      const hardWarnings: string[] = [];
-      const freshConfig = loadPluginConfig(ctx.directory, {
-        hostFlavor,
-        silent: true,
-        onWarning: (warning) => {
-          if (HARD_PROFILE_REFRESH_WARNING_KINDS.has(warning.kind)) {
-            hardWarnings.push(
-              `${warning.kind} (${warning.path}): ${warning.message}`,
-            );
-          }
-        },
-      });
-      if (hardWarnings.length > 0 && !options?.allowInvalidFallback) {
-        const reason = `config load failed: ${hardWarnings.join('; ')}`;
-        log('[plugin] runtime profile refresh from disk failed', reason);
-        return { ok: false, reason };
-      }
-      const freshRuntime = RuntimeConfig.create(ctx.directory, freshConfig);
-      const hostSnapshot = runtime.host();
-      if (hostSnapshot) {
-        freshRuntime.captureHostConfig(hostSnapshot);
-      }
-      // Mirror factory init: a persisted runtime preset (in-session switch)
-      // survives the reload and wins over the config-file preset.
-      const runtimePresetName = runtime.getRuntimePreset();
-      let runtimePreset: Preset | undefined;
-      if (runtimePresetName && freshConfig.presets?.[runtimePresetName]) {
-        freshRuntime.setRuntimePreset(runtimePresetName);
-        runtimePreset = freshConfig.presets[runtimePresetName] as Preset;
-      }
-      const freshAgentDefs = createAgents(freshRuntime, {
-        projectDirectory: ctx.directory,
-        hostFlavor,
-      });
-      const freshAgents = getAgentConfigsFromDefinitions(
-        freshRuntime,
-        freshAgentDefs,
-      );
-      const mergedAgents = mergeHostAgentConfigs(
-        freshAgents as Record<string, Record<string, unknown>>,
-        hostSnapshot?.agent,
-      );
-      const { profiles, projection } = projectAgentRuntimeState({
-        runtime: freshRuntime,
-        agentDefs: freshAgentDefs,
-        agentConfigs: mergedAgents,
-        runtimePreset,
-      });
-      // Sidebar projection must land before the profiles are reported as
-      // refreshed (the caller swaps only on an ok result).
-      //
-      // The refresh resolves inference fields for the core agent set only:
-      // `createAgents()` is marketplace-unaware, while the finalized registry
-      // is the authoritative roster and already includes marketplace agents.
-      // Union the fresh projection over the registry projection so a startup
-      // or watcher refresh cannot shrink the roster and drop marketplace
-      // agents from the sidebar; fresh core models still win.
-      const registry = resolvedAgentRegistry;
-      recordTuiAgentModels(
-        {
-          agentModels: {
-            ...(registry?.tuiAgentModels ?? {}),
-            ...projection.agentModels,
-          },
-          agentVariants: {
-            ...(registry?.tuiAgentVariants ?? {}),
-            ...projection.agentVariants,
-          },
-        },
-        ctx.directory,
-      );
-      log('[plugin] runtime profiles refreshed from disk', {
-        agents: Object.keys(profiles).length,
-      });
-      // Chain generation: republished beside the sidebar projection, only
-      // after validation succeeded — profiles and chains always come from the
-      // same generation (the caller swaps the profile table on this ok
-      // result; an invalid refresh keeps the last-known-good generation).
-      // Manifest chains overlay the startup candidates: a user override
-      // removed since startup must fall back to the package's own chain,
-      // not the stale merged candidates.
-      const freshCandidates = resolvedAgentRegistry
-        ? {
-            ...resolvedAgentRegistry.modelCandidates,
-            ...resolvedAgentRegistry.marketplaceManifestChains,
-          }
-        : undefined;
-      foregroundFallback.publishChainGeneration(
-        buildChainGeneration(freshRuntime, freshAgentDefs, freshCandidates),
-        (name) => freshRuntime.combinedModelInheritanceSource(name),
-        (name) => runtime.hasModelSwitched(name),
-      );
-      return { ok: true, profiles, projection };
-    } catch (err) {
-      const reason = err instanceof Error ? err.message : String(err);
-      log('[plugin] runtime profile refresh from disk failed', reason);
-      return { ok: false, reason };
-    }
-  };
+  const refreshProfilesFromDisk = v2Bridges.refreshProfilesFromDisk;
 
   // Only the v2 bridge consumes this native provider/model#variant override.
   const resolveV2DelegatedModel = ({
