@@ -26,6 +26,28 @@ import {
 const snapshot = (): RegistryHostSnapshot =>
   ({ agent: {} }) as unknown as RegistryHostSnapshot;
 
+// Spies for the tui-state writer: the unit calls recordTuiAgentModels via
+// its '../tui-state' import, so mock.module intercepts it at the boundary.
+const tuiCalls: Array<{
+  input: { agentModels: Record<string, string>; agentVariants?: Record<string, string> };
+  projectDir: string;
+}> = [];
+let tuiMockInstalled = false;
+function installTuiMock() {
+  if (tuiMockInstalled) return;
+  tuiMockInstalled = true;
+  const { mock } = require('bun:test');
+  mock.module('../tui-state', () => ({
+    recordTuiAgentModels: (
+      input: { agentModels: Record<string, string>; agentVariants?: Record<string, string> },
+      projectDir: string,
+    ) => {
+      tuiCalls.push({ input, projectDir });
+    },
+    recordTuiAgentModel: () => {},
+  }));
+}
+
 const registryStub = (overrides: Record<string, unknown> = {}) =>
   ({
     // Two entries per chain: buildChainGeneration only promotes chains with
@@ -226,6 +248,55 @@ describe('createV2Bridges prepareCommands', () => {
     expect(hooks).toContain('interview');
     expect(hooks).toContain('reflect');
   });
+
+  test('disabling only interview still passes the implement gate', () => {
+    const hooks: string[] = [];
+    const { unit } = makeUnit({
+      runtime: runtimeStub({
+        disabledCommands: new Set(['interview']),
+      }),
+      commandSpies: {
+        interview: () => hooks.push('interview'),
+      },
+    });
+    // The interview||implement gate must open for implement, and the
+    // interviewManager must receive interview:false, implement:true.
+    const registered: Array<{ interview?: boolean; implement?: boolean }> = [];
+    const interviewManager = {
+      registerCommand: (_cfg: unknown, flags: never) => {
+        hooks.push('interview');
+        registered.push(flags);
+      },
+    } as never;
+    const wired = createV2Bridges({
+      ctx: ctxStub('/tmp'),
+      getRuntime: () =>
+        runtimeStub({ disabledCommands: new Set(['interview']) }),
+      getRegistryRetired: () => false,
+      setRegistryRetired: () => {},
+      getResolvedAgentRegistry: () => undefined,
+      setResolvedAgentRegistry: () => {},
+      getLatestHostSnapshot: () => snapshot(),
+      setLatestHostSnapshot: () => {},
+      getLatestNativePermissionsByAgent: () => ({}),
+      setLatestNativePermissionsByAgent: () => {},
+      setHostSnapshotProvenance: () => {},
+      getAgentDefs: () => [],
+      getMcps: () => ({}),
+      getForegroundFallback: () =>
+        ({ publishChainGeneration: () => {} }) as never,
+      marketplaceService: { store: {} } as never,
+      selectedMarketplacePackageIds: [],
+      interviewManager,
+      deepworkCommandHook: { registerCommand: () => {} },
+      reflectCommandHook: { registerCommand: () => {} },
+      loopCommandHook: { registerCommand: () => {} },
+      getHostFlavor: () => undefined,
+    });
+    wired.registryBridge.prepareCommands({} as never);
+    expect(hooks).toContain('interview');
+    expect(registered[0]).toEqual({ interview: false, implement: true });
+  });
 });
 
 describe('createV2Bridges refreshProfilesFromDisk', () => {
@@ -334,6 +405,115 @@ describe('createV2Bridges refreshProfilesFromDisk', () => {
     expect(Object.keys(recorded.next).length).toBeGreaterThan(0);
     // The switch probe is the live runtime stub: hasModelSwitched → false.
     expect(recorded.rest[1]('anything')).toBeFalse();
+  });
+
+  test('refresh unions the projected models over the registry roster', async () => {
+    installTuiMock();
+    tuiCalls.length = 0;
+    // Registry sidebar has ONE agent the fresh projection lacks: the union
+    // must keep it (no roster shrink). Registry also carries a variant.
+    const fs = require('node:fs');
+    const os = require('node:os');
+    const path = require('node:path');
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'v2b-'));
+    tempDirs.push(dir);
+    fs.mkdirSync(path.join(dir, '.opencode'), { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, '.opencode', 'oh-my-opencode-slim.json'),
+      '{}',
+    );
+    const reg = registryStub({
+      tuiAgentModels: { marketplaceAgent: 'm/one', orchestrator: '' },
+      tuiAgentVariants: { marketplaceAgent: 'mx' },
+    });
+    const publishCallsLocal: unknown[] = [];
+    const wired = createV2Bridges({
+      ctx: ctxStub(dir),
+      getRuntime: () =>
+        RuntimeConfig.create(dir, {} as never) as RuntimeConfig,
+      getRegistryRetired: () => false,
+      setRegistryRetired: () => {},
+      getResolvedAgentRegistry: () => reg,
+      setResolvedAgentRegistry: () => {},
+      getLatestHostSnapshot: () => snapshot(),
+      setLatestHostSnapshot: () => {},
+      getLatestNativePermissionsByAgent: () => ({}),
+      setLatestNativePermissionsByAgent: () => {},
+      setHostSnapshotProvenance: () => {},
+      getAgentDefs: () => [],
+      getMcps: () => ({}),
+      getForegroundFallback: () =>
+        ({
+          publishChainGeneration: (...args: unknown[]) => {
+            publishCallsLocal.push({ next: (args[0] as Record<string, unknown>), rest: args.slice(1) });
+          },
+        }) as never,
+      marketplaceService: { store: {} } as never,
+      selectedMarketplacePackageIds: [],
+      interviewManager: { registerCommand: () => {} } as never,
+      deepworkCommandHook: { registerCommand: () => {} },
+      reflectCommandHook: { registerCommand: () => {} },
+      loopCommandHook: { registerCommand: () => {} },
+      getHostFlavor: () => undefined,
+    });
+    const result = await wired.refreshProfilesFromDisk();
+    expect(result.ok).toBe(true);
+    // The projection's models win for agents it covers; the registry-only
+    // marketplace agent must survive the union in agentModels, and its
+    // variant rides along in agentVariants.
+    const call = tuiCalls[0];
+    expect(call).toBeDefined();
+    if (!call) return;
+    expect(call.input.agentModels).toHaveProperty('marketplaceAgent', 'm/one');
+    expect(call.input.agentVariants).toHaveProperty('marketplaceAgent', 'mx');
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
+
+  test('refresh without a registry writes an empty sidebar union', async () => {
+    installTuiMock();
+    tuiCalls.length = 0;
+    const fs = require('node:fs');
+    const os = require('node:os');
+    const path = require('node:path');
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'v2b-'));
+    tempDirs.push(dir);
+    fs.mkdirSync(path.join(dir, '.opencode'), { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, '.opencode', 'oh-my-opencode-slim.json'),
+      '{}',
+    );
+    const wired = createV2Bridges({
+      ctx: ctxStub(dir),
+      getRuntime: () =>
+        RuntimeConfig.create(dir, {} as never) as RuntimeConfig,
+      getRegistryRetired: () => false,
+      setRegistryRetired: () => {},
+      getResolvedAgentRegistry: () => undefined,
+      setResolvedAgentRegistry: () => {},
+      getLatestHostSnapshot: () => snapshot(),
+      setLatestHostSnapshot: () => {},
+      getLatestNativePermissionsByAgent: () => ({}),
+      setLatestNativePermissionsByAgent: () => {},
+      setHostSnapshotProvenance: () => {},
+      getAgentDefs: () => [],
+      getMcps: () => ({}),
+      getForegroundFallback: () =>
+        ({ publishChainGeneration: () => {} }) as never,
+      marketplaceService: { store: {} } as never,
+      selectedMarketplacePackageIds: [],
+      interviewManager: { registerCommand: () => {} } as never,
+      deepworkCommandHook: { registerCommand: () => {} },
+      reflectCommandHook: { registerCommand: () => {} },
+      loopCommandHook: { registerCommand: () => {} },
+      getHostFlavor: () => undefined,
+    });
+    const result = await wired.refreshProfilesFromDisk();
+    expect(result.ok).toBe(true);
+    const call = tuiCalls[0];
+    expect(call).toBeDefined();
+    if (!call) return;
+    expect(call.input.agentModels).toHaveProperty('orchestrator');
+    fs.rmSync(dir, { recursive: true, force: true });
   });
 
   test('HARD_PROFILE_REFRESH_WARNING_KINDS covers the hard kinds', () => {
