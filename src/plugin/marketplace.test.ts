@@ -9,7 +9,7 @@ const serviceCalls: Array<{
   getDesiredState: (inspection: never) => unknown;
 }> = [];
 
-const restoreService = mock.module('../marketplace/service', () => ({
+const _restoreService = mock.module('../marketplace/service', () => ({
   MarketplaceService: class {
     opts: (typeof serviceCalls)[number];
     constructor(opts: (typeof serviceCalls)[number]) {
@@ -30,10 +30,10 @@ const fakeRuntimeFactory = (
   fakeRuntimeInstances.push({ directory, config, hostFlavor });
   return {
     captureHostConfig: (snap: unknown) => {
-      fakeRuntimeInstances[fakeRuntimeInstances.length - 1]['captured'] = snap;
+      fakeRuntimeInstances[fakeRuntimeInstances.length - 1].captured = snap;
     },
     setRuntimePreset: (p: unknown) => {
-      fakeRuntimeInstances[fakeRuntimeInstances.length - 1]['preset'] = p;
+      fakeRuntimeInstances[fakeRuntimeInstances.length - 1].preset = p;
     },
     disabledMcps: [],
     getRuntimePreset: () => undefined,
@@ -41,7 +41,7 @@ const fakeRuntimeFactory = (
   };
 };
 
-const restoreRuntime = mock.module('../config/runtime', () => ({
+const _restoreRuntime = mock.module('../config/runtime', () => ({
   RuntimeConfig: {
     create: (directory: string, config: unknown, hostFlavor?: string) =>
       fakeRuntimeFactory(directory, config, hostFlavor),
@@ -51,8 +51,8 @@ const restoreRuntime = mock.module('../config/runtime', () => ({
   } as never,
 }));
 
-const restoreRegistryBuild = mock.module('../agents/registry', () => ({
-  buildResolvedAgentRegistry: (rt: unknown, opts: Record<string, unknown>) => {
+const _restoreRegistryBuild = mock.module('../agents/registry', () => ({
+  buildResolvedAgentRegistry: (_rt: unknown, opts: Record<string, unknown>) => {
     if (!globalThis.__mktBuildOk) throw new Error('registry build exploded');
     fakeRuntimeInstances.push({ built: opts });
     return {
@@ -61,18 +61,18 @@ const restoreRegistryBuild = mock.module('../agents/registry', () => ({
   },
 })) as never;
 
-const restorePreflight = mock.module('../marketplace/preflight', () => ({
+const _restorePreflight = mock.module('../marketplace/preflight', () => ({
   discoverPreflightSkills: () => [],
 })) as never;
 
-const restoreStatus = mock.module('../marketplace/status', () => ({
+const _restoreStatus = mock.module('../marketplace/status', () => ({
   resolveDesiredMarketplacePackageIds: (config: unknown, _preset: unknown) => {
     void config;
     return ['pkg/desired'];
   },
 })) as never;
 
-const restoreMcps = mock.module('../mcp', () => ({
+const _restoreMcps = mock.module('../mcp', () => ({
   createBuiltinMcps: () => [],
 })) as never;
 
@@ -98,7 +98,7 @@ function harness(
 ) {
   const depsWithService = {
     ctx: {
-      directory: '/tmp/v2mk-' + Math.random().toString(36).slice(2),
+      directory: `/tmp/v2mk-${Math.random().toString(36).slice(2)}`,
     } as never,
     getHostFlavor: () => undefined,
     getRuntime: overrides.getRuntime ?? runtimeReal,
