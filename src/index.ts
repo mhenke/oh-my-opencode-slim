@@ -1,8 +1,5 @@
 import type { Hooks, Plugin, ToolDefinition } from '@opencode-ai/plugin';
-import {
-  type AdmissionRuntimeLease,
-  acquireAdmissionRuntime,
-} from './admission-runtime';
+import type { AdmissionRuntimeLease } from './admission-runtime';
 import {
   type AgentModelProjection,
   type AgentRuntimeProfiles,
@@ -20,7 +17,6 @@ import {
   type ResolvedAgentRegistry,
 } from './agents/registry';
 import type { RegistryFactoryBridge } from './agents/registry-bridge';
-import { roleHasWriteCapability } from './agents/role-definitions';
 import {
   CompanionManager,
   companionSessionIdForDirectory,
@@ -80,9 +76,7 @@ import {
   clearChildInputWaitsForSession,
   formatChildInputWaitDetail,
   getChildInputWait,
-  listChildInputWaits,
 } from './hooks/task-session-manager/child-input-wait';
-import { createBackgroundFallbackHandoff } from './hooks/task-session-manager/fallback-observation-transfer';
 import type { createRevivedRunTracker } from './hooks/task-session-manager/revived-run-tracker';
 import {
   createAliasAuthority,
@@ -98,10 +92,10 @@ import {
 import { createInterviewManager } from './interview';
 import { collapseInterviewHistory } from './interview/history';
 import { discoverPreflightSkills } from './marketplace/preflight';
-import { MarketplaceService } from './marketplace/service';
 import { resolveDesiredMarketplacePackageIds } from './marketplace/status';
 import { createBuiltinMcps, getOverriddenBuiltinMcpKeys } from './mcp';
 import { createBackgroundJobsSystem } from './plugin/background-jobs';
+import { registerMarketplace } from './plugin/marketplace';
 import {
   registerWakeScheduler,
   type WakeScheduler,
@@ -141,7 +135,6 @@ import {
 } from './tui-state';
 import {
   type BackgroundJobBoard,
-  BackgroundJobCoordinator,
   type BackgroundJobSupervisor,
   type BackgroundTaskConcurrency,
   createDisplayNameMentionRewriter,
@@ -149,22 +142,16 @@ import {
   resolveRuntimeAgentName,
 } from './utils';
 import type {
-  BackgroundJobEvictedSession,
   BackgroundJobRecord,
   ContextFile,
 } from './utils/background-job-board';
-import { isPrunableEvictedSession } from './utils/background-job-board';
-import {
-  type BackgroundJobTerminalGate,
-  createBackgroundJobTerminalGate,
-} from './utils/background-job-terminal-gate';
+import type { BackgroundJobTerminalGate } from './utils/background-job-terminal-gate';
 import { isPluginDisabledByEnv } from './utils/env';
 import {
   createEventDirectoryScope,
   type EventDirectoryScope,
   hasLiveInstances,
 } from './utils/event-directory-scope';
-import { pruneEvictedHostSession } from './utils/evicted-session-prune';
 import {
   isInternalInitiatorPart,
   isNativeBackgroundTaskNotification,
@@ -176,7 +163,6 @@ import {
   type ModelImageCapabilityDeps,
   modelAcceptsImageInput,
 } from './utils/model-image-capability';
-import { registerPendingSessionPrune } from './utils/pending-session-prunes';
 import { withTimeout } from './utils/session';
 import { SessionMetadataStore } from './utils/session-metadata';
 import { DEFAULT_RUNTIME_SESSION_STATUS_TIMEOUT_MS } from './utils/session-runtime-status';
@@ -1498,100 +1484,17 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
   }
 
   let registryBridge: RegistryFactoryBridge;
-  const marketplaceService = new MarketplaceService({
-    projectDir: ctx.directory,
-    hostFlavor,
-    pluginVersion: getBuildInfo().version,
-    getLivePackages: () => {
-      if (registryRetired || !resolvedAgentRegistry) return undefined;
-      return registryBridge.requireRegistry().marketplacePackages;
-    },
-    getPresetOverride: () => runtime.getRuntimePreset() ?? undefined,
-    getDesiredState: (packageInspection) => {
-      const freshConfig = loadPluginConfig(ctx.directory, {
-        silent: true,
-        hostFlavor,
-      });
-      const runtimePreset = runtime.resolveRuntimePreset(freshConfig);
-      const desiredPackageIds = resolveDesiredMarketplacePackageIds(
-        freshConfig,
-        runtimePreset ?? undefined,
-      );
-      if (hostSnapshotProvenance !== 'clean' || !latestHostSnapshot) {
-        return {
-          packageIds: desiredPackageIds,
-          error:
-            'The current host agent snapshot is not trustworthy for desired marketplace status',
-        };
-      }
-      if (
-        packageInspection.lockfileError ||
-        packageInspection.operationalError
-      ) {
-        return {
-          packageIds: desiredPackageIds,
-          error:
-            packageInspection.lockfileError ??
-            packageInspection.operationalError ??
-            'Marketplace package inspection is incomplete',
-        };
-      }
-      const installedPackages = new Map(
-        packageInspection.packages.map((stored) => [
-          stored.manifest.id,
-          stored,
-        ]),
-      );
-      const readOnlyActivationStore = {
-        loadSelected(ids: readonly string[]) {
-          const packages = new Map();
-          const errors = new Map<string, Error>();
-          for (const id of ids) {
-            const stored = installedPackages.get(id);
-            if (stored) packages.set(id, stored);
-            else
-              errors.set(id, new Error(`${id} is not installed or verified`));
-          }
-          return { packages, errors };
-        },
-      };
-      const freshRuntime = RuntimeConfig.createDetached(
-        ctx.directory,
-        freshConfig,
-        hostFlavor,
-      );
-      freshRuntime.captureHostConfig(latestHostSnapshot ?? {});
-      if (runtimePreset) freshRuntime.setRuntimePreset(runtimePreset);
-      const freshPluginMcps = createBuiltinMcps(freshRuntime.disabledMcps);
-      try {
-        const freshRegistry = buildResolvedAgentRegistry(freshRuntime, {
-          hostSnapshot: latestHostSnapshot,
-          nativePermissionsByAgent: latestNativePermissionsByAgent,
-          projectDirectory: ctx.directory,
-          hostFlavor,
-          pluginMcps: freshPluginMcps,
-          marketplace: {
-            selectedPackageIds: desiredPackageIds,
-            store: readOnlyActivationStore,
-            pluginVersion: getBuildInfo().version,
-            availableSkillNames: discoverPreflightSkills(
-              freshRuntime,
-              ctx.directory,
-            ),
-          },
-        });
-        return {
-          packageIds: desiredPackageIds,
-          packages: freshRegistry.marketplacePackages,
-        };
-      } catch (error) {
-        return {
-          packageIds: desiredPackageIds,
-          error: error instanceof Error ? error.message : String(error),
-        };
-      }
-    },
-  });
+  const marketplaceService = registerMarketplace({
+    ctx,
+    getHostFlavor: () => hostFlavor,
+    getRuntime: () => runtime,
+    getRegistryRetired: () => registryRetired,
+    getResolvedAgentRegistry: () => resolvedAgentRegistry,
+    requireRegistry: () => registryBridge.requireRegistry(),
+    getHostSnapshotProvenance: () => hostSnapshotProvenance,
+    getLatestHostSnapshot: () => latestHostSnapshot,
+    getLatestNativePermissionsByAgent: () => latestNativePermissionsByAgent,
+  }).marketplaceService;
   registryBridge = {
     marketplaceService,
     finalize(hostSnapshot, nativePermissionsByAgent) {
