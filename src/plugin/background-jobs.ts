@@ -131,6 +131,9 @@ export function createBackgroundJobsSystem(deps: {
     // stopConfirmationMs); the default equals
     // STOP_CONFIRMATION_GRACE_MS, so unset config keeps v1 behavior.
     graceMs: deps.runtime.backgroundJobs.stopConfirmationMs,
+    // Stryker disable OptionalChaining: the tracker is constructed AFTER the
+    // gate on purpose — these probes run pre- and post-tracker-time; direct
+    // tests exercise the absent side, the tracker's suite the defined side.
     baselineFor: (taskID, generation) =>
       revivedRunTracker?.baselineFor(taskID, generation),
     promptMessageIDFor: (taskID, generation) =>
@@ -141,6 +144,7 @@ export function createBackgroundJobsSystem(deps: {
       revivedRunTracker?.attemptStartedAtFor(taskID, generation),
     observationRevisionFor: (taskID, generation) =>
       revivedRunTracker?.revisionFor(taskID, generation),
+    /* Stryker restore */
     isObservationPending: (taskID, generation) =>
       (deps.getForegroundFallback()?.isFallbackInProgress(taskID) ?? false) ||
       (deps.getTaskSessionManagerHook()?.hasDeferredError(taskID) ?? false) ||
