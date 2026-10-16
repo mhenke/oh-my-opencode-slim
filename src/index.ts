@@ -51,7 +51,6 @@ import {
   createDeepworkHeadGate,
   createJsonErrorRecoveryHook,
   createLoopCommandHook,
-  createOrchestratorWakeScheduler,
   createPhaseReminderHook,
   createReflectCommandHook,
   createSearchPathGuardHook,
@@ -102,6 +101,10 @@ import { discoverPreflightSkills } from './marketplace/preflight';
 import { MarketplaceService } from './marketplace/service';
 import { resolveDesiredMarketplacePackageIds } from './marketplace/status';
 import { createBuiltinMcps, getOverriddenBuiltinMcpKeys } from './mcp';
+import {
+  registerWakeScheduler,
+  type WakeScheduler,
+} from './plugin/wake-scheduler';
 import {
   ast_grep_replace,
   ast_grep_search,
@@ -573,9 +576,7 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
   // task_status still surfaces it, so the parent can answer via task_reply.
   // In practice the scheduler is created synchronously in the same init,
   // before any host event can arrive.
-  let orchestratorWakeScheduler:
-    | ReturnType<typeof createOrchestratorWakeScheduler>
-    | undefined;
+  let orchestratorWakeScheduler: WakeScheduler | undefined;
   function queueChildInputWaitWake(
     record: BackgroundJobRecord,
     wait: ChildInputWaitRecord,
@@ -1114,40 +1115,15 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
     getRevivedContextFiles = taskSessionManagerHook.contextFilesForTask;
     pruneRevivedContext = taskSessionManagerHook.pruneTaskContext;
 
-    orchestratorWakeScheduler = createOrchestratorWakeScheduler(ctx, {
-      config: runtime.backgroundJobs.orchestratorWake,
-      boardInjectionEnabled: runtime.backgroundJobs.boardInjection,
-      shouldManageSession: (sessionID) =>
-        sessionMetadata.getAgent(sessionID) === 'orchestrator',
+    orchestratorWakeScheduler = registerWakeScheduler({
+      ctx,
+      runtime,
+      sessionMetadata,
+      backgroundJobCoordinator,
+      foregroundFallback,
+      lifecycleSelectionResolver,
       hasInputWait: (sessionID) =>
         taskSessionManagerHook.hasInputWait(sessionID),
-      isFallbackInProgress: (sessionID) =>
-        foregroundFallback.isFallbackInProgress(sessionID),
-      resolveSelection: lifecycleSelectionResolver,
-      // C2 writer-lane predicate: the queued child's agent from the board
-      // record, graded by its role's write permission data. A missing
-      // record/agent reads as writer (fail-safe, verdict defaults to
-      // attaching the verification sentence).
-      isWriterLaneTask: (taskID) =>
-        roleHasWriteCapability(backgroundJobCoordinator.get(taskID)?.agent),
-      isStoppedJobRecoveryCurrent: (taskID, generation) => {
-        const record = backgroundJobCoordinator.get(taskID);
-        return (
-          record?.generation === generation &&
-          record.state === 'stopped' &&
-          record.terminalUnreconciled
-        );
-      },
-      isChildInputWaitCurrent: (taskID, requestID) => {
-        const record = backgroundJobCoordinator.get(taskID);
-        return (
-          record?.state === 'running' &&
-          getChildInputWait(taskID, requestID) !== undefined
-        );
-      },
-      hasPendingDelegatedWork: (sessionID) =>
-        backgroundJobCoordinator.hasRunning(sessionID) ||
-        backgroundJobCoordinator.hasTerminalUnreconciled(sessionID),
       coordinator: sessionLifecycle,
     });
     backgroundJobCoordinator.addTerminalOutcomeListener((record) => {
