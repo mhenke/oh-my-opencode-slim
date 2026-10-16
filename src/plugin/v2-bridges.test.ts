@@ -29,7 +29,10 @@ const snapshot = (): RegistryHostSnapshot =>
 // Spies for the tui-state writer: the unit calls recordTuiAgentModels via
 // its '../tui-state' import, so mock.module intercepts it at the boundary.
 const tuiCalls: Array<{
-  input: { agentModels: Record<string, string>; agentVariants?: Record<string, string> };
+  input: {
+    agentModels: Record<string, string>;
+    agentVariants?: Record<string, string>;
+  };
   projectDir: string;
 }> = [];
 let tuiMockInstalled = false;
@@ -39,7 +42,10 @@ function installTuiMock() {
   const { mock } = require('bun:test');
   mock.module('../tui-state', () => ({
     recordTuiAgentModels: (
-      input: { agentModels: Record<string, string>; agentVariants?: Record<string, string> },
+      input: {
+        agentModels: Record<string, string>;
+        agentVariants?: Record<string, string>;
+      },
       projectDir: string,
     ) => {
       tuiCalls.push({ input, projectDir });
@@ -250,13 +256,12 @@ describe('createV2Bridges prepareCommands', () => {
   });
 
   test('disabling only interview still passes the implement gate', () => {
-    const hooks: string[] = [];
     const { unit } = makeUnit({
       runtime: runtimeStub({
         disabledCommands: new Set(['interview']),
       }),
       commandSpies: {
-        interview: () => hooks.push('interview'),
+        interview: () => {},
       },
     });
     // The interview||implement gate must open for implement, and the
@@ -264,7 +269,6 @@ describe('createV2Bridges prepareCommands', () => {
     const registered: Array<{ interview?: boolean; implement?: boolean }> = [];
     const interviewManager = {
       registerCommand: (_cfg: unknown, flags: never) => {
-        hooks.push('interview');
         registered.push(flags);
       },
     } as never;
@@ -429,8 +433,7 @@ describe('createV2Bridges refreshProfilesFromDisk', () => {
     const publishCallsLocal: unknown[] = [];
     const wired = createV2Bridges({
       ctx: ctxStub(dir),
-      getRuntime: () =>
-        RuntimeConfig.create(dir, {} as never) as RuntimeConfig,
+      getRuntime: () => RuntimeConfig.create(dir, {} as never) as RuntimeConfig,
       getRegistryRetired: () => false,
       setRegistryRetired: () => {},
       getResolvedAgentRegistry: () => reg,
@@ -445,7 +448,10 @@ describe('createV2Bridges refreshProfilesFromDisk', () => {
       getForegroundFallback: () =>
         ({
           publishChainGeneration: (...args: unknown[]) => {
-            publishCallsLocal.push({ next: (args[0] as Record<string, unknown>), rest: args.slice(1) });
+            publishCallsLocal.push({
+              next: args[0] as Record<string, unknown>,
+              rest: args.slice(1),
+            });
           },
         }) as never,
       marketplaceService: { store: {} } as never,
@@ -484,8 +490,7 @@ describe('createV2Bridges refreshProfilesFromDisk', () => {
     );
     const wired = createV2Bridges({
       ctx: ctxStub(dir),
-      getRuntime: () =>
-        RuntimeConfig.create(dir, {} as never) as RuntimeConfig,
+      getRuntime: () => RuntimeConfig.create(dir, {} as never) as RuntimeConfig,
       getRegistryRetired: () => false,
       setRegistryRetired: () => {},
       getResolvedAgentRegistry: () => undefined,
