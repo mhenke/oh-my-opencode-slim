@@ -16,6 +16,10 @@ export default {
     // across test files under the runner's sequential mode (45 failures,
     // every file passes standalone)
     timeout: 900000,
-    testFiles: ['src/index.test.ts', 'src/plugin/v2-bridges.test.ts'],
+    testFiles: [
+      'src/index.test.ts',
+      'src/plugin/v2-bridges.test.ts',
+      'src/plugin/wake-scheduler.test.ts',
+    ],
   },
 };
