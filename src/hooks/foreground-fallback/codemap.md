@@ -49,7 +49,7 @@ Runtime model fallback system for foreground (interactive) agent sessions. When 
 
 ### Fallback Chain Resolution
 - **Agent-specific chains**: Each agent defines an ordered list of fallback models via `modelArrays`, preserving per-entry variants
-- **Chain generations**: The published table (`foregroundFallbackChains`) is swapped atomically by registry finalize and every successful v2 profile refresh (`buildChainGeneration`/`publishChainGeneration` in `src/index.ts`); each session pins the generation in effect at registration (`pinSessionChains`, fired by the v2 profile bridge at profile freeze) and finishes its descent against it — a swap mid-descent never changes what counts as untried
+- **Chain generations**: The published table (`foregroundFallbackChains`) is swapped atomically by registry finalize and every successful v2 profile refresh (`buildChainGeneration`/`selectDelegatedModel` in `src/hooks/foreground-fallback/chain-generation.ts`, published by `publishChainGeneration` in `src/index.ts`); each session pins the generation in effect at registration (`pinSessionChains`, fired by the v2 profile bridge at profile freeze) and finishes its descent against it — a swap mid-descent never changes what counts as untried
 - Selection scans from index 0, skipping tried entries and the union of this
   session's and its parent's `activeFallback.downProviders`. Other models on
   the failing provider remain eligible until a confirmed switch leaves it.
