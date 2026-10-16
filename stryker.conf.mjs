@@ -8,6 +8,10 @@ export default {
   // state.ts is a type + factory module — mutation testing on it is noise.
   mutate: ['src/plugin/**/*.ts', '!src/plugin/state.ts'],
   reporters: ['clear-text', 'progress', 'html'],
+  // Done bar (spec "zero unexplained mutants"): CI-failing gates at the
+  // 2025-11-30 measured level — score below break fails the run so new blind
+  // code cannot merge silently. Raise as the kill-loop progresses.
+  thresholds: { high: 80, low: 60, break: 55 },
   bun: {
     // shortcut: pins npm-distributed bun 1.4 for the runner; switch back to
     // "bun" once the system bun is >= 1.4
