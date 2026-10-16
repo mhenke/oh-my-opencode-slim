@@ -14,7 +14,7 @@ const capturedOptions: CapturedOptions[] = [];
 const restoreHooks = mock.module('../hooks', () => ({
   ...requireActualHooks(),
   createOrchestratorWakeScheduler: (
-    ctx: PluginInput,
+    _ctx: PluginInput,
     options: CapturedOptions,
   ) => {
     capturedOptions.push(options);
@@ -65,15 +65,17 @@ const recordStub = (overrides: Partial<BackgroundJobRecord> = {}) =>
 
 const lifecycleStub = {} as never;
 
-function wired(overrides: {
-  getAgent?: (sessionID: string) => string | undefined;
-  hasInputWait?: (sessionID: string) => boolean;
-  isFallbackInProgress?: (sessionID: string) => boolean;
-  get?: (taskID: string) => BackgroundJobRecord | undefined;
-  hasRunning?: (sessionID: string) => boolean;
-  hasTerminalUnreconciled?: (sessionID: string) => boolean;
-  resolver?: (sessionID: string) => Promise<never>;
-} = {}) {
+function wired(
+  overrides: {
+    getAgent?: (sessionID: string) => string | undefined;
+    hasInputWait?: (sessionID: string) => boolean;
+    isFallbackInProgress?: (sessionID: string) => boolean;
+    get?: (taskID: string) => BackgroundJobRecord | undefined;
+    hasRunning?: (sessionID: string) => boolean;
+    hasTerminalUnreconciled?: (sessionID: string) => boolean;
+    resolver?: (sessionID: string) => Promise<never>;
+  } = {},
+) {
   return registerWakeScheduler({
     ctx: ctxStub,
     runtime: runtimeStub as never,
@@ -81,7 +83,8 @@ function wired(overrides: {
     backgroundJobCoordinator: {
       get: overrides.get ?? (() => undefined),
       hasRunning: overrides.hasRunning ?? (() => false),
-      hasTerminalUnreconciled: overrides.hasTerminalUnreconciled ?? (() => false),
+      hasTerminalUnreconciled:
+        overrides.hasTerminalUnreconciled ?? (() => false),
     },
     foregroundFallback: {
       isFallbackInProgress: overrides.isFallbackInProgress ?? (() => false),
@@ -93,7 +96,8 @@ function wired(overrides: {
   });
 }
 
-const options = (n = 0): CapturedOptions => capturedOptions[n] as CapturedOptions;
+const options = (n = 0): CapturedOptions =>
+  capturedOptions[n] as CapturedOptions;
 
 describe('registerWakeScheduler wiring', () => {
   test('forwards scheduler config and board injection from runtime', () => {
@@ -146,23 +150,29 @@ describe('registerWakeScheduler wiring', () => {
           generation: 2,
         }),
     });
-    const fn = options(0)
-      .isStoppedJobRecoveryCurrent as (t: string, g: number) => boolean;
+    const fn = options(0).isStoppedJobRecoveryCurrent as (
+      t: string,
+      g: number,
+    ) => boolean;
     expect(fn('t1', 2)).toBeTrue();
     expect(fn('t1', 3)).toBeFalse();
   });
 
   test('isStoppedJobRecoveryCurrent rejects running state', () => {
     wired({ get: () => recordStub({ state: 'running', generation: 2 }) });
-    const fn = options(0)
-      .isStoppedJobRecoveryCurrent as (t: string, g: number) => boolean;
+    const fn = options(0).isStoppedJobRecoveryCurrent as (
+      t: string,
+      g: number,
+    ) => boolean;
     expect(fn('t1', 2)).toBeFalse();
   });
 
   test('isChildInputWaitCurrent requires running state and a live wait', () => {
     wired({ get: () => recordStub() });
-    const fn = options(0)
-      .isChildInputWaitCurrent as (t: string, r: string) => boolean;
+    const fn = options(0).isChildInputWaitCurrent as (
+      t: string,
+      r: string,
+    ) => boolean;
     // No wait registered: even a running record is not current.
     expect(fn('t1', 'r1')).toBeFalse();
   });

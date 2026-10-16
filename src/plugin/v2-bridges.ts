@@ -5,7 +5,6 @@ import {
   mergeHostAgentConfigs,
   projectAgentRuntimeState,
 } from '../agents';
-import { buildOrchestratorPrompt } from '../agents/orchestrator';
 import {
   buildResolvedAgentRegistry,
   type RegistryHostSnapshot,
