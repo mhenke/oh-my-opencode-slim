@@ -1,3 +1,5 @@
 [test]
 root = "./src"
-preload = ["@opentui/solid/preload", "./test-isolation.ts"]
+# literal file path, not the "@opentui/solid/preload" specifier: stryker-bun-runner
+# absolutizes preload entries, so each one must be a real file on disk
+preload = ["./node_modules/@opentui/solid/scripts/preload.js", "./test-isolation.ts"]

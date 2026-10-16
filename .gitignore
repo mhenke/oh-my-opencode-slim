@@ -103,3 +103,7 @@ companion/target/
 .slim/deepwork/
 .codegraph/
 .worktrees/
+
+# Stryker mutation testing artifacts
+.stryker-tmp/
+reports/mutation/

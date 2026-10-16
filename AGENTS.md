@@ -18,6 +18,7 @@ This document provides guidelines for AI agents operating in this repository.
 | `bun run check` | Run Biome check with auto-fix (lint + format + organize imports) |
 | `bun run check:ci` | Run Biome check without auto-fix (CI mode) |
 | `bun run dev` | Build and run with OpenCode |
+| `bunx stryker run` | Mutation-test one module with Stryker (see `docs/mutation-testing.md`) |
 
 **Running a single test:** Use Bun's test filtering with the `-t` flag:
 ```bash
