@@ -8,7 +8,11 @@ import { registerWakeScheduler } from './wake-scheduler';
 
 type CapturedOptions = Record<string, any>;
 
-let fakeScheduler: Record<string, unknown> = { scheduler: true };
+let fakeScheduler: Record<string, unknown> = {
+  scheduler: true,
+  event: async () => undefined,
+  dispose: async () => undefined,
+};
 const capturedOptions: CapturedOptions[] = [];
 
 const restoreHooks = mock.module('../hooks', () => ({
@@ -34,7 +38,11 @@ void restoreHooks;
 
 afterEach(() => {
   capturedOptions.length = 0;
-  fakeScheduler = { scheduler: true };
+  fakeScheduler = {
+    scheduler: true,
+    event: async () => undefined,
+    dispose: async () => undefined,
+  };
 });
 
 const ctxStub = { directory: '/project', client: {} } as never;
@@ -79,6 +87,7 @@ function wired(
   return registerWakeScheduler({
     ctx: ctxStub,
     runtime: runtimeStub as never,
+    hostFlavor: () => undefined,
     sessionMetadata: { getAgent: overrides.getAgent ?? (() => undefined) },
     backgroundJobCoordinator: {
       get: overrides.get ?? (() => undefined),
@@ -241,6 +250,7 @@ describe('registerWakeScheduler wiring', () => {
     const unit = registerWakeScheduler({
       ctx: ctxStub,
       runtime: runtimeStub as never,
+      hostFlavor: () => undefined,
       sessionMetadata: { getAgent: () => undefined },
       backgroundJobCoordinator: {
         get: () => undefined,

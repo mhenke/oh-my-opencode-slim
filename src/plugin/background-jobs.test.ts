@@ -15,7 +15,6 @@ const trackerCalls: Captured[] = [];
 let trackerResult: Record<string, unknown>;
 const handoffCalls: Captured[] = [];
 const boardCalls: Captured[] = [];
-let boardResult: Record<string, unknown>;
 const leaseCalls: Array<[string, number]> = [];
 let leaseResult: { backgroundTaskConcurrency: unknown };
 const restoreCalls: Array<[string, string]> = [];
@@ -54,7 +53,6 @@ const installMocks = () => {
     revisionFor: () => undefined,
     isObservationPending: () => false,
   };
-  boardResult = { board: true };
   leaseResult = {
     backgroundTaskConcurrency: {
       restoreTask: (taskID: string, model: string) =>
