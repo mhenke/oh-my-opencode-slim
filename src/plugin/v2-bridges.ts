@@ -19,7 +19,6 @@ import { getBuildInfo } from '../generated/build-info';
 import { isCommandEnabled } from '../hooks/command-hook-utils';
 import type { ForegroundFallbackManager } from '../hooks/foreground-fallback';
 import { buildChainGeneration } from '../hooks/foreground-fallback/chain-generation';
-import type { SessionLifecycle } from '../hooks/session-lifecycle';
 import { discoverPreflightSkills } from '../marketplace/preflight';
 import type { MarketplaceService } from '../marketplace/service';
 import { recordTuiAgentModels } from '../tui-state';
@@ -277,7 +276,11 @@ export function createV2Bridges(deps: {
           }
         : undefined;
       deps.getForegroundFallback().publishChainGeneration(
-        buildChainGeneration(freshRuntime, freshAgentDefs, freshCandidates),
+        buildChainGeneration(
+          runtime,
+          freshAgentDefs,
+          freshCandidates,
+        ),
         (name) => freshRuntime.combinedModelInheritanceSource(name),
         (name) => runtime.hasModelSwitched(name),
       );

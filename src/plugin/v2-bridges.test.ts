@@ -1,7 +1,20 @@
-import { describe, expect, test } from 'bun:test';
-import { mkdtempSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { mkdtempSync, rmSync } from 'node:fs';
 import type { Plugin } from '@opencode-ai/plugin';
+import {
+  afterEach,
+  describe,
+  expect,
+  test,
+} from 'bun:test';
+
+const tempDirs: string[] = [];
+afterEach(() => {
+  for (const dir_ of tempDirs.splice(0)) {
+    try {
+      rmSync(dir_, { recursive: true, force: true });
+    } catch {}
+  }
+});
 import type {
   RegistryHostSnapshot,
   ResolvedAgentRegistry,
@@ -19,8 +32,10 @@ const snapshot = (): RegistryHostSnapshot =>
 
 const registryStub = (overrides: Record<string, unknown> = {}) =>
   ({
-    modelCandidates: { orch: [{ id: 'a/one' }] },
-    marketplaceManifestChains: {},
+    // Two entries per chain: buildChainGeneration only promotes chains with
+    // more than one entry (a solo chain has no fallback to offer).
+    modelCandidates: { orch: [{ id: 'a/one' }, { id: 'a/two' }] },
+    marketplaceManifestChains: { codex: [{ id: 'c/one' }, { id: 'c/two' }] },
     tuiAgentModels: {},
     tuiAgentVariants: {},
     marketplacePackages: [],
@@ -222,7 +237,8 @@ describe('createV2Bridges refreshProfilesFromDisk', () => {
     const fs = require('node:fs');
     const os = require('node:os');
     const path = require('node:path');
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v2b-'));
+    const dir = mkdtempSync(require('node:path').join(os.tmpdir(), 'v2b-'));
+    tempDirs.push(dir);
     fs.mkdirSync(path.join(dir, '.opencode'), { recursive: true });
     fs.writeFileSync(
       path.join(dir, '.opencode', 'oh-my-opencode-slim.json'),
@@ -232,6 +248,8 @@ describe('createV2Bridges refreshProfilesFromDisk', () => {
     void unused;
     // Rebuild against the temp directory so loadPluginConfig reads the
     // malformed file there.
+    
+    tempDirs.push(dir);
     const malformedUnit = createV2Bridges({
       ctx: ctxStub(dir),
       getRuntime: () => runtimeStub(),
@@ -262,14 +280,14 @@ describe('createV2Bridges refreshProfilesFromDisk', () => {
       expect(result.reason).toContain('config load failed');
       expect(result.reason).toContain('invalid-json');
     }
-    fs.rmSync(dir, { recursive: true, force: true });
   });
 
   test('successful refresh publishes a generation and returns profiles', async () => {
     const fs = require('node:fs');
     const os = require('node:os');
     const path = require('node:path');
-    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'v2b-'));
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'v2b-'));
+    tempDirs.push(dir);
     fs.mkdirSync(path.join(dir, '.opencode'), { recursive: true });
     fs.writeFileSync(
       path.join(dir, '.opencode', 'oh-my-opencode-slim.json'),
@@ -277,9 +295,12 @@ describe('createV2Bridges refreshProfilesFromDisk', () => {
     );
     const publishCalls: unknown[] = [];
     const reg = registryStub();
+    
+    tempDirs.push(dir);
     const wired = createV2Bridges({
       ctx: ctxStub(dir),
-      getRuntime: () => runtimeStub(),
+      getRuntime: () =>
+        RuntimeConfig.create(dir, {} as never) as RuntimeConfig,
       getRegistryRetired: () => false,
       setRegistryRetired: () => {},
       getResolvedAgentRegistry: () => reg,
@@ -293,8 +314,9 @@ describe('createV2Bridges refreshProfilesFromDisk', () => {
       getMcps: () => ({}),
       getForegroundFallback: () =>
         ({
-          publishChainGeneration: (...args: unknown[]) =>
-            publishCalls.push(args),
+          publishChainGeneration: (...args: unknown[]) => {
+            publishCalls.push({ next: args[0], rest: args.slice(1) });
+          },
         }) as never,
       marketplaceService: { store: {} } as never,
       selectedMarketplacePackageIds: [],
@@ -307,7 +329,19 @@ describe('createV2Bridges refreshProfilesFromDisk', () => {
     const result = await wired.refreshProfilesFromDisk();
     expect(result.ok).toBe(true);
     expect(publishCalls.length).toBe(1);
-    fs.rmSync(dir, { recursive: true, force: true });
+    // The published generation merges the registry's candidates with its
+    // marketplace manifest chains; the inheritance probe comes from the
+    // fresh runtime, the switch probe from the live one.
+    const recorded = publishCalls[0] as {
+      next: Record<string, { id: string }[]>;
+      rest: [
+        (name: string) => string | undefined,
+        (name: string) => boolean,
+      ];
+    };
+    expect(Object.keys(recorded.next).length).toBeGreaterThan(0);
+    // The switch probe is the live runtime stub: hasModelSwitched → false.
+    expect(recorded.rest[1]('anything')).toBeFalse();
   });
 
   test('HARD_PROFILE_REFRESH_WARNING_KINDS covers the hard kinds', () => {
