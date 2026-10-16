@@ -20,13 +20,13 @@
  */
 
 import { describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 
 const SRC_ROOT = import.meta.dir;
 
 /** Directories that participate in prompt/payload assembly. */
-const SCAN_DIRS = ['hooks', 'agents', 'config'];
+const SCAN_DIRS = ['hooks', 'agents', 'config', 'plugin'];
 
 const VOLATILE_PATTERNS: Array<{ name: string; regex: RegExp }> = [
   { name: 'Date.now()', regex: /\bDate\.now\(/ },
@@ -99,6 +99,7 @@ async function scanForViolations(): Promise<string[]> {
 
   for (const dir of SCAN_DIRS) {
     const root = path.join(SRC_ROOT, dir);
+    if (!existsSync(root)) continue; // inert until the dir exists (e.g. src/plugin pre-split)
     for await (const file of glob.scan(root)) {
       if (file.endsWith('.test.ts')) continue;
       const relative = `${dir}/${file}`;
