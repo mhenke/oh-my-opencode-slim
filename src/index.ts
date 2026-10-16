@@ -593,34 +593,6 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
     );
   }
 
-  /** Swap the published chain table's contents in one synchronous step, then
-   *  re-apply the model-switch disables through the manager's own method.
-   *  Never rebind `foregroundFallbackChains`: the manager's chainSource
-   *  aliases this record and sessions pin shallow copies of it — publishers
-   *  replace entry arrays and never mutate them in place. */
-  function publishChainGeneration(
-    next: Record<string, ModelChainEntry[]>,
-    rt: RuntimeConfig,
-    isSwitched: (agentName: string) => boolean,
-  ): void {
-    for (const name of Object.keys(foregroundFallbackChains)) {
-      if (!(name in next)) delete foregroundFallbackChains[name];
-    }
-    Object.assign(foregroundFallbackChains, next);
-    // Keyed on the published table, not rt.modelArrays: a switched agent's
-    // new generation may resolve its chain from _modelArray or registry
-    // candidates after its config array disappears — the disable must
-    // survive that source change.
-    for (const name of Object.keys(foregroundFallbackChains)) {
-      if (
-        rt.combinedModelInheritanceSource(name) === undefined &&
-        isSwitched(name)
-      ) {
-        foregroundFallback.disableChain(name);
-      }
-    }
-  }
-
   const resolvePrimaryModelFromFinalHostConfig = (
     agentType: string,
   ): string | undefined => {
@@ -1783,13 +1755,13 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
         // Publish the finalized chain generation: marketplace candidates and
         // model-switch disables are merged by the shared publisher — the same
         // path every profile refresh republishes.
-        publishChainGeneration(
+        foregroundFallback.publishChainGeneration(
           buildChainGeneration(
             runtime,
             agentDefs,
             resolvedAgentRegistry.modelCandidates,
           ),
-          runtime,
+          (name) => runtime.combinedModelInheritanceSource(name),
           (name) => runtime.hasModelSwitched(name),
         );
       }
@@ -1969,9 +1941,9 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
             ...resolvedAgentRegistry.marketplaceManifestChains,
           }
         : undefined;
-      publishChainGeneration(
+      foregroundFallback.publishChainGeneration(
         buildChainGeneration(freshRuntime, freshAgentDefs, freshCandidates),
-        freshRuntime,
+        (name) => freshRuntime.combinedModelInheritanceSource(name),
         (name) => runtime.hasModelSwitched(name),
       );
       return { ok: true, profiles, projection };

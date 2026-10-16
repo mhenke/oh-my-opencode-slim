@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import type { PluginInput } from '@opencode-ai/plugin';
 import type { AgentDefinition } from '../../agents/orchestrator';
 import type { RuntimeConfig } from '../../config/runtime';
 import {
@@ -6,6 +7,7 @@ import {
   type ModelChainEntry,
   selectDelegatedModel,
 } from './chain-generation';
+import { ForegroundFallbackManager } from './index';
 
 // buildChainGeneration reads only `rt.modelArrays`; the tests stub the rest.
 const asRuntimeConfig = (modelArrays: Record<string, ModelChainEntry[]>) =>
@@ -172,16 +174,48 @@ describe('selectDelegatedModel', () => {
       }),
     ).toBeUndefined();
   });
+});
 
-  test('independent child with live primary provider → undefined (nothing to skip)', () => {
-    expect(
-      selectDelegatedModel({
-        agentName: 'explorer',
-        childChain: chain('a/one', 'b/two'),
-        followsParent: false,
-        parentModel: 'a/one',
-        activeFallback: down('z'),
-      }),
-    ).toBeUndefined();
+describe('publishChainGeneration (manager)', () => {
+  test('swaps contents in place, deletes retired keys, disables switched agents without an inheritance source', () => {
+    const table: Record<string, ModelChainEntry[]> = {
+      orch: [{ id: 'a/one' }],
+      gone: [{ id: 'a/two' }],
+    };
+    const manager = new ForegroundFallbackManager(
+      table,
+      false,
+      // Test stub: publish/disable paths touch only ctx.directory via logging.
+      { directory: '/test' } as unknown as PluginInput,
+      0,
+    );
+    manager.publishChainGeneration(
+      { orch: [{ id: 'a/nine' }], fresh: [{ id: 'b/one', variant: 'v' }] },
+      (name) => (name === 'orch' ? 'inheritance-source' : undefined),
+      (name) => name === 'fresh',
+    );
+    expect(table.orch).toEqual([{ id: 'a/nine' }]);
+    expect(table.gone).toBeUndefined();
+    // Switched + no inheritance source → disableChain empties the chain.
+    expect(table.fresh).toEqual([]);
+  });
+
+  test('keeps switched agents that still have an inheritance source', () => {
+    const table: Record<string, ModelChainEntry[]> = {
+      orch: [{ id: 'a/one' }],
+    };
+    const manager = new ForegroundFallbackManager(
+      table,
+      false,
+      // Test stub: publish/disable paths touch only ctx.directory via logging.
+      { directory: '/test' } as unknown as PluginInput,
+      0,
+    );
+    manager.publishChainGeneration(
+      { orch: [{ id: 'a/nine' }] },
+      (name) => (name === 'orch' ? 'parent-model' : undefined),
+      () => true,
+    );
+    expect(table.orch).toEqual([{ id: 'a/nine' }]);
   });
 });

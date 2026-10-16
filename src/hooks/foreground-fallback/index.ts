@@ -53,6 +53,7 @@ import {
 import type { SessionLifecycle } from '../session-lifecycle';
 import type { createBackgroundFallbackHandoff } from '../task-session-manager/fallback-observation-transfer';
 import { isReplayableUserMessage, partsFromReplayMessage } from '../types';
+import type { ModelChainEntry } from './chain-generation';
 
 type BackgroundFallbackHandoff = ReturnType<
   typeof createBackgroundFallbackHandoff
@@ -795,6 +796,35 @@ export class ForegroundFallbackManager {
     // so resolveChain's "known agent without a chain" path applies and the
     // normalized chains retain the agent entry.
     this.chainSource[agentName] = [];
+  }
+
+  /**
+   * Swap the published chain table's contents in one synchronous step, then
+   * re-apply the model-switch disables through the manager's own method.
+   * Never rebind `chainSource`: sessions pin shallow copies of it —
+   * publishers replace entry arrays and never mutate them in place.
+   */
+  publishChainGeneration(
+    next: Record<string, ModelChainEntry[]>,
+    combinedModelInheritanceSource: (agentName: string) => string | undefined,
+    isSwitched: (agentName: string) => boolean,
+  ): void {
+    for (const name of Object.keys(this.chainSource)) {
+      if (!(name in next)) delete this.chainSource[name];
+    }
+    Object.assign(this.chainSource, next);
+    // Keyed on the published table, not rt.modelArrays: a switched agent's
+    // new generation may resolve its chain from _modelArray or registry
+    // candidates after its config array disappears — the disable must
+    // survive that source change.
+    for (const name of Object.keys(this.chainSource)) {
+      if (
+        combinedModelInheritanceSource(name) === undefined &&
+        isSwitched(name)
+      ) {
+        this.disableChain(name);
+      }
+    }
   }
 
   private pinnedChains(
