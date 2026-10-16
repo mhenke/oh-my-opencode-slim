@@ -22,6 +22,7 @@ export default {
     timeout: 900000,
     testFiles: [
       'src/index.test.ts',
+      'src/v2/config-refresh.test.ts',
       'src/plugin/v2-bridges.test.ts',
       'src/plugin/wake-scheduler.test.ts',
       'src/plugin/background-jobs.test.ts',

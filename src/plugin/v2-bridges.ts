@@ -275,7 +275,7 @@ export function createV2Bridges(deps: {
           }
         : undefined;
       deps.getForegroundFallback().publishChainGeneration(
-        buildChainGeneration(runtime, freshAgentDefs, freshCandidates),
+        buildChainGeneration(freshRuntime, freshAgentDefs, freshCandidates),
         (name) => freshRuntime.combinedModelInheritanceSource(name),
         (name) => runtime.hasModelSwitched(name),
       );
