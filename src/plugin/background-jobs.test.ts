@@ -114,14 +114,14 @@ const installMocks = () => {
         return undefined as never;
       }
       addContext() {}
-      addLaunchIdentityListener(l: unknown) {
-        this.listeners.push(l);
+      addLaunchIdentityListener(_l: unknown) {
+        this.listeners.push(_l);
       }
-      addTerminalOutcomeListener(l: unknown) {
-        this.listeners.push(l);
+      addTerminalOutcomeListener(_l: unknown) {
+        this.listeners.push(_l);
       }
-      addTerminalStateListener(l: unknown) {
-        this.listeners.push(l);
+      addTerminalStateListener(_l: unknown) {
+        this.listeners.push(_l);
       }
       hasRunning(sessionID: string) {
         return false;

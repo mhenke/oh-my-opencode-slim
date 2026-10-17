@@ -3,9 +3,13 @@ import { afterAll, afterEach, describe, expect, mock, test } from 'bun:test';
 // re-registers it explicitly (bun mock.module is process-persistent and
 // mock.restore() does not undo module replacements — docs + verified).
 import * as RealHooksModule from '../hooks/index';
+
 const RealHooks = { ...RealHooksModule } as Record<string, unknown>;
+
 import * as RealHooksDirectModule from '../hooks/orchestrator-wake/index';
+
 const RealHooksDirect = { ...RealHooksDirectModule } as Record<string, unknown>;
+
 import type { BackgroundJobRecord } from '../utils/background-job-board';
 import { registerWakeScheduler } from './wake-scheduler';
 
@@ -26,7 +30,7 @@ const fakeSchedulerSurface = () => ({
 let fakeScheduler: Record<string, unknown> = fakeSchedulerSurface();
 const capturedOptions: CapturedOptions[] = [];
 
-const restoreHooks = mock.module('../hooks', () => ({
+const _restoreHooks = mock.module('../hooks', () => ({
   ...(RealHooks as Record<string, unknown>),
   createOrchestratorWakeScheduler: (
     _ctx: PluginInput,
