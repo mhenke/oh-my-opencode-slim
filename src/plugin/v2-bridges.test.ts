@@ -77,6 +77,9 @@ const runtimeStub = (overrides: Record<string, unknown> = {}) =>
     combinedModelInheritanceSource: () => undefined,
     resolveRuntimePreset: () => undefined,
     disabledMcps: [],
+    agents: () => ({}),
+    customAgentNames: [],
+    modelArrays: {},
     ...overrides,
   }) as unknown as RuntimeConfig;
 

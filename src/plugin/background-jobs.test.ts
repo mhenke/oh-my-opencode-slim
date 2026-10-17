@@ -35,7 +35,17 @@ const installMocks = () => {
   pruneRegistrations.length = 0;
   prunedHostSession = [];
   supervisorOnLaunch.length = 0;
-  gateResult = { gate: true };
+  gateResult = {
+    gate: true,
+    dispose: async () => undefined,
+    event: async () => undefined,
+    onRunning: () => {},
+    baselineFor: () => undefined,
+    promptMessageIDFor: () => undefined,
+    attemptStartedAtFor: () => undefined,
+    observationRevisionFor: () => undefined,
+    isObservationPending: () => false,
+  };
   _supervisorResult = {
     supervisor: true,
     onLaunch: (record: unknown) => {
@@ -44,6 +54,8 @@ const installMocks = () => {
   };
   trackerResult = {
     tracker: true,
+    dispose: async () => undefined,
+    event: async () => undefined,
     // The gate's closures probe the tracker through ?. — each surface must
     // exist for the `?.` to be exercised (else it short-circuits undefined
     // before the mutant can flip the branch).
@@ -54,6 +66,7 @@ const installMocks = () => {
     isObservationPending: () => false,
   };
   leaseResult = {
+    release: async () => undefined,
     backgroundTaskConcurrency: {
       restoreTask: (taskID: string, model: string) =>
         restoreCalls.push([taskID, model]),
@@ -68,6 +81,14 @@ const installMocks = () => {
           constructor(opts: Captured) {
             this.opts = opts;
             boardCalls.push(opts);
+          }
+          addMutationListener(_listener: unknown) {}
+          removeMutationListener(_listener: unknown) {}
+          isTracked(taskID: string) {
+            return taskID === 'tracked';
+          }
+          get running() {
+            return [] as never;
           }
         },
         isPrunableEvictedSession: (evicted: Record<string, unknown>) =>
@@ -87,7 +108,28 @@ const installMocks = () => {
     },
   })) as never;
   mock.module('../utils', () => ({
-    BackgroundJobCoordinator: class {},
+    BackgroundJobCoordinator: class {
+      listeners: unknown[] = [];
+      get(taskID: string) {
+        return undefined as never;
+      }
+      addContext() {}
+      addLaunchIdentityListener(l: unknown) {
+        this.listeners.push(l);
+      }
+      addTerminalOutcomeListener(l: unknown) {
+        this.listeners.push(l);
+      }
+      addTerminalStateListener(l: unknown) {
+        this.listeners.push(l);
+      }
+      hasRunning(sessionID: string) {
+        return false;
+      }
+      hasTerminalUnreconciled(sessionID: string) {
+        return false;
+      }
+    },
     BackgroundJobSupervisor: class {
       opts: Captured;
       constructor(opts: Captured) {
@@ -96,6 +138,12 @@ const installMocks = () => {
       }
       onLaunch(record: unknown) {
         supervisorOnLaunch.push(record);
+      }
+      dispose() {
+        return undefined as never;
+      }
+      event() {
+        return undefined as never;
       }
     },
   })) as never;
