@@ -31,7 +31,9 @@ const snapshot = (): RegistryHostSnapshot =>
 // Real statics spread + afterAll re-mock with the real record (bun
 // mock.module is process-persistent; later files' reads must see the real
 // readTuiSnapshot — config-refresh asserts snapshot contents).
-import * as RealTuiState from '../tui-state';
+import * as RealTuiStateModule from '../tui-state';
+// Eager snapshot — live-binding re-registration replays the mock.
+const RealTuiState = { ...RealTuiStateModule } as Record<string, unknown>;
 
 const tuiCalls: Array<{
   input: {

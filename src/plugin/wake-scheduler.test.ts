@@ -2,8 +2,10 @@ import { afterAll, afterEach, describe, expect, mock, test } from 'bun:test';
 // Real hooks module captured BEFORE the mock replaces the record: afterAll
 // re-registers it explicitly (bun mock.module is process-persistent and
 // mock.restore() does not undo module replacements — docs + verified).
-import * as RealHooks from '../hooks/index';
-import * as RealHooksDirect from '../hooks/orchestrator-wake/index';
+import * as RealHooksModule from '../hooks/index';
+const RealHooks = { ...RealHooksModule } as Record<string, unknown>;
+import * as RealHooksDirectModule from '../hooks/orchestrator-wake/index';
+const RealHooksDirect = { ...RealHooksDirectModule } as Record<string, unknown>;
 import type { BackgroundJobRecord } from '../utils/background-job-board';
 import { registerWakeScheduler } from './wake-scheduler';
 
