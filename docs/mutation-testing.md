@@ -53,10 +53,20 @@ same directory) follow the shape:
 2. In the mock factory, spread the real record BEFORE overriding members and
    keep overridden members complete (including class statics via
    `Object.getOwnPropertyNames` — spread drops non-enumerable statics).
-3. `afterAll`: `mock.module('<specifier>', () => Real);` re-registers the
-   real record for later-loading files in the same process.
+3. `afterAll`: re-register the real record — but snapshot it EAGERLY
+   (`const real = { ...Real }` via own-property copy; a live binding can
+   re-register the mock instead of restoring — see traps below).
 
 Known limits: the unit-test files cannot share one `bun test` invocation
-with `src/v2/config-refresh.test.ts` without leak errors — run per-unit
-measurement invocations instead
+with `src/v2/config-refresh.test.ts` without leak errors — the six-file
+covering set fails its dry run, so a widened measurement is not reproducible
+(the interim 60.65% index-remainder figure was from a non-reproducible run
+and is retracted). Run per-unit measurement invocations instead
 (`bunx stryker run --mutate <unit> --reporters clear-text`).
+
+Additional traps:
+- Spread a real module record via `Object.getOwnPropertyNames` — class
+  statics are own-but-non-enumerable, so `{...Class}` silently drops them.
+- Live bindings re-trap: `afterAll(() => mock.module(x, () => Real))` where
+  `Real` is a live module-name binding can re-register the replacement
+  instead of restoring. Snapshot eagerly, before anything is mocked.
