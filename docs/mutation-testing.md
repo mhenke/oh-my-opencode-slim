@@ -38,3 +38,25 @@ tests that reach it.
   (`@opentui/solid/preload`) does not resolve in its sandbox; use
   `./node_modules/@opentui/solid/scripts/preload.js` (upstream bug in the
   plugin's bunfig sanitizer).
+
+## Mock hygiene (process-persistent mock.module)
+
+bun's `mock.module` replaces module records for the WHOLE test process — it
+does not respect per-file boundaries, and `mock.restore()` cannot undo a
+module replacement. Unit-test files in `src/plugin/*.test.ts` that mock
+shared modules (`../config/runtime`, `../utils`, `../agents/registry`,
+`../mcp`, `../tui-state`, and `'../hooks'` vs
+`'../hooks/orchestrator-wake/index'` — DISTINCT registry identities for the
+same directory) follow the shape:
+
+1. Capture the real module at load: `import * as Real from '...';`
+2. In the mock factory, spread the real record BEFORE overriding members and
+   keep overridden members complete (including class statics via
+   `Object.getOwnPropertyNames` — spread drops non-enumerable statics).
+3. `afterAll`: `mock.module('<specifier>', () => Real);` re-registers the
+   real record for later-loading files in the same process.
+
+Known limits: the unit-test files cannot share one `bun test` invocation
+with `src/v2/config-refresh.test.ts` without leak errors — run per-unit
+measurement invocations instead
+(`bunx stryker run --mutate <unit> --reporters clear-text`).
