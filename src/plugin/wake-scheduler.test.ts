@@ -8,11 +8,15 @@ import { registerWakeScheduler } from './wake-scheduler';
 
 type CapturedOptions = Record<string, any>;
 
-let fakeScheduler: Record<string, unknown> = {
-  scheduler: true,
+const fakeSchedulerSurface = () => ({
   event: async () => undefined,
-  dispose: async () => undefined,
-};
+  observeChatMessage: () => undefined,
+  triggerStoppedJobRecovery: () => undefined,
+  triggerTerminalPublicationWake: () => Promise.resolve(),
+  triggerChildInputWaitWake: () => undefined,
+  suppress: () => undefined,
+});
+let fakeScheduler: Record<string, unknown> = fakeSchedulerSurface();
 const capturedOptions: CapturedOptions[] = [];
 
 const restoreHooks = mock.module('../hooks', () => ({
@@ -38,11 +42,7 @@ void restoreHooks;
 
 afterEach(() => {
   capturedOptions.length = 0;
-  fakeScheduler = {
-    scheduler: true,
-    event: async () => undefined,
-    dispose: async () => undefined,
-  };
+  fakeScheduler = fakeSchedulerSurface();
 });
 
 const ctxStub = { directory: '/project', client: {} } as never;
