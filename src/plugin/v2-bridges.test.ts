@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from 'bun:test';
+import { afterAll, afterEach, describe, expect, mock, test } from 'bun:test';
 import { mkdtempSync, rmSync } from 'node:fs';
 import type { Plugin } from '@opencode-ai/plugin';
 
@@ -28,6 +28,11 @@ const snapshot = (): RegistryHostSnapshot =>
 
 // Spies for the tui-state writer: the unit calls recordTuiAgentModels via
 // its '../tui-state' import, so mock.module intercepts it at the boundary.
+// Real statics spread + afterAll re-mock with the real record (bun
+// mock.module is process-persistent; later files' reads must see the real
+// readTuiSnapshot — config-refresh asserts snapshot contents).
+import * as RealTuiState from '../tui-state';
+
 const tuiCalls: Array<{
   input: {
     agentModels: Record<string, string>;
@@ -41,6 +46,7 @@ function installTuiMock() {
   tuiMockInstalled = true;
   const { mock } = require('bun:test');
   mock.module('../tui-state', () => ({
+    ...(RealTuiState as unknown as Record<string, unknown>),
     recordTuiAgentModels: (
       input: {
         agentModels: Record<string, string>;
@@ -53,6 +59,12 @@ function installTuiMock() {
     recordTuiAgentModel: () => {},
   }));
 }
+
+afterAll(() => {
+  // Re-register the REAL module record: undo the persistent mock for every
+  // later-loading file in this process (bun mock.module docs + verified).
+  mock.module('../tui-state', () => RealTuiState);
+});
 
 const registryStub = (overrides: Record<string, unknown> = {}) =>
   ({

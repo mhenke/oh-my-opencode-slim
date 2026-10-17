@@ -1,4 +1,9 @@
-import { afterEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, afterEach, describe, expect, mock, test } from 'bun:test';
+// Real hooks module captured BEFORE the mock replaces the record: afterAll
+// re-registers it explicitly (bun mock.module is process-persistent and
+// mock.restore() does not undo module replacements — docs + verified).
+import * as RealHooks from '../hooks/index';
+import * as RealHooksDirect from '../hooks/orchestrator-wake/index';
 import type { BackgroundJobRecord } from '../utils/background-job-board';
 import { registerWakeScheduler } from './wake-scheduler';
 
@@ -20,7 +25,7 @@ let fakeScheduler: Record<string, unknown> = fakeSchedulerSurface();
 const capturedOptions: CapturedOptions[] = [];
 
 const restoreHooks = mock.module('../hooks', () => ({
-  ...requireActualHooks(),
+  ...(RealHooks as Record<string, unknown>),
   createOrchestratorWakeScheduler: (
     _ctx: PluginInput,
     options: CapturedOptions,
@@ -31,14 +36,18 @@ const restoreHooks = mock.module('../hooks', () => ({
 }));
 
 // Real hooks module spread under the stubbed factory so unrelated imports
-// keep working.
-function requireActualHooks(): Record<string, unknown> {
-  // Bun's mock.module factory runs lazily; import the real module inside.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const real = require('../hooks/index.ts');
-  return { ...real };
-}
-void restoreHooks;
+// keep working: restoreHooks carries the registration; RealHooks const above
+// is the afterAll re-mock source.
+
+afterAll(() => {
+  // Explicit re-mock with the REAL record: restores the module for every
+  // later-loading file in this process (bun mock.module cannot be undone
+  // any other way). BOTH specifiers are patched: the barrel ('../hooks')
+  // by the mock above, and the direct ('../hooks/orchestrator-wake/index')
+  // — the wake suite imports `createOrchestratorWakeScheduler` directly.
+  mock.module('../hooks', () => RealHooks);
+  mock.module('../hooks/orchestrator-wake/index', () => RealHooksDirect);
+});
 
 afterEach(() => {
   capturedOptions.length = 0;
