@@ -63,10 +63,3 @@ covering set fails its dry run, so a widened measurement is not reproducible
 (the interim 60.65% index-remainder figure was from a non-reproducible run
 and is retracted). Run per-unit measurement invocations instead
 (`bunx stryker run --mutate <unit> --reporters clear-text`).
-
-Additional traps:
-- Spread a real module record via `Object.getOwnPropertyNames` — class
-  statics are own-but-non-enumerable, so `{...Class}` silently drops them.
-- Live bindings re-trap: `afterAll(() => mock.module(x, () => Real))` where
-  `Real` is a live module-name binding can re-register the replacement
-  instead of restoring. Snapshot eagerly, before anything is mocked.
