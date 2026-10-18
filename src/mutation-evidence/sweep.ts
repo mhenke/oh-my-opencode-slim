@@ -47,16 +47,24 @@ async function main(): Promise<void> {
     process.exit(code);
   }
 
-  const baselinePath = baselinePathFor(files);
-  const firstRun = !existsSync(baselinePath);
-  if (firstRun) {
-    await Bun.write(baselinePath, Bun.file(REPORT_PATH));
-  }
+  const { baselinePath, firstRun } = await claimBaseline(files, REPORT_PATH);
   console.log(await summarizeReport(REPORT_PATH));
   console.log(
     `baseline: ${baselinePath}` +
       (firstRun ? ' (this run is the reference)' : ''),
   );
+}
+
+export async function claimBaseline(
+  files: readonly string[],
+  reportPath: string,
+): Promise<{ baselinePath: string; firstRun: boolean }> {
+  const baselinePath = baselinePathFor(files);
+  const firstRun = !existsSync(baselinePath);
+  if (firstRun) {
+    await Bun.write(baselinePath, Bun.file(reportPath));
+  }
+  return { baselinePath, firstRun };
 }
 
 if (import.meta.main) {
