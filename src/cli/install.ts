@@ -13,7 +13,6 @@ import {
   addPluginToOpenCodeConfig,
   addPluginToOpenCodeTuiConfig,
   detectCurrentConfig,
-  disableDefaultAgents,
   enableLspByDefault,
   generateLiteConfig,
   getOpenCodePath,
@@ -323,7 +322,7 @@ async function runInstall(config: InstallConfig): Promise<number> {
 
   const companionInstall = await shouldInstallCompanion(config);
 
-  let totalSteps = 7;
+  let totalSteps = 6;
   if (companionInstall) totalSteps += 1;
   totalSteps += 1;
 
@@ -368,14 +367,6 @@ async function runInstall(config: InstallConfig): Promise<number> {
     } else {
       handleStepResult(cacheResult, 'OpenCode cache warmed');
     }
-  }
-
-  printStep(step++, totalSteps, 'Disabling OpenCode default agents...');
-  if (config.dryRun) {
-    printInfo('Dry run mode - skipping agent disabling');
-  } else {
-    const agentResult = disableDefaultAgents();
-    if (!handleStepResult(agentResult, 'Default agents disabled')) return 1;
   }
 
   printStep(step++, totalSteps, 'Enabling OpenCode LSP integration...');

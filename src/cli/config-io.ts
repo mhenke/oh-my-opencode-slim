@@ -47,7 +47,6 @@ import type {
 } from './types';
 
 const PACKAGE_NAME = 'oh-my-opencode-slim';
-const DEFAULT_OPENCODE_AGENTS_TO_DISABLE = ['explore', 'general'] as const;
 
 function isString(value: unknown): value is string {
   return typeof value === 'string';
@@ -1007,38 +1006,6 @@ export function writeLiteConfig(
       success: false,
       configPath,
       error: `Failed to write lite config: ${err}`,
-    };
-  }
-}
-
-export function disableDefaultAgents(): ConfigMergeResult {
-  const configPath = getExistingConfigPath();
-
-  try {
-    ensureOpenCodeConfigDir();
-    mutateJsonFile(configPath, (current) => {
-      const config = current as OpenCodeConfig;
-      const agent = (config.agent ?? {}) as Record<string, unknown>;
-      for (const agentName of DEFAULT_OPENCODE_AGENTS_TO_DISABLE) {
-        const existing = agent[agentName];
-        agent[agentName] = {
-          ...(existing &&
-          typeof existing === 'object' &&
-          !Array.isArray(existing)
-            ? existing
-            : {}),
-          disable: true,
-        };
-      }
-      config.agent = agent;
-      return config;
-    });
-    return { success: true, configPath };
-  } catch (err) {
-    return {
-      success: false,
-      configPath,
-      error: `Failed to disable default agents: ${err}`,
     };
   }
 }

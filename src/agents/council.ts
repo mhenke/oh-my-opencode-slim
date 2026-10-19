@@ -15,39 +15,34 @@ export function ensureCouncilCompactionException(prompt: string): string {
   return `${prompt}\n\n${COUNCIL_COMPACTION_EXCEPTION}`;
 }
 
-// The synthesis reinforcement must survive a custom prompt override. When
-// the effective base prompt still carries the report format, a lean pointer
-// suffices; when an override dropped it, the fallback carries the required
-// structure itself. The compaction exception is kept in both places
-// deliberately — a custom prompt override must not be able to drop it.
-const COUNCIL_SYNTHESIS_POINTER = `\n\n---\n\nYou MUST follow the Synthesis Process and Required Output Format above. ${COUNCIL_COMPACTION_EXCEPTION}`;
-
+// The synthesis reinforcement must survive a custom prompt override: an
+// override that dropped the report format gets the compact fallback, which
+// carries the required structure itself. The compaction exception has triple
+// coverage — embedded in the base prompt, embedded in the fallback, and
+// re-applied idempotently by ensureCouncilCompactionException at all three
+// merge sites (createAgents' final-prompt pass, the registry's
+// effective-config pass, and its visible-projection pass) — so no path drops
+// it and no path doubles it.
 const COUNCIL_SYNTHESIS_FALLBACK = `\n\n---\n\nYou MUST produce: ## Council Response (the best synthesized answer), ## Per-Councillor Details (each councillor by exact seat name, e.g. "alpha", not the model label; note failed or timed-out seats instead of omitting them), and ## Council Summary (Consensus Level: unanimous|majority|split; Agreed Points; Disagreements + resolution; Remaining Uncertainty; Recommended Action). ${COUNCIL_COMPACTION_EXCEPTION}`;
 
-/** Idempotent dual-track synthesis reinforcement. Applied to the FINAL
+/** Idempotent single-track synthesis reinforcement. Applied to the FINAL
  * effective council prompt (after `resolvePrompt` and the host-agent merge
  * can replace the generated content) so a custom override cannot drop the
- * required output structure. Lean pointer when the base still carries the
- * format; compact fallback when an override dropped it. */
+ * required output structure. A prompt that already carries the report format
+ * — the base prompt's own sections, or a previous fallback append — is left
+ * byte-identical; otherwise the compact fallback is appended. */
 export function ensureCouncilSynthesisReinforcement(prompt: string): string {
-  // Already reinforced (marker texts appear only in the two variants).
-  if (
-    prompt.includes(
-      'You MUST follow the Synthesis Process and Required Output Format above',
-    ) ||
-    prompt.includes('You MUST produce: ## Council Response')
-  ) {
-    return prompt;
-  }
-  return prompt.includes('## Council Response')
-    ? prompt + COUNCIL_SYNTHESIS_POINTER
-    : prompt + COUNCIL_SYNTHESIS_FALLBACK;
+  // Idempotence, verbatim disjunct: our own fallback marker.
+  if (prompt.includes('You MUST produce: ## Council Response')) return prompt;
+  // A prompt that keeps its own report format needs no reinforcement.
+  if (prompt.includes('## Council Response')) return prompt;
+  return prompt + COUNCIL_SYNTHESIS_FALLBACK;
 }
 
 const COUNCIL_AGENT_PROMPT = `You are the Council agent - a \
 synthesizer for multi-model consensus.
 
-**Role**: You receive raw responses from multiple councillors (different models) and synthesize them into a structured council report. You do NOT dispatch councillors yourself - the orchestrator handles dispatch and provides the councillor results.
+**Role**: You receive raw responses from multiple councillors (different models) and synthesize them into a structured council report. The orchestrator handles dispatch and provides the councillor results.
 
 You synthesize purely from the councillor responses provided in your context.
 

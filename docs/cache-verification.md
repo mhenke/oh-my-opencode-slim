@@ -160,8 +160,10 @@ It asserts the deterministic request shape, including:
 - stable system, tool, and option projections across those requests;
 - append-only, prefix-stable conversation input and historical transformed user
   prompts;
-- exactly one phase reminder in each eligible user projection, with no reminder
-  marker in system instructions;
+- exactly one phase reminder across the session view, anchored on the first
+  eligible user projection with none on later eligible projections (this
+  supersedes PR #790's per-message form), and no reminder marker in system
+  instructions;
 - availability and transcript execution results for `read` and `todowrite`.
 
 Passing this check demonstrates payload stability under the fixture. It does

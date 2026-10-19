@@ -54,6 +54,27 @@ export const CUSTOM_SKILLS: CustomSkill[] = [
     sourcePath: 'src/skills/verification-planning',
   },
   {
+    name: 'step-back',
+    description:
+      'Pause snowballing patches and reassess direction before continuing',
+    allowedAgents: ['orchestrator'],
+    sourcePath: 'src/skills/step-back',
+  },
+  {
+    name: 'deanchor',
+    description:
+      'Generalize from examples instead of copying them with light edits',
+    allowedAgents: ['orchestrator'],
+    sourcePath: 'src/skills/deanchor',
+  },
+  {
+    name: 'ai-estimates',
+    description:
+      'Estimate task duration for a human working with AI, not alone',
+    allowedAgents: ['orchestrator'],
+    sourcePath: 'src/skills/ai-estimates',
+  },
+  {
     name: 'reflect',
     description:
       'Review repeated work and suggest reusable workflow improvements',

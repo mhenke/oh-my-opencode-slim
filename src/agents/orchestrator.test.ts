@@ -14,9 +14,10 @@ describe('orchestrator prompt: host vocabulary', () => {
     const prompt = v2();
 
     expect(prompt).toContain('`subagent` calls in one message');
-    expect(prompt).toContain('`subagent(agent, sessionID, prompt)`');
-    expect(prompt).toContain('`delivery: "queue"` waits for idle');
-    expect(prompt).toContain('`"steer"` lands at the next step');
+    expect(prompt).toContain(
+      'Continue a completed session with `subagent` by exact id',
+    );
+    expect(prompt).toContain('`task_message` amends a running lane');
     expect(prompt).toContain('look up IDs with the models tool');
     expect(prompt).not.toContain('task_id');
   });
@@ -25,8 +26,10 @@ describe('orchestrator prompt: host vocabulary', () => {
     const prompt = v1();
 
     expect(prompt).toContain('`task` calls in one message');
-    expect(prompt).toContain('`task_revive(task_id, prompt)`');
-    expect(prompt).toContain('`task_message` queues a bounded note');
+    expect(prompt).toContain(
+      'Continue an existing session with `task_revive` by exact id or alias',
+    );
+    expect(prompt).toContain('`task_message` amends a running lane');
     expect(prompt).not.toContain('delivery:');
     expect(prompt).not.toContain('subagent(');
     expect(prompt).not.toContain('models tool');
@@ -34,7 +37,6 @@ describe('orchestrator prompt: host vocabulary', () => {
 
   test('result reads go through task_status, not a task_result tool', () => {
     for (const prompt of [v1(), v2()]) {
-      expect(prompt).toContain('with `result: true` it reads a');
       expect(prompt).not.toContain('task_result');
     }
   });

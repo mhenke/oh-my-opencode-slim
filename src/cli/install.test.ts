@@ -18,7 +18,6 @@ const originalAddPluginToOpenCodeTuiConfig =
   actualConfigManager.addPluginToOpenCodeTuiConfig;
 const originalWarmOpenCodePluginCache =
   actualConfigManager.warmOpenCodePluginCache;
-const originalDisableDefaultAgents = actualConfigManager.disableDefaultAgents;
 const originalEnableLspByDefault = actualConfigManager.enableLspByDefault;
 const originalDetectCurrentConfig = actualConfigManager.detectCurrentConfig;
 const originalGenerateLiteConfig = actualConfigManager.generateLiteConfig;
@@ -62,10 +61,6 @@ mock.module('./config-manager', () => {
       enableInstallMocks
         ? { success: true, configPath: '/path' }
         : originalWarmOpenCodePluginCache(),
-    disableDefaultAgents: () =>
-      enableInstallMocks
-        ? { success: true, configPath: '/path' }
-        : originalDisableDefaultAgents(),
     enableLspByDefault: () =>
       enableInstallMocks
         ? { success: true, configPath: '/path' }

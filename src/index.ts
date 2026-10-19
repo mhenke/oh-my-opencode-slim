@@ -32,6 +32,7 @@ import {
 import { ensureCompanionVersion } from './companion/updater';
 import { deepMerge, loadPluginConfig, type Preset } from './config';
 import {
+  BUILTIN_OPENCODE_SUBAGENTS_TO_DISABLE,
   DEFAULT_MAX_SESSION_METADATA_ENTRIES,
   SMARTFETCH_SECONDARY_SESSION_TITLE,
   TOAST_DURATION_MS,
@@ -1157,7 +1158,6 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
       // v1-only honoured switch (forced false on v2 at RuntimeConfig).
       boardInjection: runtime.backgroundJobs.boardInjection,
       maxSessionsPerAgent: runtime.backgroundJobs.maxSessionsPerAgent,
-      disabledHooks: [...runtime.disabledHooks],
       backgroundJobBoard: backgroundJobCoordinator,
       backgroundJobSupervisor,
       backgroundTaskConcurrency,
@@ -1357,6 +1357,9 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
     // delivered the first completion, so a queued wake would
     // double-notify.
     backgroundJobCoordinator.addTerminalOutcomeListener((record) => {
+      // Unattributed child sessions are not delegated work, just as in
+      // stopped-job recovery; their owner controls parent notifications.
+      if (record.provisional === true) return;
       if (record.state !== 'completed' && record.state !== 'error') return;
       // Revived-run ownership: when the tracker will deliver this run's
       // <task> result itself (notifyParent), a publication wake beside
@@ -1477,16 +1480,7 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
         .filter((a) => a.name.startsWith('councillor-'))
         .map((a) => a.name);
       if (councilSeats.length > 0) {
-        // One resolution, two consumers: the block's delivery mode and the
-        // assembly gate must never disagree (a harness-mode block with the
-        // assembly branch inert would leave the tool-less council holding
-        // bare IDs). Read once here — both sites are construction-time.
-        const councilAssemblyEnabled =
-          !runtime.disabledHooks.has('council-assembly');
-        councilInject = createCouncilInjectHook({
-          wording: delegation,
-          seatAttachment: councilAssemblyEnabled ? 'harness' : 'paste',
-        });
+        councilInject = createCouncilInjectHook({ wording: delegation });
       }
     }
 
@@ -2199,6 +2193,22 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
         ...currentAgentConfig,
         ...structuredClone(registry.managedAgentConfig),
       };
+      // #1582: disable OpenCode's built-in subagents at runtime so slim's
+      // agents are the only delegation targets, even without the installer.
+      // A user-declared entry owns its key and is left untouched; an entry
+      // that is exactly our injected shape is re-asserted, so a host that
+      // hands the mutated object back can't out-stare a later user edit
+      // (same class as the injectedMcps filter below).
+      const mergedAgentConfig = opencodeConfig.agent as Record<string, unknown>;
+      for (const name of BUILTIN_OPENCODE_SUBAGENTS_TO_DISABLE) {
+        const existing = mergedAgentConfig[name];
+        if (
+          existing !== undefined &&
+          !Bun.deepEquals(existing, { disable: true })
+        )
+          continue;
+        mergedAgentConfig[name] = { disable: true };
+      }
       const currentMcpConfig =
         opencodeConfig.mcp && typeof opencodeConfig.mcp === 'object'
           ? (opencodeConfig.mcp as Record<string, unknown>)

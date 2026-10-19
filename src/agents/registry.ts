@@ -1232,7 +1232,7 @@ export function buildResolvedAgentRegistry(
     if (typeof entry.prompt === 'string') {
       // Host council prompt replaces the generated content; retain the
       // required exception and report structure via the idempotent
-      // dual-track reinforcement.
+      // fallback reinforcement.
       if (name === 'council')
         entry.prompt = ensureCouncilCompactionException(
           ensureCouncilSynthesisReinforcement(entry.prompt),

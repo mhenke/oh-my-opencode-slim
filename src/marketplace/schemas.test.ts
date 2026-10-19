@@ -1,5 +1,6 @@
 import { describe, expect, spyOn, test } from 'bun:test';
 import {
+  ActivatedMarketplaceBuiltinSchema,
   MARKETPLACE_ROUTING_LINE_MAX_LENGTH,
   MarketplaceAgentManifestSchema,
   MarketplaceAgentManifestSummaryV2Schema,
@@ -366,14 +367,25 @@ describe('agents-only marketplace manifest schemas', () => {
 let dynamicImportCounter = 0;
 
 describe('legacy marketplace builtin names', () => {
-  test("parses 'librarian' as the merged 'explorer'", () => {
+  test('stored manifests stay byte-faithful; activation maps to the merged role', () => {
     const warn = spyOn(console, 'warn').mockImplementation(() => {});
     try {
-      expect(MarketplaceBuiltinSchema.parse('librarian')).toBe('explorer');
+      // Store layer: byte-faithful, so bundle digests stay stable.
+      expect(MarketplaceBuiltinSchema.parse('librarian')).toBe('librarian');
       expect(MarketplaceBuiltinSchema.parse('explorer')).toBe('explorer');
       expect(MarketplaceBuiltinSchema.safeParse('unknown-role').success).toBe(
         false,
       );
+      // Activation layer: legacy names resolve to the merged role.
+      expect(ActivatedMarketplaceBuiltinSchema.parse('librarian')).toBe(
+        'explorer',
+      );
+      expect(ActivatedMarketplaceBuiltinSchema.parse('explorer')).toBe(
+        'explorer',
+      );
+      expect(
+        ActivatedMarketplaceBuiltinSchema.safeParse('unknown-role').success,
+      ).toBe(false);
     } finally {
       warn.mockRestore();
     }
@@ -388,12 +400,18 @@ describe('legacy marketplace builtin names', () => {
     const warn = spyOn(console, 'warn').mockImplementation(() => {});
     try {
       expect(fresh.MarketplaceBuiltinSchema.parse('librarian')).toBe(
+        'librarian',
+      );
+      expect(warn).not.toHaveBeenCalled();
+      expect(fresh.ActivatedMarketplaceBuiltinSchema.parse('librarian')).toBe(
         'explorer',
       );
-      expect(fresh.MarketplaceBuiltinSchema.parse('librarian')).toBe(
+      expect(fresh.ActivatedMarketplaceBuiltinSchema.parse('librarian')).toBe(
         'explorer',
       );
-      expect(fresh.MarketplaceBuiltinSchema.parse('explorer')).toBe('explorer');
+      expect(fresh.ActivatedMarketplaceBuiltinSchema.parse('explorer')).toBe(
+        'explorer',
+      );
       expect(warn).toHaveBeenCalledTimes(1);
       expect(String(warn.mock.calls[0]?.[0])).toContain(
         "'librarian' was merged into 'explorer'",

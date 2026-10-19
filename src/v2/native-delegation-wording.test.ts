@@ -85,7 +85,9 @@ describe('buildOrchestratorPrompt delegation vocabulary', () => {
   test('v2 hostFlavor emits subagent( wording with agent param', () => {
     const prompt = buildOrchestratorPrompt({ hostFlavor: 'v2' });
 
-    expect(prompt).toContain('`subagent(agent, sessionID, prompt)`');
+    expect(prompt).toContain(
+      'Continue a completed session with `subagent` by exact id',
+    );
     expect(prompt).not.toContain('Prefer `subagent(..., background: true)`');
     expect(prompt).toContain('After dispatching, do non-overlapping work');
     expect(prompt).toContain('`subagent` calls in one message');
@@ -98,7 +100,9 @@ describe('buildOrchestratorPrompt delegation vocabulary', () => {
     const prompt = buildOrchestratorPrompt();
 
     expect(prompt).toContain('`task` calls in one message');
-    expect(prompt).toContain('`task_revive(task_id, prompt)`');
+    expect(prompt).toContain(
+      'Continue an existing session with `task_revive` by exact id or alias',
+    );
     expect(prompt).not.toContain('subagent(');
     expect(prompt).not.toContain('Prefer `task(..., background: true)`');
     expect(prompt).not.toContain('optional `model` argument');
@@ -177,13 +181,9 @@ describe('createAgents council seat pointer vocabulary', () => {
   test('v2 keeps native resume guidance and does not adopt the v1 task_revive-first rule', () => {
     const v2 = orchestratorPromptFor('v2');
 
-    expect(v2).toContain(
-      '`task_status` is read-only inspection; with `result: true` it reads a',
-    );
-    expect(v2).toContain('Neither launches, resumes, or instructs a child.');
     expect(v2).not.toContain('task_result');
     expect(v2).toContain(
-      'Continue a completed session with `subagent(agent, sessionID, prompt)` by',
+      'Continue a completed session with `subagent` by exact id',
     );
     expect(v2).toContain('cancelled/errored/stopped sessions use');
     expect(v2).not.toContain(

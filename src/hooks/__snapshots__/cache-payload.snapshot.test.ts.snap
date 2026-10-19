@@ -61,15 +61,11 @@ don't stall on decisions you can make and revisit.
 ## Child sessions
 - When earlier tasks may already cover the objective, check \`task_status\`
   before dispatching a new one.
-- Continue an existing session with \`task_revive(task_id, prompt)\` by exact
-  id or alias, even when unlisted; \`task()\` without a task_id is only for
-  new work.
+- Continue an existing session with \`task_revive\` by exact id or alias,
+  even when unlisted; \`task()\` without a task_id is only for new work.
 - If a session id is refused, don't respawn the same objective as new work.
 - If a delegation is rejected, change its scope or context before retrying.
-- \`task_status\` is read-only inspection; with \`result: true\` it reads a
-  finished result. Neither launches, resumes, or instructs a child.
-- \`task_message\` queues a bounded note for a running child, delivered when
-  it goes idle.
+- \`task_message\` amends a running lane:
   Acceptance confirms transport only — never claim the child saw or acted
   on it. Amend a running lane this way, then reconcile against its result;
   if unaddressed, continue the same session id.
@@ -167,18 +163,6 @@ exports[`cache-impact snapshots (update deliberately — see file header) transf
         "text": "now add tests",
         "type": "text",
       },
-      {
-        "metadata": {
-          "oh-my-opencode-slim.phaseReminder": true,
-        },
-        "synthetic": true,
-        "text": 
-"<system-reminder>
-!IMPORTANT! Scheduler workflow: pick the lightest workflow that fits. Direct work: execute and verify proportionately. Otherwise: plan lanes → dispatch background specialists → track task IDs → await hook-driven completion → reconcile terminal results → verify. !END!
-</system-reminder>"
-,
-        "type": "text",
-      },
     ],
   },
   {
@@ -262,18 +246,6 @@ exports[`cache-impact snapshots (update deliberately — see file header) transf
 ,
         "type": "text",
       },
-      {
-        "metadata": {
-          "oh-my-opencode-slim.phaseReminder": true,
-        },
-        "synthetic": true,
-        "text": 
-"<system-reminder>
-!IMPORTANT! Scheduler workflow: pick the lightest workflow that fits. Direct work: execute and verify proportionately. Otherwise: plan lanes → dispatch background specialists → track task IDs → await hook-driven completion → reconcile terminal results → verify. !END!
-</system-reminder>"
-,
-        "type": "text",
-      },
     ],
   },
   {
@@ -314,18 +286,6 @@ exports[`cache-impact snapshots (update deliberately — see file header) transf
         "text": "final adjustments please",
         "type": "text",
       },
-      {
-        "metadata": {
-          "oh-my-opencode-slim.phaseReminder": true,
-        },
-        "synthetic": true,
-        "text": 
-"<system-reminder>
-!IMPORTANT! Scheduler workflow: pick the lightest workflow that fits. Direct work: execute and verify proportionately. Otherwise: plan lanes → dispatch background specialists → track task IDs → await hook-driven completion → reconcile terminal results → verify. !END!
-</system-reminder>"
-,
-        "type": "text",
-      },
     ],
   },
   {
@@ -342,18 +302,6 @@ exports[`cache-impact snapshots (update deliberately — see file header) transf
       },
       {
         "metadata": {
-          "oh-my-opencode-slim.phaseReminder": true,
-        },
-        "synthetic": true,
-        "text": 
-"<system-reminder>
-!IMPORTANT! Scheduler workflow: pick the lightest workflow that fits. Direct work: execute and verify proportionately. Otherwise: plan lanes → dispatch background specialists → track task IDs → await hook-driven completion → reconcile terminal results → verify. !END!
-</system-reminder>"
-,
-        "type": "text",
-      },
-      {
-        "metadata": {
           "oh-my-opencode-slim.councilInject": true,
         },
         "synthetic": true,
@@ -363,7 +311,7 @@ exports[`cache-impact snapshots (update deliberately — see file header) transf
 
 When the conversation calls for multi-model consensus, run this procedure:
 1. Embed a brief summary of needed context into each seat prompt (seats receive only their prompt).
-2. Dispatch the question to every council seat in parallel via task() — one call per seat.
+2. Dispatch the question to every seat in the ## Council roster in parallel — one task() call per seat, subagent_type=<exact roster name>; seats run their own preset models.
 3. Collect all responses; retry an empty seat once; mark failed seats; do not wait on stragglers.
 4. Call task(subagent_type='council', description='Council synthesis', prompt=<question + final 'Seats: <id, id>' line listing each seat's returned task_id>) — the harness attaches their responses; do not paste them.
 </system-reminder>"

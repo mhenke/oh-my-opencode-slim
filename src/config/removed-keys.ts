@@ -75,3 +75,50 @@ export function stripRemovedConfigKeys(
   }
   for (const path of removed) onRemoved(removedConfigKeyMessage(path), path);
 }
+
+/**
+ * Enum-backed `disabled_*` values removed in this version, keyed by config
+ * key then value. A stale member must not invalidate the whole config file:
+ * the loader strips it from the raw array before schema validation (the
+ * value enum no longer accepts it) and reports the removal message through
+ * the same `removed-key` channel as removed keys — the generic
+ * unknown-value normalization would otherwise label it a typo.
+ */
+export const REMOVED_DISABLED_VALUES: Readonly<
+  Record<string, Readonly<Record<string, string>>>
+> = {
+  disabled_hooks: {
+    'council-assembly':
+      'council-assembly is no longer a hook: council seat assembly is unconditional and fail-open — remove this entry.',
+  },
+};
+
+/**
+ * Strip every {@link REMOVED_DISABLED_VALUES} member from its raw array
+ * (mutates in place) and report each concrete value once. An array left
+ * empty by the strip is deleted, so a lower config layer's list still
+ * applies.
+ */
+export function stripRemovedDisabledValues(
+  rawConfig: unknown,
+  onRemoved: (message: string, value: string) => void,
+): void {
+  if (!isPlainObject(rawConfig)) return;
+  for (const [key, messages] of Object.entries(REMOVED_DISABLED_VALUES)) {
+    const list = rawConfig[key];
+    if (!Array.isArray(list)) continue;
+    const removed = new Set<string>();
+    const kept: unknown[] = [];
+    for (const entry of list) {
+      if (typeof entry === 'string' && Object.hasOwn(messages, entry)) {
+        removed.add(entry);
+      } else {
+        kept.push(entry);
+      }
+    }
+    if (removed.size === 0) continue;
+    for (const value of removed) onRemoved(messages[value] as string, value);
+    if (kept.length === 0) delete rawConfig[key];
+    else rawConfig[key] = kept;
+  }
+}

@@ -208,9 +208,6 @@ export function createTaskSessionManagerHook(
     /** Per-instance pairing flag for the background-default flip (v2 only);
      *  see BackgroundDefaultFlipState in v2/delegation. */
     isBackgroundDefaultFlipArmed?: () => boolean;
-    /** Hook toggles from the omos config (runtime.disabledHooks); passing
-     * 'council-assembly' disables host-side council seat assembly. */
-    disabledHooks?: readonly string[];
     recoverRetainedSession?: (request: {
       parentSessionID: string;
       requested: string;
@@ -736,7 +733,6 @@ export function createTaskSessionManagerHook(
         taskContextTracker,
         getLifecycleEpoch: () => rehydrateState.nextEpoch,
         hostFlavor: options.hostFlavor,
-        councilAssembly: !options.disabledHooks?.includes('council-assembly'),
         isBackgroundDefaultFlipArmed: options.isBackgroundDefaultFlipArmed,
         recoverRetainedSession: options.recoverRetainedSession,
         resolveCanonicalTaskRef: options.resolveCanonicalTaskRef,

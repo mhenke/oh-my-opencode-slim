@@ -13,6 +13,7 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { resolveMarketplaceActivation } from './activation';
 import { canonicalizeMarketplaceValue } from './canonical';
 import {
   MarketplaceBusyError,
@@ -1825,6 +1826,62 @@ try {
       const reopened = createStore({ rootDir: root });
       expect(reopened.getLockfile().packages).toEqual({});
       expect(reopened.list()).toEqual([]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  test('a persisted legacy librarian package keeps its digest and activates as explorer', () => {
+    const root = tempRoot();
+    try {
+      const store = createStore({ rootDir: root });
+      store.install(
+        bundle('1.0.0', {
+          id: 'community/legacy-librarian',
+          agentName: 'research-agent',
+          extends: { builtin: 'librarian', promptMode: 'append' },
+        }),
+      );
+      const packageFile = join(
+        root,
+        'packages',
+        'community',
+        'legacy-librarian',
+        '1.0.0',
+        'package.json',
+      );
+      // Byte-faithful store: the legacy name survives on disk, under digest.
+      const stored = JSON.parse(
+        readFileSync(packageFile, 'utf8'),
+      ) as MarketplacePackageBundle;
+      expect(stored.manifest.extends?.builtin).toBe('librarian');
+      expect(
+        existsSync(
+          join(
+            root,
+            'packages',
+            'community',
+            'legacy-librarian',
+            '1.0.0',
+            'sha256',
+          ),
+        ),
+      ).toBe(true);
+
+      const reopened = createStore({ rootDir: root });
+      expect(reopened.verify('community/legacy-librarian').valid).toBe(true);
+
+      const plan = resolveMarketplaceActivation({
+        selectedPackageIds: ['community/legacy-librarian'],
+        store: reopened,
+        pluginVersion: '3.2.0',
+        availableSkillNames: [],
+        availableMcpNames: ['context7', 'gh_grep'],
+        reservedAgentNames: new Set(),
+      });
+      expect(plan.diagnostics).toEqual([]);
+      expect(plan.agents[0]?.manifest.extends?.builtin).toBe('explorer');
+      expect(plan.agents[0]?.requiredMcps).toEqual(['context7', 'gh_grep']);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

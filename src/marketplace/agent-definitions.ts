@@ -6,12 +6,13 @@ import {
   ROLE_DEFINITIONS,
 } from '../agents/role-definitions.js';
 import { DEFAULT_AGENT_MCPS } from '../config/agent-mcps.js';
+import type { SpecialistRole } from '../config/agent-roles.js';
 import type {
   MarketplaceActivationAdmission,
   MarketplaceActivationPlan,
 } from './activation.js';
 import { renderMarketplaceAutoDelegationBlock } from './routing.js';
-import type { MarketplaceBuiltin, MarketplaceModelPolicy } from './schemas.js';
+import type { MarketplaceModelPolicy } from './schemas.js';
 import { MARKETPLACE_TOOL_NAMES } from './schemas.js';
 
 export interface MarketplaceAgentCapabilityCeiling {
@@ -30,7 +31,7 @@ export interface MarketplaceAgentMetadata {
   readonly capabilities: MarketplaceAgentCapabilityCeiling;
   readonly modelPolicy: MarketplaceModelPolicy;
   readonly extension?: {
-    readonly builtin: MarketplaceBuiltin;
+    readonly builtin: SpecialistRole;
     readonly promptMode: 'append' | 'replace';
   };
 }
@@ -183,7 +184,7 @@ function effectiveCapabilities(
 }
 
 function getBuiltinCapabilities(
-  builtin: MarketplaceBuiltin,
+  builtin: SpecialistRole,
 ): MarketplaceAgentCapabilityCeiling {
   const writeCapable = builtin === 'designer' || builtin === 'fixer';
   const permission = writeCapable ? undefined : createReadOnlyAgentPermission();

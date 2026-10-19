@@ -1305,6 +1305,16 @@ test('council pointer wording tracks the council-inject hook state', () => {
   expect(disabledPrompt).not.toContain('council-inject hook');
 });
 
+test('pointer stays roster-only — the block dispatch clause never leaks into the static prompt', () => {
+  const agents = createAgents(runtimeFor({ council: councilConfig() }));
+  const prompt = agents.find((a) => a.name === 'orchestrator')?.config
+    .prompt as string;
+  // The dispatch clause is injected with the block (first-hit) and must never
+  // be mirrored into the static pointer, which is read every turn.
+  expect(prompt).not.toContain('exact roster name');
+  expect(prompt).not.toContain('preset models');
+});
+
 test('routingBlock: false strips <Agents> from the v2 orchestrator prompt', () => {
   const agents = createAgents(runtimeFor({ routingBlock: false }), {
     hostFlavor: 'v2',
@@ -1663,9 +1673,9 @@ describe('council compaction exception', () => {
     expect(prompt).toContain(
       'if the host asks you to produce a session checkpoint or compaction summary in a specific template',
     );
-    // The override keeps the format marker, so the assembly layer appends
-    // the lean pointer (not the fallback) on top of it.
-    expect(prompt).toContain('You MUST follow the Synthesis Process');
+    // The override keeps the format marker, so single-track reinforcement
+    // appends nothing (no pointer, no fallback) on top of it.
+    expect(prompt).not.toContain('You MUST follow the Synthesis Process');
     expect(prompt).not.toContain('You MUST produce: ## Council Response');
   });
 

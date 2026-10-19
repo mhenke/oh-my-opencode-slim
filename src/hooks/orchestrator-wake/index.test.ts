@@ -20,6 +20,7 @@ import {
   createOrchestratorWakeScheduler,
   formatChildInputWaitDelta,
   formatStoppedJobDelta,
+  isGenuineOperatorMessage,
   isWakeChildActive,
   mapWakeChild,
   ORCHESTRATOR_CHILD_INPUT_WAKE_TEXT,
@@ -1989,6 +1990,41 @@ describe('orchestrator wake scheduler', () => {
     );
     expect(getWakeProgress('p1').stopped).toBe(false);
     expect(getWakeProgress('p1').unchangedWakeCount).toBe(0);
+  });
+
+  test('phase-reminder veto now applies only to the anchored message', () => {
+    const anchoredParts = [
+      {
+        type: 'text',
+        text: 'operator text',
+        metadata: { 'oh-my-opencode-slim.phaseReminder': true },
+      },
+    ];
+    const nonAnchorParts = [{ type: 'text', text: 'operator text' }];
+
+    expect(
+      isGenuineOperatorMessage(
+        { messageID: 'm1' },
+        { id: 'm1', role: 'user' },
+        anchoredParts,
+      ),
+    ).toBe(false);
+
+    expect(
+      isGenuineOperatorMessage(
+        { messageID: 'm1' },
+        { id: 'm1', role: 'user' },
+        nonAnchorParts,
+      ),
+    ).toBe(true);
+
+    expect(
+      isGenuineOperatorMessage(
+        { messageID: 'm1', noReply: true },
+        { id: 'm1', role: 'user' },
+        nonAnchorParts,
+      ),
+    ).toBe(false);
   });
 
   test('wake→busy→idle preserves the two-wake no-progress cap', async () => {

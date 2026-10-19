@@ -179,7 +179,13 @@ not an optional-degradation path.
      councillor prompts. Separately, display-name substitution rewrites
      `@<internalName>` mentions to the agent's `displayName` throughout the
      final orchestrator prompt (inline, file, and append orchestrator prompts)
-     and in `orchestratorPrompt`/ACP routing snippets.
+     and in `orchestratorPrompt`/ACP routing snippets. The adapter also
+     **removes OpenCode's built-in `general`/`explore` subagents** at
+     registration time, before the native agent snapshot, so slim's agents
+     are the only delegation targets; a host config entry declaring either
+     name under `agents` (v2) or `agent` (legacy) opts that agent out of
+     removal — unless the entry itself requests disabling
+     (`disable`/`disabled: true`), which keeps the built-in removed.
     - `tool` → `ctx.tool.transform` (zod shape → JSON schema; execute
       shimmed; every registration carries `options: {codemode: false}` —
       see the feature matrix note below)

@@ -283,12 +283,17 @@ export interface InjectionState {
    * delivery can actually act (retire, or is provably stale vs
    * lastLaunchedAt, or its record already reconciled), so a delivery
    * observed while its record is still running retries on the next
-   * transform. No size bound: consumed keys must survive so an evicted key
-   * can never re-pair against a newer run; growth is O(deliveries for the
-   * parent) and the set dies with the parent at session end. Optional for
-   * states built before the field existed.
+   * transform. Per parent the keys are an LRU (cap
+   * `NATIVE_DELIVERY_SEEN_CAP`): re-observation refreshes recency and the
+   * oldest key is evicted, so a pathological history cannot grow the set
+   * without bound while the deliveries a parent's history actually still
+   * replays stay remembered. An eviction only re-opens the one-shot pairing
+   * window for the oldest keys, which the reopen gate and the stale-terminal
+   * fallback still cover. The whole per-parent set dies with the parent at
+   * session end (pruneReopenCorrectionState). Optional for states built
+   * before the field existed.
    */
-  observedNativeDeliveries?: Map<string, Set<string>>;
+  observedNativeDeliveries?: Map<string, Map<string, true>>;
   /** Host flavor marker ('v2' on OpenCode v2 hosts). v2 is structurally
    *  boardless: observation-based retirement plus reopen corrections only.
    *  v1 renders the board unless boardInjection is honoured-off. */
@@ -1335,6 +1340,15 @@ const NATIVE_DELIVERY_STATES = new Set(['completed', 'error', 'cancelled']);
 const NATIVE_DELIVERY_PUBLICATION_SKEW_MS = 2_000;
 
 /**
+ * LRU cap for one parent's consumed native-delivery keys. Far above any
+ * normal session's live delivery count: the bound exists so a pathological
+ * history (or a missed session-end prune) cannot grow the set without limit.
+ * Eviction only re-opens the one-shot pairing window for the oldest keys,
+ * which the reopen gate and the stale-terminal fallback still cover.
+ */
+const NATIVE_DELIVERY_SEEN_CAP = 1024;
+
+/**
  * Byte-stable, persisted identity for one observed delivery part: the host
  * message id plus the part index, bound to the part text so an id reused
  * for different content cannot collide. Parts without a host message id
@@ -1436,7 +1450,7 @@ function reconcileObservedNativeDeliveries(
   // switch. On a v1 boardless parent the pass is a near no-op (completions
   // arrive untagged) but stays harmless and future-proof.
   if (state.hostFlavor !== 'v2' && state.boardInjection !== false) return;
-  state.observedNativeDeliveries ??= new Map<string, Set<string>>();
+  state.observedNativeDeliveries ??= new Map<string, Map<string, true>>();
   const seenByParent = state.observedNativeDeliveries;
   for (const message of messages) {
     if (!isMessageWithParts(message)) continue;
@@ -1446,7 +1460,7 @@ function reconcileObservedNativeDeliveries(
     }
     let seen = seenByParent.get(parentSessionID);
     if (!seen) {
-      seen = new Set<string>();
+      seen = new Map<string, true>();
       seenByParent.set(parentSessionID, seen);
     }
     message.parts.forEach((part, partIndex) => {
@@ -1455,7 +1469,12 @@ function reconcileObservedNativeDeliveries(
       const delivery = parseNativeDelivery(part);
       if (!delivery) return;
       const seenKey = nativeDeliverySeenKey(message, partIndex, part.text);
-      if (seen.has(seenKey)) return;
+      if (seen.has(seenKey)) {
+        // LRU touch: a delivery the parent's history still replays must not
+        // age out ahead of keys that stopped appearing in history.
+        rememberDeliveryKey(seen, seenKey);
+        return;
+      }
 
       const record = state.backgroundJobBoard.get(delivery.taskID);
       if (!record || record.parentSessionID !== parentSessionID) {
@@ -1483,7 +1502,7 @@ function reconcileObservedNativeDeliveries(
         ) {
           // Authored at or before the reopen (or the current launch): this
           // is a previous publication's report, stranded in history.
-          rememberDeliveryKey(state, parentSessionID, seenKey);
+          rememberDeliveryKey(seen, seenKey);
         }
         return;
       }
@@ -1491,12 +1510,23 @@ function reconcileObservedNativeDeliveries(
       // record can only reopen (bumping terminalRevision via
       // markRunningFromLiveSession) — any later same-state match would be
       // a NEWER publication this delivery cannot report.
-      rememberDeliveryKey(state, parentSessionID, seenKey);
+      rememberDeliveryKey(seen, seenKey);
       // Provably stale: authored before the record's last launch, so it
       // predates the current run and every future one (lastLaunchedAt only
       // advances). A record can reopen and change terminal state, so state
       // equality alone is never proof of currency.
       if (deliveryTime !== undefined && deliveryTime < record.lastLaunchedAt) {
+        return;
+      }
+      // Post-reopen runs: a delivery authored before the reopen can never
+      // report the reopened run's completion. The seen-set only accelerates
+      // this — causality must hold independently of LRU eviction (PR #1608
+      // review). lastLiveBusyAt is set only by markRunningFromLiveSession.
+      if (
+        record.lastLiveBusyAt !== undefined &&
+        deliveryTime !== undefined &&
+        deliveryTime < record.lastLiveBusyAt
+      ) {
         return;
       }
       // Predates the CURRENT publication: markRunningFromLiveSession clears
@@ -1535,16 +1565,21 @@ function reconcileObservedNativeDeliveries(
   }
 }
 
-function rememberDeliveryKey(
-  state: InjectionState,
-  parentSessionID: string,
-  seenKey: string,
-): void {
-  // No size bound by design: remembered keys must survive so an evicted key
-  // can never re-pair against a newer run (council-b blocker). Growth is
-  // O(deliveries for this parent) and the set dies with the parent at
-  // session end (pruneReopenCorrectionState).
-  state.observedNativeDeliveries?.get(parentSessionID)?.add(seenKey);
+/**
+ * Remember (or refresh) one consumed native-delivery key. Map insertion
+ * order is the recency order: delete+set moves the key to the newest
+ * position, so a re-observed delivery never ages out ahead of keys that
+ * stopped appearing in history. The oldest keys are evicted past
+ * `NATIVE_DELIVERY_SEEN_CAP`.
+ */
+function rememberDeliveryKey(seen: Map<string, true>, seenKey: string): void {
+  seen.delete(seenKey);
+  seen.set(seenKey, true);
+  while (seen.size > NATIVE_DELIVERY_SEEN_CAP) {
+    const oldest = seen.keys().next().value;
+    if (oldest === undefined) break;
+    seen.delete(oldest);
+  }
 }
 
 /**

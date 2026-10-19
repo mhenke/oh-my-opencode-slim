@@ -1260,6 +1260,109 @@ describe('plugin tool registration', () => {
   });
 });
 
+describe('plugin built-in agent disabling', () => {
+  let originalEnv: typeof process.env;
+  let projectDir: string;
+
+  beforeEach(async () => {
+    originalEnv = { ...process.env };
+    projectDir = await mkdtemp('/tmp/oh-my-opencode-slim-builtin-agents-');
+    process.env = {
+      ...originalEnv,
+      OPENCODE_CONFIG_DIR: projectDir,
+      XDG_DATA_HOME: `${projectDir}/data`,
+      XDG_CACHE_HOME: `${projectDir}/cache`,
+      OPENCODE_LOG_DIR: `${projectDir}/logs`,
+    };
+    delete process.env.OH_MY_OPENCODE_SLIM_DISABLE;
+    await Bun.write(
+      `${projectDir}/oh-my-opencode-slim.json`,
+      JSON.stringify({ companion: { enabled: false } }),
+    );
+  });
+
+  afterEach(async () => {
+    process.env = originalEnv;
+    await rm(projectDir, { recursive: true, force: true });
+  });
+
+  const createHooks = () =>
+    plugin({
+      client: createPluginClient(async () => ({})),
+      directory: projectDir,
+      worktree: projectDir,
+      serverUrl: new URL('http://127.0.0.1:4096'),
+    } as never);
+
+  test('#1582 disables built-in subagents and stays idempotent on replay', async () => {
+    const hooks = await createHooks();
+    try {
+      const hostConfig: Record<string, unknown> = { agent: {} };
+      await hooks.config?.(hostConfig);
+      const agent = hostConfig.agent as Record<string, unknown>;
+      expect(agent.general).toEqual({ disable: true });
+      expect(agent.explore).toEqual({ disable: true });
+
+      // Re-invocation hands back the object the first call mutated: our
+      // exact injected shape is re-asserted, not treated as user-owned.
+      await hooks.config?.(hostConfig);
+      const replayed = hostConfig.agent as Record<string, unknown>;
+      expect(replayed.general).toEqual({ disable: true });
+      expect(replayed.explore).toEqual({ disable: true });
+    } finally {
+      await hooks.dispose?.();
+    }
+  });
+
+  test('#1582 leaves a user-declared built-in entry untouched', async () => {
+    const hooks = await createHooks();
+    try {
+      const hostConfig: Record<string, unknown> = {
+        agent: { general: { model: 'p/m' } },
+      };
+      await hooks.config?.(hostConfig);
+      const agent = hostConfig.agent as Record<string, unknown>;
+      expect(agent.general).toEqual({ model: 'p/m' });
+      expect(agent.general).not.toHaveProperty('disable');
+      expect(agent.explore).toEqual({ disable: true });
+    } finally {
+      await hooks.dispose?.();
+    }
+  });
+
+  test('#1582 overrides an injected disable shape after a user edits the entry', async () => {
+    const hooks = await createHooks();
+    try {
+      const hostConfig: Record<string, unknown> = { agent: {} };
+      await hooks.config?.(hostConfig);
+      // User edits the entry mid-session; the host hands the mutated object
+      // back. Our shape must not out-stare the user's declaration.
+      const agent = hostConfig.agent as Record<string, unknown>;
+      agent.general = { model: 'p/new' };
+      await hooks.config?.(hostConfig);
+      expect(agent.general).toEqual({ model: 'p/new' });
+      expect(agent.general).not.toHaveProperty('disable');
+    } finally {
+      await hooks.dispose?.();
+    }
+  });
+
+  test('#1582 disables the host explore entry even with the plugin alias present', async () => {
+    const hooks = await createHooks();
+    try {
+      // AGENT_ALIASES maps explore → explorer; the alias must never shadow
+      // the host built-in's own key.
+      const hostConfig: Record<string, unknown> = { agent: {} };
+      await hooks.config?.(hostConfig);
+      const agent = hostConfig.agent as Record<string, unknown>;
+      expect(agent.explore).toEqual({ disable: true });
+      expect(agent.explorer).not.toHaveProperty('disable');
+    } finally {
+      await hooks.dispose?.();
+    }
+  });
+});
+
 describe('plugin reload generation cleanup', () => {
   let originalEnv: typeof process.env;
   let projectDir: string;
@@ -1763,7 +1866,7 @@ describe('plugin reload generation cleanup', () => {
         synthetic: true,
       });
       const control = await transform(hooks, fixture);
-      expect(reminderParts(control.messages)).toHaveLength(2);
+      expect(reminderParts(control.messages)).toHaveLength(1);
       expect(boardParts(control.messages)).toHaveLength(1);
 
       await hooks['experimental.session.compacting']?.(
@@ -1799,7 +1902,7 @@ describe('plugin reload generation cleanup', () => {
 
       const nextTurn = await transform(hooks, fixture);
       expect(JSON.stringify(nextTurn)).toBe(JSON.stringify(control));
-      expect(reminderParts(nextTurn.messages)).toHaveLength(2);
+      expect(reminderParts(nextTurn.messages)).toHaveLength(1);
     } finally {
       await hooks.dispose?.();
     }
@@ -1818,7 +1921,7 @@ describe('plugin reload generation cleanup', () => {
       );
 
       const other = await transform(hooks, reminderFixture(otherID));
-      expect(reminderParts(other.messages)).toHaveLength(2);
+      expect(reminderParts(other.messages)).toHaveLength(1);
       const marked = await transform(hooks, reminderFixture(markedID));
       expect(reminderParts(marked.messages)).toHaveLength(0);
     } finally {
@@ -1844,7 +1947,7 @@ describe('plugin reload generation cleanup', () => {
         ],
       });
       const resumed = await transform(hooks, reminderFixture(sessionID));
-      expect(reminderParts(resumed.messages)).toHaveLength(2);
+      expect(reminderParts(resumed.messages)).toHaveLength(1);
     } finally {
       await hooks.dispose?.();
     }
@@ -1866,7 +1969,7 @@ describe('plugin reload generation cleanup', () => {
         {} as never,
       );
       const after = await transform(hooks, reminderFixture(sessionID));
-      expect(reminderParts(after.messages)).toHaveLength(2);
+      expect(reminderParts(after.messages)).toHaveLength(1);
     } finally {
       await hooks.dispose?.();
     }

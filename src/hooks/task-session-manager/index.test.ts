@@ -7,6 +7,7 @@ import {
   spyOn,
   test,
 } from 'bun:test';
+import { createHash } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { SessionLifecycle } from '../../hooks/session-lifecycle';
 import { createTaskReviveTool } from '../../tools/task-revive';
@@ -31,6 +32,7 @@ import {
 } from '../phase-reminder';
 import {
   type InjectionState,
+  injectBackgroundJobBoard,
   pruneReopenCorrectionState,
 } from './board-injection';
 import {
@@ -323,6 +325,44 @@ function setupCompletedJob(
     description: 'review plan',
   });
   board.updateStatus({ taskID, state: 'completed', resultSummary: 'done' });
+}
+
+/** Direct board-injection state for a v2 boardless parent: enough wiring to
+ *  drive `injectBackgroundJobBoard` and inspect its delivery seen-set. */
+function createBoardlessInjectionState(
+  board: BackgroundJobBoard,
+): InjectionState {
+  return {
+    backgroundJobBoard: board,
+    terminalGate: {} as never,
+    lifecycleLedger: {} as never,
+    hostFlavor: 'v2',
+    boardInjection: false,
+    processedInjectedCompletions: new Set(),
+    processedInjectedCompletionOrder: [],
+    terminalJobsInjectedByParent: new Map(),
+    pendingInjectedTerminalJobsByParent: new Map(),
+    metadataKey: BACKGROUND_JOB_BOARD_METADATA_KEY,
+    shouldManageSession: () => true,
+    taskContextTracker: {
+      pendingManagedTaskIds: new Set(),
+      contextFilesForPrompt: () => [],
+      prune: () => {},
+    },
+    retainedTailBoards: new Map(),
+  } as unknown as InjectionState;
+}
+
+/** Mirrors the native-delivery seen key built in board-injection.ts: host
+ *  message id, first-part index, content hash. */
+function deliverySeenKey(message: {
+  info: { id: string };
+  parts: { text: string }[];
+}): string {
+  const textHash = createHash('sha256')
+    .update(message.parts[0].text)
+    .digest('hex');
+  return `${message.info.id}:0:${textHash}`;
 }
 
 describe('task-session-manager hook', () => {
@@ -2370,8 +2410,8 @@ describe('task-session-manager hook', () => {
         ['parent-1', new Map()],
       ]) as unknown as InjectionState['reportedTerminalRunsByParent'],
       observedNativeDeliveries: new Map([
-        ['parent-1', new Set(['delivery-1:0:abc'])],
-        ['parent-2', new Set(['delivery-2:0:def'])],
+        ['parent-1', new Map([['delivery-1:0:abc', true as const]])],
+        ['parent-2', new Map([['delivery-2:0:def', true as const]])],
       ]) as unknown as InjectionState['observedNativeDeliveries'],
     } as never as InjectionState;
     pruneReopenCorrectionState(state, 'parent-1');
@@ -10427,6 +10467,179 @@ describe('task-session-manager hook', () => {
         },
       ],
     } as never);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'reconciled',
+      terminalUnreconciled: false,
+    });
+  });
+
+  test('v2 board-off rejects an evicted pre-reopen delivery on its own causality (PR #1608 P1)', async () => {
+    // Greptile P1 on PR #1608: the seen-set is an accelerator, not the
+    // guarantee. The reopen regression above holds only while the old key is
+    // retained; the LRU cap (1024) can evict it, after which reopening does
+    // NOT bump lastLaunchedAt and the ±2s publication skew lets a pre-reopen
+    // delivery through to the new same-state completion. The lastLiveBusyAt
+    // gate makes causality hold independently of eviction. The injection
+    // state is driven directly so the test can assert the eviction that puts
+    // the replay on the gate path instead of the seen-set path.
+    const BASE = 1_760_000_000_000;
+    const board = new BackgroundJobBoard();
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+      now: BASE + 500,
+    });
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'error',
+      resultSummary: 'failed',
+      now: BASE + 1000,
+    });
+    // Filler record: terminal in a state every filler delivery mismatches,
+    // so each filler is remembered (driving the LRU eviction below) but can
+    // never pair.
+    board.registerLaunch({
+      taskID: 'child-filler',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+      description: 'map hooks',
+      now: BASE + 500,
+    });
+    board.updateStatus({
+      taskID: 'child-filler',
+      state: 'error',
+      resultSummary: 'failed',
+      now: BASE + 1000,
+    });
+    const state = createBoardlessInjectionState(board);
+    const inject = (output: { messages: unknown[] }) =>
+      injectBackgroundJobBoard(state, {}, output);
+    const staleDelivery = {
+      info: {
+        id: 'delivery-1',
+        role: 'user',
+        sessionID: 'parent-1',
+        time: { created: BASE + 1200 },
+      },
+      parts: [
+        {
+          type: 'text',
+          text: '<subagent sessionID="child-1" state="completed" description="map hooks">\ndone\n</subagent>',
+          metadata: {
+            source: 'subagent',
+            childID: 'child-1',
+            state: 'completed',
+          },
+        },
+      ],
+    };
+    const staleKey = deliverySeenKey(staleDelivery);
+    await inject({
+      messages: [
+        createMessages('parent-1', 'first turn').messages[0],
+        staleDelivery,
+      ],
+    });
+    // Observed while the record was error-terminal: state mismatch, key
+    // remembered, nothing retired.
+    let seen = state.observedNativeDeliveries?.get('parent-1');
+    expect(seen?.size).toBe(1);
+    expect(seen?.has(staleKey)).toBe(true);
+    expect(board.get('child-1')).toMatchObject({
+      state: 'error',
+      terminalUnreconciled: true,
+    });
+
+    // Reopen (lastLiveBusyAt = BASE+1500) and complete in the state the OLD
+    // delivery reports, with completedAt inside the 2s publication skew of
+    // it. The remembered key is pushed out of the LRU below by 1024 filler
+    // deliveries that are themselves remembered.
+    board.markRunningFromLiveSession('child-1', BASE + 1500);
+    board.updateStatus({
+      taskID: 'child-1',
+      state: 'completed',
+      resultSummary: 'done',
+      now: BASE + 2000,
+    });
+    expect(board.get('child-1')).toMatchObject({ terminalUnreconciled: true });
+    // Every filler is a valid native delivery whose state mismatches the
+    // filler record's terminal state: each is remembered (so it really does
+    // take a seen-set slot) and none can pair.
+    const fillers = Array.from({ length: 1024 }, (_, index) => ({
+      info: {
+        id: `noise-${index + 1}`,
+        role: 'user',
+        sessionID: 'parent-1',
+        time: { created: BASE + 3000 + index },
+      },
+      parts: [
+        {
+          type: 'text',
+          text: `<subagent sessionID="child-filler" state="completed" description="map hooks">\nfailed ${index + 1}\n</subagent>`,
+          metadata: {
+            source: 'subagent',
+            childID: 'child-filler',
+            state: 'completed',
+          },
+        },
+      ],
+    }));
+    await inject({
+      messages: [
+        createMessages('parent-1', 'second turn').messages[0],
+        staleDelivery,
+        ...fillers,
+      ],
+    });
+    expect(board.get('child-1')).toMatchObject({ terminalUnreconciled: true });
+    seen = state.observedNativeDeliveries?.get('parent-1');
+    // All 1024 fillers landed (the map is at the cap) and the stale key was
+    // the oldest, so the eviction really happened before the replay below.
+    expect(seen?.size).toBe(1024);
+    expect(seen?.has(staleKey)).toBe(false);
+
+    // The key is now evicted (asserted above), so the replay reaches the
+    // pairing gates and must be rejected by the lastLiveBusyAt gate alone:
+    // drop that gate and child-1 would pair and reconcile here.
+    await inject({
+      messages: [
+        createMessages('parent-1', 'second turn').messages[0],
+        staleDelivery,
+      ],
+    });
+    expect(board.get('child-1')).toMatchObject({
+      state: 'completed',
+      terminalUnreconciled: true,
+    });
+
+    // The run's own delivery (authored after the reopen) still pairs.
+    await inject({
+      messages: [
+        createMessages('parent-1', 'second turn').messages[0],
+        staleDelivery,
+        {
+          info: {
+            id: 'delivery-2',
+            role: 'user',
+            sessionID: 'parent-1',
+            time: { created: BASE + 2500 },
+          },
+          parts: [
+            {
+              type: 'text',
+              text: '<subagent sessionID="child-1" state="completed" description="map hooks">\nnew result\n</subagent>',
+              metadata: {
+                source: 'subagent',
+                childID: 'child-1',
+                state: 'completed',
+              },
+            },
+          ],
+        },
+      ],
+    });
     expect(board.get('child-1')).toMatchObject({
       state: 'reconciled',
       terminalUnreconciled: false,

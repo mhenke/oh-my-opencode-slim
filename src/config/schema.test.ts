@@ -323,7 +323,6 @@ describe('PluginConfigSchema disabled_hooks and disabled_commands', () => {
       'absolute-path-rescue',
       'apply-patch',
       'council-inject',
-      'council-assembly',
     ]);
     expect(DISABLED_COMMANDS_VALUES).toEqual([
       'implement',

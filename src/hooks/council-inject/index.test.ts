@@ -94,14 +94,11 @@ describe('matchesCouncilTrigger', () => {
 
 describe('buildCouncilModeBlock', () => {
   test('v2 wording renders the terse standing procedure', () => {
-    const block = buildCouncilModeBlock(
-      {
-        tool: 'subagent',
-        agentParam: 'agent',
-        resumeParam: 'sessionID',
-      },
-      'harness',
-    );
+    const block = buildCouncilModeBlock({
+      tool: 'subagent',
+      agentParam: 'agent',
+      resumeParam: 'sessionID',
+    });
 
     expect(block).toContain('## Council Mode');
     // Descriptive gate, not a restrictive one: weaker models must still run
@@ -110,7 +107,15 @@ describe('buildCouncilModeBlock', () => {
       'When the conversation calls for multi-model consensus',
     );
     expect(block).not.toContain('INSTEAD of delegating');
-    expect(block).toContain('every council seat in parallel via subagent()');
+    // Positive-only dispatch (user directive): the parameter positively
+    // names the roster name — the substitution prohibition is redundant —
+    // and the preset-models fact removes the model-override motive without
+    // naming any parameter, on either flavor.
+    expect(block).toContain(
+      'Dispatch the question to every seat in the ## Council roster in parallel — one subagent() call per seat, agent=<exact roster name>; seats run their own preset models.',
+    );
+    expect(block).toContain('agent=<exact roster name>');
+    expect(block).toContain('preset models');
     // The synthesis call must show the prompt= parameter (the old static
     // block omitted it, teaching the model a bad example).
     expect(block).toMatch(
@@ -125,20 +130,23 @@ describe('buildCouncilModeBlock', () => {
     expect(block).toContain('do not paste them');
     // Seat names are not enumerated: the orchestrator's static seat pointer
     // already lists them, and duplicating them here invites drift.
-    expect(block).not.toContain('councillor-a');
+    expect(block).not.toMatch(/councillor-/);
   });
 
   test('v1 wording uses task/subagent_type', () => {
-    const block = buildCouncilModeBlock(
-      {
-        tool: 'task',
-        agentParam: 'subagent_type',
-        resumeParam: 'task_id',
-      },
-      'harness',
-    );
+    const block = buildCouncilModeBlock({
+      tool: 'task',
+      agentParam: 'subagent_type',
+      resumeParam: 'task_id',
+    });
 
-    expect(block).toContain('via task()');
+    // The same flavor-neutral template in v1 vocabulary; the roster-gap
+    // language is v2-host guidance and must not leak here.
+    expect(block).toContain(
+      'Dispatch the question to every seat in the ## Council roster in parallel — one task() call per seat, subagent_type=<exact roster name>; seats run their own preset models.',
+    );
+    expect(block).toContain('subagent_type=<exact roster name>');
+    expect(block).not.toContain('hidden');
     expect(block).toMatch(/task\(subagent_type='council', description=/);
     expect(block).not.toContain('subagent(');
     // Same ref-passing contract as v2, in v1 vocabulary.
@@ -146,6 +154,7 @@ describe('buildCouncilModeBlock', () => {
     expect(block).toContain(`each seat's returned task_id`);
     expect(block).toContain('the harness attaches their responses');
     expect(block).toContain('do not paste them');
+    expect(block).not.toMatch(/councillor-/);
   });
 
   test('ref-passing wording replaced the old paste-the-responses instruction', () => {
@@ -153,92 +162,50 @@ describe('buildCouncilModeBlock', () => {
       { tool: 'subagent', agentParam: 'agent', resumeParam: 'sessionID' },
       { tool: 'task', agentParam: 'subagent_type', resumeParam: 'task_id' },
     ]) {
-      const block = buildCouncilModeBlock(wording, 'harness');
+      const block = buildCouncilModeBlock(wording);
       expect(block).not.toContain('every seat response labeled');
       expect(block).not.toContain('Synthesize council report');
     }
   });
 
-  test('rendered block stays within the 599-character budget for both flavors', () => {
+  // Budget re-based to the block's new size: step 2's positive-only dispatch
+  // clause is the only growth (+75 v2 / +83 v1 chars, one-time cost on the
+  // first council trigger only). v1 is the longer flavor now — its
+  // `subagent_type=` parameter name exceeds v2's `agent=` — so the cap is
+  // v1's exact size.
+  test('rendered block stays within the 680-character budget for both flavors', () => {
     expect(
-      buildCouncilModeBlock(
-        {
-          tool: 'subagent',
-          agentParam: 'agent',
-          resumeParam: 'sessionID',
-        },
-        'harness',
-      ).length,
-    ).toBeLessThanOrEqual(599);
-    expect(
-      buildCouncilModeBlock(
-        {
-          tool: 'task',
-          agentParam: 'subagent_type',
-          resumeParam: 'task_id',
-        },
-        'harness',
-      ).length,
-    ).toBeLessThanOrEqual(599);
-  });
-
-  test('paste mode (assembly disabled) restores the paste instruction, with zero harness vocabulary', () => {
-    const v2 = buildCouncilModeBlock(
-      {
+      buildCouncilModeBlock({
         tool: 'subagent',
         agentParam: 'agent',
         resumeParam: 'sessionID',
-      },
-      'paste',
-    );
-    const v1 = buildCouncilModeBlock(
-      {
+      }).length,
+    ).toBeLessThanOrEqual(680);
+    expect(
+      buildCouncilModeBlock({
         tool: 'task',
         agentParam: 'subagent_type',
         resumeParam: 'task_id',
-      },
-      'paste',
-    );
-    // The tool-less council cannot fetch anything, so paste mode must tell
-    // the orchestrator to carry the responses itself — and must not carry
-    // any harness-mode wording (which would contradict itself).
-    expect(v2).toContain(
-      'prompt=<question + all seat responses labeled by seat name and model — do not summarize them>',
-    );
-    expect(v1).toContain(
-      'prompt=<question + all seat responses labeled by seat name and model — do not summarize them>',
-    );
-    // do not summarize: paste mode's contract is fidelity — the round-1
-    // design rejected compression (Fusion's judge reads full originals, and
-    // compression still pays the output tokens).
-    expect(v2).toContain('do not summarize them');
-    for (const block of [v1, v2]) {
-      expect(block).not.toMatch(/harness|attach/i);
-      expect(block).not.toContain("'Seats:");
-      expect(block).not.toContain('do not paste them');
-      // Steps 1-3 are mode-independent; only step 4 differs.
-      expect(block).toContain('seats receive only their prompt');
-      expect(block).toContain('retry an empty seat once');
-    }
-    expect(v2.length).toBeLessThanOrEqual(599);
-    expect(v1.length).toBeLessThanOrEqual(599);
+      }).length,
+    ).toBeLessThanOrEqual(680);
   });
 
   test('block bytes are pure and stable across repeated renders and transforms (cache safety)', async () => {
-    for (const seatAttachment of ['harness', 'paste'] as const) {
-      const wording = {
+    const wordings = [
+      {
         tool: 'subagent',
         agentParam: 'agent',
         resumeParam: 'sessionID',
-      };
-      // Pure function of the wording + mode: repeated renders are
-      // byte-identical, and the mode is NOT read per call (a per-call read
-      // would flap the bytes and violate the exact-prefix contract).
-      const block1 = buildCouncilModeBlock(wording, seatAttachment);
-      const block2 = buildCouncilModeBlock(wording, seatAttachment);
+      },
+      { tool: 'task', agentParam: 'subagent_type', resumeParam: 'task_id' },
+    ];
+    for (const wording of wordings) {
+      // Pure function of the wording: repeated renders are byte-identical.
+      const block1 = buildCouncilModeBlock(wording);
+      const block2 = buildCouncilModeBlock(wording);
       expect(block1).toContain('## Council Mode');
       expect(block1).toBe(block2);
-      const hook = createCouncilInjectHook({ wording, seatAttachment });
+      const hook = createCouncilInjectHook({ wording });
       const repeat = hook['experimental.chat.messages.transform'];
       const render = () => ({
         messages: [
@@ -272,7 +239,6 @@ describe('createCouncilInjectHook', () => {
       agentParam: 'agent',
       resumeParam: 'sessionID',
     },
-    seatAttachment: 'harness',
   });
   const transform = hook['experimental.chat.messages.transform'];
 

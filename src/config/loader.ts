@@ -12,7 +12,10 @@ import {
   PresetResolutionError,
   resolvePresetDefinition,
 } from './presets';
-import { stripRemovedConfigKeys } from './removed-keys';
+import {
+  stripRemovedConfigKeys,
+  stripRemovedDisabledValues,
+} from './removed-keys';
 import {
   BackgroundJobsConfigSchema,
   DISABLED_COMMANDS_VALUES,
@@ -421,6 +424,19 @@ export function loadRawPluginConfigFromPath(
     // removed key must not invalidate the whole file (and silently discard
     // every other user setting). Reported per key, not migrated.
     stripRemovedConfigKeys(rawConfig, (message) => {
+      options?.onWarning?.({
+        path: configPath,
+        kind: 'removed-key',
+        message,
+      });
+      if (!options?.silent) {
+        console.warn(`[oh-my-opencode-slim] ${message}`);
+      }
+    });
+
+    // Same for enum members removed from disabled_* arrays: strip them
+    // before the value enum rejects the whole file, reported per value.
+    stripRemovedDisabledValues(rawConfig, (message) => {
       options?.onWarning?.({
         path: configPath,
         kind: 'removed-key',

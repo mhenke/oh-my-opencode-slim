@@ -260,7 +260,7 @@ All config files support **JSONC** (JSON with Comments):
 | `disabled_mcps` | string[] | `[]` | MCP server IDs to disable globally |
 | `disabled_tools` | string[] | `[]` | Slim tool names to disable globally. Disabled Slim tools are not registered with OpenCode and cannot be used by agents; OpenCode built-in tools are not affected |
 | `disabled_skills` | string[] | `[]` | Skill names to disable globally. Disabled skills are not granted to agents, and disabled bundled skills are not registered; listing `reflect` here also disables the `/reflect` command |
-| `disabled_hooks` | string[] | `[]` | Hook names to disable globally: `phase-reminder`, `foreground-fallback`, `deepwork-guard`, `deepwork-goal`, `chat-headers`, `cache-monitor`, `json-error-recovery`, `tool-loop-guard`, `search-path-guard`, `absolute-path-rescue`, `apply-patch`, `council-inject`, `council-assembly`. Unknown values are stripped with a warning when the config loads; a value consisting only of unknown names is treated as unset, so a lower config layer's list still applies. See [Hooks](#hooks) |
+| `disabled_hooks` | string[] | `[]` | Hook names to disable globally: `phase-reminder`, `foreground-fallback`, `deepwork-guard`, `deepwork-goal`, `chat-headers`, `cache-monitor`, `json-error-recovery`, `tool-loop-guard`, `search-path-guard`, `absolute-path-rescue`, `apply-patch`, `council-inject`. Unknown values are stripped with a warning when the config loads; a value consisting only of unknown names is treated as unset, so a lower config layer's list still applies. See [Hooks](#hooks) |
 | `disabled_commands` | string[] | `[]` | Slash commands to disable globally: `interview`, `implement`, `deepwork`, `reflect`, `loop`. Disabled commands are neither registered nor intercepted at execution time, so a user-defined command with the same name is left untouched. Listing `reflect` in `disabled_skills` also disables the `/reflect` command. See [Slash Commands](#slash-commands) |
 | `deepworkGuardMode` | `"shadow"` \| `"enforce"` | `"shadow"` | `shadow` records receipts without blocking; `enforce` blocks completion writes whose tombstone references artifacts with no receipt. Disable the guard via `disabled_hooks` (`deepwork-guard`) |
 | `webfetch.enabled` | boolean | `true` | When `false`, the enhanced `webfetch` is not registered and OpenCode's built-in is used. See [Webfetch](webfetch.md) |
@@ -548,7 +548,7 @@ orchestrator wake interval. Board placement itself is not configurable: it is
 change-only — one frozen board per state change, replayed byte-identically on
 later turns, nothing injected on unchanged turns. For glossary definitions of
 background-job terms, see
-[CONTEXT.md — Background Jobs](../CONTEXT.md#background-jobs).
+[GLOSSARY.md — Background Jobs](../GLOSSARY.md#background-jobs).
 
 **What gates reusability.** A completed child session enters the reusable pool
 when it reached a canonical terminal state, has been reconciled, and its status
@@ -1176,7 +1176,6 @@ Disable built-in hooks via `disabled_hooks`:
 Available hooks:
 
 - **Prompt injection**: `phase-reminder` (per-turn scheduler-workflow reminder on orchestrator messages), `deepwork-goal` (post-compaction goal pointer, delivered once per compaction epoch), `council-inject` (keyword-triggered Council Mode procedure, injected once per session at the first trigger).
-- **Council**: `council-assembly` — switches the injected Council Mode block to paste mode: the orchestrator pastes each seat response itself (pre-assembly behavior) and the harness attaches nothing. A mid-session toggle does not rewrite blocks already injected; in that window the council may receive bare seat IDs — paste the seat responses (or start a new conversation).
 - **Model failover**: `foreground-fallback` — same effect as `fallback.enabled = false`.
 - **Tool guards**: `json-error-recovery`, `tool-loop-guard`, `search-path-guard`, `absolute-path-rescue`, `apply-patch` — each stops intercepting tool calls entirely, so malformed output, repeated identical calls, and invalid or guessed paths surface raw to the model.
 - **Deepwork**: `deepwork-goal` turns the post-compaction goal pointer off (the model then relies on the skill's resume discipline alone); `deepwork-guard` turns the receipt/claim guard off (see `deepworkGuardMode`).

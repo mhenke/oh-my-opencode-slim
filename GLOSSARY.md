@@ -1,4 +1,4 @@
-# CONTEXT.md — Domain Glossary
+# GLOSSARY.md — Domain Glossary
 
 A glossary of the terms used in this project's domain. Definitions describe what a term means, not how it is implemented.
 

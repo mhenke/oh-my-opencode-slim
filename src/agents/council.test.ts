@@ -47,9 +47,9 @@ describe('createCouncilAgent', () => {
   });
 
   test('harness assembly keeps the agent tool-less and its prompt untouched', () => {
-    // Seat text now arrives by host-side attachment (tool.execute.before
-    // resolver), not orchestrator paste — the synthesizer itself is unchanged:
-    // still no tools, still fed from its context.
+    // Seat text arrives by host-side attachment (tool.execute.before
+    // resolver); the synthesizer is fed purely from its context and carries
+    // no tool menu in its prompt.
     const agent = createCouncilAgent('provider/model');
     const permission = agent.config.permission as Record<string, unknown>;
     expect(permission['*']).toBe('deny');
@@ -64,6 +64,10 @@ describe('createCouncilAgent', () => {
     expect(prompt).toContain(
       'synthesize them into a structured council report',
     );
+    expect(prompt).toContain(
+      'The orchestrator handles dispatch and provides the councillor results.',
+    );
+    expect(prompt).not.toContain('You do NOT dispatch');
     // Seat names, not model labels — the assembly headers use record.agent.
     expect(prompt).toContain(
       'the seat name, e.g. "alpha", not the model label',
@@ -81,16 +85,18 @@ describe('createCouncilAgent', () => {
 });
 
 describe('ensureCouncilSynthesisReinforcement (assembly layer)', () => {
-  test('default base keeps the lean pointer, not the fallback', () => {
-    const prompt = reinforced(councilPrompt('test/model'));
-    expect(prompt).toContain(
-      'You MUST follow the Synthesis Process and Required Output Format above',
-    );
+  test('default base already carries the report format and is not reinforced', () => {
+    const base = councilPrompt('test/model');
+    const prompt = reinforced(base);
+    // Single-track: the base prompt's own Required Output Format satisfies
+    // the check byte-identically — no pointer, no fallback appended.
+    expect(prompt).toBe(base);
     expect(prompt).not.toContain('You MUST produce: ## Council Response');
-    // The exception is in both the base prompt and the reinforcement,
-    // so a custom prompt cannot drop it.
+    expect(prompt).not.toContain('You MUST follow the Synthesis Process');
+    // The exception appears exactly once (the base prompt's own copy); the
+    // deleted pointer used to be its second carrier.
     const occurrences = prompt.split(COMPACTION_EXCEPTION).length - 1;
-    expect(occurrences).toBe(2);
+    expect(occurrences).toBe(1);
   });
 
   test('custom prompt override retains the required report format', () => {
@@ -103,14 +109,13 @@ describe('ensureCouncilSynthesisReinforcement (assembly layer)', () => {
     expect(prompt).toContain(COMPACTION_EXCEPTION);
   });
 
-  test('override that keeps the format marker gets the lean pointer', () => {
-    const prompt = reinforced(
-      'Custom prompt with its own ## Council Response section.',
-    );
-    expect(prompt).toContain(
-      'You MUST follow the Synthesis Process and Required Output Format above',
-    );
+  test('override carrying its own report format is left byte-identical', () => {
+    const override = 'Custom prompt with its own ## Council Response section.';
+    const prompt = reinforced(override);
+    // No reinforcement: no fallback is appended, and no pointer exists.
+    expect(prompt).toBe(`${override}\n\n${COUNCIL_COMPACTION_EXCEPTION}`);
     expect(prompt).not.toContain('You MUST produce: ## Council Response');
+    expect(prompt).not.toContain('You MUST follow the Synthesis Process');
   });
 
   test('is idempotent', () => {

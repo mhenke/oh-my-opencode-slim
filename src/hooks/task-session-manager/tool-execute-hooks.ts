@@ -244,10 +244,6 @@ export async function handleToolExecuteBefore(
      * delegation vocabulary for model-visible refusal guidance. Defaults to
      * v1 wording. */
     hostFlavor?: string;
-    /** When false, council seat assembly is skipped (the orchestrator pastes
-     * seat text into the council prompt as before). Defaults to true. Toggle
-     * via `disabledHooks: ['council-assembly']` in the omos config. */
-    councilAssembly?: boolean;
     /** Per-instance pairing flag for the background-default flip: true only
      * after this setup's v2 description rewrite verifiably landed. */
     isBackgroundDefaultFlipArmed?: () => boolean;
@@ -337,15 +333,12 @@ export async function handleToolExecuteBefore(
   // Council Mode host-side assembly (both host flavors arrive here: the v2
   // execute.before bridge normalizes `subagent` calls into this v1 `task`
   // shape before the hook runs, so one injection point covers both).
-  // Toggled via deps.councilAssembly (disabledHooks: ['council-assembly']),
-  // resolved once at construction from the same runtime set the injected
-  // block's delivery mode comes from — the two can never disagree within a
-  // plugin generation. Deliberately no refusal on the disabled path: a
-  // shape check that fails closed (rejecting prompts whose quoted content
-  // mentions a Seats line) DoSes legitimate paste-mode calls, while the
-  // stale-harness-block window it guards fails open and visibly at
-  // synthesis time (the council's mandated format reports missing seats).
-  if (agentType === 'council' && deps.councilAssembly !== false) {
+  // Unconditional and fail-open: the resolver only acts on a final Seats
+  // line and never refuses — a shape check that fails closed (rejecting
+  // prompts whose quoted content mentions a Seats line) would DoS
+  // legitimate council calls, while anything without the trigger passes
+  // through byte-identically.
+  if (agentType === 'council') {
     assembleCouncilSeatResponses(
       args,
       input.sessionID,

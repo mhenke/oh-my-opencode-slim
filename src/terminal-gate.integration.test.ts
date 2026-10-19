@@ -289,6 +289,66 @@ async function assembly(
 }
 
 type Assembly = Awaited<ReturnType<typeof assembly>>;
+
+for (const state of ['completed', 'error'] as const) {
+  for (const provisional of [true, false]) {
+    test(`publication wake ownership: ${state}, provisional=${provisional}`, async () => {
+      resetOrchestratorWakeGateForTests();
+      const promptAsync = mock(async () => ({}));
+      const probe = v2ShimClient({
+        outcome: 'succeeded',
+        wakeSurface: { promptAsync },
+      });
+      const h = await assembly(undefined, {
+        client: probe.client,
+        hostFlavor: 'v2',
+      });
+      await h.hooks['chat.message']?.(
+        { sessionID: 'parent', agent: 'orchestrator' } as never,
+        { parts: [] } as never,
+      );
+      const run = h.board.registerLaunch({
+        taskID: 'child',
+        parentSessionID: 'parent',
+        agent: 'orchestrator',
+        description: 'external lane',
+        background: false,
+        provisional,
+      });
+      const publish = () =>
+        h.gate.reconcile(run, {
+          kind: 'output',
+          status: { taskID: 'child', state, timedOut: false, result: 'result' },
+          origin: {
+            kind: 'native',
+            callID: 'host-result',
+            callIDConfirmed: true,
+            run,
+          },
+        });
+      await publish();
+      expect(h.board.get('child')?.state).toBe(state);
+      expect(promptAsync).not.toHaveBeenCalled();
+      h.board.markRunningFromLiveSession(
+        'child',
+        Date.now() + 1,
+        run.generation,
+      );
+      await publish();
+      await flush();
+      expect(h.board.get('child')?.state).toBe(state);
+      expect(h.board.get('child')?.provisional === true).toBe(provisional);
+      expect(h.board.get('child')?.terminalRevision).toBeGreaterThan(1);
+      expect(promptAsync).toHaveBeenCalledTimes(provisional ? 0 : 1);
+      if (provisional) {
+        h.board.promoteProvisional('child', 'parent');
+        await flush();
+        expect(promptAsync).toHaveBeenCalledTimes(1);
+      }
+    });
+  }
+}
+
 async function fallbackAssembly(hostFlavor?: string, delayMs = 2000) {
   jest.useFakeTimers();
   cleanups.push(async () => jest.useRealTimers());

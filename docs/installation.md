@@ -341,7 +341,7 @@ See the [Multiplexer Integration Guide](multiplexer-integration.md) for more det
 
 3. Re-enable default agents:
 
-   In `~/.config/opencode/opencode.json`, remove the `disable: true` entries the installer added under `agent.explore` and `agent.general`.
+   In `~/.config/opencode/opencode.json`, remove any `disable: true` entries under `agent.explore` and `agent.general` (older installers added these). The plugin disables those built-in subagents at runtime, with or without installer entries. To keep an agent enabled, declare an entry under its name — `agents.<name>` on v2, `agent.<name>` on v1/legacy — that does not itself set `disable`/`disabled: true`.
 
 4. Remove the environment variable:
 

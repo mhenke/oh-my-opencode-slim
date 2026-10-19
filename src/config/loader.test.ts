@@ -3142,6 +3142,33 @@ describe('removed config keys', () => {
     ]);
   });
 
+  test('removed disabled_hooks members warn once, drop before enum validation, and preserve valid members', () => {
+    const { config, warnings } = load({
+      disabled_hooks: [
+        'council-assembly',
+        'council-assembly',
+        'council-inject',
+      ],
+    });
+
+    expect(config.agents?.oracle?.model).toBe('test/preset-oracle');
+    expect(config.disabled_hooks).toEqual(['council-inject']);
+    expect(warnings.map((w) => w.kind)).toEqual(['removed-key']);
+    expect(warnings[0]?.message).toBe(
+      'council-assembly is no longer a hook: council seat assembly is unconditional and fail-open — remove this entry.',
+    );
+  });
+
+  test('a disabled_hooks list holding only a removed member is treated as unset', () => {
+    const { config, warnings } = load({
+      disabled_hooks: ['council-assembly'],
+    });
+
+    expect(config.agents?.oracle?.model).toBe('test/preset-oracle');
+    expect(config.disabled_hooks).toBeUndefined();
+    expect(warnings.map((w) => w.kind)).toEqual(['removed-key']);
+  });
+
   test('unknown invalid keys still reject the file', () => {
     const { config, warnings } = load({ fallback: { bogus: true } });
 

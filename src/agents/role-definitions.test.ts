@@ -12,7 +12,7 @@ import {
   ROLE_WRITE_CAPABILITY,
   roleHasWriteCapability,
 } from './role-definitions';
-import { ROLE_ROUTING_BLOCKS, ROLE_ROUTING_SLIM_LINES } from './role-routing';
+import { ROLE_ROUTING_SLIM_LINES } from './role-routing';
 
 const FACTORIES = {
   explorer: createExplorerAgent,
@@ -82,15 +82,8 @@ describe('specialist role definitions', () => {
     expect(designerPrompt).toContain('requested product language');
     expect(designerPrompt).not.toContain('regular english');
 
-    expect(ROLE_ROUTING_BLOCKS.council).toContain(
-      'Permissions: Synthesis only; no tools',
-    );
-    expect(ROLE_ROUTING_BLOCKS.council).toContain(
-      'Stats: 3x slower than orchestrator',
-    );
-    expect(ROLE_ROUTING_BLOCKS.oracle).toContain(
-      'materially reduces risk or uncertainty',
-    );
+    expect(ROLE_ROUTING_SLIM_LINES.council).toContain('multi-model consensus');
+    expect(ROLE_ROUTING_SLIM_LINES.oracle).toContain('escalation');
   });
 });
 
@@ -115,23 +108,15 @@ describe('roleHasWriteCapability', () => {
 });
 
 describe('roleHasWriteCapability drift guard', () => {
-  test('table and Permissions rows in routing prose cover each other exactly', () => {
-    for (const [role, block] of Object.entries(ROLE_ROUTING_BLOCKS)) {
-      const permissions = /^- Permissions: (.+)$/m.exec(block);
-      // Every routing role must declare a Permissions row; a prose-only role
-      // would otherwise fail safe to writer without a failing test.
-      expect(permissions).not.toBeNull();
-      if (!permissions) continue;
-      // A role with a prose row must be in the table with a matching
-      // verdict — a new read-only role omitted from the table would
-      // otherwise fail safe to writer without a failing test.
-      expect(ROLE_WRITE_CAPABILITY[role]).toBe(
-        permissions[1].includes('write_files'),
-      );
+  test('every routing role has an explicit write-capability verdict', () => {
+    // A routing role missing from the table would fail safe to writer
+    // without a failing test.
+    for (const role of Object.keys(ROLE_ROUTING_SLIM_LINES)) {
+      expect(ROLE_WRITE_CAPABILITY[role]).toBeDefined();
     }
     // No stale table entries for roles absent from the routing data.
     for (const role of Object.keys(ROLE_WRITE_CAPABILITY)) {
-      expect(role in ROLE_ROUTING_BLOCKS).toBe(true);
+      expect(role in ROLE_ROUTING_SLIM_LINES).toBe(true);
     }
   });
 });

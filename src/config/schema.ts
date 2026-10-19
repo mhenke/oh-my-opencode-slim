@@ -619,6 +619,7 @@ export const BackgroundJobsConfigStrictSchema = z.object({
     .describe(
       'When true, intercept wait_for_user calls made while background tasks are still running and the orchestrator wake scheduler is enabled, returning guidance to end the turn instead of blocking on manual input. Default enabled.',
     ),
+  // Preserved for V1 compatibility. Structurally ignored in V2.
   boardInjection: z
     .boolean()
     .default(true)
@@ -943,7 +944,6 @@ export const DISABLED_HOOKS_VALUES = [
   'absolute-path-rescue',
   'apply-patch',
   'council-inject',
-  'council-assembly',
 ] as const;
 
 /** Valid `disabled_commands` entries; single source for the enum and the loader. */
@@ -1040,7 +1040,7 @@ export const RawPluginConfigSchema = z
       .describe(
         'Hook names to disable completely. Valid values: ' +
           DISABLED_HOOKS_VALUES.join(', ') +
-          '. "phase-reminder" is not registered, so orchestrator phase reminders are never injected; "foreground-fallback" marks the fallback manager inert: it is still constructed but never triggers automatic intervention, same effect as fallback.enabled = false; "chat-headers" is not registered, so the Copilot x-initiator header is never stamped (v1 chat.headers and the v2 model.request bridge); "cache-monitor" stops the prompt-cache bust watchdog, so cache warnings are never logged; the on-demand tool guards ("json-error-recovery", "tool-loop-guard", "search-path-guard", "absolute-path-rescue", "apply-patch") stop intercepting tool calls entirely, so malformed output, repeated identical calls, and invalid or guessed paths surface raw to the model; "council-inject" is not registered, so the keyword-triggered Council Mode injection is never appended to orchestrator messages; "council-assembly" switches the injected Council Mode block to paste mode: the block instructs the orchestrator to paste each seat response itself (the pre-assembly behavior) and the harness attaches nothing. The mode is resolved once at plugin start; toggling it mid-session does not rewrite a block already injected into a transcript — a stale harness-mode block with assembly off attaches nothing (the council report names the missing seats; recover by pasting), and a stale paste-mode block with assembly on simply pastes. Unknown values are stripped with a warning when the config loads. A value consisting only of unknown names is treated as unset, so a lower config layer\'s list still applies.',
+          '. "phase-reminder" is not registered, so orchestrator phase reminders are never injected; "foreground-fallback" marks the fallback manager inert: it is still constructed but never triggers automatic intervention, same effect as fallback.enabled = false; "chat-headers" is not registered, so the Copilot x-initiator header is never stamped (v1 chat.headers and the v2 model.request bridge); "cache-monitor" stops the prompt-cache bust watchdog, so cache warnings are never logged; the on-demand tool guards ("json-error-recovery", "tool-loop-guard", "search-path-guard", "absolute-path-rescue", "apply-patch") stop intercepting tool calls entirely, so malformed output, repeated identical calls, and invalid or guessed paths surface raw to the model; "council-inject" is not registered, so the keyword-triggered Council Mode injection is never appended to orchestrator messages. Unknown values are stripped with a warning when the config loads. A value consisting only of unknown names is treated as unset, so a lower config layer\'s list still applies.',
       ),
     disabled_commands: z
       .array(z.enum(DISABLED_COMMANDS_VALUES))

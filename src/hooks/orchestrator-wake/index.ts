@@ -71,9 +71,12 @@ export const ORCHESTRATOR_STOPPED_JOB_WAKE_TEXT_NO_BOARD =
 /**
  * True only for a genuine external operator message. Plugin-injected nudges
  * must never rearm the no-progress cap or clear wait state:
- * - synthetic parts (board tails, phase reminders, revived-run terminal
- *   notifications, internal-initiator wake replays) are host/internal, not
- *   operator input;
+ * - synthetic parts (board tails, revived-run terminal notifications,
+ *   internal-initiator wake replays) are host/internal, not operator input.
+ *   Phase reminders ride only the anchored first eligible user message since
+ *   the phase-reminder first-anchor change, so the phaseReminder metadata veto
+ *   below applies only to that anchored message; non-anchor historical user
+ *   messages carry no tag and fall through to the remaining arms;
  * - `noReply` prompts (task_message child nudges, interview URL
  *   notifications) never expect an operator turn;
  * - v2 command-marker submits (`ctx.session.prompt` text-only submits) carry
@@ -108,7 +111,8 @@ export function isGenuineOperatorMessage(
       continue;
     }
     // Tagged synthetic-adjacent injections (board/phase metadata keys) that
-    // survived without the synthetic flag are still not operator input.
+    // survived without the synthetic flag are still not operator input. The
+    // phase key now narrows to the anchored first eligible message only.
     if (isObjectRecord(part.metadata)) {
       const metadata = part.metadata as Record<string, unknown>;
       if (

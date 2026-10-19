@@ -68,10 +68,9 @@ export const ROLE_DEFINITIONS: Readonly<
  *
  * A hand-written table, not a live derivation from the routing prose —
  * `roleHasWriteCapability` is called on every wake-grading path and must
- * not re-parse a paragraph per call. The table mirrors the
- * `- Permissions:` row in each role's ROLE_ROUTING_BLOCKS entry; a
- * drift-guard test (role-definitions.test.ts) cross-checks the two on
- * every run so this table cannot silently drift from the routing prose.
+ * not re-parse anything per call. A drift-guard test
+ * (role-definitions.test.ts) cross-checks this table against the routing
+ * role set on every run so it cannot silently drift.
  * No agent names are hardcoded beyond this table: an unknown agent, or a
  * missing/undeterminable name, fails safe to writer (an extra
  * verification sentence costs less than a missing one).

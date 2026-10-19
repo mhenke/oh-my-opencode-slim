@@ -1,12 +1,24 @@
 import {
-  ROLE_ROUTING_BLOCKS,
+  ROLE_ROUTING_SLIM_LINES,
   renderRoleRoutingBlock,
 } from '../agents/role-routing.js';
-import type {
-  MarketplacePackageManifest,
-  MarketplacePackageManifestV2,
-  MarketplacePackageManifestV3,
+import {
+  type MarketplacePackageManifest,
+  type MarketplacePackageManifestV2,
+  type MarketplacePackageManifestV3,
+  resolveMarketplaceBuiltin,
 } from './schemas.js';
+
+/**
+ * Stored manifests are byte-faithful and may carry a legacy builtin name;
+ * resolve it before any lookup so rendering never sees an unmapped role.
+ */
+function extensionBuiltin(
+  manifest: MarketplacePackageManifest,
+): string | undefined {
+  const builtin = manifest.extends?.builtin;
+  return builtin === undefined ? undefined : resolveMarketplaceBuiltin(builtin);
+}
 
 function renderV2PackageSuffix(manifest: MarketplacePackageManifestV2): string {
   return [
@@ -74,9 +86,13 @@ export function renderMarketplaceAutoDelegationBlock(
   standaloneLaneDescription?: string,
 ): string {
   if (manifest.schemaVersion === 2) {
-    const roleId = manifest.extends?.builtin;
+    const roleId = extensionBuiltin(manifest);
     const base = roleId
-      ? renderRoleRoutingBlock(ROLE_ROUTING_BLOCKS[roleId], roleId, runtimeName)
+      ? renderRoleRoutingBlock(
+          ROLE_ROUTING_SLIM_LINES[roleId],
+          roleId,
+          runtimeName,
+        )
       : [
           `@${runtimeName}`,
           `- Lane: ${standaloneLaneDescription ?? manifest.description}`,
@@ -85,9 +101,13 @@ export function renderMarketplaceAutoDelegationBlock(
     return `${base}\n\n${renderV2PackageSuffix(manifest)}`;
   }
 
-  const roleId = manifest.extends?.builtin;
+  const roleId = extensionBuiltin(manifest);
   const base = roleId
-    ? renderRoleRoutingBlock(ROLE_ROUTING_BLOCKS[roleId], roleId, runtimeName)
+    ? renderRoleRoutingBlock(
+        ROLE_ROUTING_SLIM_LINES[roleId],
+        roleId,
+        runtimeName,
+      )
     : [
         `@${runtimeName}`,
         `- Lane: ${standaloneLaneDescription ?? manifest.routing.lane}`,

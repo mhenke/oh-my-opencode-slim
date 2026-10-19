@@ -119,7 +119,7 @@ the v2 session methods without expanding the global client shim.
 - **`CONTINUATION_NUDGE` is non-empty:** `src/hooks/task-session-manager/continuation-evaluator.ts`
 - **`hasInputWait` / continuation gates:** `continuation-evaluator.ts`, `input-wait-tracker.ts`
 - **`IDLE_RECONCILE_DELAY_MS` race window:** `src/hooks/task-session-manager/index.ts` (`IDLE_RECONCILE_DELAY_MS`)
-- **`disableDefaultAgents` preserves `build` and `plan`:** `src/cli/config-io.ts:564-600`
+- **Built-in `general`/`explore` disabled at runtime (#1582):** `src/v2/setup.ts` (`removeHostBuiltinSubagents`), v1 config hook (`src/index.ts`); `build`/`plan` untouched
 
 ### opencode source (`anomalyco/opencode` @ `dev`)
 - **`promptAsync` HTTP handler (no busy/input-wait guard):** `packages/opencode/src/server/routes/instance/httpapi/handlers/session.ts:311-329`

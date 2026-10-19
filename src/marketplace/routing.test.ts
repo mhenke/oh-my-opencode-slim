@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { ROLE_ROUTING_BLOCKS } from '../agents/role-routing';
+import { ROLE_ROUTING_SLIM_LINES } from '../agents/role-routing';
 import { SUPPORTED_SPECIALIST_ROLES } from '../config/agent-roles';
 import { renderMarketplaceAutoDelegationBlock } from './routing';
 import type {
@@ -38,7 +38,7 @@ describe('marketplace routing renderer', () => {
         extends: { builtin, promptMode: 'append' },
       } as MarketplacePackageManifest;
       expect(renderMarketplaceAutoDelegationBlock(extended)).toBe(
-        `${ROLE_ROUTING_BLOCKS[builtin].replaceAll(`@${builtin}`, '@routing-agent')}\n\n- Lane: Package routing description.\n- **Delegate when:** The task matches this package.`,
+        `${ROLE_ROUTING_SLIM_LINES[builtin].replaceAll(`@${builtin}`, '@routing-agent')}\n\n- Lane: Package routing description.\n- **Delegate when:** The task matches this package.`,
       );
     }
   });
@@ -47,6 +47,37 @@ describe('marketplace routing renderer', () => {
     expect(renderMarketplaceAutoDelegationBlock(manifest)).toBe(
       '@routing-agent\n- Lane: A standalone routing agent.\n\n- Lane: Package routing description.\n- **Delegate when:** The task matches this package.',
     );
+  });
+
+  test('resolves a raw legacy librarian extension to the explorer role block', () => {
+    // Stored manifests are byte-faithful: raw manifests can still carry
+    // `librarian`, which has no slim-lines entry — render, don't throw, and
+    // produce exactly the bytes the resolved manifest would produce.
+    const v3Base = {
+      ...manifest,
+      schemaVersion: 3 as const,
+      routing: {
+        lane: 'Focused routing.',
+        stats: ['Fast'],
+        delegateWhen: ['The task is bounded.'],
+        avoid: ['Architecture decisions'],
+      },
+      tools: ['read'],
+    };
+    for (const schemaVersion of [2, 3] as const) {
+      const base = schemaVersion === 2 ? manifest : v3Base;
+      const legacy = {
+        ...base,
+        extends: { builtin: 'librarian', promptMode: 'append' },
+      } as MarketplacePackageManifest;
+      const resolved = {
+        ...base,
+        extends: { builtin: 'explorer', promptMode: 'append' },
+      } as MarketplacePackageManifest;
+      expect(renderMarketplaceAutoDelegationBlock(legacy)).toBe(
+        renderMarketplaceAutoDelegationBlock(resolved),
+      );
+    }
   });
 
   test('renders the v3 routing and capability fields', () => {
@@ -81,7 +112,7 @@ describe('marketplace routing renderer', () => {
       mcps: ['server-a'],
       extends: { builtin: 'explorer', promptMode: 'append' },
     };
-    const roleBlock = ROLE_ROUTING_BLOCKS.explorer.replaceAll(
+    const roleBlock = ROLE_ROUTING_SLIM_LINES.explorer.replaceAll(
       '@explorer',
       '@routing-agent',
     );
@@ -103,7 +134,7 @@ describe('marketplace routing renderer', () => {
       },
       extends: { builtin: 'explorer', promptMode: 'append' },
     };
-    const roleBlock = ROLE_ROUTING_BLOCKS.explorer.replaceAll(
+    const roleBlock = ROLE_ROUTING_SLIM_LINES.explorer.replaceAll(
       '@explorer',
       '@routing-agent',
     );

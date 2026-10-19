@@ -90,19 +90,12 @@ ${renderRoutingLines(disabledAgents, excludeDescriptions)}
     : '';
 
   const continueSession = v2
-    ? `- Continue a completed session with \`subagent(agent, sessionID, prompt)\` by
-  exact id, even when unlisted; cancelled/errored/stopped sessions use
-  \`task_revive\`.`
-    : `- Continue an existing session with \`task_revive(task_id, prompt)\` by exact
-  id or alias, even when unlisted; \`task()\` without a task_id is only for
-  new work.`;
+    ? `- Continue a completed session with \`subagent\` by exact id, even
+  when unlisted; cancelled/errored/stopped sessions use \`task_revive\`.`
+    : `- Continue an existing session with \`task_revive\` by exact id or alias,
+  even when unlisted; \`task()\` without a task_id is only for new work.`;
 
-  const taskMessageDelivery = v2
-    ? `- \`task_message\` sends a bounded note to a running child
-  (\`delivery: "queue"\` waits for idle; \`"steer"\` lands at the next step
-  boundary).`
-    : `- \`task_message\` queues a bounded note for a running child, delivered when
-  it goes idle.`;
+  const taskMessageDelivery = '- `task_message` amends a running lane:';
 
   // wait_for_user exists only on v1, and only when not disabled.
   const manualStep =
@@ -158,8 +151,6 @@ ${modelLine}
 ${continueSession}
 - If a session id is refused, don't respawn the same objective as new work.
 - If a delegation is rejected, change its scope or context before retrying.
-- \`task_status\` is read-only inspection; with \`result: true\` it reads a
-  finished result. Neither launches, resumes, or instructs a child.
 ${taskMessageDelivery}
   Acceptance confirms transport only — never claim the child saw or acted
   on it. Amend a running lane this way, then reconcile against its result;

@@ -34,30 +34,51 @@ export const MarketplaceVersionSchema = z
   );
 
 /**
- * Rename continuity: marketplace packages extending `builtin: 'librarian'`
- * keep working — they extend the merged `explorer` (which inherited
- * librarian's role and MCPs). Warned once per process.
+ * Stored builtin names are byte-faithful: legacy `librarian` packages keep
+ * their published name so bundle digests stay stable across the merge.
+ * Interpretation happens at activation — see
+ * ActivatedMarketplacePackageManifestSchema.
+ */
+export const MarketplaceBuiltinSchema = z.enum([
+  ...SUPPORTED_SPECIALIST_ROLES,
+  'librarian',
+] as const);
+export type MarketplaceBuiltin = z.infer<typeof MarketplaceBuiltinSchema>;
+
+/**
+ * Rename continuity: packages extending `librarian` extend the merged
+ * `explorer` (which inherited librarian's role and MCPs). Warned once per
+ * process.
  */
 const MARKETPLACE_BUILTIN_RENAMES: Record<string, string> = {
   librarian: 'explorer',
 };
 
+/**
+ * Pure legacy→merged builtin resolver. Store manifests are byte-faithful
+ * (they may still carry old names), so every consumer that maps a builtin to
+ * runtime behavior — activation parsing and manifest rendering alike — must
+ * resolve before looking up. Only the activation schema warns.
+ */
+export function resolveMarketplaceBuiltin(value: string): string {
+  return MARKETPLACE_BUILTIN_RENAMES[value] ?? value;
+}
+
 const warnedMarketplaceBuiltinRenames = new Set<string>();
 
-export const MarketplaceBuiltinSchema = z.preprocess((value) => {
+export const ActivatedMarketplaceBuiltinSchema = z.preprocess((value) => {
   if (typeof value === 'string') {
-    const renamed = MARKETPLACE_BUILTIN_RENAMES[value];
-    if (renamed && !warnedMarketplaceBuiltinRenames.has(value)) {
+    const renamed = resolveMarketplaceBuiltin(value);
+    if (renamed !== value && !warnedMarketplaceBuiltinRenames.has(value)) {
       warnedMarketplaceBuiltinRenames.add(value);
       console.warn(
         `[oh-my-opencode-slim] Marketplace builtin '${value}' was merged into '${renamed}'; the package now extends '${renamed}'. Update the manifest when convenient.`,
       );
     }
-    return renamed ?? value;
+    return renamed;
   }
   return value;
 }, z.enum(SUPPORTED_SPECIALIST_ROLES));
-export type MarketplaceBuiltin = z.infer<typeof MarketplaceBuiltinSchema>;
 
 const BoundedTextSchema = (max: number) => z.string().trim().min(1).max(max);
 const MarketplacePromptSchema = z
@@ -267,6 +288,35 @@ export const MarketplacePackageManifestSchema = z.discriminatedUnion(
   'schemaVersion',
   [MarketplacePackageManifestV2Schema, MarketplacePackageManifestV3Schema],
 );
+
+/**
+ * Activation-level manifests: same shape as the stored manifest, but legacy
+ * builtin names resolve to their merged role (librarian → explorer) so every
+ * downstream consumer sees the active agent.
+ */
+export const ActivatedMarketplacePackageManifestSchema = z.discriminatedUnion(
+  'schemaVersion',
+  [
+    ManifestV2Schema.extend({
+      extends: MarketplaceExtensionSchema.extend({
+        builtin: ActivatedMarketplaceBuiltinSchema,
+      }).optional(),
+    })
+      .strict()
+      .superRefine(validateBuiltinModelPolicy),
+    ManifestV3Schema.extend({
+      extends: MarketplaceExtensionV3Schema.extend({
+        builtin: ActivatedMarketplaceBuiltinSchema,
+      }).optional(),
+    })
+      .strict()
+      .superRefine(validateBuiltinModelPolicy),
+  ],
+);
+
+export type ActivatedMarketplacePackageManifest = z.infer<
+  typeof ActivatedMarketplacePackageManifestSchema
+>;
 
 export const MarketplaceAgentManifestSummaryV2Schema = ManifestV2Schema.omit({
   prompt: true,

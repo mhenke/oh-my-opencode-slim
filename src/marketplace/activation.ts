@@ -4,8 +4,9 @@ import { satisfiesPluginCompatibility } from './compatibility.js';
 import { MarketplaceCompatibilityError } from './errors.js';
 import { normalizeMarketplacePackageId } from './ids.js';
 import {
+  type ActivatedMarketplacePackageManifest,
+  ActivatedMarketplacePackageManifestSchema,
   type MarketplacePackageManifest,
-  MarketplacePackageManifestSchema,
 } from './schemas.js';
 import type { StoredMarketplacePackage } from './store.js';
 
@@ -35,7 +36,7 @@ export interface MarketplaceActivationAdmission {
   readonly agentName: string;
   readonly version: string;
   readonly digest: string;
-  readonly manifest: MarketplacePackageManifest;
+  readonly manifest: ActivatedMarketplacePackageManifest;
   readonly requiredSkills: readonly string[];
   readonly requiredMcps: readonly string[];
 }
@@ -242,7 +243,9 @@ export function resolveMarketplaceActivation(
       continue;
     }
 
-    const parsed = MarketplacePackageManifestSchema.safeParse(stored.manifest);
+    const parsed = ActivatedMarketplacePackageManifestSchema.safeParse(
+      stored.manifest,
+    );
     if (!parsed.success) {
       diagnostics.push(
         diagnostic(id, 'invalid-manifest', parsed.error.message, parsed.error),

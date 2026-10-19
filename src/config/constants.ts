@@ -6,6 +6,12 @@ export const AGENT_ALIASES: Record<string, string> = {
   'frontend-ui-ux-engineer': 'designer',
 };
 
+/** OpenCode built-in subagents slim replaces; disabled at runtime (#1582). */
+export const BUILTIN_OPENCODE_SUBAGENTS_TO_DISABLE = [
+  'general',
+  'explore',
+] as const;
+
 export const SUBAGENT_NAMES = [
   'explorer',
   'oracle',

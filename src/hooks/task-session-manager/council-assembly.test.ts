@@ -202,7 +202,9 @@ describe('council seat assembly', () => {
     );
   });
 
-  test('assembly disabled ⇒ inert: any Seats-bearing prompt passes through byte-identically (backstop deliberately absent)', async () => {
+  test('assembly fires with no disabled_hooks config', async () => {
+    // The council-assembly toggle is gone. A plain resolver deps object
+    // assembles the final Seats line without any disabled_hooks input.
     const board = new BackgroundJobBoard();
     seedCompleted(board, {
       taskID: 'ses_alpha',
@@ -210,29 +212,15 @@ describe('council seat assembly', () => {
       alias: 'councillor-1',
       resultSummary: 'ALPHA VERBATIM TEXT',
     });
-    // A refusal on the disabled path would fail CLOSED: quoting a roster or
-    // pasting content that contains a Seats line re-triggers it on every
-    // retry (the remedy itself re-fails). Disabled must mean inert; the
-    // stale-harness-block window fails OPEN and visibly at synthesis time
-    // (the council's mandated format reports missing seats).
-    for (const prompt of [
-      'Which migration is safest?\nSeats: councillor-1',
-      'Question quoting a roster:\nSeats: councillor-alpha, councillor-beta\n…and already-pasted answers below.',
-      'Question?\nSeats: , ,',
-    ]) {
-      const args: Record<string, unknown> = {
-        subagent_type: 'council',
-        description: 'Council synthesis',
-        prompt,
-        background: false,
-      };
-      await handleToolExecuteBefore(
-        { tool: 'task', sessionID: PARENT, callID: 'call_council' },
-        { args },
-        { ...deps(board), councilAssembly: false },
-      );
-      expect(args.prompt).toBe(prompt);
-    }
+    const args = await runCouncilCall(board, 'Question?\nSeats: councillor-1');
+    expect(args.prompt).toBe(
+      [
+        'Question?',
+        '',
+        '## Seat: councillor-alpha',
+        'ALPHA VERBATIM TEXT',
+      ].join('\n'),
+    );
   });
 
   test('a seat owned by another parent is never resolved', async () => {
