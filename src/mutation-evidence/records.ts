@@ -259,9 +259,13 @@ function transitionOf(
 ): TransitionKind {
   const isKilled = (status: StrykerStatus) => status === 'Killed';
   const isSurvived = (status: StrykerStatus) => status === 'Survived';
+  // Timeout counts as detected (the score's rule), so a Timeout baseline
+  // is already detected — a flaky timeout must not read as fix proof.
+  const isDetected = (status: StrykerStatus) =>
+    status === 'Killed' || status === 'Timeout';
 
   if (isKilled(current)) {
-    return isKilled(baseline) ? 'already-killed' : 'newly-killed';
+    return isDetected(baseline) ? 'already-killed' : 'newly-killed';
   }
   if (isSurvived(current)) {
     return isSurvived(baseline) ? 'still-surviving' : 'newly-surviving';
@@ -292,8 +296,8 @@ function sameCoverage(a: readonly string[], b: readonly string[]): boolean {
  * matcher that silently keeps one would falsify the comparison.
  */
 export function compareSweeps(
-  baseline: MutationRecord[],
-  current: MutationRecord[],
+  baseline: readonly MutationRecord[],
+  current: readonly MutationRecord[],
 ): SweepComparison {
   const byKey = (records: readonly MutationRecord[]) => {
     const map = new Map<string, MutationRecord>();
@@ -349,7 +353,7 @@ const FLAGGED: ReadonlySet<StrykerStatus> = new Set([
   'Timeout',
   'Error',
   'NoCoverage',
-] as FlaggedStatus[]);
+]);
 
 const EMPTY_COUNTS: Record<StrykerStatus, number> = {
   Killed: 0,

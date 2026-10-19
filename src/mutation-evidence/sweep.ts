@@ -10,10 +10,10 @@ import { baselinePathFor, summarizeReport } from './report';
 
 const REPORT_PATH = 'reports/mutation/mutation.json';
 
-export function resolveTestFile(target: string): string {
+export function resolveTestFile(target: string): string | undefined {
   const testFile = target.replace(/\.ts$/, '.test.ts');
   if (testFile === target || !existsSync(testFile)) {
-    throw new Error(`mutation sweep: no sibling test file for ${target}`);
+    return undefined;
   }
   return testFile;
 }
@@ -41,8 +41,24 @@ async function main(): Promise<void> {
   if (files.length === 0) {
     throw new Error('usage: bun run mutation:sweep -- <files...>');
   }
-  const tests = files.map(resolveTestFile);
-  const code = await runStryker(files, tests);
+  const targets: string[] = [];
+  const tests: string[] = [];
+  for (const target of files) {
+    const testFile = resolveTestFile(target);
+    if (testFile === undefined) {
+      console.warn(
+        `mutation sweep: no sibling test file for ${target}; excluded`,
+      );
+    } else {
+      targets.push(target);
+      tests.push(testFile);
+    }
+  }
+  if (targets.length === 0) {
+    console.warn('mutation sweep: nothing to sweep');
+    return;
+  }
+  const code = await runStryker(targets, tests);
   if (code !== 0) {
     process.exit(code);
   }

@@ -9,10 +9,8 @@ describe('resolveTestFile', () => {
     );
   });
 
-  test('rejects a target with no sibling test file', () => {
-    expect(() => resolveTestFile('src/mutation-evidence/nope.ts')).toThrow(
-      'mutation sweep: no sibling test file for src/mutation-evidence/nope.ts',
-    );
+  test('excludes a target with no sibling test file', () => {
+    expect(resolveTestFile('src/mutation-evidence/nope.ts')).toBeUndefined();
   });
 });
 

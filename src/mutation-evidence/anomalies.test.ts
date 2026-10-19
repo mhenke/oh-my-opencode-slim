@@ -96,12 +96,12 @@ describe('status semantics + score (#1600)', () => {
         mutant({
           id: 'k1',
           status: 'Killed',
-          killedBy: ['278', '279'] as unknown as never,
+          killedBy: ['278', '279'],
         }),
         mutant({
           id: 'k2',
           status: 'Killed',
-          killedBy: ['15'] as unknown as never,
+          killedBy: ['15'],
         }),
       ]),
     );

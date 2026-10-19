@@ -104,6 +104,40 @@ describe('compareSweeps', () => {
     expect(matched.current.status).toBe('Killed');
   });
 
+  test('treats a Timeout baseline as already detected when the mutant is killed', () => {
+    const source = 'function f() { return true; }';
+    const mutant = (id: string, status: string) => ({
+      id,
+      mutatorName: 'BooleanLiteral',
+      replacement: 'false',
+      status,
+      static: false,
+      coveredBy: [],
+      location: {
+        start: { line: 1, column: 23 },
+        end: { line: 1, column: 27 },
+      },
+    });
+    const currentRecords = collectMutationRecords(
+      wrap('src/example.ts', source, [mutant('2', 'Killed')]),
+    );
+    const timeoutBaseline = collectMutationRecords(
+      wrap('src/example.ts', source, [mutant('1', 'Timeout')]),
+    );
+    // Timeout counts as detected, so this must not read as fix proof.
+    expect(
+      compareSweeps(timeoutBaseline, currentRecords).matched[0].transition,
+    ).toBe('already-killed');
+
+    // A Survived baseline still counts as newly killed.
+    const survivedBaseline = collectMutationRecords(
+      wrap('src/example.ts', source, [mutant('3', 'Survived')]),
+    );
+    expect(
+      compareSweeps(survivedBaseline, currentRecords).matched[0].transition,
+    ).toBe('newly-killed');
+  });
+
   test('surfaces newly-surviving mutants distinctly', () => {
     const source = 'function f() { return true; }';
     const baselineKilled = wrap('src/example.ts', source, [

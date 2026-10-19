@@ -49,6 +49,9 @@ const TRANSITION_ORDER: TransitionKind[] = [
   'other',
 ];
 
+// shortcut: threshold is a judgement call, tune against real sweeps
+const GROUP_THRESHOLD = 20;
+
 export function renderReport(input: ReportInput): string {
   const { records, baseline, ledger } = input;
   const { records: merged, unmatchedLedgerLines } = applyLedger(
@@ -73,6 +76,16 @@ export function renderReport(input: ReportInput): string {
     }`,
   );
 
+  const flagged = viewed.filter((r) => r.detection.flaggedStatus !== null);
+  if (flagged.length > 0) {
+    lines.push(`flagged (${flagged.length}):`);
+    for (const r of flagged) {
+      const loc = `${r.identity.fileName}:${r.identity.location.start.line}:${r.identity.location.start.column}`;
+      const name = r.observed.status === 'Timeout' ? ' slow-under-mutant' : '';
+      lines.push(`  id=${r.observed.id} ${loc} ${r.observed.status}${name}`);
+    }
+  }
+
   if (baseline !== undefined) {
     const comparison = compareSweeps([...baseline], [...records]);
     const counts = new Map<TransitionKind, number>();
@@ -90,17 +103,32 @@ export function renderReport(input: ReportInput): string {
 
   const survivors = viewed.filter((r) => r.observed.status === 'Survived');
   lines.push(`survivors (${survivors.length}):`);
-  for (const r of survivors) {
+  const renderSurvivor = (r: (typeof survivors)[number]): string[] => {
     const loc = `${r.identity.fileName}:${r.identity.location.start.line}:${r.identity.location.start.column}`;
-    lines.push(
+    const out = [
       `  id=${r.observed.id} ${loc} ${r.identity.mutatorName} ` +
         `${r.identity.original}->${r.identity.replacement} ` +
         `disp=${r.reviewed.disposition ?? 'unreviewed'} ` +
         `key=${r.identityKey}`,
-    );
+    ];
     if (r.reviewed.rationale !== null) {
-      lines.push(`    rationale: ${r.reviewed.rationale}`);
+      out.push(`    rationale: ${r.reviewed.rationale}`);
     }
+    return out;
+  };
+  if (survivors.length > GROUP_THRESHOLD) {
+    const byMutator = new Map<string, typeof survivors>();
+    for (const r of survivors) {
+      const list = byMutator.get(r.identity.mutatorName) ?? [];
+      list.push(r);
+      byMutator.set(r.identity.mutatorName, list);
+    }
+    for (const [mutatorName, list] of byMutator) {
+      lines.push(`  ${mutatorName} (${list.length}):`);
+      for (const r of list) lines.push(...renderSurvivor(r));
+    }
+  } else {
+    for (const r of survivors) lines.push(...renderSurvivor(r));
   }
 
   if (unmatchedLedgerLines.length > 0) {

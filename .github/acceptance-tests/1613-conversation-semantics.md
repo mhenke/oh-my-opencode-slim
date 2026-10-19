@@ -25,13 +25,13 @@ L=$(ls -t ~/.local/share/opencode/log/oh-my-opencode-slim.*-$PPID.log 2>/dev/nul
 echo "$L"
 
 W=$(git rev-parse --show-toplevel 2>/dev/null || pwd)
-mkdir -p "$W/tmp-acceptance-1613"
+mkdir -p "$W/tmp/acceptance-1613"
 
 # Probe files for word-resolution scenarios
-printf 'one two three\nfour five six\nseven eight nine ten\n' > "$W/tmp-acceptance-1613/probe-basic.ts"
+printf 'one two three\nfour five six\nseven eight nine ten\n' > "$W/tmp/acceptance-1613/probe-basic.ts"
 
 # Probe file for target-resolution change-set scenarios
-printf '// mutation targets go here\nimport test from "node:test"\nimport assert from "node:assert"\n\ntest("basic assertion", () => {\n  assert.equal(1, 1)\n})\n' > "$W/tmp-acceptance-1613/probe-targets.ts"
+printf '// mutation targets go here\nimport test from "node:test"\nimport assert from "node:assert"\n\ntest("basic assertion", () => {\n  assert.equal(1, 1)\n})\n' > "$W/tmp/acceptance-1613/probe-targets.ts"
 ```
 
 ---
@@ -78,9 +78,9 @@ Two words fit → ask once only; a later command includes the earlier phases.
 **Goal**: When the user speaks nothing (or gives no recognized word), the full session runs: audit, then critique, then fix.
 
 1. User says nothing → runs audit, then critique, then fix in order.
-2. A later `fix` command after `audit` includes the earlier phases (i.e., `fix` alone does not re-run audit/critique; only the explicit sequence does).
+2. A later `fix` command after `audit` includes the earlier phases (it runs audit, then critique, then fix).
 
-**PASS criterion**: bare invocation runs all three phases in order; later single-word commands do not re-run earlier phases.
+**PASS criterion**: bare invocation runs all three phases in order; a later single-word command includes the earlier phases.
 
 **evidence**: log line showing the three-phase sequence started.
 

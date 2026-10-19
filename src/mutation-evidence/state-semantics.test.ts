@@ -4,7 +4,12 @@ import type { LedgerLine, MutationRecord, StrykerReport } from './records';
 import { baselinePathFor, renderReport, summarizeReport } from './report';
 import { claimBaseline } from './sweep';
 
-function rec(id: string, status: string, fileName: string): MutationRecord {
+function rec(
+  id: string,
+  status: string,
+  fileName: string,
+  mutatorName = 'BooleanLiteral',
+): MutationRecord {
   const column = 22 + Number(id);
   return {
     identity: {
@@ -13,7 +18,7 @@ function rec(id: string, status: string, fileName: string): MutationRecord {
         start: { line: 1, column },
         end: { line: 1, column: column + 4 },
       },
-      mutatorName: 'BooleanLiteral',
+      mutatorName,
       original: 'true',
       replacement: 'false',
     },
@@ -23,7 +28,7 @@ function rec(id: string, status: string, fileName: string): MutationRecord {
       column,
       1,
       column + 4,
-      'BooleanLiteral',
+      mutatorName,
       'true',
       'false',
     ]),
@@ -197,11 +202,26 @@ describe('state semantics: ledger attach + verbatim carry-through + duplicate id
     for (let i = 1; i <= 15; i++) {
       records.push(rec(i.toString(), 'Survived', `file${i}.ts`));
     }
+    for (let i = 16; i <= 25; i++) {
+      records.push(
+        rec(i.toString(), 'Survived', `file${i}.ts`, 'EqualityOperator'),
+      );
+    }
     const out = renderReport({ records, baseline: undefined, ledger: [] });
-    expect(out).toContain('survivors (15):');
-    for (let i = 1; i <= 15; i++) {
+    expect(out).toContain('survivors (25):');
+    expect(out).toContain('BooleanLiteral (15):');
+    expect(out).toContain('EqualityOperator (10):');
+    for (let i = 1; i <= 25; i++) {
       expect(out).toContain(`id=${i}`);
     }
+    // Small sets stay flat: no cluster headers.
+    const small = renderReport({
+      records: records.slice(0, 5),
+      baseline: undefined,
+      ledger: [],
+    });
+    expect(small).toContain('survivors (5):');
+    expect(small).not.toContain('BooleanLiteral (5):');
   });
 
   test('score with Timeout counted detected and slow-under-mutant named', () => {
@@ -222,6 +242,9 @@ describe('state semantics: ledger attach + verbatim carry-through + duplicate id
     expect(out).toContain('Survived=1');
     expect(out).toContain('Killed=1');
     expect(out).toContain('score:');
+    expect(out).toContain('flagged (3):');
+    expect(out).toContain('slow-under-mutant');
+    expect(out).toContain('id=2');
   });
 });
 
@@ -296,5 +319,6 @@ describe('state semantics: transitions block against baseline', () => {
     expect(out).toContain('newly-surviving: 1');
     expect(out).toContain('still-surviving: 0');
     expect(out).toContain('already-killed: 0');
+    expect(out).toContain('added: 0, removed: 0');
   });
 });

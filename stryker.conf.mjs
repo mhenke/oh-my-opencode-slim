@@ -13,7 +13,7 @@ export default {
   // no extends/references to rewrite, so the rewrite must never run.
   tsconfigFile: 'tsconfig.stryker-unused.json',
   // Scope is set per run through env (the skill does this); the default
-  // is the measured hotspot from docs/mutation-testing-poc.md.
+  // is the measured hotspot from the mutation-testing POC.
   mutate: (
     process.env.MUTATION_MUTATE ?? 'src/hooks/foreground-fallback/index.ts'
   ).split(','),
