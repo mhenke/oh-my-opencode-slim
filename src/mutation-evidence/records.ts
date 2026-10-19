@@ -48,6 +48,11 @@ export interface ObservedEvidence {
   static: boolean;
   coveredBy: readonly string[];
   /**
+   * coveredBy resolved through the report's testFiles table when present.
+   * Test ids churn between runs; names are the stable comparison view.
+   */
+  coveredByTests?: readonly string[];
+  /**
    * Test ids the runner recorded as killing the mutant, or null when the
    * report carries no killedBy. First-failure attribution only: the runner
    * bails at the first failing test, so this is never unique causality.
@@ -83,7 +88,7 @@ export interface StrykerMutant {
   replacement: string;
   status: StrykerStatus;
   static: boolean;
-  coveredBy: string[];
+  coveredBy?: string[];
   location: SourceLocation;
   /** Test ids that killed this mutant; present only on Killed mutants. */
   killedBy?: string[];
@@ -97,6 +102,8 @@ export interface StrykerFile {
 
 export interface StrykerReport {
   files: Record<string, StrykerFile>;
+  /** Test id to stable name table; present in full Stryker reports. */
+  testFiles?: Record<string, { tests?: { id: string; name: string }[] }>;
 }
 
 /**
@@ -207,16 +214,38 @@ function makeIdentityKey(identity: MutationIdentity): string {
   ]);
 }
 
+const KNOWN_STATUSES: ReadonlySet<StrykerStatus> = new Set<StrykerStatus>([
+  'Killed',
+  'Survived',
+  'NoCoverage',
+  'Timeout',
+  'Error',
+  'Ignored',
+  'Pending',
+]);
+
 export function collectMutationRecords(
   report: StrykerReport,
 ): MutationRecord[] {
   const records: MutationRecord[] = [];
+  const testNameById = new Map<string, string>();
+  for (const testFile of Object.values(report.testFiles ?? {})) {
+    for (const test of testFile.tests ?? []) {
+      testNameById.set(test.id, test.name);
+    }
+  }
   for (const [fileName, file] of Object.entries(report.files)) {
     if (typeof file.source !== 'string') {
       throw new Error(`mutation evidence: missing source for ${fileName}`);
     }
     const starts = lineStarts(file.source);
     for (const mutant of file.mutants) {
+      if (!KNOWN_STATUSES.has(mutant.status)) {
+        throw new Error(
+          `mutation evidence: unknown status "${mutant.status}" for ` +
+            `mutant ${mutant.id} in ${fileName}`,
+        );
+      }
       const original = file.source.slice(
         offsetOf(starts, mutant.location.start),
         offsetOf(starts, mutant.location.end),
@@ -235,7 +264,10 @@ export function collectMutationRecords(
           id: mutant.id,
           status: mutant.status,
           static: mutant.static,
-          coveredBy: mutant.coveredBy,
+          coveredBy: mutant.coveredBy ?? [],
+          coveredByTests: (mutant.coveredBy ?? []).map(
+            (id) => testNameById.get(id) ?? id,
+          ),
           killedBy: mutant.killedBy ?? null,
         },
         reviewed: {
@@ -278,6 +310,11 @@ function transitionOf(
 // Coverage sets compare as sets: Stryker does not guarantee test order
 // stability between runs, so order-sensitive equality would produce
 // spurious coverage-change flags.
+// Test ids churn between Stryker runs; resolved names are the stable view.
+function stableCoverage(o: ObservedEvidence): readonly string[] {
+  return o.coveredByTests ?? o.coveredBy;
+}
+
 function sameCoverage(a: readonly string[], b: readonly string[]): boolean {
   if (a.length !== b.length) return false;
   const setB = new Set(b);
@@ -330,8 +367,8 @@ export function compareSweeps(
         currentRecord.observed.status,
       ),
       coverageChanged: !sameCoverage(
-        baseRecord.observed.coveredBy,
-        currentRecord.observed.coveredBy,
+        stableCoverage(baseRecord.observed),
+        stableCoverage(currentRecord.observed),
       ),
     });
   }

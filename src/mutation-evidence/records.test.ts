@@ -200,4 +200,22 @@ describe('collectMutationRecords', () => {
     expect(record.reviewed.falsifierResult).toBeNull();
     expect(record.reviewed.rationale).toBeNull();
   });
+
+  test('rejects an unknown mutant status with a descriptive error', () => {
+    const report = wrap('src/a.ts', 'const x = true;', [
+      {
+        id: '1',
+        mutatorName: 'BooleanLiteral',
+        replacement: 'false',
+        status: 'Bogus',
+        static: false,
+        coveredBy: [],
+        location: {
+          start: { line: 1, column: 11 },
+          end: { line: 1, column: 15 },
+        },
+      },
+    ]);
+    expect(() => collectMutationRecords(report)).toThrow(/unknown status/);
+  });
 });

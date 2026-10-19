@@ -226,6 +226,86 @@ describe('compareSweeps', () => {
     expect(matched.current.coveredBy).toEqual(['test1.js', 'test2.js']);
   });
 
+  test('compares coverage by stable test names, not churning test ids', () => {
+    const source = 'function f() { return true; }';
+    const mutant = (id: string, coveredBy: string[]) => ({
+      id,
+      mutatorName: 'BooleanLiteral',
+      replacement: 'false',
+      status: 'Survived',
+      static: false,
+      coveredBy,
+      location: {
+        start: { line: 1, column: 23 },
+        end: { line: 1, column: 27 },
+      },
+    });
+    const withTests = (
+      report: StrykerReport,
+      mapping: Record<string, string>,
+    ) =>
+      ({
+        ...report,
+        testFiles: {
+          'src/example.test.ts': {
+            tests: Object.entries(mapping).map(([id, name]) => ({
+              id,
+              name,
+            })),
+          },
+        },
+      }) as StrykerReport;
+
+    // The same test, but Stryker renumbered its id between runs.
+    const baseline = withTests(
+      wrap('src/example.ts', source, [mutant('100', ['1'])]),
+      { '1': 'renders when armed' },
+    );
+    const current = withTests(
+      wrap('src/example.ts', source, [mutant('200', ['9'])]),
+      { '9': 'renders when armed' },
+    );
+    const comparison = compareSweeps(
+      collectMutationRecords(baseline),
+      collectMutationRecords(current),
+    );
+    expect(comparison.matched).toHaveLength(1);
+    expect(comparison.matched[0].coverageChanged).toBe(false);
+
+    // A different test covering the mutant is a real change.
+    const changed = withTests(
+      wrap('src/example.ts', source, [mutant('300', ['7'])]),
+      { '7': 'renders when disarmed' },
+    );
+    expect(
+      compareSweeps(
+        collectMutationRecords(baseline),
+        collectMutationRecords(changed),
+      ).matched[0].coverageChanged,
+    ).toBe(true);
+  });
+
+  test('tolerates a mutant without coveredBy and does not crash comparisons', () => {
+    const source = 'function f() { return true; }';
+    const bare = wrap('src/example.ts', source, [
+      {
+        id: '1',
+        mutatorName: 'BooleanLiteral',
+        replacement: 'false',
+        status: 'Survived',
+        static: false,
+        location: {
+          start: { line: 1, column: 23 },
+          end: { line: 1, column: 27 },
+        },
+      },
+    ]);
+    const records = collectMutationRecords(bare);
+    expect(records[0].observed.coveredBy).toEqual([]);
+    const comparison = compareSweeps(records, records);
+    expect(comparison.matched[0].coverageChanged).toBe(false);
+  });
+
   test('reports added and removed mutants', () => {
     const source = 'function f() { return true; }';
     const baseline = wrap('src/example.ts', source, [
