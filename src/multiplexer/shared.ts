@@ -22,11 +22,24 @@ export function normalizePathForShell(directory: string): string {
     : directory;
 }
 
-/** Quote an executable for sh -lc: bare fallback stays bare, Windows
- * backslashes become / so MSYS2/Git Bash single quotes don't preserve them. */
+/** Quote an executable for the pane's command position: bare fallback
+ * stays bare. The pane shell is unknowable, so Windows assumes PowerShell
+ * (from `SHELL`, defaulting to PowerShell when unset) and prefixes the
+ * call operator (`&`) to invoke a quoted path (#1620), doubling `'` inside
+ * the literal; a non-PowerShell `SHELL` and every non-Windows host keep
+ * the legacy single-quoted form. Windows backslashes become / so MSYS2/Git
+ * Bash single quotes don't preserve them. */
 function formatExecutableForShell(executable: string): string {
   if (executable === 'opencode') return executable;
-  return quoteShellArg(normalizePathForShell(executable));
+  const path = normalizePathForShell(executable);
+  if (process.platform === 'win32') {
+    const name = shellName(process.env.SHELL || 'powershell');
+    if (name === 'pwsh' || name === 'powershell') {
+      // PowerShell doubles ' inside single-quoted literals.
+      return `& '${path.replace(/'/g, "''")}'`;
+    }
+  }
+  return quoteShellArg(path);
 }
 
 export function buildOpencodeAttachCommand(
@@ -79,6 +92,9 @@ export type ViewerCommandOptions = Pick<
  *   `OPENCODE_PASSWORD` secret is never part of the command text; adapters
  *   inject it at pane creation through their native spawn-time environment
  *   mechanism, or through `withParentEnvPassword` where none exists.
+ *
+ * The command-position executable is formatted for the pane shell: on
+ * Windows PowerShell it is emitted as `& '<resolved-binary>'` (#1620).
  *
  * `mini` uses `attach ... --mini` on v1 (OpenCode >= 1.17.10). On v2 it
  * uses the `mini` subcommand, which rejects a positional directory; adapters

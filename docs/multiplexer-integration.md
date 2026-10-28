@@ -61,6 +61,13 @@ How it works:
    opencode attach <serverUrl> --session <childSessionId> --dir <directory>
    ```
 
+   The executable is the resolved absolute OpenCode binary (bare `opencode`
+   when none resolves), quoted for the command position: on Windows,
+   PowerShell (`SHELL`, defaulting to PowerShell when unset) gets the call
+   operator (`& '<path>'`) since a quoted command position there is a string
+   literal, not a command; anything else keeps the plain quoted form.
+   `cmd.exe` panes are unsupported.
+
    No prompt or instruction is ever passed to the pane; the plugin pane flow
    never creates a session and never sends a prompt. A pane is a view of a
    child that already exists.
@@ -501,8 +508,9 @@ produces one `multiplexer.host-unsupported` record per process; shared and
   plugin sets no title and never reads one back; crash-leftover Orca views are
   left for you to close manually (same stance as WezTerm).
 - **Windows Orca hosts are refused.** `spawnPane` reports unavailable on
-  win32 instead of typing a POSIX-quoted viewer command into a cmd/PowerShell
-  pane (the #1620 class of bug). No pane is created.
+  win32 instead of typing a viewer command into a cmd/PowerShell pane
+  (`cmd.exe` quoting is unsupported; the PowerShell form is heuristic). No
+  pane is created.
 - **Stable idle is a debounce, not task-level completion.** A pane closes when
   the child stays idle past the debounce window (default 5 s) and a final
   re-check finds it not busy: an absent `/session/status` entry counts as

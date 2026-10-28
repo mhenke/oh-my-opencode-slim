@@ -27,6 +27,33 @@ async function importShared() {
   return import(`./shared?test=${importCounter++}`);
 }
 
+/** Run `fn` with a mocked platform and pinned SHELL: the executable
+ * quoting rule reads both, so ambient values must not leak in. */
+async function withShellEnv(
+  platform: string,
+  shell: string | undefined,
+  fn: () => void | Promise<void>,
+): Promise<void> {
+  const originalPlatform = process.platform;
+  const originalShell = process.env.SHELL;
+  Object.defineProperty(process, 'platform', {
+    value: platform,
+    configurable: true,
+  });
+  if (shell === undefined) delete process.env.SHELL;
+  else process.env.SHELL = shell;
+  try {
+    await fn();
+  } finally {
+    Object.defineProperty(process, 'platform', {
+      value: originalPlatform,
+      configurable: true,
+    });
+    if (originalShell === undefined) delete process.env.SHELL;
+    else process.env.SHELL = originalShell;
+  }
+}
+
 describe('gracefulClosePane', () => {
   afterEach(() => {
     crossSpawnMock.mockReset();
@@ -224,6 +251,86 @@ describe('buildOpencodeAttachCommand', () => {
       });
     }
   });
+
+  test('prefixes the call operator for PowerShell shells on Windows (#1620)', async () => {
+    const { buildOpencodeAttachCommand } = await importShared();
+    for (const shell of [
+      'powershell',
+      '/usr/bin/pwsh',
+      'C:\\pwsh\\powershell.exe',
+    ]) {
+      await withShellEnv('win32', shell, () => {
+        const cmd = buildOpencodeAttachCommand(
+          'sess',
+          'url',
+          '/repo',
+          '/opt/oc/bin/opencode',
+        );
+        expect(cmd).toStartWith("& '/opt/oc/bin/opencode' attach");
+      });
+    }
+  });
+
+  test('keeps the quoted command position for non-PowerShell shells (#1620)', async () => {
+    const { buildOpencodeAttachCommand } = await importShared();
+    // A POSIX SHELL on Windows (Git Bash panes) and every non-Windows
+    // host keep the legacy form: the call operator would be fatal there.
+    await withShellEnv('win32', '/usr/bin/bash', () => {
+      expect(
+        buildOpencodeAttachCommand(
+          'sess',
+          'url',
+          '/repo',
+          '/opt/oc/bin/opencode',
+        ),
+      ).toStartWith("'/opt/oc/bin/opencode' attach");
+    });
+    await withShellEnv('linux', undefined, () => {
+      expect(
+        buildOpencodeAttachCommand(
+          'sess',
+          'url',
+          '/repo',
+          '/opt/oc/bin/opencode',
+        ),
+      ).toStartWith("'/opt/oc/bin/opencode' attach");
+    });
+  });
+
+  test('bare opencode stays bare (#1620)', async () => {
+    const { buildOpencodeAttachCommand } = await importShared();
+    await withShellEnv('win32', 'powershell', () => {
+      expect(
+        buildOpencodeAttachCommand('sess', 'url', '/repo', 'opencode'),
+      ).toStartWith('opencode attach');
+    });
+  });
+
+  test('PowerShell doubles apostrophes in the executable path (#1620)', async () => {
+    const { buildOpencodeAttachCommand } = await importShared();
+    await withShellEnv('win32', 'powershell', () => {
+      const cmd = buildOpencodeAttachCommand(
+        'sess',
+        'url',
+        '/repo',
+        "C:\\Users\\O'Connor\\opencode.exe",
+      );
+      expect(cmd).toStartWith("& 'C:/Users/O''Connor/opencode.exe' attach");
+    });
+  });
+
+  test('Windows with no SHELL defaults to PowerShell syntax (#1620)', async () => {
+    await withShellEnv('win32', undefined, async () => {
+      const { buildOpencodeAttachCommand } = await importShared();
+      const cmd = buildOpencodeAttachCommand(
+        'sess',
+        'url',
+        'C:\\Users\\foo\\repo',
+        'C:\\Tools\\opencode.exe',
+      );
+      expect(cmd).toStartWith("& 'C:/Tools/opencode.exe' attach");
+    });
+  });
 });
 
 describe('buildShellLaunchArgs', () => {
@@ -279,7 +386,8 @@ describe('buildShellLaunchArgs', () => {
         const cmd = 'opencode attach url --session s';
         expect(buildShellLaunchArgs(cmd)).toEqual(expected(cmd));
       } finally {
-        process.env.SHELL = original;
+        if (original === undefined) delete process.env.SHELL;
+        else process.env.SHELL = original;
       }
     });
   }
@@ -292,7 +400,8 @@ describe('buildShellLaunchArgs', () => {
       const cmd = 'opencode attach url';
       expect(buildShellLaunchArgs(cmd)).toEqual(['/bin/sh', '-c', cmd]);
     } finally {
-      process.env.SHELL = original;
+      if (original === undefined) delete process.env.SHELL;
+      else process.env.SHELL = original;
     }
   });
 });
@@ -431,6 +540,27 @@ describe('buildViewCommand', () => {
     );
   });
 
+  test('v2 flavors use the PowerShell call operator on Windows (#1620)', async () => {
+    const { buildViewCommand } = await importShared();
+    await withShellEnv('win32', 'powershell', () => {
+      expect(
+        buildViewCommand('ses_abc', 'http://unused', '/repo', {
+          executable: 'D:/Tools/opencode/opencode.exe',
+          viewerFlavor: 'v2-shared',
+          viewerSurface: 'mini',
+        }),
+      ).toBe("& 'D:/Tools/opencode/opencode.exe' mini --session 'ses_abc'");
+      expect(
+        buildViewCommand('ses_abc', 'http://x', '/repo', {
+          executable: 'D:/Tools/opencode/opencode.exe',
+          viewerFlavor: 'v2-remote',
+        }),
+      ).toBe(
+        "& 'D:/Tools/opencode/opencode.exe' --server 'http://x' --session 'ses_abc' '/repo'",
+      );
+    });
+  });
+
   test('v2 flavors quote directories, session ids and executables', async () => {
     const { buildViewCommand } = await importShared();
     expect(
@@ -464,12 +594,9 @@ describe('buildViewCommand', () => {
   });
 
   test('normalizes Windows executable backslashes in both builders', async () => {
-    const original = process.platform;
-    Object.defineProperty(process, 'platform', {
-      value: 'win32',
-      configurable: true,
-    });
-    try {
+    // Pin a POSIX SHELL so backslash normalization is what is under test,
+    // not the PowerShell call-operator branch.
+    await withShellEnv('win32', '/bin/bash', async () => {
       const { buildOpencodeAttachCommand, buildViewCommand } =
         await importShared();
       const exe = 'C:\\Users\\foo\\opencode.exe';
@@ -487,12 +614,7 @@ describe('buildViewCommand', () => {
       });
       expect(cmd).toStartWith("'C:/Users/foo/opencode.exe' --server");
       expect(cmd).toContain('C:/Users/foo/repo');
-    } finally {
-      Object.defineProperty(process, 'platform', {
-        value: original,
-        configurable: true,
-      });
-    }
+    });
   });
 });
 
