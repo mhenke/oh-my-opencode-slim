@@ -554,9 +554,9 @@ describe('v2 tui preset plugin', () => {
         location: { directory: projectDir },
         renderer: { requestRender: () => {} },
         theme: {
-          text: { default: '#f0f0f0', subdued: '#8a8a8a' },
-          background: { default: '#101010' },
-          border: { default: '#3a3a3a' },
+          text: { base: '#f0f0f0', muted: '#8a8a8a' },
+          background: { base: '#101010' },
+          border: { base: '#3a3a3a' },
         },
         ui: {
           slot: (claim: { append?: string; render?: () => unknown }) => {

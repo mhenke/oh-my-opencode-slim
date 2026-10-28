@@ -6,7 +6,7 @@ import * as path from 'node:path';
 import { RGBA } from '@opentui/core';
 import { testRender } from '@opentui/solid';
 import sidebarFrameGolden from './sidebar-frame-golden.json';
-import type { ModelNamesCache } from './tui';
+import type { ModelNamesCache, V2TuiThemeTokens } from './tui';
 import {
   applyRemoteAgentModels,
   compareAliasNumeric,
@@ -37,6 +37,7 @@ import {
   sidebarSiblingAnnotation,
   splitSidebarModelId,
   default as tuiPlugin,
+  v2ThemeView,
 } from './tui';
 import {
   getKillAllTargets,
@@ -1087,6 +1088,45 @@ describe('getContrastForeground', () => {
   });
 });
 
+describe('v2ThemeView', () => {
+  // Built-in `opencode` light palette of the host v2 token tree. The #1401
+  // shape had wrong keys → every colour undefined → white-on-white.
+  const lightHostTokens: V2TuiThemeTokens = {
+    text: {
+      base: '#1a1a1a',
+      muted: '#8a8a8a',
+      feedback: { success: { base: '#3d9a57' }, warning: { base: '#d68c27' } },
+    },
+    background: { base: '#ffffff' },
+    border: { base: '#b8b8b8' },
+    hue: { accent: { 200: '#d68c27', 300: '#df9a44', 500: '#f1b671' } },
+  };
+
+  test('maps real host keys so no colour is ever undefined (#1401)', () => {
+    const view = v2ThemeView(lightHostTokens);
+    expect(view.text).toBe('#1a1a1a');
+    expect(view.textMuted).toBe('#8a8a8a');
+    expect(view.background).toBe('#ffffff');
+    expect(view.borderActive).toBe('#b8b8b8');
+    expect(view.success).toBe('#3d9a57');
+    expect(view.warning).toBe('#d68c27');
+    // accent fills the badge; step 300 is the host's light-mode fill.
+    expect(view.accent).toBe('#df9a44');
+  });
+
+  test('a partial host tree degrades to no colour, never throws (#1401)', () => {
+    const view = v2ThemeView({});
+    expect(view.text).toBeUndefined();
+    expect(view.accent).toBeUndefined();
+  });
+
+  test('body text is readable on the light panel, not white-on-white (#1401)', () => {
+    const view = v2ThemeView(lightHostTokens);
+    expect(view.text).not.toBeUndefined();
+    expect(view.text).not.toBe(view.background);
+  });
+});
+
 describe('dual-contract plugin module', () => {
   let originalEnv: typeof process.env;
 
@@ -1109,9 +1149,9 @@ describe('dual-contract plugin module', () => {
       location: { directory },
       renderer: { requestRender: () => {} },
       theme: {
-        text: { default: '#f0f0f0', subdued: '#8a8a8a' },
-        background: { default: '#101010' },
-        border: { default: '#3a3a3a' },
+        text: { base: '#f0f0f0', muted: '#8a8a8a' },
+        background: { base: '#101010' },
+        border: { base: '#3a3a3a' },
       },
       ui: {
         slot: (claim: (typeof slotClaims)[number]) => {
@@ -2031,11 +2071,16 @@ describe('clickable sidebar sessions', () => {
         renderer: { requestRender: didRefresh },
         client: undefined,
         theme: {
-          text: { default: '#ffffff', subdued: '#aaaaaa' },
-          background: { default: '#111111' },
-          border: { default: '#555555' },
-          success: '#00ff00',
-          warning: '#ffcc00',
+          text: {
+            base: '#ffffff',
+            muted: '#aaaaaa',
+            feedback: {
+              success: { base: '#00ff00' },
+              warning: { base: '#ffcc00' },
+            },
+          },
+          background: { base: '#111111' },
+          border: { base: '#555555' },
         },
         ui: {
           router: {

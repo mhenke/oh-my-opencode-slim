@@ -1808,13 +1808,19 @@ export function resolveSidebarSlotOrder(
 // Mirrors the OpenCode v2 TUI context surface (dist/tui/context.d.ts);
 // declared locally because the pinned @opencode-ai/plugin dep ships v1
 // types only.
-interface V2TuiThemeTokens {
-  text: { default: unknown; subdued: unknown };
-  background: { default: unknown };
-  border: { default: unknown };
-  /** Optional semantic tokens; v2 hosts may omit them. */
-  success?: unknown;
-  warning?: unknown;
+export interface V2TuiThemeTokens {
+  text?: {
+    base?: unknown;
+    muted?: unknown;
+    feedback?: {
+      success?: { base?: unknown };
+      warning?: { base?: unknown };
+    };
+  };
+  background?: { base?: unknown };
+  border?: { base?: unknown };
+  /** Step-indexed scale; 300 is the host's light-mode accent fill. */
+  hue?: { accent?: Record<number, unknown> };
 }
 
 interface V2TuiSlotClaim {
@@ -1855,24 +1861,17 @@ interface V2TuiContext extends V2PresetManagerContext {
   };
 }
 
-/** Map v2 theme tokens onto the flat shape `renderSidebar` consumes (v2 has no `accent` token). */
-function v2ThemeView(theme: V2TuiThemeTokens): {
-  accent: undefined;
-  background: unknown;
-  borderActive: unknown;
-  text: unknown;
-  textMuted: unknown;
-  success?: unknown;
-  warning?: unknown;
-} {
+export function v2ThemeView(
+  theme: V2TuiThemeTokens,
+): Parameters<typeof renderSidebar>[2] {
   return {
-    accent: undefined,
-    background: theme.background.default,
-    borderActive: theme.border.default,
-    text: theme.text.default,
-    textMuted: theme.text.subdued,
-    ...(theme.success !== undefined ? { success: theme.success } : {}),
-    ...(theme.warning !== undefined ? { warning: theme.warning } : {}),
+    accent: theme.hue?.accent?.[300],
+    background: theme.background?.base,
+    borderActive: theme.border?.base,
+    text: theme.text?.base,
+    textMuted: theme.text?.muted,
+    success: theme.text?.feedback?.success?.base,
+    warning: theme.text?.feedback?.warning?.base,
   };
 }
 
