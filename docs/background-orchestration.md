@@ -274,6 +274,8 @@ is a read, not a required step before every continuation.
   (`noReply`, `resume: false`). It never wakes, steers, resumes, or interrupts
   the child, and acceptance does not mean the child read it. To steer a running
   child on v2, use the native delegation call (`subagent(sessionID, prompt)`).
+  That call submits the prompt to a running child without cancelling or
+  relaunching it, or resumes a finished child. Same-agent calls only.
 - `task_cancel` stops a generation and retains its session. Inspect and
   reconcile partial file changes before launching replacement work.
 - `task_revive` (v1 only) resumes a retained session after its state is verified

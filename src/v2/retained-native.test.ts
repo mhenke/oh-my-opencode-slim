@@ -411,6 +411,39 @@ describe('v2 native resume through the setup bridge', () => {
     });
   });
 
+  test('a native subagent prompt to a running child keeps its session and generation in the before-hook', async () => {
+    const board = new FixtureBoard();
+    board.registerLaunch({
+      taskID: CHILD,
+      parentSessionID: PARENT,
+      agent: 'fixer',
+      now: 10,
+    });
+    const before = board.get(CHILD);
+    const input = {
+      tool: 'subagent',
+      sessionID: PARENT,
+      id: 'call_steer',
+      input: {
+        agent: 'fixer',
+        sessionID: CHILD,
+        prompt: 'steer',
+        description: 'steer',
+      },
+    };
+    const bridges = createToolExecuteBridges(
+      (hookInput, output) =>
+        handleToolExecuteBefore(hookInput, output, deps(board, host())),
+      undefined,
+    );
+    await bridges.beforeBridge(input);
+    expect(input.input.sessionID).toBe(CHILD);
+    expect(board.get(CHILD)).toMatchObject({
+      state: 'running',
+      generation: before?.generation,
+    });
+  });
+
   test('an unknown completed child is imported, reconciled, and then resumed, and failures do not create a child', async () => {
     const board = new BackgroundJobBoard();
     const input = host();
