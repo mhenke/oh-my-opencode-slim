@@ -46,13 +46,40 @@ export const boardFixture = {
     observedAt = Date.now(),
     generation?: number,
     now = Date.now(),
+    retainedState?: 'recoverable',
   ) {
     if ((board.get(taskID)?.lastLiveBusyAt ?? -1) >= observedAt)
       return board.get(taskID);
     return commit(
       board,
-      { taskID, state: 'stopped', resultSummary, now },
+      {
+        taskID,
+        state: 'stopped',
+        ...(retainedState !== undefined ? { retainedState } : {}),
+        resultSummary,
+        now,
+      },
       generation,
+    );
+  },
+  markRecoverable(
+    board: ProductionBoard,
+    taskID: string,
+    resultSummary: string,
+    observedAt = Date.now(),
+    generation?: number,
+    now = Date.now(),
+  ) {
+    if ((board.get(taskID)?.lastLiveBusyAt ?? -1) >= observedAt)
+      return board.get(taskID);
+    return boardFixture.markStopped(
+      board,
+      taskID,
+      resultSummary,
+      observedAt,
+      generation,
+      now,
+      'recoverable',
     );
   },
   markCancelled(
@@ -103,6 +130,15 @@ export const BackgroundJobBoard = new Proxy(ProductionBoard, {
               ? Rest
               : never
           ) => boardFixture.markStopped(target, ...args);
+        if (key === 'markRecoverable')
+          return (
+            ...args: Parameters<typeof boardFixture.markRecoverable> extends [
+              unknown,
+              ...infer Rest,
+            ]
+              ? Rest
+              : never
+          ) => boardFixture.markRecoverable(target, ...args);
         if (key === 'markCancelled')
           return (
             ...args: Parameters<typeof boardFixture.markCancelled> extends [

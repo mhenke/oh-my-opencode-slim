@@ -19,7 +19,10 @@ import {
   BackgroundJobBoard as ProductionBoard,
   recordBackgroundJobSuppression,
 } from '../utils/background-job-board';
-import { BackgroundJobBoard } from '../utils/background-job-fixture';
+import {
+  BackgroundJobBoard,
+  boardFixture,
+} from '../utils/background-job-fixture';
 import { getSuppressionTombstone } from '../utils/background-job-persistence';
 import {
   type BackgroundJobTerminalGate,
@@ -167,6 +170,23 @@ function stoppedSession(
   });
   board.markStopped(taskID, 'no native result', 110, undefined, 110);
   if (acknowledge) board.markReconciled(taskID);
+}
+
+function recoverableSession(board: BackgroundJobBoard, taskID = 'ses_1') {
+  board.registerLaunch({
+    taskID,
+    parentSessionID: 'parent-1',
+    agent: 'explorer',
+    now: 100,
+  });
+  boardFixture.markRecoverable(
+    board,
+    taskID,
+    'Host reported outcome: interrupted.',
+    110,
+    undefined,
+    110,
+  );
 }
 
 function controlledAdmissionDeadline() {
@@ -711,6 +731,43 @@ describe('task_revive tool', () => {
         state: 'running',
       });
     }
+  });
+
+  test('revives a recoverable task_id in its retained session', async () => {
+    const { board, promptAsync, taskRevive } = createTool();
+    recoverableSession(board);
+    const previous = board.get('ses_1');
+
+    const output = await taskRevive.execute(
+      { task_id: 'ses_1', prompt: 'continue after the interruption' },
+      context,
+    );
+
+    expect(promptAsync).toHaveBeenCalledTimes(1);
+    expect(String(output)).toContain('state: running');
+    expect(board.get('ses_1')).toMatchObject({
+      taskID: 'ses_1',
+      state: 'running',
+      generation: (previous?.generation ?? 0) + 1,
+    });
+  });
+
+  test('explicitly cancelling a recoverable task keeps it retained and aborts nothing', async () => {
+    const { board, abort, taskCancel } = createTool();
+    recoverableSession(board);
+
+    const output = await taskCancel.execute(
+      { task_id: 'ses_1', reason: 'obsolete' },
+      context,
+    );
+
+    expect(String(output)).toContain('state: cancelled');
+    expect(abort).not.toHaveBeenCalled();
+    expect(board.get('ses_1')).toMatchObject({
+      taskID: 'ses_1',
+      state: 'cancelled',
+      cancellationRequested: true,
+    });
   });
 
   test('revives a stopped session on a v2 host with no live session-status map', async () => {

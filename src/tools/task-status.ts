@@ -38,7 +38,7 @@ import {
   type RuntimeSessionStatusSnapshot,
   runtimeSessionStatus,
 } from '../utils/session-runtime-status';
-import type { TimerHandle, TimerSeam } from '../utils/timer-seam';
+import type { TimerSeam } from '../utils/timer-seam';
 import type { TaskActivityTracker } from './task-activity';
 import {
   observationFromSnapshot,

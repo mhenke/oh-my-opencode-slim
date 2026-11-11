@@ -11,9 +11,13 @@ import {
 import {
   handleToolExecuteAfter,
   handleToolExecuteBefore,
+  registerDelegatedLaunchFromStructured,
 } from '../hooks/task-session-manager/tool-execute-hooks';
 import { BackgroundJobBoard } from '../utils/background-job-board';
-import { BackgroundJobBoard as FixtureBoard } from '../utils/background-job-fixture';
+import {
+  boardFixture,
+  BackgroundJobBoard as FixtureBoard,
+} from '../utils/background-job-fixture';
 import { parseTaskIdFromTaskOutput } from '../utils/task';
 import { buildPluginInput } from './client-shim';
 import { createToolExecuteBridges } from './setup';
@@ -249,6 +253,9 @@ describe('v2 historical context', () => {
       })({ parentSessionID: PARENT, requested: CHILD });
       expect(result).toEqual({ kind: 'recovered', taskID: CHILD });
       expect(board.get(CHILD)?.state).toBe(state);
+      expect(board.get(CHILD)?.retainedState).toBe(
+        outcome === 'interrupted' ? 'recoverable' : undefined,
+      );
       if (outcome === 'failed') {
         expect(board.get(CHILD)?.resultSummary).toBe(
           'The historical round failed before an assistant result.',
@@ -366,6 +373,91 @@ describe('v2 historical context', () => {
 });
 
 describe('v2 native resume through the setup bridge', () => {
+  test('a recoverable task_id resumes the retained child and advances its generation', async () => {
+    const board = new FixtureBoard();
+    const original = board.registerLaunch({
+      taskID: CHILD,
+      parentSessionID: PARENT,
+      agent: 'fixer',
+      now: 10,
+    });
+    boardFixture.markRecoverable(
+      board,
+      CHILD,
+      'Host reported outcome: interrupted.',
+      20,
+      original.generation,
+      20,
+    );
+    const input = {
+      tool: 'subagent',
+      sessionID: PARENT,
+      id: 'call_recoverable',
+      input: {
+        agent: 'fixer',
+        sessionID: CHILD,
+        prompt: 'continue after the interruption',
+        description: 'continue',
+        background: true,
+      },
+    };
+    const tracker = createPendingCallTracker();
+    const bridges = createToolExecuteBridges(
+      (hookInput, output) =>
+        handleToolExecuteBefore(
+          hookInput,
+          output,
+          deps(board, host(), tracker),
+        ),
+      undefined,
+    );
+
+    await bridges.beforeBridge(input);
+
+    expect(input.input.sessionID).toBe(CHILD);
+    expect(board.get(CHILD)).toMatchObject({
+      state: 'stopped',
+      retainedState: 'recoverable',
+      terminalUnreconciled: false,
+      generation: original.generation,
+    });
+    const pending = tracker.peekByCallId('call_recoverable', PARENT);
+    expect(pending).toMatchObject({
+      resumedTaskId: CHILD,
+      relaunchLease: { kind: 'relaunch' },
+    });
+    if (!pending) throw new Error('missing continuation pending call');
+
+    const resumed = await registerDelegatedLaunchFromStructured(
+      {
+        callID: 'call_recoverable',
+        parentSessionID: PARENT,
+        childTaskID: CHILD,
+        state: 'running',
+        background: true,
+        exactCallConfirmed: true,
+        pending,
+        handledByWrapper: true,
+      },
+      {
+        directory: '/tmp',
+        backgroundJobBoard: board,
+        terminalGate: { reconcile: async () => undefined } as never,
+        taskContextTracker: {
+          pendingManagedTaskIds: new Set<string>(),
+          contextFilesForPrompt: () => [],
+        },
+      },
+    );
+
+    expect(resumed).toMatchObject({
+      taskID: CHILD,
+      state: 'running',
+      generation: original.generation + 1,
+    });
+    expect(board.list(PARENT)).toHaveLength(1);
+  });
+
   test('an unacknowledged completed session reconciles its old round and continues without a result read', async () => {
     const board = new FixtureBoard();
     board.registerLaunch({
@@ -785,7 +877,7 @@ test('real parent context pairs an alias through the shim', async () => {
   expect(description.length).toBeGreaterThan(0);
 });
 
-test('host outcome triage: interrupted stops, failed errors, and a newer assistant exceeds the host idle', async () => {
+test('host outcome triage: interrupted is recoverable, failed errors, and newer assistant exceeds the host idle', async () => {
   // Host-state triage imports the interrupted round without an assistant.
   // An assistant created after the terminal idle is newer activity the host
   // terminal does not cover, so it must stay pending rather than complete.
@@ -809,6 +901,7 @@ test('host outcome triage: interrupted stops, failed errors, and a newer assista
   })({ parentSessionID: PARENT, requested: CHILD });
   expect(interruptedBoard.get(CHILD)).toMatchObject({
     state: 'stopped',
+    retainedState: 'recoverable',
   });
 
   const failedInput = host({
@@ -1140,7 +1233,7 @@ test('real parent context pairs an alias through the shim', async () => {
   expect(description.length).toBeGreaterThan(0);
 });
 
-test('host outcome triage: interrupted stops, failed errors, and newer assistant activity prevents import', async () => {
+test('host outcome triage: interrupted is recoverable, failed errors, and newer assistant activity prevents import', async () => {
   // A host terminal covers assistant activity only up to its idle time.
   const interruptedInput = host({
     get: () => ({
@@ -1160,6 +1253,7 @@ test('host outcome triage: interrupted stops, failed errors, and newer assistant
   })({ parentSessionID: PARENT, requested: CHILD });
   expect(interruptedBoard.get(CHILD)).toMatchObject({
     state: 'stopped',
+    retainedState: 'recoverable',
   });
 
   const failedInput = host({

@@ -5240,6 +5240,37 @@ describe('task-session-manager hook', () => {
     expect(job?.resultSummary).toBe('Internal server error');
   });
 
+  test('an interrupted child is recoverable instead of cancelled', async () => {
+    const board = new BackgroundJobBoard();
+    const { hook } = createHook({
+      backgroundJobBoard: board,
+      shouldManageSession: () => false,
+    });
+    board.registerLaunch({
+      taskID: 'child-1',
+      parentSessionID: 'parent-1',
+      agent: 'explorer',
+    });
+    board.updateStatus({ taskID: 'child-1', state: 'running' });
+
+    await hook.event({
+      event: {
+        type: 'session.error',
+        properties: {
+          sessionID: 'child-1',
+          error: { type: 'aborted', message: 'provider request interrupted' },
+        },
+      },
+    });
+
+    expect(board.get('child-1')).toMatchObject({
+      state: 'stopped',
+      retainedState: 'recoverable',
+      cancellationRequested: false,
+      resultSummary: 'Host reported outcome: interrupted.',
+    });
+  });
+
   test('child session.error preserves serialized NamedError detail (data.message)', async () => {
     const board = new BackgroundJobBoard();
     const { hook } = createHook({

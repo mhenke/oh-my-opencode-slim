@@ -53,9 +53,9 @@ function transcriptOutcome(
     TerminalEvidenceVerdict,
     { verdict: 'completed' | 'error' }
   >,
-): ['completed' | 'error' | 'stopped', string] {
+): ['completed' | 'error' | 'stopped', string, 'recoverable'?] {
   return evidence.verdict === 'error' && evidence.aborted
-    ? ['stopped', 'Host reported outcome: interrupted.']
+    ? ['stopped', 'Host reported outcome: interrupted.', 'recoverable']
     : [evidence.verdict, evidence.text];
 }
 
@@ -700,6 +700,7 @@ export function createBackgroundJobTerminalGate(options: {
     lease?: BackgroundJobLease,
     attribution: TerminalAttribution = 'event',
     hostOutcomeRead?: string,
+    retainedState?: 'recoverable',
   ): GateResult {
     const value = observation(token);
     const before = board.get(token.taskID);
@@ -720,6 +721,7 @@ export function createBackgroundJobTerminalGate(options: {
       taskID: token.taskID,
       state,
       resultSummary: text,
+      ...(retainedState !== undefined ? { retainedState } : {}),
       cancellationLease: lease,
       now: now(),
     });
@@ -1280,7 +1282,15 @@ export function createBackgroundJobTerminalGate(options: {
     }
     if (signal?.kind === 'session-error')
       return isHostAbortError(signal.error)
-        ? commit(token, 'stopped', 'Host reported outcome: interrupted.')
+        ? commit(
+            token,
+            'stopped',
+            'Host reported outcome: interrupted.',
+            undefined,
+            'event',
+            undefined,
+            'recoverable',
+          )
         : commit(token, 'error', signal.message);
     // Capability absence, not a pending read: fetchChildTranscript
     // resolves undefined ONLY when the host exposes no session.messages
@@ -1363,7 +1373,7 @@ export function createBackgroundJobTerminalGate(options: {
       }
     }
     if (evidence.verdict === 'completed' || evidence.verdict === 'error') {
-      const [state, text] = transcriptOutcome(evidence);
+      const [state, text, retainedState] = transcriptOutcome(evidence);
       return commit(
         token,
         state,
@@ -1371,6 +1381,7 @@ export function createBackgroundJobTerminalGate(options: {
         undefined,
         'transcript',
         terminalOutcome,
+        retainedState,
       );
     }
     // Native return is attributable only when no transcript exists. Foreground
@@ -1441,16 +1452,23 @@ export function createBackgroundJobTerminalGate(options: {
         undefined,
         'transcript',
       );
-    // Stop-family host outcomes are not failures: the host stopped the
-    // run (user interrupt/abort) without a plugin-verified cancel
-    // lease — the same stop policy as the absent-evidence branch below.
-    // Surfacing them as 'error' would report a user-stopped task as a
-    // false failure.
-    if (terminalOutcome === 'interrupted' || terminalOutcome === 'cancelled')
+    // An interruption may be a transient provider/runtime failure. Keep the
+    // session resumable; explicit plugin cancellation is committed above.
+    if (terminalOutcome === 'interrupted')
       return commit(
         token,
         'stopped',
-        `Host reported outcome: ${terminalOutcome}.`,
+        'Host reported outcome: interrupted.',
+        undefined,
+        'host-outcome',
+        undefined,
+        'recoverable',
+      );
+    if (terminalOutcome === 'cancelled')
+      return commit(
+        token,
+        'stopped',
+        'Host reported outcome: cancelled.',
         undefined,
         'host-outcome',
       );

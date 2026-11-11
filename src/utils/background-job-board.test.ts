@@ -4237,6 +4237,75 @@ describe('BackgroundJobBoard GAP-HIGH contract pins (#1723) — stop, reconcile,
     expect(stopped?.recoverableAfterLiveBusy).toBe(false);
   });
 
+  test('recoverable runs resume in place with a new generation', () => {
+    const board = new BackgroundJobBoard();
+    const original = running(board);
+    boardFixture.markRecoverable(
+      board,
+      original.taskID,
+      'Host reported outcome: interrupted.',
+      200,
+      original.generation,
+      200,
+    );
+    expect(board.get(original.taskID)).toMatchObject({
+      state: 'stopped',
+      retainedState: 'recoverable',
+      terminalUnreconciled: true,
+    });
+
+    board.markReconciled(original.taskID, 250);
+    const lease = board.acquireLease(
+      original.taskID,
+      original.generation,
+      'relaunch',
+    );
+    expect(lease).toBeDefined();
+    if (!lease) throw new Error('missing relaunch lease');
+    const resumed = board.registerLaunch({
+      taskID: original.taskID,
+      parentSessionID: 'p1',
+      agent: 'explorer',
+      relaunchLease: lease,
+      now: 300,
+    });
+    board.releaseLease(lease);
+
+    expect(resumed).toMatchObject({
+      taskID: original.taskID,
+      state: 'running',
+      retainedState: undefined,
+      generation: original.generation + 1,
+    });
+  });
+
+  test('a recoverable session can be explicitly cancelled without deletion', () => {
+    const board = new BackgroundJobBoard();
+    const original = running(board);
+    boardFixture.markRecoverable(
+      board,
+      original.taskID,
+      'Host reported outcome: interrupted.',
+      200,
+      original.generation,
+      200,
+    );
+
+    const cancelled = board.cancelRecoverable(
+      original.taskID,
+      'no longer needed',
+      300,
+      original.generation,
+    );
+
+    expect(cancelled).toMatchObject({
+      taskID: original.taskID,
+      state: 'cancelled',
+      cancellationRequested: true,
+    });
+    expect(board.get(original.taskID)).toBeDefined();
+  });
+
   test('contract: markStatusUncertain refuses a reconciled reusable row', () => {
     // Only a running row may become uncertain; a reconciled row must stay
     // resolvable as reusable.

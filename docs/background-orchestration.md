@@ -21,9 +21,10 @@ This is a clean rebuild, not a compatibility layer over the old blocking model.
 ## Inspecting unsuccessful children
 
 `task_status` with `diagnostic: true` returns a read-only, bounded, non-final
-excerpt for a tracked child that ended in error, cancelled, or stopped. Running
-children are refused (`result: true` is for completed children), and an owned
-but untracked handle returns ordinary status plus a notice instead of an excerpt.
+excerpt for a tracked child in error, cancelled, or stopped state.
+Running children are refused (`result: true` is for completed children), and an
+owned but untracked handle returns ordinary status plus a notice instead of an
+excerpt.
 Unavailable or ambiguous evidence is reported, never invented: attribution is
 timestamp-based because most runs lack recorded message identities, tool inputs
 and successful tool outputs are excluded, and host compaction is omitted and
@@ -281,6 +282,10 @@ is a read, not a required step before every continuation.
 - `task_revive` (v1 only) resumes a retained session after its state is verified
   safe, in the same child. v2 continues through the native delegation call. No
   path drops an explicit resume id to spawn another session.
+- A provider, network, or model interruption is reported as `stopped`, with the
+  retained session marked recoverable rather than cancelled. Resume it with its
+  existing task ID: `task_revive` on v1 or `subagent(sessionID, prompt)` on v2.
+  `task_cancel` remains an explicit cancellation and reports `cancelled`.
 
 Terminal reconciliation proves lifecycle state, not that the output was used:
 verify that the relevant result was consumed before finalizing. Parent
@@ -437,18 +442,19 @@ it is never rendered into a prompt):
 | task ID | Native OpenCode background task/session ID |
 | specialist | Agent type assigned |
 | objective | What the task is responsible for |
-| state | running; stopped (runtime ended without terminal task output); completed, error, or cancelled (explicit terminal task output); reconciled (terminal result consumed) |
+| state | running; stopped (runtime ended or the host reported an interruption; interrupted sessions remain recoverable); completed, error, or cancelled (explicit terminal task output); reconciled (terminal result consumed) |
 | ownership | Files/folders/subsystems the task may edit |
 | dependencies | Tasks that must complete first |
 | result | Final task output once terminal |
 | status certainty | `status uncertain` when the live status map is malformed or unavailable; it never implies completion |
 
-Cancelled, errored, and stopped sessions can remain retained for a later
-`task_revive`. They may be revived immediately once their retained state has
-been verified safe. Acknowledgement controls parent consumption
+Cancelled, errored, recoverable, and stopped sessions can remain retained for a
+later continuation. Recoverable means the host reported an interruption, not an
+explicit cancellation; resume it with the same task ID using `task_revive` on v1
+or native `subagent(sessionID, prompt)` on v2. Acknowledgement controls parent consumption
 and reusable-pool display, not same-session revival. Stopped sessions stay out
 of the ordinary `task()` reuse pool because that generation has no terminal
-result; after ack they are retained for `task_revive`.
+result; after acknowledgement they remain available for same-session revival.
 
 The current todo list can represent user-visible work, but task IDs and file
 ownership need to be explicit in the orchestrator's working context.
@@ -585,7 +591,8 @@ Other stopped jobs are not retired that way. On v1 an abort cancels the native
 background job without a notification; Slim wakes the parent for a background
 kill-all stop unless the tracker delivers it or the parent has already made a
 request carrying the notice.
-`task_revive` acknowledges stopped jobs. Reopen corrections tell the parent once
+`task_revive` on v1, or native continuation on v2, acknowledges stopped and
+recoverable jobs before continuing them. Reopen corrections tell the parent once
 not to rely on the earlier result.
 
 TUI kill-all (`alt+w` or `/killall`) writes a temporary notice for each affected

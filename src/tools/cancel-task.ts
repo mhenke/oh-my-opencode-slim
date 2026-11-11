@@ -165,6 +165,25 @@ Use only for obsolete, wrong, conflicting, or user-requested cancellation. The r
         generation: job.generation,
       };
       if (job.state !== 'running') {
+        if (job.state === 'stopped' && job.retainedState === 'recoverable') {
+          const cancelled = options.backgroundJobBoard.cancelRecoverable(
+            job.taskID,
+            args.reason,
+            Date.now(),
+            job.generation,
+          );
+          if (cancelled?.state === 'cancelled') {
+            return [
+              `${idParam}: ${job.taskID}`,
+              'state: cancelled',
+              '',
+              '<task_error>',
+              options.backgroundJobBoard.getResultSummary(job.taskID) ??
+                'cancelled',
+              '</task_error>',
+            ].join('\n');
+          }
+        }
         return staleCancellationOutput(
           idParam,
           options,
