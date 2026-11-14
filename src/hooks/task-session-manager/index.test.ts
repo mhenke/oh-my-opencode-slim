@@ -5240,7 +5240,7 @@ describe('task-session-manager hook', () => {
     expect(job?.resultSummary).toBe('Internal server error');
   });
 
-  test('an interrupted child is recoverable instead of cancelled', async () => {
+  test('an interrupted child stops instead of cancelling', async () => {
     const board = new BackgroundJobBoard();
     const { hook } = createHook({
       backgroundJobBoard: board,
@@ -5265,7 +5265,6 @@ describe('task-session-manager hook', () => {
 
     expect(board.get('child-1')).toMatchObject({
       state: 'stopped',
-      retainedState: 'recoverable',
       cancellationRequested: false,
       resultSummary: 'Host reported outcome: interrupted.',
     });

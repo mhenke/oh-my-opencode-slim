@@ -19,10 +19,7 @@ import {
   BackgroundJobBoard as ProductionBoard,
   recordBackgroundJobSuppression,
 } from '../utils/background-job-board';
-import {
-  BackgroundJobBoard,
-  boardFixture,
-} from '../utils/background-job-fixture';
+import { BackgroundJobBoard } from '../utils/background-job-fixture';
 import { getSuppressionTombstone } from '../utils/background-job-persistence';
 import {
   type BackgroundJobTerminalGate,
@@ -172,15 +169,14 @@ function stoppedSession(
   if (acknowledge) board.markReconciled(taskID);
 }
 
-function recoverableSession(board: BackgroundJobBoard, taskID = 'ses_1') {
+function interruptedSession(board: BackgroundJobBoard, taskID = 'ses_1') {
   board.registerLaunch({
     taskID,
     parentSessionID: 'parent-1',
     agent: 'explorer',
     now: 100,
   });
-  boardFixture.markRecoverable(
-    board,
+  board.markStopped(
     taskID,
     'Host reported outcome: interrupted.',
     110,
@@ -733,9 +729,9 @@ describe('task_revive tool', () => {
     }
   });
 
-  test('revives a recoverable task_id in its retained session', async () => {
+  test('revives an interrupted task_id in its retained session', async () => {
     const { board, promptAsync, taskRevive } = createTool();
-    recoverableSession(board);
+    interruptedSession(board);
     const previous = board.get('ses_1');
 
     const output = await taskRevive.execute(
@@ -752,9 +748,9 @@ describe('task_revive tool', () => {
     });
   });
 
-  test('explicitly cancelling a recoverable task keeps it retained and aborts nothing', async () => {
+  test('explicitly cancelling an interrupted task keeps it retained and aborts nothing', async () => {
     const { board, abort, taskCancel } = createTool();
-    recoverableSession(board);
+    interruptedSession(board);
 
     const output = await taskCancel.execute(
       { task_id: 'ses_1', reason: 'obsolete' },

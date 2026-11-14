@@ -544,7 +544,7 @@ export async function handleToolExecuteBefore(
       // timeline, so this call takes no relaunch lease, acknowledges no old
       // round, and publishes nothing. The resumedTaskId marker alone fences
       // the after-hook (no lease -> its resumed-output guard drops the ack).
-      // v1 keeps the lease protocol (a running recoverable record there is a
+      // v1 keeps the lease protocol (a running record there is a
       // timed-out relaunch, not a live steer).
       const steered =
         deps.hostFlavor === 'v2' && remembered.state === 'running';

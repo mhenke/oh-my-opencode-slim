@@ -488,14 +488,8 @@ async function recoverRetainedSession(
   let state: RestoreRetainedSessionInput['state'];
   if (round.verdict === 'completed' && !cancelMatched) state = 'completed';
   else if (round.verdict === 'error') state = 'error';
-  else if (round.verdict === 'interrupted')
-    state = cancelMatched ? 'cancelled' : 'stopped';
   else if (cancelMatched) state = 'cancelled';
   else state = 'stopped';
-  const retainedState =
-    round.verdict === 'interrupted' && !cancelMatched
-      ? 'recoverable'
-      : undefined;
 
   const quiescent =
     options.hostFlavor === 'v2'
@@ -527,7 +521,6 @@ async function recoverRetainedSession(
         : `recovered ${agent.agent} session`,
     ...(objective !== undefined ? { objective } : {}),
     state,
-    ...(retainedState !== undefined ? { retainedState } : {}),
     background: delegation?.background === true,
     ...(state === 'completed' && round.text !== undefined
       ? { resultSummary: round.text }
@@ -538,7 +531,7 @@ async function recoverRetainedSession(
           : state === 'stopped'
             ? {
                 resultSummary:
-                  retainedState === 'recoverable'
+                  round.verdict === 'interrupted'
                     ? 'Host reported outcome: interrupted.'
                     : 'Recovered retained session stopped before a terminal result.',
               }
@@ -604,7 +597,6 @@ type StartupChildState =
   | {
       kind: 'terminal';
       state: 'completed' | 'error' | 'cancelled' | 'stopped';
-      retainedState?: 'recoverable';
       resultSummary: string;
       startedAt?: number;
       completedAt?: number;
@@ -830,8 +822,6 @@ export async function recoverSubagentSessionsAtStartup(
       taskID,
       hostOutcome,
       hasV2Lifecycle,
-      transcript,
-      expectedRunStartedAt,
     );
     if (state.kind === 'unknown') continue;
     // A run can already have relaunched before this scan starts, while the
@@ -1084,9 +1074,6 @@ function correctStartupTerminal(
     taskID: row.taskID,
     generation: row.generation,
     state: state.state,
-    ...(state.retainedState !== undefined
-      ? { retainedState: state.retainedState }
-      : {}),
     resultSummary: state.resultSummary,
     ...(state.completedAt !== undefined ? { now: state.completedAt } : {}),
   });
@@ -1122,8 +1109,6 @@ async function classifyStartupChild(
   taskID: string,
   outcome: string | undefined,
   hasV2Lifecycle: boolean,
-  parentTranscript: unknown,
-  runStartedAt?: number,
 ): Promise<StartupChildState> {
   const terminalFromOutcome = startupTerminalState(outcome);
   let round: ReturnType<typeof classifyCurrentDeliveredRound> | undefined;
@@ -1145,11 +1130,6 @@ async function classifyStartupChild(
   } catch {
     return { kind: 'unknown' };
   }
-  const interruptedStartedAt = round?.startedAt ?? runStartedAt;
-  const interruptedWasCancelled =
-    (outcome === 'interrupted' || round?.verdict === 'interrupted') &&
-    interruptedStartedAt !== undefined &&
-    parentCancelMatchesRound(parentTranscript, taskID, interruptedStartedAt);
   if (round) {
     if (round.verdict === 'completed') {
       return {
@@ -1167,15 +1147,7 @@ async function classifyStartupChild(
     if (round.verdict === 'error' || round.verdict === 'interrupted') {
       return {
         kind: 'terminal',
-        state:
-          round.verdict === 'error'
-            ? 'error'
-            : interruptedWasCancelled
-              ? 'cancelled'
-              : 'stopped',
-        ...(round.verdict === 'interrupted' && !interruptedWasCancelled
-          ? { retainedState: 'recoverable' as const }
-          : {}),
+        state: round.verdict === 'error' ? 'error' : 'stopped',
         resultSummary:
           round.text ||
           `The subagent ended in state ${round.verdict} during downtime.`,
@@ -1202,13 +1174,7 @@ async function classifyStartupChild(
   if (terminalFromOutcome !== undefined) {
     return {
       kind: 'terminal',
-      state:
-        terminalFromOutcome === 'stopped' && interruptedWasCancelled
-          ? 'cancelled'
-          : terminalFromOutcome,
-      ...(outcome === 'interrupted' && !interruptedWasCancelled
-        ? { retainedState: 'recoverable' as const }
-        : {}),
+      state: terminalFromOutcome,
       resultSummary: 'The subagent ended during the plugin restart.',
     };
   }

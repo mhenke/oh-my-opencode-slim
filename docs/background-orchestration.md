@@ -276,16 +276,18 @@ is a read, not a required step before every continuation.
   the child, and acceptance does not mean the child read it. To steer a running
   child on v2, use the native delegation call (`subagent(sessionID, prompt)`).
   That call submits the prompt to a running child without cancelling or
-  relaunching it, or resumes a finished child. Same-agent calls only.
-- `task_cancel` stops a generation and retains its session. Inspect and
-  reconcile partial file changes before launching replacement work.
+  relaunching it, or resumes a finished child; same-agent calls only.
+- `task_cancel` stops a generation and retains its session. Cancelling an
+  already-stopped task records it as cancelled without sending another
+  abort. Inspect and reconcile partial file changes before launching
+  replacement work.
 - `task_revive` (v1 only) resumes a retained session after its state is verified
-  safe, in the same child. v2 continues through the native delegation call. No
-  path drops an explicit resume id to spawn another session.
-- A provider, network, or model interruption is reported as `stopped`, with the
-  retained session marked recoverable rather than cancelled. Resume it with its
-  existing task ID: `task_revive` on v1 or `subagent(sessionID, prompt)` on v2.
-  `task_cancel` remains an explicit cancellation and reports `cancelled`.
+  safe, in the same child; v2 continues through the native delegation call.
+  No path drops an explicit resume id to spawn another session.
+- A provider, network, or model interruption is reported as `stopped`; the
+  retained session stays resumable by the same task ID (`task_revive` on v1,
+  `subagent(sessionID, prompt)` on v2, same agent only). A host-side stop is
+  not an explicit `task_cancel`: only `task_cancel` reports `cancelled`.
 
 Terminal reconciliation proves lifecycle state, not that the output was used:
 verify that the relevant result was consumed before finalizing. Parent
@@ -442,16 +444,16 @@ it is never rendered into a prompt):
 | task ID | Native OpenCode background task/session ID |
 | specialist | Agent type assigned |
 | objective | What the task is responsible for |
-| state | running; stopped (runtime ended or the host reported an interruption; interrupted sessions remain recoverable); completed, error, or cancelled (explicit terminal task output); reconciled (terminal result consumed) |
+| state | running; stopped (runtime ended or the host reported an interruption; interrupted sessions stay resumable); completed, error, or cancelled (explicit terminal task output); reconciled (terminal result consumed) |
 | ownership | Files/folders/subsystems the task may edit |
 | dependencies | Tasks that must complete first |
 | result | Final task output once terminal |
 | status certainty | `status uncertain` when the live status map is malformed or unavailable; it never implies completion |
 
-Cancelled, errored, recoverable, and stopped sessions can remain retained for a
-later continuation. Recoverable means the host reported an interruption, not an
-explicit cancellation; resume it with the same task ID using `task_revive` on v1
-or native `subagent(sessionID, prompt)` on v2. Acknowledgement controls parent consumption
+Cancelled, errored, and stopped sessions can remain retained for a later
+continuation: resume a stopped session with the same task ID using
+`task_revive` on v1 or native `subagent(sessionID, prompt)` on v2 (same agent
+only). Acknowledgement controls parent consumption
 and reusable-pool display, not same-session revival. Stopped sessions stay out
 of the ordinary `task()` reuse pool because that generation has no terminal
 result; after acknowledgement they remain available for same-session revival.
@@ -591,8 +593,8 @@ Other stopped jobs are not retired that way. On v1 an abort cancels the native
 background job without a notification; Slim wakes the parent for a background
 kill-all stop unless the tracker delivers it or the parent has already made a
 request carrying the notice.
-`task_revive` on v1, or native continuation on v2, acknowledges stopped and
-recoverable jobs before continuing them. Reopen corrections tell the parent once
+`task_revive` on v1, or native continuation on v2, acknowledges stopped jobs
+before continuing them. Reopen corrections tell the parent once
 not to rely on the earlier result.
 
 TUI kill-all (`alt+w` or `/killall`) writes a temporary notice for each affected

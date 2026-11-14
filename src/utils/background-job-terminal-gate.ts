@@ -53,9 +53,9 @@ function transcriptOutcome(
     TerminalEvidenceVerdict,
     { verdict: 'completed' | 'error' }
   >,
-): ['completed' | 'error' | 'stopped', string, 'recoverable'?] {
+): ['completed' | 'error' | 'stopped', string] {
   return evidence.verdict === 'error' && evidence.aborted
-    ? ['stopped', 'Host reported outcome: interrupted.', 'recoverable']
+    ? ['stopped', 'Host reported outcome: interrupted.']
     : [evidence.verdict, evidence.text];
 }
 
@@ -700,7 +700,6 @@ export function createBackgroundJobTerminalGate(options: {
     lease?: BackgroundJobLease,
     attribution: TerminalAttribution = 'event',
     hostOutcomeRead?: string,
-    retainedState?: 'recoverable',
   ): GateResult {
     const value = observation(token);
     const before = board.get(token.taskID);
@@ -721,7 +720,6 @@ export function createBackgroundJobTerminalGate(options: {
       taskID: token.taskID,
       state,
       resultSummary: text,
-      ...(retainedState !== undefined ? { retainedState } : {}),
       cancellationLease: lease,
       now: now(),
     });
@@ -1288,8 +1286,6 @@ export function createBackgroundJobTerminalGate(options: {
             'Host reported outcome: interrupted.',
             undefined,
             'event',
-            undefined,
-            'recoverable',
           )
         : commit(token, 'error', signal.message);
     // Capability absence, not a pending read: fetchChildTranscript
@@ -1373,7 +1369,7 @@ export function createBackgroundJobTerminalGate(options: {
       }
     }
     if (evidence.verdict === 'completed' || evidence.verdict === 'error') {
-      const [state, text, retainedState] = transcriptOutcome(evidence);
+      const [state, text] = transcriptOutcome(evidence);
       return commit(
         token,
         state,
@@ -1381,7 +1377,6 @@ export function createBackgroundJobTerminalGate(options: {
         undefined,
         'transcript',
         terminalOutcome,
-        retainedState,
       );
     }
     // Native return is attributable only when no transcript exists. Foreground
@@ -1461,8 +1456,6 @@ export function createBackgroundJobTerminalGate(options: {
         'Host reported outcome: interrupted.',
         undefined,
         'host-outcome',
-        undefined,
-        'recoverable',
       );
     if (terminalOutcome === 'cancelled')
       return commit(

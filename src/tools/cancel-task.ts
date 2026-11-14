@@ -85,7 +85,7 @@ export function createCancelTaskTool(
   const task_cancel = tool({
     description: `Cancel a tracked background specialist task without deleting its session.
 
-Use only for obsolete, wrong, conflicting, or user-requested cancellation. The retained session can be revived after the lifecycle lane acknowledges its terminal state.`,
+Use only for obsolete, wrong, conflicting, or user-requested cancellation. The retained session can be revived after the lifecycle lane acknowledges its terminal state. Cancelling an already-stopped task records it as cancelled without sending another abort.`,
     args: {
       ...taskRefArgs(idParam),
       reason: z.string().optional().describe('Short cancellation reason'),
@@ -165,8 +165,10 @@ Use only for obsolete, wrong, conflicting, or user-requested cancellation. The r
         generation: job.generation,
       };
       if (job.state !== 'running') {
-        if (job.state === 'stopped' && job.retainedState === 'recoverable') {
-          const cancelled = options.backgroundJobBoard.cancelRecoverable(
+        // An already-stopped child converts to cancelled through the same
+        // fenced cancellation path; no second abort is sent.
+        if (job.state === 'stopped') {
+          const cancelled = options.backgroundJobBoard.cancelStopped(
             job.taskID,
             args.reason,
             Date.now(),

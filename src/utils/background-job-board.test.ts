@@ -4237,10 +4237,10 @@ describe('BackgroundJobBoard GAP-HIGH contract pins (#1723) — stop, reconcile,
     expect(stopped?.recoverableAfterLiveBusy).toBe(false);
   });
 
-  test('recoverable runs resume in place with a new generation', () => {
+  test('interrupted runs resume in place with a new generation', () => {
     const board = new BackgroundJobBoard();
     const original = running(board);
-    boardFixture.markRecoverable(
+    boardFixture.markStopped(
       board,
       original.taskID,
       'Host reported outcome: interrupted.',
@@ -4250,7 +4250,6 @@ describe('BackgroundJobBoard GAP-HIGH contract pins (#1723) — stop, reconcile,
     );
     expect(board.get(original.taskID)).toMatchObject({
       state: 'stopped',
-      retainedState: 'recoverable',
       terminalUnreconciled: true,
     });
 
@@ -4274,15 +4273,14 @@ describe('BackgroundJobBoard GAP-HIGH contract pins (#1723) — stop, reconcile,
     expect(resumed).toMatchObject({
       taskID: original.taskID,
       state: 'running',
-      retainedState: undefined,
       generation: original.generation + 1,
     });
   });
 
-  test('a recoverable session can be explicitly cancelled without deletion', () => {
+  test('a stopped session converts to cancelled without deletion', () => {
     const board = new BackgroundJobBoard();
-    const original = running(board);
-    boardFixture.markRecoverable(
+    const original = running(board, 'ses_run', 100);
+    boardFixture.markStopped(
       board,
       original.taskID,
       'Host reported outcome: interrupted.',
@@ -4291,7 +4289,7 @@ describe('BackgroundJobBoard GAP-HIGH contract pins (#1723) — stop, reconcile,
       200,
     );
 
-    const cancelled = board.cancelRecoverable(
+    const cancelled = board.cancelStopped(
       original.taskID,
       'no longer needed',
       300,

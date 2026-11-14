@@ -46,7 +46,6 @@ export const boardFixture = {
     observedAt = Date.now(),
     generation?: number,
     now = Date.now(),
-    retainedState?: 'recoverable',
   ) {
     if ((board.get(taskID)?.lastLiveBusyAt ?? -1) >= observedAt)
       return board.get(taskID);
@@ -55,31 +54,10 @@ export const boardFixture = {
       {
         taskID,
         state: 'stopped',
-        ...(retainedState !== undefined ? { retainedState } : {}),
         resultSummary,
         now,
       },
       generation,
-    );
-  },
-  markRecoverable(
-    board: ProductionBoard,
-    taskID: string,
-    resultSummary: string,
-    observedAt = Date.now(),
-    generation?: number,
-    now = Date.now(),
-  ) {
-    if ((board.get(taskID)?.lastLiveBusyAt ?? -1) >= observedAt)
-      return board.get(taskID);
-    return boardFixture.markStopped(
-      board,
-      taskID,
-      resultSummary,
-      observedAt,
-      generation,
-      now,
-      'recoverable',
     );
   },
   markCancelled(
@@ -130,15 +108,6 @@ export const BackgroundJobBoard = new Proxy(ProductionBoard, {
               ? Rest
               : never
           ) => boardFixture.markStopped(target, ...args);
-        if (key === 'markRecoverable')
-          return (
-            ...args: Parameters<typeof boardFixture.markRecoverable> extends [
-              unknown,
-              ...infer Rest,
-            ]
-              ? Rest
-              : never
-          ) => boardFixture.markRecoverable(target, ...args);
         if (key === 'markCancelled')
           return (
             ...args: Parameters<typeof boardFixture.markCancelled> extends [
@@ -148,6 +117,13 @@ export const BackgroundJobBoard = new Proxy(ProductionBoard, {
               ? Rest
               : never
           ) => boardFixture.markCancelled(target, ...args);
+        // cancelStopped is a production lifecycle operation (stopped →
+        // cancelled through the real markCancelled fences). Bind it to the
+        // raw target so the internal dispatch is not shadowed by the
+        // markCancelled seeding seam above.
+        if (key === 'cancelStopped')
+          return (...args: Parameters<ProductionBoard['cancelStopped']>) =>
+            target.cancelStopped(...args);
         const value = Reflect.get(target, key);
         return value;
       },

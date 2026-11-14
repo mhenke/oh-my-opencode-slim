@@ -114,8 +114,6 @@ export interface BackgroundJobRecord {
   verifiedRetainedRound?: true;
   /** Recovery has not sent a prompt; importing a row does not own host work. */
   recoveredWithoutPrompt?: true;
-  /** A stopped session retained specifically for same-session recovery. */
-  retainedState?: 'recoverable';
   /** In-memory only: adopted by the startup scan from persisted host state. */
   recoveredAtStartup?: true;
   /**
@@ -198,7 +196,6 @@ export interface RestoreRetainedSessionInput {
   description: string;
   objective?: string;
   state: 'completed' | 'error' | 'cancelled' | 'stopped';
-  retainedState?: 'recoverable';
   background: boolean;
   resultSummary?: string;
   /** Trusted historical alias. Omit to display the exact session id. */
@@ -260,7 +257,6 @@ export interface BackgroundJobAdoptionInput {
 export interface BackgroundJobTerminalInput {
   taskID: string;
   state: 'completed' | 'error' | 'cancelled' | 'stopped';
-  retainedState?: 'recoverable';
   resultSummary: string;
   cancellationLease?: BackgroundJobLease;
   now?: number;
@@ -699,7 +695,6 @@ export class BackgroundJobBoard {
         description: input.description || existing.description,
         objective: input.objective ?? existing.objective,
         state: 'running',
-        retainedState: undefined,
         background: input.background ?? existing.background,
         timedOut: false,
         recoverableAfterLiveBusy: false,
@@ -897,7 +892,6 @@ export class BackgroundJobBoard {
         Math.max(Date.now(), (existing.lastLiveBusyAt ?? 0) + 1),
         existing.generation,
         input.now,
-        input.retainedState,
       );
     if (input.state === 'cancelled')
       return this.markCancelled(input.taskID, input.resultSummary, input.now, {
@@ -997,7 +991,6 @@ export class BackgroundJobBoard {
     const updated: BackgroundJobRecord = {
       ...existing,
       state: 'running',
-      retainedState: undefined,
       launchedAt: existing.state === 'running' ? existing.launchedAt : now,
       // A terminal/reconciled row observed live again is a genuinely new
       // execution: the per-run fence must move with it. Repeated busy
@@ -1049,7 +1042,6 @@ export class BackgroundJobBoard {
     observedAt = Date.now(),
     expectedGeneration?: number,
     now = Date.now(),
-    retainedState?: 'recoverable',
   ): BackgroundJobRecord | undefined {
     const existing = this.jobs.get(taskID);
     if (existing?.state !== 'running') return existing;
@@ -1069,7 +1061,6 @@ export class BackgroundJobBoard {
     const updated: BackgroundJobRecord = {
       ...existing,
       state: 'stopped',
-      ...(retainedState === undefined ? {} : { retainedState }),
       terminalRevision: existing.terminalRevision + 1,
       timedOut: false,
       recoverableAfterLiveBusy: false,
@@ -1210,7 +1201,6 @@ export class BackgroundJobBoard {
       recoverableAfterLiveBusy: false,
       statusUncertain: false,
       cancellationRequested: true,
-      retainedState: undefined,
       terminalUnreconciled: true,
       completedAt: existing.completedAt ?? now,
       terminalState: 'cancelled',
@@ -1223,24 +1213,21 @@ export class BackgroundJobBoard {
     return updated;
   }
 
-  /** Cancel a retained interrupted session without sending another abort. */
-  cancelRecoverable(
+  /**
+   * Explicit task_cancel on an already-stopped row: convert it to cancelled
+   * through the existing fenced cancellation path (generation + lease
+   * guards in markCancelled). Sends no second abort; the child already
+   * stopped. Returns the untouched row when it is not stopped.
+   */
+  cancelStopped(
     taskID: string,
     reason?: string,
     now = Date.now(),
     expectedGeneration?: number,
   ): BackgroundJobRecord | undefined {
     const existing = this.jobs.get(taskID);
-    if (
-      existing?.state !== 'stopped' ||
-      existing.retainedState !== 'recoverable' ||
-      this.liveLeases.has(taskID) ||
-      (expectedGeneration !== undefined &&
-        existing.generation !== expectedGeneration)
-    ) {
-      return existing;
-    }
-    return this.applyCancellation(existing, reason, now);
+    if (existing?.state !== 'stopped') return existing;
+    return this.markCancelled(taskID, reason, now, { expectedGeneration });
   }
 
   /**
@@ -1814,7 +1801,6 @@ export class BackgroundJobBoard {
     taskID: string;
     generation: number;
     state: 'completed' | 'error' | 'cancelled' | 'stopped';
-    retainedState?: 'recoverable';
     resultSummary?: string;
     now?: number;
   }): BackgroundJobRecord | undefined {
@@ -1830,9 +1816,6 @@ export class BackgroundJobBoard {
     const updated: BackgroundJobRecord = {
       ...existing,
       state: input.state,
-      ...(input.retainedState !== undefined
-        ? { retainedState: input.retainedState }
-        : {}),
       terminalUnreconciled: true,
       terminalRevision:
         input.state === 'stopped'
@@ -1928,9 +1911,6 @@ export class BackgroundJobBoard {
         : {}),
       alias,
       ...(input.state === 'stopped' ? {} : { terminalState: input.state }),
-      ...(input.retainedState !== undefined
-        ? { retainedState: input.retainedState }
-        : {}),
       verifiedRetainedRound: true,
       recoveredWithoutPrompt: true,
       externalOrigin: true,
