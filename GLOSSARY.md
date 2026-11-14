@@ -76,6 +76,30 @@ A glossary of the terms used in this project's domain. Definitions describe what
 - **Disabled agents** — Agents turned off via config; `observer` is disabled by default.
 - **Disabled hooks / commands** — Config keys that disable hooks or slash commands entirely: `disabled_hooks` (`phase-reminder`, `foreground-fallback`, `chat-headers`, `cache-monitor`, `json-error-recovery`, `tool-loop-guard`, `search-path-guard`, `absolute-path-rescue`, `apply-patch`, `council-inject`) and `disabled_commands` (`interview`, `deepwork`, `reflect`).
 
+## Quality toolchain
+
+- **knip** — The dead-code auditor. Scans the import graph for unused exports, types, files, and dependencies; configured in `knip.jsonc`. A deliberate export that the import graph cannot see carries an inline `@public knip:` tag with its reason.
+- **knip liveness** — The knip rules that catch code which exists but is never reached: platform binaries, root-relative spawn targets, and dynamic-import/namespace consumers declared in `knip.jsonc`; dynamic-use symbols carry `@public` keep-tags.
+- **knip strict gate** — knip run with `--max-issues=0` as a blocking CI check. Master ran it report-only (non-blocking) until the strict flip landed; the flip required clearing all findings on master first, by deleting dead code rather than adding ignores.
+- **Strict flip** — The transition of a report-only CI job to a blocking gate, done only after the findings that would fail it are cleared on master.
+- **knip leftovers** — Findings remaining after a knip slice: unused exports/types/duplicates left by an earlier cleanup pass, tracked in the knip epic's tickets.
+- **Fallow** — An analysis tool (external, Rust) watching the three code-health categories knip and Biome do not cover: import cycles, duplication, and complexity. Configured in `.fallowrc.json`; excludes `.slim/` and the mutation toolchain.
+- **Fallow audit** — Fallow's per-file report over those categories. In CI as a report-only job (non-blocking), mirroring knip's pre-strict shape.
+- **Fallow dead-code rules** — Biome dead-code rules turned off where knip already covers the same ground, so the two tools do not double-report.
+- **CRAP score** — A risk metric combining a function's complexity with its test coverage; untested complex functions score worst. The fallow follow-up that feeds real coverage data into the score.
+- **Mutation gate** — The required CI check that runs the scoped Stryker sweep and fails on regression: survivors appear that a previous sweep killed, ledger rows drift, or targets lose coverage.
+- **Mutation (survivor) ledger** — The hand-maintained table in `docs/mutation-testing.md` listing the equivalent mutants that are allowed to survive, with the line range and the test that proves they are equivalent. Sweep-time snapshots, verified by the gate; rows are derived from the report's `killedBy` attribution, never retyped by hand.
+- **Foreground-fallback (mutation target)** — The scoped Stryker sweep target: the retry-deduplication and wake/fallback control path in the foreground-fallback hook. "Mutation gate" and "survivor ledger" always refer to this target, not the whole repo.
+- **Sibling-only kill** — A mutant killed only because a test reached it via a sibling that happened to fail, not because the test constrains the mutated code itself. The reason a killed count alone proves nothing; killedBy attribution is the evidence.
+
+## Session hygiene
+
+- **Lane** — An isolated coding workspace for one issue or fix: a git worktree under `.slim/worktrees/`, its own branch, and an entry in `.slim/worktrees.json` recording slug, branch, path, base commit, owner, status, and purpose. Distinct from an agent *lane* (flagged below).
+- **Lane registration** — The manifest entry that makes a lane discoverable to the orchestration skills; a lane without registration is invisible to them.
+- **Watcher** — A background monitor a session arms on a remote outcome (CI checks, bot reviews on a PR) so the session can idle and resume when it settles. Re-arming after a timeout is the failure mode the watcher fixes, not the timeout itself.
+- **Idle outcome** — How a session ended, as recorded by the harness: `succeeded` (turn finished), `interrupted` (cut off), or `failed`.
+- **Maintainer merge bar** — The five blocking review criteria a change must meet before merge: proof (reproduces the real failure end to end), reuse (extends the existing mechanism rather than a parallel one), reversible (validated before destructive steps), bounded (repeated events cannot rescan unbounded history), no paper-over (a timeout that restores availability without the guarantee still fails). Stated in AGENTS.md; sourced from review rejections on earlier PRs.
+
 ## Flagged
 
 Terms with genuine but non-blocking collisions or historical drift. Noted for awareness; no change required:
@@ -84,3 +108,5 @@ Terms with genuine but non-blocking collisions or historical drift. Noted for aw
 - **Config naming convention** — Config keys mix snake_case (`disabled_agents`, `main_pane_size`) with camelCase (`autoUpdate`, `backgroundJobs`) with no documented rule. Historical drift; `disabled_*` keys are uniformly snake_case while the rest is mixed even within sub-objects.
 - **"Lane" means two things** — An agent *lane* is its permission/tool/prompt scope; a worktree *lane* (worktrees skill, `.slim/worktrees.json`) is an isolated coding workspace. Different surfaces, both live.
 - **"Contract" is overloaded** — Three live senses: plugin API contracts (host interfaces), the dependency contract (import-boundary invariants enforced by tests), and `.contract.ts` registry files (module lists referenced by path string). No structural conflict; easy to confuse.
+- **"Gate" means several things** — Mutation gate (required Stryker check), knip strict gate (blocking dead-code check), wake gate (the foreground-fallback hook's bound on in-flight wake evaluations), admission gate (multiplexer/child admission control), terminal gate (the v2 notification guard). All are real, distinct mechanisms; always name which one.
+- **"Foreground-fallback" means two things** — The hook (rate-limit/degraded-model fallback control path) and the mutation target scoped to that hook's code. Context disambiguates: CI gate vs disabled_hooks key.
