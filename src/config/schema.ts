@@ -885,7 +885,7 @@ const RawPluginConfigSchema = z
       .boolean()
       .optional()
       .describe(
-        'When true, omit orchestrator.model and orchestrator.variant from the SDK config so OpenCode uses the session model selected with /model after subagent dispatch. An explicitly selected preset that sets orchestrator.model is preserved. Defaults to false.',
+        'When true, omit orchestrator.model and orchestrator.variant from the agent registration. On v2, leave this off: a selected session model already outranks the agent default per request, and the chain head is the launch default rather than a spending cap. Stripping only removes a fallback candidate and can delete an explicit agent model from your own config; an explicitly selected preset that sets orchestrator.model is preserved. Defaults to false.',
       ),
     routingBlock: z
       .boolean()
