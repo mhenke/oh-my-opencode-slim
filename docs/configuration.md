@@ -329,7 +329,7 @@ and [Council](council.md) for what remains.
 | `sidebarShowHiddenAgents` | boolean | `false` | Render internal Council agents (`council`, `councillor`, and the dynamic `councillor-<seat>` agents) as OMOS TUI sidebar rows. When `true`, each row carries the same model, variant, status dot, and session expansion as any other agent. Affects the sidebar only: agent registration, availability, and the host agent picker are unchanged. |
 | `tui` | boolean | `true` | Master switch for all OMOS TUI surfaces: the sidebar and its server-side state, `/preset`, `/killall`, `/subagent`, and the update notice. When `false`, the TUI entry registers nothing and never loads the TUI render stack, and the server writes no sidebar state; server-side agents, council, observer, hooks, and tools remain active. |
 | `liveConfigRefresh` | boolean | `true` | v2 only: master switch for the live config-file watcher that reloads runtime model/preset profiles when `oh-my-opencode-slim.json(c)` changes on disk. When `false`, v2 does not watch config files and file edits apply only after a restart; explicit `/preset` writes still refresh the current generation where applicable |
-| `stripOrchestratorModel` | boolean | `false` | V1 config-hook compatibility: omit the orchestrator's configured model so a runtime `/model` selection survives plugin re-inits. On v2 the selected session model already outranks the agent default per request, so this buys nothing, removes a failover candidate, and can delete an explicit agent model from your own config. A selected preset's explicit `orchestrator.model` is retained. See [What the orchestrator chain head actually is](#what-the-orchestrator-chain-head-actually-is). |
+| `stripOrchestratorModel` | boolean | `false` | Omit the orchestrator model and variant from agent registration unless the selected resolved preset defines `orchestrator.model`. Session selections and configured fallback entries are unchanged. |
 | `routingBlock` | boolean | `true` | When false, removes the `<Agents>` routing block from the built-in orchestrator prompt. The host's native delegation-tool roster still lists every enabled agent with its one-line description, but it carries no Delegate/Don't routing criteria — the block's routing guidance (~300 tokens) has no roster equivalent, so `false` trades routing quality for tokens, or drops stock routing claims that drift against custom agent prompts (`agents.<name>.prompt`). No effect when an orchestrator.md override already replaces the whole prompt. |
 | `presets` | object | - | Named preset configurations. New preset names are limited to letters, digits, `-`, and `_`; `__omo_*` and JavaScript reserved property names (`__proto__`, `constructor`, `prototype`) are rejected for new presets (pre-existing entries with other names stay visible and applicable) |
 | `presets.<name>.extends` | string | - | Optional single parent preset. The parent is resolved before the child; multiple parents are not supported |
@@ -545,10 +545,7 @@ session binding. Editing an inherited definition updates future bindings and
 refreshes default-bound roots on their next admission; named-preset bindings
 retain their resolved inference snapshots until explicitly reapplied.
 
-Config precedence decides the agent's *default* model. It does not decide what
-a running session uses: a model selected in that session outranks every layer
-above, and applying a preset mid-session does not change it. See
-[What the orchestrator chain head actually is](#what-the-orchestrator-chain-head-actually-is).
+For session overrides, see [Orchestrator model selection](#orchestrator-model-selection).
 
 > **niri note:** `companion-v0.1.3` includes the fixed native companion release.
 > To make it open as a bottom-right overlay, add a niri rule matching its stable
@@ -974,43 +971,26 @@ model must not run with a variant meant for a fallback model. Set an explicit
 agent-level `variant` if you want one regardless of the followed model.
 
 Do not combine an array `model` with `inheritModelFrom: "session"` on the
-`orchestrator` itself. The orchestrator *is* the session: every config pass
-would clear the host-persisted model selection (including a manual `/model`
-pick) with nothing to follow, leaving the orchestrator without a stable
-configured model. Use a plain array `model` on the orchestrator and combined
-policies on subagents.
+`orchestrator` itself if you want the array to set its agent default.
+The combined policy leaves the array for fallback rather than using its head
+as the agent default.
 
-#### What the orchestrator chain head actually is
+#### Orchestrator model selection
 
-The first entry of the orchestrator's preset `model` array is the **launch
-default**, not a spending cap and not merely a failover tail. Both are true of
-the same array:
+By default, the first entry of the orchestrator's resolved `model` array is
+its agent default. OpenCode uses an existing session selection first, then
+the agent default if available, then its own default. For a new TUI session,
+a valid pick remembered for the location and agent takes precedence over
+the agent default. Applying a session preset changes delegation settings
+without changing the running root's model.
 
-- **Agent default.** A new session with no prior selection starts on the chain
-  head, because the host prefers the agent's configured model over
-  `opencode.json`'s top-level `model`. In the TUI the per-location selection
-  store is checked first, then the agent model, then the configured model.
-- **Failover chain.** When the running model fails on quota, rate limit, or an
-  outage, `fallback` walks the remaining entries in order.
+The same array supplies ordered fallback candidates. If the selected model
+is outside the chain, failover can still try the first entry. The chain does
+not cap spending. `/api/agent` reports agent configuration; the plugin's
+`foreground-fallback` logs show model switches, not a complete usage history.
 
-A `/model` pick — or a per-location selection remembered from an earlier
-session — outranks the chain head for that session, and the pick need not be a
-chain entry. That is ordinary scope precedence: the more specific selection
-wins. It also means the chain head cannot bound what the orchestrator spends.
-Every attempted model, the launch default and each failover candidate alike,
-can consume its provider's quota. Applying a preset does not change a running
-session's model; it changes profiles and chains for later children.
-
-To see what a session actually ran, read per-attempt evidence (the plugin log's
-`foreground-fallback` switch lines) rather than the session row, which records
-the last attempted model and so hides earlier attempts.
-
-`stripOrchestratorModel` exists for the v1 config-hook path, where omitting the
-orchestrator model was how a runtime `/model` pick survived plugin re-inits. On
-v2 the session model already wins per request, so stripping buys nothing and
-only removes a failover candidate — and because the host agent entries are
-cloned in first, it can delete an explicit agent model from your own config.
-Leave it off unless you are on a v1-shaped host.
+When `stripOrchestratorModel` applies, it can suppress a host-configured
+agent default in the registered agent. It does not edit the config file.
 
 ### Agent Colors
 

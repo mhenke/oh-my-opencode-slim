@@ -178,22 +178,8 @@ function applyOverrides(
         typeof m === 'string' ? { id: m } : m,
       );
       const primaryModel = agent._modelArray[0];
-      // Subagents are ephemeral, freshly-created sessions with no prior
-      // runtime state to preserve, so giving them a concrete config.model
-      // at launch time (the array's primary entry) is safe — see #9100e59.
-      // ForegroundFallbackManager handles runtime failover to the
-      // remaining entries in _modelArray.
-      //
-      // The orchestrator is different: it's a long-lived, foreground
-      // session where a user's runtime `/model` selection must survive
-      // across plugin re-inits (triggered by client.config.update() ->
-      // Instance.dispose(), e.g. on every subagent dispatch). Setting
-      // config.model here unconditionally would stomp that live selection,
-      // so it stays unset and each host applies its own precedence instead:
-      // v2 restores the chain head in the registry projection
-      // (registry.ts -> getSdkAgentProjection -> adapters.ts), and a
-      // selected session model still outranks that agent default per
-      // request. The chain head is the launch default, not a spending cap.
+      // Defer the orchestrator's agent default to registry inference.
+      // OpenCode resolves the session's model separately from that default.
       agent.config.model =
         agent.name === 'orchestrator' ? undefined : primaryModel.id;
       // Subagents launch with the primary model, so carry its inline variant
