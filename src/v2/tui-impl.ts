@@ -43,10 +43,6 @@ import {
 } from './preset-manager';
 import { registerQuestionTimeout } from './question-timeout-tui';
 import { bindSessionPreset } from './session-preset-apply';
-import {
-  registerStartupModelNotice,
-  type StartupModelNoticeContext,
-} from './startup-model-notice';
 import { registerUpdateNotice } from './update-notice';
 
 /** A keymap command as accepted by the host's `keymap.layer` reducer. */
@@ -445,24 +441,6 @@ export async function runSetup(
           String(err),
         );
       }
-    }
-
-    // Startup model notice (issue #1919): a new visible root can run a
-    // session-selected model that differs from the preset's first entry.
-    // TUI-owned, informational only, independent of sidebar visibility.
-    // Preserve the pane-viewer, disabled-command and session-routing gates;
-    // the notice also capability-probes the preset RPC itself.
-    if (
-      process.env[PANE_VIEWER_ENV] !== '1' &&
-      gates.preset &&
-      gates.presetRouting
-    ) {
-      const disposeStartupNotice = registerStartupModelNotice(
-        // The host's slot/render types are wider than the notice's narrow
-        // capability probe; the probe re-checks every field at runtime.
-        ctx as unknown as StartupModelNoticeContext,
-      );
-      if (disposeStartupNotice) disposers.push(disposeStartupNotice);
     }
 
     // Update notice (issue #1655): the server-side checker detects updates

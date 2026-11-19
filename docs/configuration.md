@@ -327,9 +327,9 @@ and [Council](council.md) for what remains.
 | `setDefaultAgent` | boolean | `true` | When `true`, sets OpenCode's `default_agent` to the orchestrator if unset or pointing at a subagent; `false` leaves it untouched |
 | `sidebar` | boolean | `true` | Master switch for the OMOS TUI sidebar surface (the agent list it renders and its state file). When `false`, the plugin never registers or renders the sidebar and writes no sidebar state; the native host sidebar is untouched, and pane management keeps following `multiplexer` config changes. `tui: false` implies this off. |
 | `sidebarShowHiddenAgents` | boolean | `false` | Render internal Council agents (`council`, `councillor`, and the dynamic `councillor-<seat>` agents) as OMOS TUI sidebar rows. When `true`, each row carries the same model, variant, status dot, and session expansion as any other agent. Affects the sidebar only: agent registration, availability, and the host agent picker are unchanged. |
-| `tui` | boolean | `true` | Master switch for all OMOS TUI surfaces: the sidebar and its server-side state, `/preset`, `/killall`, `/subagent`, the startup model notice, and the update notice. When `false`, the TUI entry registers nothing and never loads the TUI render stack, and the server writes no sidebar state; server-side agents, council, observer, hooks, and tools remain active. |
+| `tui` | boolean | `true` | Master switch for all OMOS TUI surfaces: the sidebar and its server-side state, `/preset`, `/killall`, `/subagent`, and the update notice. When `false`, the TUI entry registers nothing and never loads the TUI render stack, and the server writes no sidebar state; server-side agents, council, observer, hooks, and tools remain active. |
 | `liveConfigRefresh` | boolean | `true` | v2 only: master switch for the live config-file watcher that reloads runtime model/preset profiles when `oh-my-opencode-slim.json(c)` changes on disk. When `false`, v2 does not watch config files and file edits apply only after a restart; explicit `/preset` writes still refresh the current generation where applicable |
-| `stripOrchestratorModel` | boolean | `false` | Omit the orchestrator's configured model and variant only when the selected preset has no explicit `orchestrator.model`. A preset's explicit model is retained. On v2, session model selections take precedence independently of this option; stripping changes the preference used when no session model is selected. |
+| `stripOrchestratorModel` | boolean | `false` | Preserve a runtime `/model` selection for the orchestrator after subagent dispatch by omitting its configured model from the SDK config. A selected preset's explicit `orchestrator.model` is retained. Without a runtime selection, this opt-in delegates the initial orchestrator choice to OpenCode's session default. |
 | `routingBlock` | boolean | `true` | When false, removes the `<Agents>` routing block from the built-in orchestrator prompt. The host's native delegation-tool roster still lists every enabled agent with its one-line description, but it carries no Delegate/Don't routing criteria — the block's routing guidance (~300 tokens) has no roster equivalent, so `false` trades routing quality for tokens, or drops stock routing claims that drift against custom agent prompts (`agents.<name>.prompt`). No effect when an orchestrator.md override already replaces the whole prompt. |
 | `presets` | object | - | Named preset configurations. New preset names are limited to letters, digits, `-`, and `_`; `__omo_*` and JavaScript reserved property names (`__proto__`, `constructor`, `prototype`) are rejected for new presets (pre-existing entries with other names stay visible and applicable) |
 | `presets.<name>.extends` | string | - | Optional single parent preset. The parent is resolved before the child; multiple parents are not supported |
@@ -704,39 +704,6 @@ task controls and session bindings.
 Remove retired managed lifecycle settings listed in the
 [upgrade guide](v2-native-upgrade.md).
 
-### Orchestrator model selection and startup notice
-
-On v2, OpenCode resolves the selected session model first, then the agent's
-configured model preference, then the host default. A preset orchestrator
-chain supplies that preference through its first entry and ordered
-candidates for failover. The chain does not restrict which models the session
-can use. The TUI can remember a selection for an agent, so a new session can
-start with a different model even before another manual selection.
-
-`/model` selections are session state and are not visible in agent
-configuration APIs — the startup notice is how the TUI surfaces the
-difference.
-
-With the TUI and preset service enabled, Slim warns when a newly created
-root orchestrator session becomes visible with a selected model different
-from its preset's first model. This includes another entry in the same
-chain and intentional selections. Variant-only differences do not warn.
-The notice preserves your selection and does not repeat for later model
-changes, fallback, or ordinary resume.
-
-The notice can arrive after submission. It describes the model selected
-at creation, not a billing guarantee: a host model-resolution plugin can
-route a request differently. No visible warning is provided in CLI/headless
-or Desktop clients, with `tui: false`, with `backgroundJobs.mode: "off"`,
-or when `preset` is in `disabled_commands`. Hiding only the sidebar does
-not disable it. Missing model, identity, directory, preset, or host
-capabilities cause the notice to be skipped.
-
-Notification history is bounded and local to each TUI client, not a
-durable acknowledgement shared across windows. Imported sessions can
-publish creation events and show a notice; forks use a separate event
-and are not covered.
-
 ### Model fallback
 
 `fallback.maxRetries` is unrelated to the wall-clock supervisor and to
@@ -1001,11 +968,12 @@ is cleared at both the agent layer and the final host config — the followed
 model must not run with a variant meant for a fallback model. Set an explicit
 agent-level `variant` if you want one regardless of the followed model.
 
-Use a plain array `model` on the orchestrator and combined inheritance
-policies on subagents. The orchestrator already owns the session selection;
-`inheritModelFrom: "session"` supplies no separate parent model to follow.
-On v2, omitting its configured preference does not clear a stored session
-selection.
+Do not combine an array `model` with `inheritModelFrom: "session"` on the
+`orchestrator` itself. The orchestrator *is* the session: every config pass
+would clear the host-persisted model selection (including a manual `/model`
+pick) with nothing to follow, leaving the orchestrator without a stable
+configured model. Use a plain array `model` on the orchestrator and combined
+policies on subagents.
 
 ### Agent Colors
 

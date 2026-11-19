@@ -48,13 +48,6 @@ Inherited models retain their saved variant, and each agent appears once
 under its display name. In root sessions, the main-agent model row follows
 the native model picker.
 
-The orchestrator's selected session model takes precedence over the preset's
-first model. Slim's TUI startup notice calls out a difference without changing
-that selection, including when the selected model is another entry in the
-chain. See [model selection and notice limits](../configuration.md#orchestrator-model-selection-and-startup-notice)
-for timing, supported clients, and disabled-service behavior. Applying a
-preset later does not trigger another startup notice.
-
 The sidebar's single `Preset` row shows the preset the displayed session
 uses. When the session is bound to a different preset than the global
 default, the default follows in muted text: `Preset cheap · default

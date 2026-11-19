@@ -8,8 +8,6 @@ import {
   isSubagent,
   mergeHostAgentConfigs,
   projectAgentRuntimeState,
-  resolvePrimaryModelValue,
-  stripModelVariantSuffix,
 } from './agents';
 import {
   type AgentDefinition,
@@ -23,12 +21,7 @@ import {
 import type { RegistryFactoryBridge } from './agents/registry-bridge';
 import type { CompanionManager } from './companion/manager';
 import { normalizeCompanionSessionStatus } from './companion/status';
-import {
-  deepMerge,
-  type loadPluginConfig,
-  type Preset,
-  resolvePreset,
-} from './config';
+import { deepMerge, type loadPluginConfig, type Preset } from './config';
 import {
   BUILTIN_OPENCODE_SUBAGENTS_TO_DISABLE,
   DEFAULT_MAX_SESSION_METADATA_ENTRIES,
@@ -1573,49 +1566,12 @@ export const OhMyOpenCodeLite: Plugin = async (ctx) => {
         if (inheritance[canonical])
           inheritance[identity] = inheritance[canonical];
       }
-      // Declarative preset head, captured before the host pin/profile or a
-      // cleared runtime chain can mask it. Omit on any missing proof.
-      let orchestratorExpectation: SessionTeamBundle['orchestratorExpectation'];
-      const activePresetName = freshRuntime.preset;
-      const orchestratorIdentity =
-        resolvedAgentRegistry?.identities.orchestrator;
-      if (
-        activePresetName &&
-        Object.hasOwn(freshConfig.presets ?? {}, activePresetName) &&
-        orchestratorIdentity
-      ) {
-        try {
-          const rawFirstModel = resolvePrimaryModelValue(
-            resolvePreset(activePresetName, freshConfig.presets ?? {})
-              .orchestrator?.model,
-          );
-          // Model identity only: a string head may carry an inline `#variant`.
-          const firstModel = rawFirstModel
-            ? stripModelVariantSuffix(rawFirstModel)
-            : undefined;
-          const agentIDs = Object.keys(
-            resolvedAgentRegistry?.identities ?? {},
-          ).filter(
-            (identity) =>
-              identity === 'orchestrator' || identity === orchestratorIdentity,
-          );
-          if (firstModel && agentIDs.length > 0)
-            orchestratorExpectation = {
-              presetName: activePresetName,
-              firstModel,
-              agentIDs,
-            };
-        } catch {
-          // Unresolvable named preset: no claimed preset head to compare.
-        }
-      }
       const bundle: SessionTeamBundle = {
         presetName: freshRuntime.preset ?? null,
         fallbackEnabled: freshRuntime.fallback.enabled,
         profiles,
         chains,
         inheritance,
-        ...(orchestratorExpectation ? { orchestratorExpectation } : {}),
       };
       const fallback = blockingWarnings.length > 0;
       if (options?.detached)

@@ -95,12 +95,6 @@ export function resolvePrimaryModelValue(value: unknown): string | undefined {
       : undefined;
 }
 
-/** Strip a trailing inline `#variant` from a model reference. */
-export function stripModelVariantSuffix(model: string): string {
-  const hash = model.lastIndexOf('#');
-  return hash > 0 ? model.slice(0, hash) : model;
-}
-
 function getPrimaryModelFromOverride(
   override: AgentOverrideConfig | undefined,
 ): string | undefined {
@@ -170,8 +164,8 @@ function isSafeDisplayName(displayName: string): boolean {
  * Apply user-provided overrides to an agent's configuration.
  * Supports overriding model (string or priority array), variant, and temperature.
  * When model is an array, stores it as _modelArray for runtime fallback resolution
- * and selects its primary entry for subagents. Orchestrator arrays are resolved
- * later by the final inference projection.
+ * and selects its primary entry for ephemeral subagents. The orchestrator leaves
+ * config.model unset so its live runtime selection is not overwritten.
  */
 function applyOverrides(
   agent: AgentDefinition,
@@ -184,9 +178,22 @@ function applyOverrides(
         typeof m === 'string' ? { id: m } : m,
       );
       const primaryModel = agent._modelArray[0];
-      // Leave orchestrator arrays for the final inference projection, which
-      // merges host preferences and resolves the chain head. On v2, a selected
-      // session model is stored separately and wins over that agent preference.
+      // Subagents are ephemeral, freshly-created sessions with no prior
+      // runtime state to preserve, so giving them a concrete config.model
+      // at launch time (the array's primary entry) is safe — see #9100e59.
+      // ForegroundFallbackManager handles runtime failover to the
+      // remaining entries in _modelArray.
+      //
+      // The orchestrator is different: it's a long-lived, foreground
+      // session where a user's runtime `/model` selection must survive
+      // across plugin re-inits (triggered by client.config.update() ->
+      // Instance.dispose(), e.g. on every subagent dispatch). Setting
+      // config.model here unconditionally would stomp that live
+      // selection every time this function re-runs, because it runs
+      // BEFORE the config() hook's merge with the live
+      // opencodeConfig.agent.orchestrator.model (see src/index.ts:524-528,
+      // added by #639). Leaving it undefined for the orchestrator lets
+      // that later, precedence-aware guard be the sole source of truth.
       agent.config.model =
         agent.name === 'orchestrator' ? undefined : primaryModel.id;
       // Subagents launch with the primary model, so carry its inline variant

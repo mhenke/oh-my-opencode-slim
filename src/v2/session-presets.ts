@@ -4,20 +4,6 @@ import { z } from 'zod';
 import type { V2AgentRuntimeProfiles } from './runtime-profiles';
 import type { V2Context } from './types';
 
-/** Declarative preset orchestrator head, preserved before host pins or
- * fallback bookkeeping can mask it. Optional on every surface: legacy records,
- * unknown presets and missing orchestrator entries must stay valid. */
-export const orchestratorExpectationSchema = z
-  .object({
-    presetName: z.string().min(1),
-    firstModel: z.string().min(1),
-    agentIDs: z.array(z.string().min(1)).min(1),
-  })
-  .strict();
-export type OrchestratorExpectation = z.infer<
-  typeof orchestratorExpectationSchema
->;
-
 const model = z
   .object({
     providerID: z.string().min(1),
@@ -52,7 +38,6 @@ const bundleSchema = z
       ),
     ),
     inheritance: z.record(z.string(), z.enum(['session', 'orchestrator'])),
-    orchestratorExpectation: orchestratorExpectationSchema.optional(),
   })
   .strict();
 const recordSchema = z
@@ -91,9 +76,6 @@ export type SessionPresetState = {
   /** Present on new bindings; absent legacy records mean explicit. */
   selection?: 'explicit' | 'default';
   affects: 'future-children-only';
-  /** Declarative preset head for the startup notice. Bound sessions report
-   * their frozen bundle; an unbound root may report the live default. */
-  orchestratorExpectation?: OrchestratorExpectation;
   team?: {
     agentModels: Record<string, string>;
     agentVariants: Record<string, string>;
@@ -169,12 +151,6 @@ function freeze<T>(value: T): T {
     Object.freeze(value);
   }
   return value;
-}
-
-/** Diagnostics must not change binding behavior. */
-function withoutExpectation(bundle: SessionTeamBundle): SessionTeamBundle {
-  const { orchestratorExpectation: _expectation, ...rest } = bundle;
-  return rest;
 }
 
 /** Host KV is authoritative. Locks cover only one binding transaction, never
@@ -478,10 +454,7 @@ export function createSessionPresets(options: {
       if (existing) {
         if (
           existing.parentID !== parentID ||
-          !isDeepStrictEqual(
-            withoutExpectation(existing.execution ?? existing.bundle),
-            withoutExpectation(bundle),
-          )
+          !isDeepStrictEqual(existing.execution ?? existing.bundle, bundle)
         ) {
           throw new Error(
             'Subagent team binding conflicts with existing snapshot',
@@ -510,15 +483,12 @@ export function createSessionPresets(options: {
   const state = (
     id: string,
     record?: SessionPresetRecord,
-    expectation: OrchestratorExpectation | undefined = record?.bundle
-      .orchestratorExpectation,
   ): SessionPresetState => ({
     sessionID: id,
     status: record ? 'bound' : 'unbound',
     presetName: record?.bundle.presetName ?? null,
     ...(record?.selection ? { selection: record.selection } : {}),
     affects: 'future-children-only',
-    ...(expectation ? { orchestratorExpectation: expectation } : {}),
     ...(record
       ? {
           team: {
@@ -591,25 +561,13 @@ export function createSessionPresets(options: {
       return serial(id, async () => {
         const info = await identity(id);
         const record = await read(id);
-        const parentID =
-          typeof info.parentID === 'string' ? info.parentID : undefined;
-        if (record && record.parentID !== parentID)
+        if (
+          record &&
+          record.parentID !==
+            (typeof info.parentID === 'string' ? info.parentID : undefined)
+        )
           throw new Error('Session preset parent identity mismatch');
-        let expectation = record?.bundle.orchestratorExpectation;
-        // Only a proven root with a valid live config may expose the current
-        // expectation. A read never writes or binds, and identity/storage
-        // failures above stay load-bearing.
-        if (!record && !parentID && !options.currentIsFallback?.()) {
-          try {
-            const parsed = orchestratorExpectationSchema.safeParse(
-              options.current()?.orchestratorExpectation,
-            );
-            if (parsed.success) expectation = parsed.data;
-          } catch {
-            // No live bundle (or no current() accessor): omit the expectation.
-          }
-        }
-        return state(id, record, expectation);
+        return state(id, record);
       });
     },
     async apply(id: string, name: string, signal?: AbortSignal) {
@@ -716,10 +674,8 @@ export function wrapSessionPresetSubagent(options: {
         // stale KV commit after a previous submission's write failed.
         (retained ||
           !isDeepStrictEqual(
-            withoutExpectation(
-              previous.record.execution ?? previous.record.bundle,
-            ),
-            withoutExpectation(bundle),
+            previous.record.execution ?? previous.record.bundle,
+            bundle,
           )),
     );
     // Unchanged teams retain manual model/fallback selections. Legacy and

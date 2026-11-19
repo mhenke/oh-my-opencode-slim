@@ -39,16 +39,6 @@ immediately before native admission; it is never forwarded to the host.
 | `interview-bridge.ts` | v2-only `/interview` marker command, trailing-message context bridge, v2 interview runtime, and per-session transcript projections. |
 | `mirror-conformance.ts` | Compile-time conformance guard binding the hand-mirrored v2 context types in `types.ts` to the pinned `@opencode/plugin` surface; enforced by `bun run typecheck` — deliberately no `.test.ts` suffix (tsc excludes test files) and never imported at runtime. |
 
-`startup-model-notice.ts` (issue #1919) is a TUI-only informational toast: a
-newly visible root whose session-selected model differs from the preset's
-first orchestrator entry. The server captures the expectation
-(`orchestratorExpectation`, optional in the session-preset bundle/RPC state)
-during `v2.refreshProfiles`; the notice reads it through the existing
-session-preset RPC and writes nothing. Registered from `tui-impl` behind the
-pane-viewer / disabled-command / presetRouting gates; bounded per-client
-tracking, no retry or history scan. The diagnostic field is excluded from
-binding equality (`withoutExpectation`), so it cannot re-pin a child.
-
 ## Session Preset Controls
 
 `disabled_commands: ["preset"]` gates the command, client RPC and sidebar editor
