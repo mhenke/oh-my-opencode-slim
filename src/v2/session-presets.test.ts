@@ -9,7 +9,10 @@ These tests do NOT build the whole v1 plugin.
 import { describe, expect, test } from 'bun:test';
 import { sessionPresetRpc } from './preset-rpc';
 import type { SessionPresetRecord, SessionTeamBundle } from './session-presets';
-import { createSessionPresets } from './session-presets';
+import {
+  createSessionPresets,
+  wrapSessionPresetSubagent,
+} from './session-presets';
 
 const DIRECTORY = '/project';
 
@@ -530,6 +533,304 @@ describe('binding provenance', () => {
       parentID: 'root',
       selection: 'explicit',
     });
+  });
+});
+
+describe('orchestrator expectation', () => {
+  const EXPECTATION_A = {
+    presetName: 'A',
+    firstModel: 'census/alpha',
+    agentIDs: ['orchestrator', 'Lead'],
+  };
+  const EXPECTATION_B = {
+    presetName: 'B',
+    firstModel: 'census/beta',
+    agentIDs: ['orchestrator'],
+  };
+
+  test('bound state carries the stored expectation and legacy bundles omit it', async () => {
+    const h = makeHarness();
+    h.setGetResponse({
+      data: { id: 'bound', location: { directory: DIRECTORY } },
+    });
+    h.storage.set(storageKey('bound'), {
+      schemaVersion: 1,
+      bundle: { ...BUNDLE, orchestratorExpectation: EXPECTATION_A },
+      selection: 'explicit',
+    });
+    const state = await h.presets.readState('bound');
+    expect(state.orchestratorExpectation).toEqual(EXPECTATION_A);
+    expect(sessionPresetRpc.methods.read.output.parse(state)).toEqual(state);
+    expect(h.log).toEqual(['identity', 'kv-read']);
+
+    h.storage.set(storageKey('legacy'), {
+      schemaVersion: 1,
+      bundle: BUNDLE,
+    });
+    h.setGetResponse({
+      data: { id: 'legacy', location: { directory: DIRECTORY } },
+    });
+    const legacy = await h.presets.readState('legacy');
+    expect(legacy).not.toHaveProperty('orchestratorExpectation');
+    expect(sessionPresetRpc.methods.read.output.parse(legacy)).toEqual(legacy);
+  });
+
+  test('an unbound root exposes the validated current expectation read-only', async () => {
+    const h = makeHarness({
+      current: () => ({ ...BUNDLE, orchestratorExpectation: EXPECTATION_A }),
+    });
+    h.setGetResponse({
+      data: { id: 'root', location: { directory: DIRECTORY } },
+    });
+    const state = await h.presets.readState('root');
+    expect(state.status).toBe('unbound');
+    expect(state.orchestratorExpectation).toEqual(EXPECTATION_A);
+    expect(sessionPresetRpc.methods.read.output.parse(state)).toEqual(state);
+    expect([...h.storage.keys()]).toEqual([]);
+    expect(h.log).toEqual(['identity', 'kv-read']);
+  });
+
+  test('an unbound root skips current expectation on throw or config fallback', async () => {
+    const throwing = makeHarness({
+      current: () => {
+        throw new Error('Session team snapshot unavailable');
+      },
+    });
+    throwing.setGetResponse({
+      data: { id: 'root', location: { directory: DIRECTORY } },
+    });
+    const noCurrent = await throwing.presets.readState('root');
+    expect(noCurrent).not.toHaveProperty('orchestratorExpectation');
+
+    let fallback = true;
+    const h = makeHarness({
+      current: () => ({ ...BUNDLE, orchestratorExpectation: EXPECTATION_A }),
+      currentIsFallback: () => fallback,
+    });
+    h.setGetResponse({
+      data: { id: 'root', location: { directory: DIRECTORY } },
+    });
+    expect(await h.presets.readState('root')).not.toHaveProperty(
+      'orchestratorExpectation',
+    );
+    fallback = false;
+    expect((await h.presets.readState('root')).orchestratorExpectation).toEqual(
+      EXPECTATION_A,
+    );
+    expect(h.log).toEqual(['identity', 'kv-read', 'identity', 'kv-read']);
+  });
+
+  test('an unbound child never guesses a default expectation', async () => {
+    const h = makeHarness({
+      current: () => ({ ...BUNDLE, orchestratorExpectation: EXPECTATION_A }),
+    });
+    h.setGetResponse({
+      data: {
+        id: 'child',
+        parentID: 'root',
+        location: { directory: DIRECTORY },
+      },
+    });
+    const state = await h.presets.readState('child');
+    expect(state.status).toBe('unbound');
+    expect(state).not.toHaveProperty('orchestratorExpectation');
+  });
+
+  test('malformed current expectation is skipped, identity errors still reject', async () => {
+    const h = makeHarness({
+      current: () =>
+        ({
+          ...BUNDLE,
+          orchestratorExpectation: {
+            presetName: '',
+            firstModel: 1,
+            agentIDs: [],
+          },
+        }) as unknown as SessionTeamBundle,
+    });
+    h.setGetResponse({
+      data: { id: 'root', location: { directory: DIRECTORY } },
+    });
+    expect(await h.presets.readState('root')).not.toHaveProperty(
+      'orchestratorExpectation',
+    );
+
+    const guarded = makeHarness({
+      current: () => {
+        throw new Error('Session team snapshot unavailable');
+      },
+    });
+    guarded.setGetResponse({
+      data: { id: 'root', location: { directory: '/elsewhere' } },
+    });
+    await expect(guarded.presets.readState('root')).rejects.toThrow(
+      'session/location mismatch',
+    );
+  });
+
+  test('a default binding follows the live expectation while a named binding stays frozen', async () => {
+    let live: SessionTeamBundle = {
+      ...BUNDLE,
+      orchestratorExpectation: EXPECTATION_A,
+    };
+    const h = makeHarness({ current: () => live });
+    h.setGetResponse(
+      (input: { sessionID: string }) =>
+        ({
+          data: {
+            id: input.sessionID,
+            location: { directory: DIRECTORY },
+          },
+        }) as unknown,
+    );
+    await h.presets.ensure('default-root');
+    h.storage.set(storageKey('named-root'), {
+      schemaVersion: 1,
+      bundle: { ...BUNDLE, orchestratorExpectation: EXPECTATION_A },
+      selection: 'explicit',
+    });
+    live = { ...BUNDLE, orchestratorExpectation: EXPECTATION_B };
+    await h.presets.ensure('default-root');
+
+    expect(
+      (await h.presets.readState('default-root')).orchestratorExpectation,
+    ).toEqual(EXPECTATION_B);
+    expect(
+      (await h.presets.readState('named-root')).orchestratorExpectation,
+    ).toEqual(EXPECTATION_A);
+    expect(h.storage.get(storageKey('named-root'))).toMatchObject({
+      selection: 'explicit',
+      bundle: { orchestratorExpectation: EXPECTATION_A },
+    });
+    expect(h.log.filter((entry) => entry === 'kv-write')).toHaveLength(2);
+  });
+  test('apply state carries the applied bundle expectation while legacy stays optional', async () => {
+    let namedBundle: SessionTeamBundle = {
+      ...BUNDLE,
+      presetName: 'A',
+      orchestratorExpectation: EXPECTATION_A,
+    };
+    const h = makeHarness({ named: async () => namedBundle });
+    h.setGetResponse({
+      data: { id: 'root', location: { directory: DIRECTORY } },
+    });
+    const applied = await h.presets.apply('root', 'A');
+    expect(applied.orchestratorExpectation).toEqual(EXPECTATION_A);
+    expect(sessionPresetRpc.methods.apply.output.parse(applied)).toEqual(
+      applied,
+    );
+
+    namedBundle = { ...BUNDLE, presetName: 'legacy' };
+    h.setGetResponse({
+      data: { id: 'legacy-root', location: { directory: DIRECTORY } },
+    });
+    const legacy = await h.presets.apply('legacy-root', 'legacy');
+    expect(legacy).not.toHaveProperty('orchestratorExpectation');
+    // Only the two binding writes; apply never writes a session/config model.
+    expect(h.log.filter((entry) => entry === 'kv-write')).toHaveLength(2);
+  });
+  test('a head-only preset edit does not re-pin a continuing child', async () => {
+    const base: SessionTeamBundle = {
+      ...BUNDLE,
+      profiles: { explorer: { sidebarModel: 'openai/gpt-5-mini' } },
+      orchestratorExpectation: EXPECTATION_A,
+    };
+    const run = async (next: SessionTeamBundle) => {
+      const h = makeHarness();
+      h.setGetResponse((input: { sessionID: string }) => ({
+        data:
+          input.sessionID === 'child'
+            ? {
+                id: 'child',
+                parentID: 'root',
+                agent: 'explorer',
+                location: { directory: DIRECTORY },
+              }
+            : { id: 'root', location: { directory: DIRECTORY } },
+      }));
+      h.storage.set(storageKey('child'), {
+        schemaVersion: 1,
+        parentID: 'root',
+        bundle: base,
+        selection: 'explicit',
+      });
+      const replaced: unknown[] = [];
+      const execute = wrapSessionPresetSubagent({
+        presets: h.presets,
+        capture: async () => ({ bundle: next, explicitModel: false }),
+        replaceProfile: async (_id, _identity, record) => {
+          replaced.push(record);
+          return () => {};
+        },
+        execute: async (_input, raw) => {
+          await (
+            raw as { progress: (update: unknown) => Promise<void> }
+          ).progress({ sessionID: 'child', status: 'running' });
+          return 'ok';
+        },
+      });
+      await execute(
+        { sessionID: 'child', agent: 'explorer' },
+        {
+          sessionID: 'root',
+          id: 'call',
+          signal: new AbortController().signal,
+          progress: async () => {},
+        },
+      );
+      return { replaced, h };
+    };
+    // Identical bundle: no re-pin.
+    expect((await run(base)).replaced).toHaveLength(0);
+    // Head-only edit with identical profiles: the diagnostic field is not part
+    // of the binding decision, so the continuing child is not re-pinned.
+    const headOnly = await run({
+      ...base,
+      orchestratorExpectation: EXPECTATION_B,
+    });
+    expect(headOnly.replaced).toHaveLength(0);
+    expect(
+      (
+        headOnly.h.storage.get(storageKey('child')) as {
+          bundle: SessionTeamBundle;
+        }
+      ).bundle.orchestratorExpectation,
+    ).toEqual(EXPECTATION_A);
+    // Persistence still compares the full bundle: an expectation-only change
+    // on a default root is written and read back.
+    const live = makeHarness({
+      current: () => ({ ...BUNDLE, orchestratorExpectation: EXPECTATION_B }),
+    });
+    live.setGetResponse({
+      data: { id: 'root', location: { directory: DIRECTORY } },
+    });
+    await live.presets.ensure('root');
+    expect(
+      (await live.presets.readState('root')).orchestratorExpectation,
+    ).toEqual(EXPECTATION_B);
+  });
+
+  test('bindChild ignores an expectation-only difference on an existing child', async () => {
+    const h = makeHarness();
+    h.setGetResponse({
+      data: {
+        id: 'child',
+        parentID: 'root',
+        location: { directory: DIRECTORY },
+      },
+    });
+    h.storage.set(storageKey('child'), {
+      schemaVersion: 1,
+      parentID: 'root',
+      bundle: { ...BUNDLE, orchestratorExpectation: EXPECTATION_A },
+      selection: 'explicit',
+    });
+    await expect(
+      h.presets.bindChild('child', 'root', {
+        ...BUNDLE,
+        orchestratorExpectation: EXPECTATION_B,
+      }),
+    ).resolves.toMatchObject({ parentID: 'root' });
   });
 });
 

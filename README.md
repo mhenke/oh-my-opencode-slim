@@ -234,6 +234,9 @@ prompts, tools, skills and MCPs are not switched by the session action.
 The sidebar shows the current session's saved team models and variants;
 `/preset` marks its bound preset separately from the global default. In Web
 and Desktop, bare `/preset` displays the session binding and configured defaults.
+The orchestrator follows the session's model selection, which can differ from
+the preset's first model. A TUI startup notice flags that difference without
+switching models; see [model selection and notice limits](docs/configuration.md#orchestrator-model-selection-and-startup-notice).
 V2 defaults to `backgroundJobs.mode: "native"`: OpenCode owns the child Job
 lifecycle, and Slim keeps exact-ID status, cancellation, permission reply, and
 child progress reporting. V2 applies the old `"managed"` mode as `"native"`

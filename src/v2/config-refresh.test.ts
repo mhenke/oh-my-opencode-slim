@@ -46,7 +46,11 @@ afterEach(() => {
   env.restore();
 });
 
-type ProfilesHook = (options?: { allowInvalidFallback?: boolean }) => Promise<
+type ProfilesHook = (options?: {
+  allowInvalidFallback?: boolean;
+  presetName?: string;
+  detached?: boolean;
+}) => Promise<
   | {
       ok: true;
       profiles: Record<

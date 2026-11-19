@@ -1,5 +1,6 @@
 import { Rpc } from '@opencode/plugin/rpc';
 import { z } from 'zod';
+import { orchestratorExpectationSchema } from './session-presets';
 
 const state = z.object({
   sessionID: z.string(),
@@ -7,6 +8,7 @@ const state = z.object({
   presetName: z.string().nullable(),
   selection: z.enum(['explicit', 'default']).optional(),
   affects: z.literal('future-children-only'),
+  orchestratorExpectation: orchestratorExpectationSchema.optional(),
   team: z
     .object({
       agentModels: z.record(z.string(), z.string()),
