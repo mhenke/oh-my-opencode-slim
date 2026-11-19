@@ -163,9 +163,7 @@ function isSafeDisplayName(displayName: string): boolean {
 /**
  * Apply user-provided overrides to an agent's configuration.
  * Supports overriding model (string or priority array), variant, and temperature.
- * When model is an array, stores it as _modelArray for runtime fallback resolution
- * and selects its primary entry for ephemeral subagents. The orchestrator leaves
- * config.model unset so its live runtime selection is not overwritten.
+ * Stores model arrays as _modelArray for runtime fallback resolution.
  */
 function applyOverrides(
   agent: AgentDefinition,

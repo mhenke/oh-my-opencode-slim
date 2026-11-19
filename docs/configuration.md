@@ -985,9 +985,12 @@ the agent default. Applying a session preset changes delegation settings
 without changing the running root's model.
 
 The same array supplies ordered fallback candidates. If the selected model
-is outside the chain, failover can still try the first entry. The chain does
-not cap spending. `/api/agent` reports agent configuration; the plugin's
-`foreground-fallback` logs show model switches, not a complete usage history.
+is outside the chain, failover scans from the first configured entry,
+skipping models already tried. The chain does not cap spending.
+
+`/api/agent` shows the registered agent default, not the session's model.
+The plugin's `foreground-fallback` logs show model switches, not a complete
+usage history.
 
 When `stripOrchestratorModel` applies, it can suppress a host-configured
 agent default in the registered agent. It does not edit the config file.
